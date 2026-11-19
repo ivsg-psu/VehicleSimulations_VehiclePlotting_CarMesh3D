@@ -161,6 +161,57 @@ assert(vehicleMesh.SimplifyInfo.FinalFaces >= 0.95*vehicleMesh.SimplifyInfo.Orig
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: A panel seen only from behind is turned around (visibility check)
+figNum = 20004;
+titleString = sprintf('TEST case: A panel seen only from behind is turned around (visibility check)');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% A flat open "roof" panel at z = 1, and a tall thin closed post beside
+% it. The post lifts the center of the bounding box above the panel, so
+% the open-surface rule (point away from the center) points the panel
+% down, although it is seen from above.
+panelVertices = [0 -1 1; 4 -1 1; 4 1 1; 0 1 1];
+panelFaces = [1 2 3; 1 3 4];
+% A closed floor slab below the panel blocks the view from underneath,
+% as a vehicle's floor does.
+[postVertices, postFaces] = fcn_INTERNAL_box([-1.2 -1.0 -0.1 0.1 0 3]);
+[floorVertices, floorFaces] = fcn_INTERNAL_box([-0.5 4.5 -1.5 1.5 0.2 0.4]);
+testMesh = struct;
+testMesh.Name = 'panel, post, and floor';
+testMesh.Vertices = [panelVertices; postVertices; floorVertices];
+testMesh.Faces = [panelFaces; postFaces + 4; floorFaces + 12];
+Ntest = size(testMesh.Faces,1);
+testMesh.FacePartIndex = ones(Ntest,1);
+testMesh.FaceWheelIndex = zeros(Ntest,1);
+testMesh.FaceColors = repmat([0.05 0.2 0.6], Ntest, 1);
+testMesh.FaceAlpha = ones(Ntest,1);
+testMesh.FaceMaterialIndex = ones(Ntest,1);
+testMesh.FaceGroupIndex = ones(Ntest,1);
+testMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
+
+withoutCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6, VisibilityCheck=false);
+withCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6);
+
+% Check variable values: the panel faces (normals along z) point up only
+% with the check, and the info says how many were turned
+panelWithout = abs(withoutCheck.FaceNormals(:,3)) > 0.99 & mean(reshape(withoutCheck.Vertices(withoutCheck.Faces,3),[],3),2) > 0.99 ...
+    & mean(reshape(withoutCheck.Vertices(withoutCheck.Faces,3),[],3),2) < 1.01;
+panelWith = abs(withCheck.FaceNormals(:,3)) > 0.99 & mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) > 0.99 ...
+    & mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) < 1.01;
+assert(nnz(panelWith)==2 && nnz(panelWithout)==2);
+assert(all(withoutCheck.FaceNormals(panelWithout,3) < 0));
+assert(all(withCheck.FaceNormals(panelWith,3) > 0));
+assert(isnan(withoutCheck.SimplifyInfo.VisibilityFlips));
+assert(withCheck.SimplifyInfo.VisibilityFlips >= 2);
+% The closed post and floor still point out (their top faces point up)
+postTop = mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) > 2.99;
+assert(all(withCheck.FaceNormals(postTop,3) > 0));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -302,6 +353,11 @@ if 1==0
     vehicleMesh = fcn_CarMesh3D_simplifyMesh(fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh), TargetFaces=2);
 end
 
+%% FAIL case: VisibilityCheck is not true or false
+if 1==0
+    fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_fittedSample(16), VisibilityCheck='yes');
+end
+
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
@@ -375,3 +431,12 @@ v2 = vertices(faces(:,2),:) - referencePoint;
 v3 = vertices(faces(:,3),:) - referencePoint;
 signedVolume = sum(dot(v1, cross(v2, v3, 2), 2))/6;
 end % Ends fcn_INTERNAL_signedVolume
+
+%% fcn_INTERNAL_box
+function [vertices, faces] = fcn_INTERNAL_box(limits)
+% A closed box [xmin xmax ymin ymax zmin zmax], 12 outward triangles
+x = limits(1:2); y = limits(3:4); z = limits(5:6);
+vertices = [x(1) y(1) z(1); x(2) y(1) z(1); x(2) y(2) z(1); x(1) y(2) z(1); ...
+            x(1) y(1) z(2); x(2) y(1) z(2); x(2) y(2) z(2); x(1) y(2) z(2)];
+faces = [1 3 2; 1 4 3; 5 6 7; 5 7 8; 1 2 6; 1 6 5; 2 3 7; 2 7 6; 3 4 8; 3 8 7; 4 1 5; 4 5 8];
+end % Ends fcn_INTERNAL_box

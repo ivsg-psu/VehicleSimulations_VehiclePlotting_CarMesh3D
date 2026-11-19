@@ -44,7 +44,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
 functionsFolder = fileparts(which('fcn_CarMesh3D_calcAckermannSteering'));
-specFile = fullfile(fileparts(functionsFolder),'Data','vehicleParameters_2013ToyotaPriusFour.mat');
+specFile = fullfile(fileparts(functionsFolder),'Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
 vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specFile, FigNum=-1);
 wheelbase = vehicleSpec.Wheelbase;
 track = vehicleSpec.TrackFront;

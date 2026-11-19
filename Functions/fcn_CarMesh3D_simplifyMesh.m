@@ -19,6 +19,14 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      glass panes) point away from the vehicle center. This step looks
 %      at each part and wheel as a whole, so a wheel made of separate
 %      tire and rim colors is still treated as one closed object.
+%   4b. Check what can actually be seen. Downloaded bodies are often
+%      made of many separate open panels (hood, doors, roof), and the rule
+%      in step 4 can point a whole panel inward, which makes it look
+%      darker than the panels around it. So a ray is sent from each face
+%      along its normal and opposite to it. If only the opposite ray
+%      reaches open space, the face is seen from its back and is flipped.
+%      Faces hidden in both directions (inside the body) are left alone.
+%      See-through faces (glass) do not block the rays.
 %   5. Compute unit face normals.
 %
 % Keeping groups separate also gives sharp edges between parts, which
@@ -29,6 +37,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %       vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh,...
 %           (TargetFaces=numFaces),...
 %           (MergeTolerance=tolerance),...
+%           (VisibilityCheck=flag), (MaxVisibilityFaces=numFaces),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -50,6 +59,13 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      MergeTolerance: vertices closer than this distance (in mesh units,
 %      normally meters) are merged. Default is 1e-4 (0.1 mm).
 %
+%      VisibilityCheck: true (default) to do step 4b. Its time grows with
+%      the square of the face count (about 10 s for 15000 faces), so it is
+%      skipped, with a warning, above MaxVisibilityFaces.
+%
+%      MaxVisibilityFaces: the largest face count for step 4b. Default
+%      30000.
+%
 %      FigNum: a figure number to plot the mesh before and after. If empty
 %      or omitted, no plot is made. If set to -1, input checking is
 %      skipped and no plot is made (fast mode).
@@ -61,7 +77,8 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      FaceAlpha, FaceMaterialIndex, FaceGroupIndex), plus:
 %           FaceNormals (M x 3): unit outward normal of each face
 %           SimplifyInfo: a structure with OriginalFaces, FinalFaces,
-%               OriginalVertices, FinalVertices
+%               OriginalVertices, FinalVertices, and VisibilityFlips (the
+%               number of faces step 4b turned around; NaN if skipped)
 %      FaceMaterialIndex and FaceGroupIndex are set to the values of the
 %      first face of each group, since reduced faces no longer map to
 %      single original faces.
@@ -89,6 +106,9 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
 %   % * Light types (FaceLightType) are kept, and groups split by them
+%   % * Added the visibility check (step 4b, VisibilityCheck=): panels
+%   %   % that were pointed inward looked darker than their neighbors
+%   %   % (seen on the 2014 Ford Transit Connect model)
 
 % TO-DO:
 %
@@ -110,6 +130,8 @@ arguments
     vehicleMesh
     options.TargetFaces = 5000      % Approximate total faces after reduction
     options.MergeTolerance = 1e-4   % Distance for merging vertices
+    options.VisibilityCheck = true  % Flip faces that are only seen from behind (step 4b)
+    options.MaxVisibilityFaces = 30000  % Skip step 4b above this many faces
     options.FigNum = []             % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -180,6 +202,14 @@ if 0==flag_max_speed
         % Check the MergeTolerance input
         if ~isnumeric(options.MergeTolerance) || ~isscalar(options.MergeTolerance) || options.MergeTolerance<0
             error('MergeTolerance must be a non-negative number');
+        end
+
+        % Check the VisibilityCheck and MaxVisibilityFaces inputs
+        if ~(islogical(options.VisibilityCheck) || isnumeric(options.VisibilityCheck)) || ~isscalar(options.VisibilityCheck)
+            error('VisibilityCheck must be true or false');
+        end
+        if ~isnumeric(options.MaxVisibilityFaces) || ~isscalar(options.MaxVisibilityFaces) || options.MaxVisibilityFaces<0
+            error('MaxVisibilityFaces must be a non-negative number');
         end
     end
 end
@@ -325,6 +355,21 @@ for ith_key = 1:size(orientKeys,1)
     newFaces(flipIndices,:) = newFaces(flipIndices,[1 3 2]);
 end
 
+% 4b. Visibility: flip faces that can only be seen from behind
+visibilityFlips = NaN;
+if options.VisibilityCheck
+    if size(newFaces,1) <= options.MaxVisibilityFaces
+        [escapeFront, escapeBack] = fcn_INTERNAL_rayEscapes(newVertices, newFaces, newAlpha < 0.999);
+        flagSeenFromBehind = escapeBack & ~escapeFront;
+        newFaces(flagSeenFromBehind,:) = newFaces(flagSeenFromBehind,[1 3 2]);
+        visibilityFlips = sum(flagSeenFromBehind);
+    else
+        warning('fcn_CarMesh3D_simplifyMesh:visibilitySkipped', ...
+            'The visibility check was skipped: %d faces is more than MaxVisibilityFaces (%d). Lower TargetFaces, or raise MaxVisibilityFaces (slower).', ...
+            size(newFaces,1), options.MaxVisibilityFaces);
+    end
+end
+
 % 5. Unit face normals
 faceNormals = cross(...
     newVertices(newFaces(:,2),:) - newVertices(newFaces(:,1),:), ...
@@ -347,7 +392,8 @@ vehicleMesh.SimplifyInfo = struct(...
     'OriginalFaces', Nfaces,...
     'FinalFaces', size(newFaces,1),...
     'OriginalVertices', size(vertices,1),...
-    'FinalVertices', size(newVertices,1));
+    'FinalVertices', size(newVertices,1),...
+    'VisibilityFlips', visibilityFlips);
 
 if flag_do_debug
     fprintf(1,'Simplified: %d -> %d faces, %d -> %d vertices, in %d groups\n',...
@@ -443,6 +489,51 @@ end
 [~, keepRows] = unique(sort(faces,2), 'rows', 'stable');
 faces = faces(sort(keepRows),:);
 end % Ends fcn_INTERNAL_cleanFaces
+
+%% fcn_INTERNAL_rayEscapes
+function [escapeFront, escapeBack] = fcn_INTERNAL_rayEscapes(vertices, faces, flagSeeThrough)
+% For each face, whether a ray from its center along its normal
+% (escapeFront) and against it (escapeBack) leaves the mesh without
+% hitting another face. See-through faces do not block rays.
+% Moller-Trumbore ray/triangle tests, one ray against all faces at a time.
+Nfaces = size(faces,1);
+vertex1 = vertices(faces(:,1),:);
+edge1 = vertices(faces(:,2),:) - vertex1;
+edge2 = vertices(faces(:,3),:) - vertex1;
+normals = cross(edge1, edge2, 2);
+normals = normals ./ max(vecnorm(normals,2,2), eps);
+centers = vertex1 + (edge1 + edge2)/3;
+blockers = find(~flagSeeThrough);
+blockVertex1 = vertex1(blockers,:);
+blockEdge1 = edge1(blockers,:);
+blockEdge2 = edge2(blockers,:);
+offset = 1e-4;   % Start each ray just off its own face
+escapeFront = false(Nfaces,1);
+escapeBack = false(Nfaces,1);
+for ith_face = 1:Nfaces
+    for direction = [1 -1]
+        rayDirection = direction*normals(ith_face,:);
+        rayOrigin = centers(ith_face,:) + offset*rayDirection;
+        crossDirection = [rayDirection(2)*blockEdge2(:,3) - rayDirection(3)*blockEdge2(:,2), ...
+                          rayDirection(3)*blockEdge2(:,1) - rayDirection(1)*blockEdge2(:,3), ...
+                          rayDirection(1)*blockEdge2(:,2) - rayDirection(2)*blockEdge2(:,1)];
+        determinant = sum(blockEdge1.*crossDirection, 2);
+        inverse = 1./determinant;
+        toOrigin = rayOrigin - blockVertex1;
+        u = sum(toOrigin.*crossDirection, 2).*inverse;
+        crossEdge = cross(toOrigin, blockEdge1, 2);
+        v = (crossEdge*rayDirection').*inverse;
+        distance = sum(blockEdge2.*crossEdge, 2).*inverse;
+        flagHit = abs(determinant) > 1e-12 & u >= 0 & v >= 0 & (u + v) <= 1 & distance > 1e-6;
+        flagHit(blockers==ith_face) = false;
+        if direction==1
+            escapeFront(ith_face) = ~any(flagHit);
+        else
+            escapeBack(ith_face) = ~any(flagHit);
+        end
+    end
+end
+end % Ends fcn_INTERNAL_rayEscapes
 
 %% fcn_INTERNAL_orientationFlips
 function flagFlipTotal = fcn_INTERNAL_orientationFlips(vertices, faces, vehicleCenter)

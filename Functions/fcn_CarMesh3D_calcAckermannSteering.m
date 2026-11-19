@@ -101,7 +101,7 @@ function [steerAngles, insideOutsideAngles, turnRadius] = fcn_CarMesh3D_calcAcke
 % EXAMPLES:
 %
 %       % A 2013 Prius steering for a 20 degree bicycle angle
-%       vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('Data/vehicleParameters_2013ToyotaPriusFour.mat');
+%       vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('Data/2013_Toyota_Prius_Four/vehicleParameters_2013_Toyota_Prius_Four.mat');
 %       steerAngles = fcn_CarMesh3D_calcAckermannSteering(deg2rad(20),...
 %           vehicleSpec.Wheelbase, vehicleSpec.TrackFront, FigNum=1);
 %       rad2deg(steerAngles)   % [left right], left (inside) is larger

@@ -9,7 +9,7 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource, options)
 %      such as DistancesLength, DistancesWheelbase, DistancesFrontTrack,
 %      and TireSidewallMarkings, each with matching _Units, _Text,
 %      _PrintFormat, and _AllowableRange fields. Example:
-%           vehicleParameters_2013ToyotaPriusFour.mat
+%           Data\2013_Toyota_Prius_Four\vehicleParameters_2013_Toyota_Prius_Four.mat
 %      Values are converted to meters using the _Units fields.
 %
 %   2. Files holding a CarMesh3D spec structure that was saved earlier
@@ -93,16 +93,15 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource, options)
 % - In fcn_CarMesh3D_loadVehicleSpec
 %   % * Accepts a structure, or an array of vehicleParameters structures
 %   %   (many vehicles at once), as well as a .mat file
+%   % * The Prius file's DistancesFrontOverhang_Text now says "from the
+%   %   center of the front axle" (the old file is kept with an _OLD
+%   %   suffix); removed that TO-DO item
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadVehicleSpec
-%   % * The _Text descriptions of DistancesFrontOverhang and
-%   %   % DistancesRearOverhang in the Prius file say "from the center of
-%   %   % the rear axle", but the values (0.924 + 2.700 + 0.856 = 4.480)
-%   %   % follow the usual definition: front axle to front bumper, and
-%   %   % rear axle to rear bumper. The source files should be corrected.
+%   % * (none)
 
 
 

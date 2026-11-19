@@ -377,6 +377,6 @@ end
 function dataFile = fcn_INTERNAL_priusFile
 % Full path to the example vehicleParameters file in the Data folder
 functionsFolder = fileparts(which('fcn_CarMesh3D_loadVehicleSpec'));
-dataFile = fullfile(fileparts(functionsFolder),'Data','vehicleParameters_2013ToyotaPriusFour.mat');
+dataFile = fullfile(fileparts(functionsFolder),'Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
 assert(exist(dataFile,'file')==2, 'Example data file not found: %s', dataFile);
 end % Ends fcn_INTERNAL_priusFile

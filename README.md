@@ -90,11 +90,98 @@ Read these before writing a file for CarMesh3D:
 
 1. Put this folder somewhere whose path has **no minus signs** (spaces are fine).
 2. Open MATLAB (R2021a or newer; written for 2025a/2025b) and run `script_demo_CarMesh3D.m` from this folder.
-3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/2010-toyota-prius/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
+3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/2013_Toyota_Prius_Four/model/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
 
 There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Data` to the MATLAB path.
 
 **For FBX, glTF, GLB, or .blend models**, also install [Blender](https://www.blender.org) (free). CarMesh3D finds it in the usual install folders. If Blender is installed somewhere else, run `setenv('CARMESH3D_BLENDER_PATH','<full path to blender.exe>')` once per MATLAB session, or pass `BlenderPath=...`. The converted `.obj` is saved next to the original as `<name>_converted.obj` and reused on later calls.
+
+## Vehicles available
+
+These vehicles are finished and checked, and are ready to use. Each one's folder in `Data` holds its parameters, its 3D model, its script, its finished mesh (`vehicleMesh_<ID>.mat`), and its check images and animations (`checks`). The same list is kept in the text file `Data/referenceVehicles.csv`, so it can be read without searching the folders. To use a finished vehicle:
+
+```matlab
+vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2014_Ford_TransitConnect_XLTCargoLWB');
+load(vehicleFiles.MeshFile, 'vehicleMesh', 'vehicleSpec');
+fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=1);
+```
+
+Each animation is the vehicle's `check_09_drive.gif`: the standard test drive (see [Adding a vehicle](#adding-a-vehicle)).
+
+<!-- REFERENCE VEHICLES START -->
+
+| Vehicle | Animation | Size L x W x H (m) | Wheelbase (m) | Faces | Model license |
+|---|---|---|---|---|---|
+| **2013 Toyota Prius Four**<br>`Data/2013_Toyota_Prius_Four` | ![2013_Toyota_Prius_Four](Images/vehicles/2013_Toyota_Prius_Four.gif) | 4.48 x 2.02 x 1.49 | 2.700 | 6648 | Free Standard |
+| **2014 Ford TransitConnect XLTCargoLWB**<br>`Data/2014_Ford_TransitConnect_XLTCargoLWB` | ![2014_Ford_TransitConnect_XLTCargoLWB](Images/vehicles/2014_Ford_TransitConnect_XLTCargoLWB.gif) | 4.81 x 2.13 x 1.85 | 3.063 | 14984 | 2014 Ford Transit Connect Cargo by tonielpro520 is licensed under Creative Commons Attribution |
+
+(This table is written by fcn_CarMesh3D_addReferenceVehicle from Data/referenceVehicles.csv; 2 vehicles.)
+
+<!-- REFERENCE VEHICLES END -->
+
+## Adding a vehicle
+
+Every vehicle gets its own folder in `Data` and its own copy of one standard script. Student contributors: please follow this convention exactly, so that every vehicle can be found by its name.
+
+### Folder names: `YEAR_Make_Model_Trimline`
+
+| Part | Rule | Examples |
+|---|---|---|
+| `YEAR` | The model year, 4 digits | `2013`, `2014` |
+| `Make` | The maker's name | `Toyota`, `Ford`, `MercedesBenz` |
+| `Model` | The model's name | `Prius`, `TransitConnect`, `F150` |
+| `Trimline` | The trim (and anything else needed to tell versions apart, such as body style or wheelbase) | `Four`, `XLTCargoLWB`, `LXSedan` |
+
+- Each part uses only letters and digits: no spaces, hyphens, dots, or underscores inside a part. Write several words in CamelCase (`TransitConnect`, not `Transit Connect` or `Transit-Connect`).
+- The four parts are joined by underscores, so a name always has exactly three underscores. The rule as a regular expression: `^\d{4}_[A-Za-z0-9]+_[A-Za-z0-9]+_[A-Za-z0-9]+$`.
+- This name is the vehicle's **ID**, and it is used in every file name in the folder. `fcn_CarMesh3D_findVehicleFiles(ID)` checks the name and returns all the file paths (and, called with `''`, lists every vehicle folder).
+- Use the year and trim of the vehicle whose parameters you have, even when the 3D model is of a nearby year (the Prius model is a 2010, for a 2013 Prius Four).
+
+### What goes in the folder
+
+| File or folder | Made by | Contents |
+|---|---|---|
+| `vehicleParameters_<ID>.mat` | you | The IVSG `vehicleParameters` structure (see [Vehicle specification files](#vehicle-specification-files)). Keep notes on where each value came from in `vehicleParameters_sources.md`. |
+| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt` (first line: the license name; then the author and download link) |
+| `script_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
+| `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
+| `checks/` | the script | The standard check images, animations, and test motion (below) |
+
+### Steps
+
+1. Make the folder `Data/<ID>`, and put the parameters file and the model in it as above.
+2. Copy `Data/script_vehicle_TEMPLATE.m` into the folder as `script_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
+3. Run it, and look at every file in `checks/` (the list below). The first run usually shows something to fix: the orientation (`check_00`), labels (`check_03`), or lights (`check_04`).
+4. Fix the settings and run again. Most fixes are label edits: regions in meters, with the origin on the ground below the rear axle (`labelEditsAfterFit`), found with `flag_useInteractiveLabelEditor = 1`. Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
+5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more. This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
+
+### The standard checks
+
+`fcn_CarMesh3D_runVehicleChecks` drives every vehicle through the same **standard test motion** (`fcn_CarMesh3D_fillTestMotion`, saved as `checks/testMotion.csv` in the [motion CSV format](#inputs-what-carmesh3d-needs)) in the same **standard scene** (the gray grid with colored cubes on a 10 m grid, kept at least 9 m from the path), with cameras placed as fractions of the vehicle's length and height so that a van and a compact car are framed alike. The test motion has four segments, each testing a group of inputs:
+
+| Segment | Vehicle | Tests |
+|---|---|---|
+| `lights` | parked | Each light alone for 1.2 s: off, low beams, high beams, running lights, left signal, right signal, hazards, brake, backup |
+| `body` | parked | Body roll ±5°, pitch ±3°, heave ±5 cm, then each tire lifted 8 cm in turn (FL, FR, RL, RR) |
+| `steering` | 2 m/s | A 90° left turn then a 90° right turn, at a radius of 1.5 wheelbases, with the turn signals on |
+| `wheels` | driving | A peel-out (front tires spinning twice as fast as the road), cruising, a locked-wheel stop (brake lights), stopped, and backing up (backup lights) |
+
+| File | What to check |
+|---|---|
+| `check_00_orientation.png` | The model after turning it to X forward, Y left, Z up: the front must be toward +X |
+| `check_01_inputs.png` | Every input of the test motion over time |
+| `check_02_dimensions.png`, `.txt` | Target vs. measured length, widths, height, wheelbase, tracks, tire diameter, overhang, and ground clearance |
+| `check_03_labels.png` | Parts and light types in color, from four sides: every tire black, every lamp colored by its type |
+| `check_04_lightStates.png` | Each light alone, at night: only the named light may be lit |
+| `check_05_lights.gif` | The `lights` segment at night, from the front left and from behind |
+| `check_06_body.gif` | The `body` segment, from low at the front left and the rear right |
+| `check_07_steering.gif` | The `steering` segment from overhead, with lines from the turn center to the wheels (Ackermann) |
+| `check_08_wheels.gif` | The `wheels` segment from the side |
+| `check_09_drive.gif` | The `steering` and `wheels` segments from a camera following above and behind (the reference animation) |
+| `check_10_groundContact.png` | Whether the body touches the road during the body segment |
+| `check_summary.txt` | A summary of the above |
+
+A check that shows a problem is doing its job: for example, a model with one material for all its rear lamps shows the whole lamp lit for every rear light in `check_04` until its lamps are split by label edits.
 
 ## Folders
 
@@ -102,8 +189,8 @@ There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Da
 |---|---|
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_CarMesh3D_<name>.m` |
-| `Data` | Vehicle specification files (e.g. `vehicleParameters_2013ToyotaPriusFour.mat`), downloaded models, finished meshes |
-| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo |
+| `Data` | One folder per vehicle, `Data/YEAR_Make_Model_Trimline` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv` |
+| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation |
 
 ## The workflow
 
@@ -115,7 +202,7 @@ There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Da
 | 4. Label parts | `fcn_CarMesh3D_labelParts` | Marks each face as body, glass, wheel, light, or trim from material and group names. Numbers the wheels FL, FR, RL, RR. Sets colors and glass transparency. |
 | 4b. Fix labels | `fcn_CarMesh3D_editLabels` | Corrects labels the name rules got wrong (for example headlights stored as trim), by region in a script or by clicking (see [Fixing labels](#fixing-labels)). Also sets light types for switchable lights. |
 | 5. Fit to spec | `fcn_CarMesh3D_fitMeshToSpec` | Scales the body to length, width, and height, then stretches it so the axles land at the true wheelbase. Moves each wheel, without stretching it, to the true track and tire diameter. Puts the origin below the rear axle. |
-| 6. Simplify | `fcn_CarMesh3D_simplifyMesh` | Merges duplicate vertices, removes bad faces, reduces to a face budget, and makes all normals point outward. |
+| 6. Simplify | `fcn_CarMesh3D_simplifyMesh` | Merges duplicate vertices, removes bad faces, reduces to a face budget, and makes all normals point outward. Last, it checks what can be seen: a face that can only be seen from behind is turned around (`VisibilityCheck=`). |
 | 7. Validate | `fcn_CarMesh3D_validateMesh` | Returns a table of target vs. measured dimensions with percent error, plus side, top, and front views. |
 | 7b. Check the outline | `fcn_CarMesh3D_plotSideImage` | Puts a side-view photo of the real vehicle on the centerline plane, with its wheel centers on the mesh's axles, so the outlines can be compared (see [Checking against a side photo](#checking-against-a-side-photo)). |
 | 8. Plot / animate | `fcn_CarMesh3D_plotVehicle` | Draws the mesh as a few patches under one `hgtransform`. Pass `PlotHandles` back in to move the vehicle quickly. `Finish=` sets how shiny it looks (`'matte'`, `'satin'`, `'glossy'`, `'metallic'`, or `[ka kd ks n sc]`); `ShowEdges=` and `EdgeColor=` control the face edges. Also moves the wheels (`WheelSpin=`, `SteerAngle=`, `WheelLift=`), the body (`BodyRoll=`, `BodyPitch=`, `BodyHeave=`), switches the lights (`LightStates=`), and adds glows and light pools for night scenes (`LightEffects=`). |
@@ -136,10 +223,19 @@ Labeling comes before fitting so the fit can treat wheels as rigid objects. Labe
 | `fcn_CarMesh3D_updateCamera` | Points the camera each frame from the settings and the vehicle pose |
 | `fcn_CarMesh3D_saveGifFrame` | Adds one frame to an animated GIF |
 
+**Vehicle library functions** (used by each vehicle's script; see [Adding a vehicle](#adding-a-vehicle)):
+
+| Function | What it does |
+|---|---|
+| `fcn_CarMesh3D_findVehicleFiles` | Checks a `YEAR_Make_Model_Trimline` ID and returns the paths of all of that vehicle's files (or lists every vehicle folder) |
+| `fcn_CarMesh3D_fillTestMotion` | The standard test motion: lights, body, steering, and wheels segments |
+| `fcn_CarMesh3D_runVehicleChecks` | Runs the standard test motion in the standard scene and saves the check images and GIFs |
+| `fcn_CarMesh3D_addReferenceVehicle` | Adds a finished vehicle to `Data/referenceVehicles.csv`, `Images/vehicles`, and the table in this README |
+
 ### Minimal example
 
 ```matlab
-vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('Data/vehicleParameters_2013ToyotaPriusFour.mat');
+vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('Data/2013_Toyota_Prius_Four/vehicleParameters_2013_Toyota_Prius_Four.mat');
 vehicleMesh = fcn_CarMesh3D_importMesh('Data/myDownloadedCar.obj', License='CC0');
 vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+y', ForwardAxis='-z');
 vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh);
@@ -237,7 +333,7 @@ Every lighting calculation uses each face's **normal**, the direction the face p
 
 Things to know:
 - **A normal comes from the order of a face's corners** (the right-hand rule: curl your fingers along corners 1, 2, 3 and your thumb is the normal). Reversing two corners flips the normal.
-- **Downloaded models often have mixed or flipped normals.** `fcn_CarMesh3D_simplifyMesh` fixes this: it makes neighboring faces agree, then turns each closed surface so it points out. Always run it before plotting. Its plot (with `FigNum`) draws every normal as a short red line, and they should all point outward.
+- **Downloaded models often have mixed or flipped normals.** `fcn_CarMesh3D_simplifyMesh` fixes this: it makes neighboring faces agree, then turns each closed surface so it points out. Many bodies are made of separate open panels (hood, doors, roof), and an open panel has no inside or outside to go by, so it then sends a ray from each face in both directions: a face that can only be seen from its back is turned around. **The sign of a wrong panel** is a body that is one color in the file but shows panels of different shades in a plot, which is how this was found on the Transit Connect model (864 faces were turned). Always run it before plotting. Its plot (with `FigNum`) draws every normal as a short red line, and they should all point outward.
 - **MATLAB uses the opposite convention.** If MATLAB computes normals itself, they point opposite to the right-hand rule, so highlights end up on the inside. `fcn_CarMesh3D_plotVehicle` avoids this by giving MATLAB the outward normals directly (the patch `FaceNormals` and `VertexNormals` properties). If you draw a mesh with your own `patch` call, do the same, or highlights will not appear.
 - **Both sides of a face are lit** (`BackFaceLighting='lit'`), so a mesh with wrong normals still looks roughly right with a matte finish. This hides the problem until you try a shiny finish.
 
@@ -312,10 +408,10 @@ The pools are flat on the ground and ride with the vehicle's ground frame, so th
 The dimension table from `fcn_CarMesh3D_validateMesh` checks lengths, but not shape. To check the shape, `fcn_CarMesh3D_plotSideImage` puts a side-view picture of the real vehicle on a vertical plane through the vehicle's centerline (Y = 0), and draws the vehicle partly see-through around it:
 
 ```matlab
-overlayHandles = fcn_CarMesh3D_plotSideImage('Data/sideView_2013ToyotaPriusFour.jpg', vehicleMesh, FigNum=1);
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, FigNum=1);
 % First time: click the REAR wheel center, then the FRONT one. The values are printed,
 % so later runs can skip the clicking:
-overlayHandles = fcn_CarMesh3D_plotSideImage('Data/sideView_2013ToyotaPriusFour.jpg', vehicleMesh, ...
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, ...
     WheelCentersPixels=[1210 655; 395 652], FigNum=1);
 ```
 
@@ -625,7 +721,14 @@ vehicleSpecs = fcn_CarMesh3D_loadVehicleSpec(allParameters);
 vehicleSpecs(3).Wheelbase
 ```
 
-Note: in the Prius file, the `_Text` descriptions of both overhangs say "from the center of the rear axle." The values use the usual definitions (front axle to front bumper, rear axle to rear bumper), and 0.924 + 2.700 + 0.856 = 4.480. The descriptions should probably be corrected.
+Overhangs use the usual definitions: **front overhang** is from the center of the front axle to the front bumper, and **rear overhang** from the center of the rear axle to the rear bumper, so length = front overhang + wheelbase + rear overhang (for the Prius, 0.924 + 2.700 + 0.856 = 4.480 m). (The Prius file's front-overhang description once said "from the center of the rear axle"; it was corrected on 2026_11_19, and the earlier file is kept as `vehicleParameters_2013_Toyota_Prius_Four_OLD.mat`.)
+
+**Vehicle files in `Data`:** each vehicle's parameters are in its own folder as `vehicleParameters_<ID>.mat` (see [Adding a vehicle](#adding-a-vehicle) and [Vehicles available](#vehicles-available)):
+
+| Folder | Vehicle | 3D model |
+|---|---|---|
+| `Data/2013_Toyota_Prius_Four` | 2013 Toyota Prius Four | A 2010 Toyota Prius (same generation), from Sketchfab (ActsOfDoge) |
+| `Data/2014_Ford_TransitConnect_XLTCargoLWB` | 2014 Ford Transit Connect XLT Cargo Van, long wheelbase | From Sketchfab (CC-BY, tonielpro520). Sources and estimates for each parameter value: `vehicleParameters_sources.md` in that folder |
 
 ## Finding models
 
@@ -633,7 +736,7 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 - **Sketchfab:** many specific production models are available. Filter by "Downloadable," check the license (usually CC-BY, which requires attribution), and expect dense meshes that need `TargetFaces`.
 - OBJ and STL are read directly. FBX, glTF, GLB, and .blend are converted through Blender, which writes Z-up axes. After converting, normalize with `UpAxis='+z'` and check the plot to find the forward axis (often `'-y'` or `'+y'`).
 - Very old ASCII FBX files (version 6.1 and earlier) can't be read by Blender.
-- **Always check the normalize plot.** Part names in downloaded files can be misleading. In the test model `Car3.fbx`, the parts named "Front" are actually at the rear. The red X arrow must point at the front bumper (headlights, not the wing or taillights).
+- **Always check the normalize plot.** Part names in downloaded files can be misleading: a part named "Front" can turn out to be at the rear. The red X arrow must point at the front bumper (headlights, not the wing or taillights).
 - **Textures are not read.** Many downloaded models color their surfaces with texture images (materials named `*_Baked`, or all materials the same gray). Use `UseMaterialColors=false` and `BodyColor=` in `fcn_CarMesh3D_labelParts` to get one clean color per part, and `PartColors=` to choose any part's color (e.g. `PartColors={'body',[0.05 0.2 0.6]; 'glass',[0.3 0.3 0.32]; 'trim',[0 0 0]}`, with `GlassAlpha=0.85` for nearly opaque glass; see Step 10 of the demo). Use `PartRules=` when part names aren't recognized or are misleading (e.g. `PartRules={'17in','wheel'; 'Bumper_Front','body'}`).
 - **Mirrors and width.** Published widths usually exclude mirrors. `fcn_CarMesh3D_fitMeshToSpec` has `WidthReference=`:
   - `'all'` (default): fit the whole model to `OverallWidth`.
@@ -666,6 +769,9 @@ Numbered from the smallest (easiest) to the largest (hardest):
 
 **Done recently** (2026_11_19)
 
+- Open body panels that were pointed inward (and so looked darker) are found and turned by a visibility check in `fcn_CarMesh3D_simplifyMesh`; every vehicle uses the same blue body color by default
+- A vehicle library: one folder per vehicle (`YEAR_Make_Model_Trimline`), a standard script for each, standard checks (test motion, scene, cameras, images, GIFs), and a reference list with an animation of each vehicle
+- 2014 Ford Transit Connect added
 - Signals GIF camera moved closer; overhead cameras centered; driver camera moved forward toward the windshield; Ackermann steering GIF
 - Motion inputs: valid variable names (`roll_rate`, `pitch_rate`, `yaw_rate`); brake and backup lights are inputs only; inputs and assumptions listed near the top of this README
 - Body contact with the road (`fcn_CarMesh3D_checkGroundContact`), and three views of the wheel-lift GIF
