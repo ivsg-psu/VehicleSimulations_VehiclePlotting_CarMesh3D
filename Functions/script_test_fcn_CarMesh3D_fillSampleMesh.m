@@ -1,17 +1,22 @@
-% script_CarMesh3D_normalizeMesh.m
-% Tests fcn_CarMesh3D_normalizeMesh
-% Puts meshes into the CarMesh3D vehicle frame (X forward, Y left, Z up, meters).
+% script_test_fcn_CarMesh3D_fillSampleMesh.m
+% Tests fcn_CarMesh3D_fillSampleMesh
+% Builds a sample car mesh for testing the workflow without downloads.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_normalizeMesh
+% - In script_test_fcn_CarMesh3D_fillSampleMesh
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillSampleMesh
+%   % * Renamed from script_CarMesh3D_fillSampleMesh: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_normalizeMesh
+% - In script_test_fcn_CarMesh3D_fillSampleMesh
 %   % * (fill in items here)
 
 
@@ -36,32 +41,59 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Normalize a messy mesh (mm, Y up, Z forward)
+%% DEMO case: Clean sample mesh from the sedan preset
 figNum = 10001;
-titleString = sprintf('DEMO case: Normalize a messy mesh (mm, Y up, Z forward)');
+titleString = sprintf('DEMO case: Clean sample mesh from the sedan preset');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=figNum);
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
 assert(isstruct(vehicleMesh));
-assert(isstruct(vehicleMesh.NormalizeInfo));
+assert(iscell(vehicleMesh.MaterialNames));
 
 % Check variable sizes
-assert(isequal(size(vehicleMesh.Vertices), size(messyMesh.Vertices)));
+Nfaces = size(vehicleMesh.Faces,1);
+assert(size(vehicleMesh.Vertices,2)==3);
+assert(size(vehicleMesh.Faces,2)==3);
+assert(isequal(size(vehicleMesh.FaceMaterialIndex),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.FaceGroupIndex),[Nfaces 1]));
+assert(length(vehicleMesh.MaterialNames)==6);
+assert(length(vehicleMesh.GroupNames)==7);
 
-% Check variable values: it matches the clean sample, re-centered
-cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
-cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
-assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-6);
-assert(isequal(vehicleMesh.Units,'m'));
+% Check variable values
+assert(all(vehicleMesh.Faces(:)>=1) && all(vehicleMesh.Faces(:)<=size(vehicleMesh.Vertices,1)));
 assert(isequal(vehicleMesh.Frame,'ISO8855'));
-assert(abs(vehicleMesh.NormalizeInfo.MetersPerFileUnit - 0.001)<1e-15);
-assert(abs(det(vehicleMesh.NormalizeInfo.RotationMatrix) - 1)<1e-12); % A rotation, not a mirror
+assert(abs(min(vehicleMesh.Vertices(:,3)))<1e-9); % Tires touch the ground
+vehicleLength = max(vehicleMesh.Vertices(:,1)) - min(vehicleMesh.Vertices(:,1));
+assert(abs(vehicleLength - 4.80)<0.02);
+% Every wheel group has faces
+for ith_wheel = 4:7
+    assert(any(vehicleMesh.FaceGroupIndex==ith_wheel));
+end
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% DEMO case: Messy sample mesh, like a downloaded file (mm, Y up, Z forward)
+figNum = 10002;
+titleString = sprintf('DEMO case: Messy sample mesh, like a downloaded file (mm, Y up, Z forward)');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=figNum);
+
+sgtitle(titleString, 'Interpreter','none');
+
+% Check variable values
+assert(isequal(vehicleMesh.Units,'mm'));
+assert(isequal(vehicleMesh.Frame,'source'));
+% The length is now along the third axis, in mm
+vehicleLength = max(vehicleMesh.Vertices(:,3)) - min(vehicleMesh.Vertices(:,3));
+assert(abs(vehicleLength - 4800)<20);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -84,71 +116,51 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: Numeric units give the same result as auto
+%% TEST case: SUV spec builds a taller sample
 figNum = 20001;
-titleString = sprintf('TEST case: Numeric units give the same result as auto');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
-autoMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z');
-numericMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Units=0.001);
-mmMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Units='mm');
-assert(max(abs(autoMesh.Vertices(:) - numericMesh.Vertices(:)))<1e-12);
-assert(max(abs(autoMesh.Vertices(:) - mmMesh.Vertices(:)))<1e-12);
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: Wrong forward sign turns the car around (X and Y flip)
-figNum = 20002;
-titleString = sprintf('TEST case: Wrong forward sign turns the car around (X and Y flip)');
+titleString = sprintf('TEST case: SUV spec builds a taller sample');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
-rightMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z');
-wrongMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='-z', FigNum=figNum);
-sgtitle(titleString, 'Interpreter','none');
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, FigNum=figNum);
 
-assert(max(abs(wrongMesh.Vertices(:,1) + rightMesh.Vertices(:,1)))<1e-9);
-assert(max(abs(wrongMesh.Vertices(:,2) + rightMesh.Vertices(:,2)))<1e-9);
-assert(max(abs(wrongMesh.Vertices(:,3) - rightMesh.Vertices(:,3)))<1e-9);
+sgtitle(titleString, 'Interpreter','none');
+vehicleHeight = max(vehicleMesh.Vertices(:,3)) - min(vehicleMesh.Vertices(:,3));
+assert(abs(vehicleHeight - vehicleSpec.OverallHeight)<0.02);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
-%% TEST case: A model in inches is detected by auto units
+%% TEST case: Fewer wheel segments gives fewer faces
+figNum = 20002;
+titleString = sprintf('TEST case: Fewer wheel segments gives fewer faces');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+mesh16 = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+mesh8 = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=8, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% Each wheel has 8 faces per segment (2 tread, 4 side rings, 2 rim)
+assert(size(mesh16.Faces,1) - size(mesh8.Faces,1) == 4*8*(16-8));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: Clean and messy samples have the same shape
 figNum = 20003;
-titleString = sprintf('TEST case: A model in inches is detected by auto units');
+titleString = sprintf('TEST case: Clean and messy samples have the same shape');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
-inchMesh = cleanMesh;
-inchMesh.Vertices = cleanMesh.Vertices/0.0254;
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(inchMesh);
-assert(abs(vehicleMesh.NormalizeInfo.MetersPerFileUnit - 0.0254)<1e-15);
-cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
-assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-9);
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: An already-normalized mesh is unchanged except for centering
-figNum = 20004;
-titleString = sprintf('TEST case: An already-normalized mesh is unchanged except for centering');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(cleanMesh);
-assert(isequal(vehicleMesh.NormalizeInfo.RotationMatrix, eye(3)));
-assert(vehicleMesh.NormalizeInfo.MetersPerFileUnit==1);
-cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
-assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-12);
+cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean');
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy');
+assert(isequal(cleanMesh.Faces, messyMesh.Faces));
+% Undo the messy conversion: [x y z]_clean = [z x y]_messy/1000 (after removing the offset)
+undoneVertices = (messyMesh.Vertices - [120 -35 2500])/1000;
+undoneVertices = undoneVertices(:,[3 1 2]);
+assert(max(abs(undoneVertices(:) - cleanMesh.Vertices(:)))<1e-9);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -172,26 +184,25 @@ assert(~any(figHandles==figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% FAST mode, empty figNum
+%% Basic example - NO FIGURE
 figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
-assert(isequal(vehicleMesh.Frame,'ISO8855'));
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
+assert(isstruct(vehicleMesh));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% FAST mode, figNum=-1
+%% Basic fast mode - NO FIGURE, FAST MODE
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=-1);
-assert(isequal(vehicleMesh.Frame,'ISO8855'));
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+assert(isstruct(vehicleMesh));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -203,21 +214,21 @@ fprintf(1,'Figure: %.0f: FAST mode comparisons\n',figNum);
 figure(figNum);
 close(figNum);
 
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+% (no setup needed)
 
-Niterations = 200;
+Niterations = 20;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=-1);
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 end
 fast_method = toc;
 
@@ -231,7 +242,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
+        vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -257,7 +268,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_normalizeMesh: time per call','Interpreter','none');
+title('fcn_CarMesh3D_fillSampleMesh: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -285,19 +296,19 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Up and forward on the same axis
+%% FAIL case: Unknown style
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, UpAxis='+y', ForwardAxis='-y');
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(Style='tidy');
 end
 
-%% FAIL case: Unreadable axis string
+%% FAIL case: Spec missing the wheelbase
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, UpAxis='up');
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=fcn_CarMesh3D_fillVehicleSpec(OverallLength=4.5, OverallWidth=1.8, OverallHeight=1.4));
 end
 
-%% FAIL case: Unknown units
+%% FAIL case: Too few wheel segments
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, Units='ft');
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=3);
 end
 
 %% Functions follow
@@ -311,12 +322,3 @@ end
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% fcn_INTERNAL_recenter
-function vertices = fcn_INTERNAL_recenter(vertices)
-% Centers vertices in X and Y and puts the lowest point at Z = 0, the
-% same way fcn_CarMesh3D_normalizeMesh does
-minValues = min(vertices,[],1);
-maxValues = max(vertices,[],1);
-vertices = vertices - [(minValues(1)+maxValues(1))/2, (minValues(2)+maxValues(2))/2, minValues(3)];
-end % Ends fcn_INTERNAL_recenter

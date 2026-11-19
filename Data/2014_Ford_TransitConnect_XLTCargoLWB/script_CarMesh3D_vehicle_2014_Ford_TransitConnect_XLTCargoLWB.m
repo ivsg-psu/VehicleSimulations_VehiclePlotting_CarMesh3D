@@ -1,5 +1,5 @@
-% script_vehicle_2013_Toyota_Prius_Four.m
-% Builds the CarMesh3D mesh for a 2013 Toyota Prius Four, and runs the standard checks.
+% script_CarMesh3D_vehicle_2014_Ford_TransitConnect_XLTCargoLWB.m
+% Builds the CarMesh3D mesh for a 2014 Ford Transit Connect XLT Cargo Van (long wheelbase), and runs the standard checks.
 %
 % EVERY VEHICLE IN THE Data FOLDER HAS A SCRIPT LIKE THIS ONE. To add a
 % new vehicle:
@@ -10,8 +10,8 @@
 %   2. Put its vehicleParameters structure in that folder as
 %      vehicleParameters_<ID>.mat, and its downloaded 3D model (with the
 %      model's LICENSE.txt) in a "model" subfolder.
-%   3. Copy Data\script_vehicle_TEMPLATE.m into the folder, renamed to
-%      script_vehicle_<ID>.m, and change only the "Vehicle settings"
+%   3. Copy Data\script_CarMesh3D_vehicle_TEMPLATE.m into the folder, renamed to
+%      script_CarMesh3D_vehicle_<ID>.m, and change only the "Vehicle settings"
 %      section below.
 %   4. Run it. Look at every picture and animation in the "checks"
 %      subfolder. Fix the settings (most often the label edits) and run
@@ -30,21 +30,26 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_vehicle_2013_Toyota_Prius_Four
+% - In script_CarMesh3D_vehicle_2014_Ford_TransitConnect_XLTCargoLWB
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2014_Ford_TransitConnect_XLTCargoLWB
+%   % * Renamed from script_vehicle_...: scripts that demonstrate the code
+%   %   % are named script_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_vehicle_2013_Toyota_Prius_Four
-%   % * (none)
+% - In script_CarMesh3D_vehicle_2014_Ford_TransitConnect_XLTCargoLWB
+%   % * Check the rear lamp split against photos of a real Transit Connect
 
 
 %% Vehicle settings (the only part to change for a new vehicle)
-vehicleID = '2013_Toyota_Prius_Four';   % Must match this folder's name
+vehicleID = '2014_Ford_TransitConnect_XLTCargoLWB';   % Must match this folder's name
 
 % The downloaded 3D model, relative to this folder
-modelFile = fullfile('model','source','2010 Toyota Prius.glb')   % A 2010 Prius: same generation (2010-2015);
+modelFile = fullfile('model','source','5230c49a9_FordTransitConnect.glb');
 
 % Turning the model to X forward, Y left, Z up (check check_00_orientation.png:
 % the red X arrow must point at the front bumper). Models converted by
@@ -55,12 +60,12 @@ importForwardAxis = '+x';
 % Labels: which parts are which (fcn_CarMesh3D_labelParts). PartRules
 % pairs a regular expression on the model's group or material names with a
 % part: 'body', 'glass', 'wheel', 'light', or 'trim'.
-partRules = {'17in','wheel'; 'color_notint','trim'};
+partRules = {'Mesh_1','glass'; 'Mesh_2','light'; 'Mesh_3','wheel'; 'Mesh_0','body'}   % This model's groups have no descriptive names;
 useMaterialColors = false;   % false: one color per part (below)
 bodyColor = [0.05 0.20 0.60];   % The standard blue for every vehicle: it shows mislabeled trim and glass clearly
-glassColor = [0.30 0.30 0.32];
-trimColor = [0.02 0.02 0.02];
-glassAlpha = 0.6;          % 0 clear to 1 solid
+glassColor = [0.20 0.22 0.25];
+trimColor = [0.05 0.05 0.05];
+glassAlpha = 0.75;          % 0 clear to 1 solid
 
 % Width: 'all' (the whole model to OverallWidth), 'body' (only body faces),
 % or 'mirrors' (the whole model to WidthWithMirrors, when the mirrors are
@@ -74,19 +79,20 @@ widthReference = 'mirrors';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlight housings and lenses', 'Region',[2.90 3.45 0.45 0.82 0.55 0.82], ...
-    'BothSides',true, 'Material','color_notint|glass_ex', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','front turn signals', 'Region',[3.30 3.50 0.65 0.80 0.25 0.47], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
-labelEditsAfterFit{end+1} = struct('Name','tail lights (upper part)', 'Region',[-0.80 -0.45 0.55 0.80 0.95 1.12], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','tail');
-labelEditsAfterFit{end+1} = struct('Name','rear turn signals (middle)', 'Region',[-0.80 -0.45 0.55 0.80 0.82 0.95], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
-labelEditsAfterFit{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.80 -0.45 0.55 0.80 0.65 0.82], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','backup');
+% The lamp regions below were found from the light faces of the fitted
+% mesh. The split of each rear lamp (upper tail, middle turn signal, lower
+% backup) is an approximation of the real lamp.
+labelEditsAfterFit{end+1} = struct('Name','front turn signals (rear corner of each headlamp)', 'Region',[3.10 3.45 0.60 0.85 0.70 1.10], ...
+    'BothSides',true, 'CurrentPart','light', 'LightType','turnsignal');
+labelEditsAfterFit{end+1} = struct('Name','tail lights (upper part of each rear lamp)', 'Region',[-0.75 -0.50 0.68 0.86 1.17 1.50], ...
+    'BothSides',true, 'CurrentPart','light', 'LightType','tail');
+labelEditsAfterFit{end+1} = struct('Name','rear turn signals (middle part)', 'Region',[-0.75 -0.50 0.68 0.86 1.00 1.17], ...
+    'BothSides',true, 'CurrentPart','light', 'LightType','turnsignal');
+labelEditsAfterFit{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.75 -0.50 0.68 0.86 0.80 1.00], ...
+    'BothSides',true, 'CurrentPart','light', 'LightType','backup');
 
 % Face budget for the finished mesh ([] keeps every face)
-targetFaces = [];
+targetFaces = 15000;
 
 % What to run
 flag_useInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
@@ -187,6 +193,33 @@ function edits = fcn_INTERNAL_editsBeforeFit(vehicleMesh) %#ok<INUSD>
 % (for example, tires stored as part of the body) has to be labeled
 % 'wheel' here, before fitting.
 edits = {};
+
+% In this model the wheel group holds only the rims; the tires are part
+% of the body. Every body face near each rim, within the tire's radius
+% and width, is relabeled as wheel so the tire moves (and spins) with
+% its rim.
+tireRadius = 0.34;       % Just over the model's tire radius [m]
+tireHalfWidth = 0.25;    % From the rim's face to past the tire's inner sidewall [m]
+faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+bodyIndex = find(strcmp(vehicleMesh.PartNames,'body'));
+tireFaces = [];
+for ith_wheel = 1:4
+    rimFaces = vehicleMesh.Faces(vehicleMesh.FaceWheelIndex==ith_wheel,:);
+    if isempty(rimFaces)
+        continue;
+    end
+    rimVertices = vehicleMesh.Vertices(unique(rimFaces(:)),:);
+    wheelCenter = (min(rimVertices,[],1) + max(rimVertices,[],1))/2;
+    % Distance from the axle (in the X-Z plane) and across (Y)
+    radialDistance = sqrt((faceCenters(:,1) - wheelCenter(1)).^2 + (faceCenters(:,3) - wheelCenter(3)).^2);
+    acrossDistance = abs(faceCenters(:,2) - wheelCenter(2));
+    flagTire = vehicleMesh.FacePartIndex==bodyIndex & radialDistance < tireRadius & acrossDistance < tireHalfWidth;
+    tireFaces = [tireFaces; find(flagTire)]; %#ok<AGROW>
+end
+if ~isempty(tireFaces)
+    edits{end+1} = struct('Name','tires (stored as body in this model)', 'FaceIndices',tireFaces, 'Part','wheel');
+end
 end % Ends fcn_INTERNAL_editsBeforeFit
 
 %% fcn_INTERNAL_savePicture

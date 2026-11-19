@@ -91,7 +91,7 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %
 % EXAMPLES:
 %
-%       See the script: script_CarMesh3D_fitMeshToSpec.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_fitMeshToSpec.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_18 by S. Brennan (drafted with

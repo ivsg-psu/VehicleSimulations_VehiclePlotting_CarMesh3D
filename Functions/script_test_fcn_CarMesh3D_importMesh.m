@@ -1,17 +1,22 @@
-% script_CarMesh3D_importMesh.m
+% script_test_fcn_CarMesh3D_importMesh.m
 % Tests fcn_CarMesh3D_importMesh
 % Reads OBJ and STL files, using files written by this script.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_importMesh
+% - In script_test_fcn_CarMesh3D_importMesh
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_importMesh
+%   % * Renamed from script_CarMesh3D_importMesh: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_importMesh
+% - In script_test_fcn_CarMesh3D_importMesh
 %   % * (fill in items here)
 
 
@@ -347,7 +352,7 @@ fclose(fid);
 
 % Geometry
 fid = fopen(objFile,'w');
-fprintf(fid,'# Written by script_CarMesh3D_importMesh\n');
+fprintf(fid,'# Written by script_test_fcn_CarMesh3D_importMesh\n');
 fprintf(fid,'mtllib %s\n', mtlName);
 fprintf(fid,'v %.15g %.15g %.15g\n', vehicleMesh.Vertices');
 currentGroup = 0;

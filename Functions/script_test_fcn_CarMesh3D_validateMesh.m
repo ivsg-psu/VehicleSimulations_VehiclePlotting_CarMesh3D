@@ -1,17 +1,22 @@
-% script_CarMesh3D_labelParts.m
-% Tests fcn_CarMesh3D_labelParts
-% Labels body, glass, wheel, light, and trim faces from material and group names.
+% script_test_fcn_CarMesh3D_validateMesh.m
+% Tests fcn_CarMesh3D_validateMesh
+% Compares a finished mesh against its vehicle specification.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_labelParts
+% - In script_test_fcn_CarMesh3D_validateMesh
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_validateMesh
+%   % * Renamed from script_CarMesh3D_validateMesh: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_labelParts
+% - In script_test_fcn_CarMesh3D_validateMesh
 %   % * (fill in items here)
 
 
@@ -36,48 +41,30 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Label the parts of the sample mesh
+%% DEMO case: Validate a finished mesh against its spec
 figNum = 10001;
-titleString = sprintf('DEMO case: Label the parts of the sample mesh');
+titleString = sprintf('DEMO case: Validate a finished mesh against its spec');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=figNum);
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
+validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
+disp(validationTable);
 
 % Check variable types
-assert(iscell(vehicleMesh.PartNames));
+assert(istable(validationTable));
 
 % Check variable sizes
-Nfaces = size(vehicleMesh.Faces,1);
-assert(isequal(size(vehicleMesh.FacePartIndex),[Nfaces 1]));
-assert(isequal(size(vehicleMesh.FaceWheelIndex),[Nfaces 1]));
-assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
-assert(isequal(size(vehicleMesh.FaceAlpha),[Nfaces 1]));
+assert(10==height(validationTable));
+assert(isequal(validationTable.Properties.VariableNames, {'Quantity','Target_m','Measured_m','Error_m','PercentError','Pass'}));
 
-% Check variable values. The sample has 8 glass faces (windshield 2, rear
-% window 2, side windows 4), 8 light faces, and 4 wheels of 8*16 faces.
-assert(8==sum(vehicleMesh.FacePartIndex==2));
-assert(512==sum(vehicleMesh.FacePartIndex==3));
-assert(8==sum(vehicleMesh.FacePartIndex==4));
-assert(0==sum(vehicleMesh.FacePartIndex==5));
-for ith_wheel = 1:4
-    assert(128==sum(vehicleMesh.FaceWheelIndex==ith_wheel));
-end
-assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.35)<1e-12));
-assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
-% Light types from names: 4 headlight faces and 4 tail light faces
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight'))));
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail'))));
-assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
-
-% Wheel 1 is front-left: positive X and positive Y
-fcn_INTERNAL_checkWheelCorner(vehicleMesh, 1, [ 1  1]);
-fcn_INTERNAL_checkWheelCorner(vehicleMesh, 2, [ 1 -1]);
-fcn_INTERNAL_checkWheelCorner(vehicleMesh, 3, [-1  1]);
-fcn_INTERNAL_checkWheelCorner(vehicleMesh, 4, [-1 -1]);
+% Check variable values
+assert(all(validationTable.Pass));
+wheelbaseRow = validationTable.Quantity=="Wheelbase";
+assert(abs(validationTable.Measured_m(wheelbaseRow) - 2.70)<1e-6);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -100,91 +87,60 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: BodyColor and GlassAlpha options
+%% TEST case: A mesh that is too long fails the length check
 figNum = 20001;
-titleString = sprintf('TEST case: BodyColor and GlassAlpha options');
+titleString = sprintf('TEST case: A mesh that is too long fails the length check');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
+figure(figNum); close(figNum);
 
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.1], GlassAlpha=0.6, FigNum=figNum);
-sgtitle(titleString, 'Interpreter','none');
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
+vehicleMesh.Vertices(:,1) = 1.10*vehicleMesh.Vertices(:,1); % 10% too long
+validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec);
+lengthRow = validationTable.Quantity=="OverallLength";
+assert(~validationTable.Pass(lengthRow));
+assert(abs(validationTable.PercentError(lengthRow) - 10)<1e-6);
 
-bodyColors = vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:);
-assert(all(all(abs(bodyColors - [0.9 0.9 0.1])<1e-12)));
-assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.6)<1e-12));
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% TEST case: User rules are checked before the default rules
+%% TEST case: An unlabeled mesh has no wheel measurements, which do not fail
 figNum = 20002;
-titleString = sprintf('TEST case: User rules are checked before the default rules');
+titleString = sprintf('TEST case: An unlabeled mesh has no wheel measurements, which do not fail');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, PartRules={'CarPaint','trim'});
-assert(0==sum(vehicleMesh.FacePartIndex==1)); % No body faces left
-assert(sum(vehicleMesh.FacePartIndex==5)>0);
+vehicleSpec = fcn_INTERNAL_compactSpec;
+unlabeledMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
+unlabeledMesh = fcn_CarMesh3D_fitMeshToSpec(unlabeledMesh, vehicleSpec, FigNum=-1);
+validationTable = fcn_CarMesh3D_validateMesh(unlabeledMesh, vehicleSpec);
+wheelbaseRow = validationTable.Quantity=="Wheelbase";
+assert(isnan(validationTable.Measured_m(wheelbaseRow)));
+assert(validationTable.Pass(wheelbaseRow));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: A mesh that is not normalized gets no wheel numbers
+%% TEST case: A looser tolerance lets a small error pass
 figNum = 20003;
-titleString = sprintf('TEST case: A mesh that is not normalized gets no wheel numbers');
+titleString = sprintf('TEST case: A looser tolerance lets a small error pass');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
-lastwarn('');
-vehicleMesh = fcn_CarMesh3D_labelParts(messyMesh);
-[warningMessage,~] = lastwarn;
-assert(contains(warningMessage,'normalizeMesh'));
-assert(all(vehicleMesh.FaceWheelIndex==0));
-assert(512==sum(vehicleMesh.FacePartIndex==3)); % Parts are still labeled
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
+vehicleMesh.Vertices(:,3) = 1.03*vehicleMesh.Vertices(:,3); % 3% too tall
+tableStrict = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec);
+tableLoose = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, Tolerance=5);
+heightRow = tableStrict.Quantity=="OverallHeight";
+assert(~tableStrict.Pass(heightRow));
+assert(tableLoose.Pass(heightRow));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
-
-%% TEST case: The word trim is not mistaken for a wheel rim
-figNum = 20004;
-titleString = sprintf('TEST case: The word trim is not mistaken for a wheel rim');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-sampleMesh.MaterialNames{1} = 'Door_trim'; % Rename the paint material
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh);
-assert(0==sum(vehicleMesh.FacePartIndex==1));
-assert(sum(vehicleMesh.FacePartIndex==5)>0); % Became trim, not wheel
-assert(512==sum(vehicleMesh.FacePartIndex==3));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: PartColors sets the color of any part
-figNum = 20005;
-titleString = sprintf('TEST case: PartColors sets the color of any part');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.9], ...
-    PartColors={'body',[0.05 0.2 0.6]; 'glass',[0.35 0.35 0.38]; 'wheel',[0 0 0]}, FigNum=figNum);
-sgtitle(titleString, 'Interpreter','none');
-
-% PartColors wins over BodyColor
-assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:) - [0.05 0.2 0.6])<1e-12)));
-assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==2,:) - [0.35 0.35 0.38])<1e-12)));
-assert(all(all(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==3,:)==0)));
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -209,9 +165,10 @@ figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
-assert(isfield(vehicleMesh,'FacePartIndex'));
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
+validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
+assert(istable(validationTable));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -222,8 +179,8 @@ figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
-assert(isfield(vehicleMesh,'FacePartIndex'));
+validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1);
+assert(istable(validationTable));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -235,21 +192,22 @@ fprintf(1,'Figure: %.0f: FAST mode comparisons\n',figNum);
 figure(figNum);
 close(figNum);
 
-sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
 
 Niterations = 100;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
+    validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
+    validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1);
 end
 fast_method = toc;
 
@@ -263,7 +221,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
+        validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -289,7 +247,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_labelParts: time per call','Interpreter','none');
+title('fcn_CarMesh3D_validateMesh: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -317,24 +275,14 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Unknown part name in a rule
+%% FAIL case: Mesh not normalized
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, PartRules={'Paint','roof'});
+    validationTable = fcn_CarMesh3D_validateMesh(fcn_CarMesh3D_fillSampleMesh(Style='messy'), fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan'));
 end
 
-%% FAIL case: Glass alpha out of range
+%% FAIL case: Negative tolerance
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, GlassAlpha=2);
-end
-
-%% FAIL case: PartColors with an unknown part
-if 1==0
-    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, PartColors={'roof',[1 0 0]});
-end
-
-%% FAIL case: Mesh without materials
-if 1==0
-    vehicleMesh = fcn_CarMesh3D_labelParts(struct('Vertices',rand(3),'Faces',[1 2 3]));
+    validationTable = fcn_CarMesh3D_validateMesh(fcn_CarMesh3D_fillSampleMesh, fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan'), Tolerance=-1);
 end
 
 %% Functions follow
@@ -349,11 +297,37 @@ end
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% fcn_INTERNAL_checkWheelCorner
-function fcn_INTERNAL_checkWheelCorner(vehicleMesh, wheelNumber, expectedSigns)
-% Checks that the faces of one numbered wheel sit at the expected corner,
-% given as the expected signs of [X Y]
+%% fcn_INTERNAL_preparedSample
+function vehicleMesh = fcn_INTERNAL_preparedSample(numWheelSegments)
+% Makes a normalized, labeled sample mesh from the sedan preset
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=numWheelSegments, FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, FigNum=-1);
+end % Ends fcn_INTERNAL_preparedSample
+
+%% fcn_INTERNAL_compactSpec
+function vehicleSpec = fcn_INTERNAL_compactSpec
+% A spec that differs from the sample's sedan preset, so fitting has
+% real work to do. Example values only.
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(...
+    Name='Example compact car',...
+    OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
+    Wheelbase=2.70, TrackFront=1.55, TrackRear=1.56,...
+    TireSize='205/55R16', FrontOverhang=0.88, GroundClearance=0.14,...
+    FigNum=-1);
+end % Ends fcn_INTERNAL_compactSpec
+
+%% fcn_INTERNAL_wheelCenter
+function wheelCenter = fcn_INTERNAL_wheelCenter(vehicleMesh, wheelNumber)
+% Bounding-box center of one numbered wheel
 wheelFaces = vehicleMesh.Faces(vehicleMesh.FaceWheelIndex==wheelNumber,:);
-wheelCenter = mean(vehicleMesh.Vertices(unique(wheelFaces(:)),:),1);
-assert(isequal(sign(wheelCenter(1:2)), expectedSigns));
-end % Ends fcn_INTERNAL_checkWheelCorner
+wheelVertices = vehicleMesh.Vertices(unique(wheelFaces(:)),:);
+wheelCenter = (min(wheelVertices,[],1) + max(wheelVertices,[],1))/2;
+end % Ends fcn_INTERNAL_wheelCenter
+
+%% fcn_INTERNAL_finishedSample
+function vehicleMesh = fcn_INTERNAL_finishedSample
+% A prepared sample, fitted to the compact spec and simplified
+vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(fcn_INTERNAL_preparedSample(16), fcn_INTERNAL_compactSpec, FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, FigNum=-1);
+end % Ends fcn_INTERNAL_finishedSample

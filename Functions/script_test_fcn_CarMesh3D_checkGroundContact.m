@@ -1,4 +1,4 @@
-% script_CarMesh3D_checkGroundContact.m
+% script_test_fcn_CarMesh3D_checkGroundContact.m
 % Tests fcn_CarMesh3D_checkGroundContact
 % Checks whether the body's roll, pitch, and heave push any part of it to
 % the road (possible body damage).
@@ -6,13 +6,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_checkGroundContact
+% - In script_test_fcn_CarMesh3D_checkGroundContact
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_checkGroundContact
+%   % * Renamed from script_CarMesh3D_checkGroundContact: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_checkGroundContact
+% - In script_test_fcn_CarMesh3D_checkGroundContact
 %   % * (fill in items here)
 
 

@@ -1,17 +1,22 @@
-% script_CarMesh3D_plotScene.m
-% Tests fcn_CarMesh3D_plotScene
-% Draws a ground plane, grid, cubes, and a path for vehicles to drive in.
+% script_test_fcn_CarMesh3D_updateCamera.m
+% Tests fcn_CarMesh3D_updateCamera
+% Points an axes camera each animation frame from camera settings and the vehicle pose.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotScene
+% - In script_test_fcn_CarMesh3D_updateCamera
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_updateCamera
+%   % * Renamed from script_CarMesh3D_updateCamera: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotScene
+% - In script_test_fcn_CarMesh3D_updateCamera
 %   % * (fill in items here)
 
 
@@ -36,42 +41,34 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Ground, grid, cubes, and a path
+%% DEMO case: Chase camera following a vehicle around a circle
 figNum = 10001;
-titleString = sprintf('DEMO case: Ground, grid, cubes, and a path');
+titleString = sprintf('DEMO case: Chase camera following a vehicle around a circle');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', Radius=12, Duration=20, FigNum=-1);
-cubes = [10 8 2 1; -10 -8 2 5; 0 18 1.5 3; 25 0 3 4];
-sceneHandles = fcn_CarMesh3D_plotScene(Cubes=cubes, PathXY=trajectory.Pose(:,1:2), FigNum=figNum);
-view(-35,30);
-sgtitle(titleString, 'Interpreter','none');
-
-% Check variable types
-assert(isstruct(sceneHandles));
-
-% Check variable values
-assert(isgraphics(sceneHandles.Ground,'patch'));
-assert(isgraphics(sceneHandles.Cubes,'patch'));
-assert(isgraphics(sceneHandles.Path,'line'));
-assert(size(sceneHandles.Cubes.Faces,1)==6*size(cubes,1)); % 6 sides per cube
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% DEMO case: A vehicle in the scene
-figNum = 10002;
-titleString = sprintf('DEMO case: A vehicle in the scene');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[-10 10 -10 10], GridSpacing=2, Cubes=[6 3 1 2], FigNum=figNum);
 vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1), FigNum=-1);
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=15, Speed=8, Duration=6, FigNum=-1);
+fcn_CarMesh3D_plotScene(GroundExtent=[-30 30 -10 50], Cubes=[0 30 2 1; 15 15 2 4; -15 15 2 5], FigNum=figNum);
 plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
-view(-35,30);
-sgtitle(titleString, 'Interpreter','none');
-assert(plotHandles.Axes==sceneHandles.Axes);
+axis off;
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase');
+for k = 1:length(trajectory.Time)
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), WheelSpin=trajectory.WheelSpin(k,:), ...
+        SteerAngle=trajectory.SteerAngle(k,:), PlotHandles=plotHandles, FigNum=-1);
+    [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, trajectory.Pose(k,:), ...
+        Time=trajectory.Time(k), AxesHandle=plotHandles.Axes, FigNum=-1);
+    drawnow limitrate;
+end
+
+% Check variable values: the camera is 7 m behind and 2.5 m above the
+% rear axle, along the vehicle's heading
+pose = trajectory.Pose(end,:);
+expectedPosition = [pose(1:2) 0] + [cos(pose(3)) sin(pose(3)) 0]*(-7) + [0 0 2.5];
+assert(max(abs(cameraPosition - expectedPosition)) < 1e-9);
+assert(max(abs(get(plotHandles.Axes,'CameraPosition') - expectedPosition)) < 1e-9);
+assert(strcmp(get(plotHandles.Axes,'Projection'),'perspective'));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -94,46 +91,25 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: No grid, no cubes, no path
+%% TEST case: World cameras stay put; orbit cameras go around
 figNum = 20001;
-titleString = sprintf('TEST case: No grid, no cubes, no path');
+titleString = sprintf('TEST case: World cameras stay put; orbit cameras go around');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-sceneHandles = fcn_CarMesh3D_plotScene(GridSpacing=0, FigNum=figNum);
+axesHandle = axes;
+plot3(axesHandle,0,0,0,'o');
+pose = [10 5 pi/3];
+% World position stays put; a vehicle-frame target follows the vehicle
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='roadside');
+[cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, pose, AxesHandle=axesHandle);
+assert(isequal(cameraPosition,[0 -8 1.5]));
+assert(max(abs(cameraTarget - ([10 5 0] + [1.35*cos(pi/3) 1.35*sin(pi/3) 0.7]))) < 1e-9);
+% Orbit: after a quarter turn, a camera that started behind is to the right
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='orbit', Position=[-9 0 4], Target=[0 0 0], OrbitRate=pi/2);
+cameraPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0], Time=1, AxesHandle=axesHandle);
+assert(max(abs(cameraPosition - [0 -9 4])) < 1e-9);
 sgtitle(titleString, 'Interpreter','none');
-assert(isempty(sceneHandles.GridLines));
-assert(isempty(sceneHandles.Cubes));
-assert(isempty(sceneHandles.Path));
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% TEST case: A night scene
-figNum = 20002;
-titleString = sprintf('TEST case: A night scene');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[-20 20 -20 20], Cubes=[10 8 2 1; -6 -9 3 5], TimeOfDay='night', FigNum=figNum);
-view(-35,25);
-title(titleString, 'Interpreter','none','Color',[1 1 1]);
-
-% Check variable types
-assert(isstruct(sceneHandles));
-assert(strcmp(sceneHandles.TimeOfDay,'night'));
-
-% Check variable sizes
-assert(2==length(sceneHandles.Lights));
-
-% Check variable values: dark ground and sky, dim bluish ambient light
-assert(isequal(sceneHandles.Ground.FaceColor,[0.22 0.22 0.25]));
-assert(isequal(get(gcf,'Color'),[0.03 0.04 0.08]));
-assert(isequal(get(gca,'AmbientLightColor'),[0.35 0.38 0.55]));
-
-% Plotting a vehicle now adds no bright daytime lights
-fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=figNum);
-assert(2==length(findobj(gca,'Type','light')));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -156,13 +132,14 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% Basic fast mode - FigNum of -1 draws into the current figure
+%% Basic fast mode - FigNum of -1 skips the input checks
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); clf;
-sceneHandles = fcn_CarMesh3D_plotScene(FigNum=-1);
-assert(isgraphics(sceneHandles.Ground,'patch'));
-assert(isequal(get(gcf,'Number'),figNum));
+axesHandle = axes;
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite');
+cameraPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0], AxesHandle=axesHandle, FigNum=-1);
+assert(isequal(cameraPosition,[-14 0 10]));
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -185,19 +162,14 @@ assert(isequal(get(gcf,'Number'),figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Bad ground extent
+%% FAIL case: Settings not from fillCameraSettings
 if 1==0
-    sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[10 -10 0 5]);
+    fcn_CarMesh3D_updateCamera(struct('Position',[1 2 3]), [0 0 0]);
 end
 
-%% FAIL case: Unknown time of day
+%% FAIL case: Bad pose
 if 1==0
-    fcn_CarMesh3D_plotScene(TimeOfDay='dusk');
-end
-
-%% FAIL case: Cubes with too few columns
-if 1==0
-    sceneHandles = fcn_CarMesh3D_plotScene(Cubes=[1 2 3]);
+    fcn_CarMesh3D_updateCamera(fcn_CarMesh3D_fillCameraSettings, [0 0]);
 end
 
 %% Functions follow

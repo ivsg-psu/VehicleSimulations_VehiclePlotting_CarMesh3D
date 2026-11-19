@@ -1,17 +1,22 @@
-% script_CarMesh3D_saveGifFrame.m
-% Tests fcn_CarMesh3D_saveGifFrame
-% Saves animation frames to an animated GIF.
+% script_test_fcn_CarMesh3D_fillCameraSettings.m
+% Tests fcn_CarMesh3D_fillCameraSettings
+% Makes camera settings: where it sits, what it looks at, and how wide it sees.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_saveGifFrame
+% - In script_test_fcn_CarMesh3D_fillCameraSettings
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillCameraSettings
+%   % * Renamed from script_CarMesh3D_fillCameraSettings: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_saveGifFrame
+% - In script_test_fcn_CarMesh3D_fillCameraSettings
 %   % * (fill in items here)
 
 
@@ -36,26 +41,36 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Save a short spinning animation as a GIF
+%% DEMO case: The chase camera preset, drawn from above and the side
 figNum = 10001;
-titleString = sprintf('DEMO case: Save a short spinning animation as a GIF');
+titleString = sprintf('DEMO case: The chase camera preset, drawn from above and the side');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-gifFile = fullfile(tempdir,'CarMesh3D_testAnimation.gif');
-vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
-plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
-axis([-4 4 -4 4 0 2]); axis off;
-numFrames = 12;
-for k = 1:numFrames
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=[0 0 2*pi*k/numFrames], PlotHandles=plotHandles, FigNum=-1);
-    drawnow;
-    fcn_CarMesh3D_saveGifFrame(gcf, gifFile, k, DelayTime=0.1);
-end
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', FigNum=figNum);
 
-% Check variable values: the file has one image per frame
-gifInfo = imfinfo(gifFile);
-assert(numel(gifInfo)==numFrames);
+% Check variable types
+assert(isstruct(cameraSettings));
+
+% Check variable values
+assert(isequal(cameraSettings.Position,[-7 0 2.5]));
+assert(strcmp(cameraSettings.PositionFrame,'vehicle'));
+assert(strcmp(cameraSettings.TargetFrame,'vehicle'));
+assert(cameraSettings.FieldOfView==50);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% DEMO case: A custom camera - start from kite, fly lower and zoom in
+figNum = 10002;
+titleString = sprintf('DEMO case: A custom camera - start from kite, fly lower and zoom in');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-10 0 5], FieldOfView=30, FigNum=figNum);
+assert(isequal(cameraSettings.Position,[-10 0 5]));
+assert(cameraSettings.FieldOfView==30);
+assert(isequal(cameraSettings.Target,[6 0 0])); % Kept from the preset
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -78,22 +93,28 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: Frame 1 starts a new file
+%% TEST case: Every preset has all settings
 figNum = 20001;
-titleString = sprintf('TEST case: Frame 1 starts a new file');
+titleString = sprintf('TEST case: Every preset has all settings');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
+figure(figNum); close(figNum);
 
-gifFile = fullfile(tempdir,'CarMesh3D_testRestart.gif');
-plot(1:10);
-for k = 1:3
-    fcn_CarMesh3D_saveGifFrame(gcf, gifFile, k);
+modeNames = {'wideFixed','roadside','overhead','chase','driver','roof','side','kite','orbit'};
+for ith_mode = 1:length(modeNames)
+    cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode=modeNames{ith_mode});
+    assert(numel(cameraSettings.Position)==3 && numel(cameraSettings.Target)==3);
+    assert(any(strcmp(cameraSettings.PositionFrame,{'world','vehicle'})));
+    assert(any(strcmp(cameraSettings.TargetFrame,{'world','vehicle'})));
+    assert(cameraSettings.FieldOfView>0);
 end
-fcn_CarMesh3D_saveGifFrame(gcf, gifFile, 1); % Start over
-assert(numel(imfinfo(gifFile))==1);
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='orbit');
+assert(cameraSettings.OrbitRate==0.4);
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='overhead');
+assert(isequal(cameraSettings.UpVector,[0 1 0]));
 
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -113,14 +134,29 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% Basic fast mode - FigNum of -1 skips the input checks
+%% FAST mode, empty figNum
+figNum = 80001;
+fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
+figure(figNum); close(figNum);
+
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='side', FigNum=[]);
+assert(isstruct(cameraSettings));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% FAST mode, figNum=-1
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
-figure(figNum); clf;
-plot(1:10);
-gifFile = fullfile(tempdir,'CarMesh3D_testFast.gif');
-fcn_CarMesh3D_saveGifFrame(gcf, gifFile, 1, FigNum=-1);
-assert(exist(gifFile,'file')==2);
+figure(figNum); close(figNum);
+
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='side', FigNum=-1);
+assert(isstruct(cameraSettings));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -143,14 +179,19 @@ assert(exist(gifFile,'file')==2);
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Not a .gif file name
+%% FAIL case: Unknown mode
 if 1==0
-    fcn_CarMesh3D_saveGifFrame(gcf, 'movie.mp4', 1);
+    cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='drone');
 end
 
-%% FAIL case: Frame number zero
+%% FAIL case: Bad frame name
 if 1==0
-    fcn_CarMesh3D_saveGifFrame(gcf, 'movie.gif', 0);
+    cameraSettings = fcn_CarMesh3D_fillCameraSettings(PositionFrame='car');
+end
+
+%% FAIL case: Field of view out of range
+if 1==0
+    cameraSettings = fcn_CarMesh3D_fillCameraSettings(FieldOfView=200);
 end
 
 %% Functions follow

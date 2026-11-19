@@ -1,17 +1,22 @@
-% script_CarMesh3D_validateMesh.m
-% Tests fcn_CarMesh3D_validateMesh
-% Compares a finished mesh against its vehicle specification.
+% script_test_fcn_CarMesh3D_fillTrajectory.m
+% Tests fcn_CarMesh3D_fillTrajectory
+% Makes vehicle motions: pose, wheel spin (with slip), and steering.
 
 % REVISION HISTORY:
 %
-% 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_validateMesh
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillTrajectory
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillTrajectory
+%   % * Renamed from script_CarMesh3D_fillTrajectory: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
-% 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_validateMesh
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillTrajectory
 %   % * (fill in items here)
 
 
@@ -36,30 +41,65 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Validate a finished mesh against its spec
+%% DEMO case: A circle at constant speed
 figNum = 10001;
-titleString = sprintf('DEMO case: Validate a finished mesh against its spec');
+titleString = sprintf('DEMO case: A circle at constant speed');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-vehicleMesh = fcn_INTERNAL_finishedSample;
-validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=figNum);
-
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=15, Speed=10, Duration=12, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
-disp(validationTable);
 
 % Check variable types
-assert(istable(validationTable));
+assert(isstruct(trajectory));
 
 % Check variable sizes
-assert(10==height(validationTable));
-assert(isequal(validationTable.Properties.VariableNames, {'Quantity','Target_m','Measured_m','Error_m','PercentError','Pass'}));
+K = length(trajectory.Time);
+assert(isequal(size(trajectory.Pose),[K 3]));
+assert(isequal(size(trajectory.WheelSpin),[K 4]));
+assert(isequal(size(trajectory.SteerAngle),[K 2]));
+assert(isequal(size(trajectory.BicycleSteerAngle),[K 1]));
 
 % Check variable values
-assert(all(validationTable.Pass));
-wheelbaseRow = validationTable.Quantity=="Wheelbase";
-assert(abs(validationTable.Measured_m(wheelbaseRow) - 2.70)<1e-6);
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
+% On a circle, curvature is 1/R and steer is atan(wheelbase/R)
+middle = round(K/2);
+assert(abs(trajectory.Curvature(middle) - 1/15) < 0.002);
+assert(abs(trajectory.BicycleSteerAngle(middle) - atan(vehicleSpec.Wheelbase/15)) < 0.005);
+% Ackermann: the left (inside) tire steers more than the right (outside)
+assert(abs(trajectory.SteerAngle(middle,1) - atan(vehicleSpec.Wheelbase/(15 - vehicleSpec.TrackFront/2))) < 0.005);
+assert(abs(trajectory.SteerAngle(middle,2) - atan(vehicleSpec.Wheelbase/(15 + vehicleSpec.TrackFront/2))) < 0.005);
+% Every point is about R from the center (0, R)
+radii = vecnorm(trajectory.Pose(:,1:2) - [0 15], 2, 2);
+assert(max(abs(radii - 15)) < 0.01);
+% Wheels roll: spin = distance / tire radius
+assert(max(abs(trajectory.WheelSpin(end,:) - trajectory.Distance(end)/(vehicleSpec.TireDiameter/2))) < 1e-6);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% DEMO case: Peel out from rest, then lock the wheels to stop
+figNum = 10002;
+titleString = sprintf('DEMO case: Peel out from rest, then lock the wheels to stop');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+Duration = 6;
+dt = 1/20;
+timeValues = (0:dt:Duration)';
+speedValues = min(3*timeValues, 6).*(timeValues<4) + max(6 - 6*(timeValues-4), 0).*(timeValues>=4);
+slip = zeros(length(timeValues),4);
+slip(timeValues<1.5, 1:2) = 2;     % Front wheels spin 3x too fast while launching (front-wheel drive)
+slip(timeValues>=4, :) = -1;       % All wheels locked while braking
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=speedValues, Duration=Duration, SampleTime=dt, ...
+    WheelSlip=slip, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% Peel-out: front wheels have turned more than rear wheels
+assert(trajectory.WheelSpin(end,1) > trajectory.WheelSpin(end,3));
+% Lock-up: no wheel turns after t = 4 s
+locked = trajectory.Time>=4;
+assert(max(max(abs(diff(trajectory.WheelSpin(locked,:))))) < 1e-12);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -82,56 +122,65 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: A mesh that is too long fails the length check
+%% TEST case: Every path type runs, and reverse drives backward
 figNum = 20001;
-titleString = sprintf('TEST case: A mesh that is too long fails the length check');
+titleString = sprintf('TEST case: Every path type runs, and reverse drives backward');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-vehicleMesh = fcn_INTERNAL_finishedSample;
-vehicleMesh.Vertices(:,1) = 1.10*vehicleMesh.Vertices(:,1); % 10% too long
-validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec);
-lengthRow = validationTable.Quantity=="OverallLength";
-assert(~validationTable.Pass(lengthRow));
-assert(abs(validationTable.PercentError(lengthRow) - 10)<1e-6);
+pathNames = {'straight','circle','figureEight','laneChange'};
+for ith_path = 1:length(pathNames)
+    trajectory = fcn_CarMesh3D_fillTrajectory(Path=pathNames{ith_path}, Duration=5);
+    assert(all(isfinite(trajectory.Pose(:))));
+    assert(abs(trajectory.Pose(1,3)) < 0.05); % Starts heading along +X
+end
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='waypoints', Waypoints=[0 0; 20 0; 20 20], Speed=5, Duration=6);
+assert(all(isfinite(trajectory.Pose(:))));
+% Reverse: x goes down, wheels turn backward
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=-2, Duration=3);
+assert(trajectory.Pose(end,1) < -5.9);
+assert(all(trajectory.WheelSpin(end,:) < 0));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: An unlabeled mesh has no wheel measurements, which do not fail
+%% TEST case: Lane change ends one lane over, steering left then right
 figNum = 20002;
-titleString = sprintf('TEST case: An unlabeled mesh has no wheel measurements, which do not fail');
+titleString = sprintf('TEST case: Lane change ends one lane over, steering left then right');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-unlabeledMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
-unlabeledMesh = fcn_CarMesh3D_fitMeshToSpec(unlabeledMesh, vehicleSpec, FigNum=-1);
-validationTable = fcn_CarMesh3D_validateMesh(unlabeledMesh, vehicleSpec);
-wheelbaseRow = validationTable.Quantity=="Wheelbase";
-assert(isnan(validationTable.Measured_m(wheelbaseRow)));
-assert(validationTable.Pass(wheelbaseRow));
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Speed=15, Duration=5);
+assert(abs(trajectory.Pose(end,2) - 3.5) < 0.01);
+assert(max(trajectory.SteerAngle,[],'all') > 0 && min(trajectory.SteerAngle,[],'all') < 0);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: A looser tolerance lets a small error pass
+%% TEST case: StartPose moves and turns the path
 figNum = 20003;
-titleString = sprintf('TEST case: A looser tolerance lets a small error pass');
+titleString = sprintf('TEST case: StartPose moves and turns the path');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-vehicleMesh = fcn_INTERNAL_finishedSample;
-vehicleMesh.Vertices(:,3) = 1.03*vehicleMesh.Vertices(:,3); % 3% too tall
-tableStrict = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec);
-tableLoose = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, Tolerance=5);
-heightRow = tableStrict.Quantity=="OverallHeight";
-assert(~tableStrict.Pass(heightRow));
-assert(tableLoose.Pass(heightRow));
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=10, Duration=1, StartPose=[5 -3 pi/2]);
+assert(max(abs(trajectory.Pose(1,:) - [5 -3 pi/2])) < 1e-9);
+assert(abs(trajectory.Pose(end,1) - 5) < 1e-6 && abs(trajectory.Pose(end,2) - 7) < 1e-6);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: Speed as a function of time
+figNum = 20004;
+titleString = sprintf('TEST case: Speed as a function of time');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+trajectory = fcn_CarMesh3D_fillTrajectory(Speed=@(t) 2*t, Duration=5);
+assert(abs(trajectory.Distance(end) - 25) < 1e-6); % Integral of 2t from 0 to 5
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -160,10 +209,8 @@ figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-vehicleMesh = fcn_INTERNAL_finishedSample;
-validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
-assert(istable(validationTable));
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
+assert(isstruct(trajectory));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -174,8 +221,8 @@ figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1);
-assert(istable(validationTable));
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=-1);
+assert(isstruct(trajectory));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -187,22 +234,21 @@ fprintf(1,'Figure: %.0f: FAST mode comparisons\n',figNum);
 figure(figNum);
 close(figNum);
 
-vehicleSpec = fcn_INTERNAL_compactSpec;
-vehicleMesh = fcn_INTERNAL_finishedSample;
+% (no setup needed)
 
-Niterations = 100;
+Niterations = 20;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
+    trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1);
+    trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=-1);
 end
 fast_method = toc;
 
@@ -216,7 +262,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=[]);
+        trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -242,7 +288,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_validateMesh: time per call','Interpreter','none');
+title('fcn_CarMesh3D_fillTrajectory: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -270,14 +316,19 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Mesh not normalized
+%% FAIL case: Unknown path
 if 1==0
-    validationTable = fcn_CarMesh3D_validateMesh(fcn_CarMesh3D_fillSampleMesh(Style='messy'), fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan'));
+    trajectory = fcn_CarMesh3D_fillTrajectory(Path='spiral');
 end
 
-%% FAIL case: Negative tolerance
+%% FAIL case: Waypoints path without waypoints
 if 1==0
-    validationTable = fcn_CarMesh3D_validateMesh(fcn_CarMesh3D_fillSampleMesh, fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan'), Tolerance=-1);
+    trajectory = fcn_CarMesh3D_fillTrajectory(Path='waypoints');
+end
+
+%% FAIL case: Speed vector of the wrong length
+if 1==0
+    trajectory = fcn_CarMesh3D_fillTrajectory(Speed=[1 2 3], Duration=10);
 end
 
 %% Functions follow
@@ -291,38 +342,3 @@ end
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% fcn_INTERNAL_preparedSample
-function vehicleMesh = fcn_INTERNAL_preparedSample(numWheelSegments)
-% Makes a normalized, labeled sample mesh from the sedan preset
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=numWheelSegments, FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, FigNum=-1);
-end % Ends fcn_INTERNAL_preparedSample
-
-%% fcn_INTERNAL_compactSpec
-function vehicleSpec = fcn_INTERNAL_compactSpec
-% A spec that differs from the sample's sedan preset, so fitting has
-% real work to do. Example values only.
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(...
-    Name='Example compact car',...
-    OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
-    Wheelbase=2.70, TrackFront=1.55, TrackRear=1.56,...
-    TireSize='205/55R16', FrontOverhang=0.88, GroundClearance=0.14,...
-    FigNum=-1);
-end % Ends fcn_INTERNAL_compactSpec
-
-%% fcn_INTERNAL_wheelCenter
-function wheelCenter = fcn_INTERNAL_wheelCenter(vehicleMesh, wheelNumber)
-% Bounding-box center of one numbered wheel
-wheelFaces = vehicleMesh.Faces(vehicleMesh.FaceWheelIndex==wheelNumber,:);
-wheelVertices = vehicleMesh.Vertices(unique(wheelFaces(:)),:);
-wheelCenter = (min(wheelVertices,[],1) + max(wheelVertices,[],1))/2;
-end % Ends fcn_INTERNAL_wheelCenter
-
-%% fcn_INTERNAL_finishedSample
-function vehicleMesh = fcn_INTERNAL_finishedSample
-% A prepared sample, fitted to the compact spec and simplified
-vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(fcn_INTERNAL_preparedSample(16), fcn_INTERNAL_compactSpec, FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, FigNum=-1);
-end % Ends fcn_INTERNAL_finishedSample

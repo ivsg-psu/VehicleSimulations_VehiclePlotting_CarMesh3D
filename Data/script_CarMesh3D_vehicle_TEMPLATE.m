@@ -1,6 +1,6 @@
-% script_vehicle_TEMPLATE.m
+% script_CarMesh3D_vehicle_TEMPLATE.m
 % THE TEMPLATE FOR VEHICLE SCRIPTS: copy it into a vehicle folder as
-% script_vehicle_<ID>.m, then change the "Vehicle settings" section.
+% script_CarMesh3D_vehicle_<ID>.m, then change the "Vehicle settings" section.
 % Builds the CarMesh3D mesh for a vehicle (THIS IS THE TEMPLATE: copy it, do not run it), and runs the standard checks.
 %
 % EVERY VEHICLE IN THE Data FOLDER HAS A SCRIPT LIKE THIS ONE. To add a
@@ -12,8 +12,8 @@
 %   2. Put its vehicleParameters structure in that folder as
 %      vehicleParameters_<ID>.mat, and its downloaded 3D model (with the
 %      model's LICENSE.txt) in a "model" subfolder.
-%   3. Copy Data\script_vehicle_TEMPLATE.m into the folder, renamed to
-%      script_vehicle_<ID>.m, and change only the "Vehicle settings"
+%   3. Copy Data\script_CarMesh3D_vehicle_TEMPLATE.m into the folder, renamed to
+%      script_CarMesh3D_vehicle_<ID>.m, and change only the "Vehicle settings"
 %      section below.
 %   4. Run it. Look at every picture and animation in the "checks"
 %      subfolder. Fix the settings (most often the label edits) and run
@@ -32,13 +32,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_vehicle_YEAR_Make_Model_Trimline
+% - In script_CarMesh3D_vehicle_YEAR_Make_Model_Trimline
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_YEAR_Make_Model_Trimline
+%   % * Renamed from script_vehicle_...: scripts that demonstrate the code
+%   %   % are named script_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_vehicle_YEAR_Make_Model_Trimline
+% - In script_CarMesh3D_vehicle_YEAR_Make_Model_Trimline
 %   % * (fill in items here)
 
 

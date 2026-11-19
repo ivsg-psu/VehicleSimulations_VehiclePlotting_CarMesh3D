@@ -1,4 +1,4 @@
-% script_CarMesh3D_addReferenceVehicle.m
+% script_test_fcn_CarMesh3D_addReferenceVehicle.m
 % Tests fcn_CarMesh3D_addReferenceVehicle
 % Adds vehicles to the reference vehicle list (a GIF in Images\vehicles,
 % a row in Data\referenceVehicles.csv, and the README table). The tests
@@ -7,13 +7,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_addReferenceVehicle
+% - In script_test_fcn_CarMesh3D_addReferenceVehicle
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_addReferenceVehicle
+%   % * Renamed from script_CarMesh3D_addReferenceVehicle: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_addReferenceVehicle
+% - In script_test_fcn_CarMesh3D_addReferenceVehicle
 %   % * (fill in items here)
 
 

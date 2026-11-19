@@ -86,7 +86,7 @@ function [flagContact, clearance, lowestPoint] = fcn_CarMesh3D_checkGroundContac
 %       flagContact = fcn_CarMesh3D_checkGroundContact(vehicleMesh, ...
 %           motion.BodyRoll, motion.BodyPitch, motion.BodyHeave, Time=motion.Time, FigNum=1);
 %
-%       See the script: script_CarMesh3D_checkGroundContact.m for a full
+%       See the script: script_test_fcn_CarMesh3D_checkGroundContact.m for a full
 %       test suite.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with

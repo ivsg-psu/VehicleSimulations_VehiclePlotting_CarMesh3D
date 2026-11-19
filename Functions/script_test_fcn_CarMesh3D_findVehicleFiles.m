@@ -1,17 +1,23 @@
-% script_CarMesh3D_updateCamera.m
-% Tests fcn_CarMesh3D_updateCamera
-% Points an axes camera each animation frame from camera settings and the vehicle pose.
+% script_test_fcn_CarMesh3D_findVehicleFiles.m
+% Tests fcn_CarMesh3D_findVehicleFiles
+% The standard file and folder names for vehicles in the Data folder
+% (YEAR_Make_Model_Trimline).
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_updateCamera
+% - In script_test_fcn_CarMesh3D_findVehicleFiles
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_findVehicleFiles
+%   % * Renamed from script_CarMesh3D_findVehicleFiles: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_updateCamera
+% - In script_test_fcn_CarMesh3D_findVehicleFiles
 %   % * (fill in items here)
 
 
@@ -36,37 +42,32 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Chase camera following a vehicle around a circle
+%% DEMO case: The files for the 2013 Prius, and a list of all vehicles
 figNum = 10001;
-titleString = sprintf('DEMO case: Chase camera following a vehicle around a circle');
+titleString = sprintf('DEMO case: The files for the 2013 Prius, and a list of all vehicles');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
+figure(figNum); close(figNum);
 
-vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1), FigNum=-1);
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=15, Speed=8, Duration=6, FigNum=-1);
-fcn_CarMesh3D_plotScene(GroundExtent=[-30 30 -10 50], Cubes=[0 30 2 1; 15 15 2 4; -15 15 2 5], FigNum=figNum);
-plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
-axis off;
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase');
-for k = 1:length(trajectory.Time)
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), WheelSpin=trajectory.WheelSpin(k,:), ...
-        SteerAngle=trajectory.SteerAngle(k,:), PlotHandles=plotHandles, FigNum=-1);
-    [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, trajectory.Pose(k,:), ...
-        Time=trajectory.Time(k), AxesHandle=plotHandles.Axes, FigNum=-1);
-    drawnow limitrate;
-end
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');
+allVehicles = fcn_CarMesh3D_findVehicleFiles('', FigNum=figNum);
 
-% Check variable values: the camera is 7 m behind and 2.5 m above the
-% rear axle, along the vehicle's heading
-pose = trajectory.Pose(end,:);
-expectedPosition = [pose(1:2) 0] + [cos(pose(3)) sin(pose(3)) 0]*(-7) + [0 0 2.5];
-assert(max(abs(cameraPosition - expectedPosition)) < 1e-9);
-assert(max(abs(get(plotHandles.Axes,'CameraPosition') - expectedPosition)) < 1e-9);
-assert(strcmp(get(plotHandles.Axes,'Projection'),'perspective'));
+% Check variable types
+assert(isstruct(priusFiles));
+assert(isstruct(allVehicles));
 
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
+% Check variable sizes
+assert(isscalar(priusFiles));
+assert(length(allVehicles) >= 2);
+
+% Check variable values
+assert(strcmp(priusFiles.Name,'2013 Toyota Prius Four') && priusFiles.Year==2013);
+assert(endsWith(priusFiles.ParametersFile, fullfile('2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat')));
+assert(priusFiles.HasParameters);
+assert(any(strcmp({allVehicles.ID},'2014_Ford_TransitConnect_XLTCargoLWB')));
+
+% Make sure plot did NOT open up (the list is printed, not plotted)
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
 %% Test cases start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -86,28 +87,23 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: World cameras stay put; orbit cameras go around
+%% TEST case: A new vehicle gets its standard names before any file exists
 figNum = 20001;
-titleString = sprintf('TEST case: World cameras stay put; orbit cameras go around');
+titleString = sprintf('TEST case: A new vehicle gets its standard names before any file exists');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
+figure(figNum); close(figNum);
 
-axesHandle = axes;
-plot3(axesHandle,0,0,0,'o');
-pose = [10 5 pi/3];
-% World position stays put; a vehicle-frame target follows the vehicle
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='roadside');
-[cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, pose, AxesHandle=axesHandle);
-assert(isequal(cameraPosition,[0 -8 1.5]));
-assert(max(abs(cameraTarget - ([10 5 0] + [1.35*cos(pi/3) 1.35*sin(pi/3) 0.7]))) < 1e-9);
-% Orbit: after a quarter turn, a camera that started behind is to the right
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='orbit', Position=[-9 0 4], Target=[0 0 0], OrbitRate=pi/2);
-cameraPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0], Time=1, AxesHandle=axesHandle);
-assert(max(abs(cameraPosition - [0 -9 4])) < 1e-9);
-sgtitle(titleString, 'Interpreter','none');
+newFiles = fcn_CarMesh3D_findVehicleFiles('2019_Toyota_RAV4_XLE');
 
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
+% Check variable values
+assert(strcmp(newFiles.Make,'Toyota') && strcmp(newFiles.Model,'RAV4') && strcmp(newFiles.Trim,'XLE'));
+assert(endsWith(newFiles.ScriptFile, 'script_CarMesh3D_vehicle_2019_Toyota_RAV4_XLE.m'));
+assert(endsWith(newFiles.MeshFile, 'vehicleMesh_2019_Toyota_RAV4_XLE.mat'));
+assert(~newFiles.HasParameters && ~newFiles.HasMesh);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -130,11 +126,14 @@ fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 %% Basic fast mode - FigNum of -1 skips the input checks
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
-figure(figNum); clf;
-axesHandle = axes;
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite');
-cameraPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0], AxesHandle=axesHandle, FigNum=-1);
-assert(isequal(cameraPosition,[-14 0 10]));
+figure(figNum); close(figNum);
+
+fastFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+assert(isequal(fastFiles, priusFiles));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,14 +156,14 @@ assert(isequal(cameraPosition,[-14 0 10]));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Settings not from fillCameraSettings
+%% FAIL case: Spaces and a dash in the name
 if 1==0
-    fcn_CarMesh3D_updateCamera(struct('Position',[1 2 3]), [0 0 0]);
+    fcn_CarMesh3D_findVehicleFiles('2014_Ford_Transit Connect_XLT-LWB');
 end
 
-%% FAIL case: Bad pose
+%% FAIL case: Only three parts
 if 1==0
-    fcn_CarMesh3D_updateCamera(fcn_CarMesh3D_fillCameraSettings, [0 0]);
+    fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius');
 end
 
 %% Functions follow

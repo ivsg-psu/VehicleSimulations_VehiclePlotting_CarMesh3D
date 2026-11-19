@@ -1,17 +1,22 @@
-% script_CarMesh3D_fitMeshToSpec.m
+% script_test_fcn_CarMesh3D_fitMeshToSpec.m
 % Tests fcn_CarMesh3D_fitMeshToSpec
 % Scales meshes to published dimensions, moving the wheels to the true wheelbase and track.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fitMeshToSpec
+% - In script_test_fcn_CarMesh3D_fitMeshToSpec
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fitMeshToSpec
+%   % * Renamed from script_CarMesh3D_fitMeshToSpec: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fitMeshToSpec
+% - In script_test_fcn_CarMesh3D_fitMeshToSpec
 %   % * (fill in items here)
 
 

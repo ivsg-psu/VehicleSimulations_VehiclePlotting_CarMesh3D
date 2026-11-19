@@ -1,4 +1,4 @@
-% script_CarMesh3D_calcAckermannSteering.m
+% script_test_fcn_CarMesh3D_calcAckermannSteering.m
 % Tests fcn_CarMesh3D_calcAckermannSteering
 % Calculates the steer angles of the inside and outside front tires so
 % both turn about the same turn center (Ackermann steering).
@@ -6,13 +6,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_calcAckermannSteering
+% - In script_test_fcn_CarMesh3D_calcAckermannSteering
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_calcAckermannSteering
+%   % * Renamed from script_CarMesh3D_calcAckermannSteering: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_calcAckermannSteering
+% - In script_test_fcn_CarMesh3D_calcAckermannSteering
 %   % * (fill in items here)
 
 

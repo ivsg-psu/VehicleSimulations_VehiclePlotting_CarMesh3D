@@ -1,17 +1,22 @@
-% script_CarMesh3D_loadVehicleSpec.m
+% script_test_fcn_CarMesh3D_loadVehicleSpec.m
 % Tests fcn_CarMesh3D_loadVehicleSpec
 % Loads vehicle data from IVSG vehicleParameters .mat files (or saved CarMesh3D specs).
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_loadVehicleSpec
+% - In script_test_fcn_CarMesh3D_loadVehicleSpec
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_loadVehicleSpec
+%   % * Renamed from script_CarMesh3D_loadVehicleSpec: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_loadVehicleSpec
+% - In script_test_fcn_CarMesh3D_loadVehicleSpec
 %   % * (fill in items here)
 
 

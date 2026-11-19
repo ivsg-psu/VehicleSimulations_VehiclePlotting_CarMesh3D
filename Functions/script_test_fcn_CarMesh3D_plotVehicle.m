@@ -1,21 +1,26 @@
-% script_CarMesh3D_plotVehicle.m
+% script_test_fcn_CarMesh3D_plotVehicle.m
 % Tests fcn_CarMesh3D_plotVehicle
 % Plots meshes and shows the fast pose-update path for animation.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotVehicle
+% - In script_test_fcn_CarMesh3D_plotVehicle
 %   % * First write of the code (drafted with Claude)
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotVehicle
+% - In script_test_fcn_CarMesh3D_plotVehicle
 %   % * Added a 0.05 s pause after each animation frame
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * Renamed from script_CarMesh3D_plotVehicle: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotVehicle
+% - In script_test_fcn_CarMesh3D_plotVehicle
 %   % * (fill in items here)
 
 

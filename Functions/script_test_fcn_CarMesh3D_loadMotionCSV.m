@@ -1,4 +1,4 @@
-% script_CarMesh3D_loadMotionCSV.m
+% script_test_fcn_CarMesh3D_loadMotionCSV.m
 % Tests fcn_CarMesh3D_loadMotionCSV
 % Reads vehicle motions from CSV files in the CarMesh3D column convention,
 % with and without headers, in other units, and with missing columns.
@@ -6,13 +6,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_loadMotionCSV
+% - In script_test_fcn_CarMesh3D_loadMotionCSV
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_loadMotionCSV
+%   % * Renamed from script_CarMesh3D_loadMotionCSV: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_loadMotionCSV
+% - In script_test_fcn_CarMesh3D_loadMotionCSV
 %   % * (fill in items here)
 
 

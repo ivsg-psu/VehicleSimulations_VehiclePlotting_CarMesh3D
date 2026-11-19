@@ -1,17 +1,22 @@
-% script_CarMesh3D_fillSampleMesh.m
-% Tests fcn_CarMesh3D_fillSampleMesh
-% Builds a sample car mesh for testing the workflow without downloads.
+% script_test_fcn_CarMesh3D_fillVehicleSpec.m
+% Tests fcn_CarMesh3D_fillVehicleSpec
+% Shows how to enter published vehicle data.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillSampleMesh
+% - In script_test_fcn_CarMesh3D_fillVehicleSpec
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillVehicleSpec
+%   % * Renamed from script_CarMesh3D_fillVehicleSpec: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillSampleMesh
+% - In script_test_fcn_CarMesh3D_fillVehicleSpec
 %   % * (fill in items here)
 
 
@@ -36,59 +41,64 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Clean sample mesh from the sedan preset
+%% DEMO case: Generic sedan preset, with a dimensioned plot
 figNum = 10001;
-titleString = sprintf('DEMO case: Clean sample mesh from the sedan preset');
+titleString = sprintf('DEMO case: Generic sedan preset, with a dimensioned plot');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=figNum);
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(isstruct(vehicleMesh));
-assert(iscell(vehicleMesh.MaterialNames));
+assert(isstruct(vehicleSpec));
 
 % Check variable sizes
-Nfaces = size(vehicleMesh.Faces,1);
-assert(size(vehicleMesh.Vertices,2)==3);
-assert(size(vehicleMesh.Faces,2)==3);
-assert(isequal(size(vehicleMesh.FaceMaterialIndex),[Nfaces 1]));
-assert(isequal(size(vehicleMesh.FaceGroupIndex),[Nfaces 1]));
-assert(length(vehicleMesh.MaterialNames)==6);
-assert(length(vehicleMesh.GroupNames)==7);
+assert(isscalar(vehicleSpec.OverallLength));
 
 % Check variable values
-assert(all(vehicleMesh.Faces(:)>=1) && all(vehicleMesh.Faces(:)<=size(vehicleMesh.Vertices,1)));
-assert(isequal(vehicleMesh.Frame,'ISO8855'));
-assert(abs(min(vehicleMesh.Vertices(:,3)))<1e-9); % Tires touch the ground
-vehicleLength = max(vehicleMesh.Vertices(:,1)) - min(vehicleMesh.Vertices(:,1));
-assert(abs(vehicleLength - 4.80)<0.02);
-% Every wheel group has faces
-for ith_wheel = 4:7
-    assert(any(vehicleMesh.FaceGroupIndex==ith_wheel));
-end
+assert(isequal(vehicleSpec.Units,'m'));
+assert(abs(vehicleSpec.OverallLength - 4.80)<1e-12);
+% 225/45R17: 2*225*0.45 mm + 17 in = 202.5 mm + 431.8 mm = 634.3 mm
+assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
+% Rear overhang = 4.80 - 2.80 - 0.95
+assert(abs(vehicleSpec.RearOverhang - 1.05)<1e-9);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
-%% DEMO case: Messy sample mesh, like a downloaded file (mm, Y up, Z forward)
+%% DEMO case: Typing in values for a vehicle, as a student would
 figNum = 10002;
-titleString = sprintf('DEMO case: Messy sample mesh, like a downloaded file (mm, Y up, Z forward)');
+titleString = sprintf('DEMO case: Typing in values for a vehicle, as a student would');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=figNum);
+% Example values only. For real vehicles, cite the Source.
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(...
+    Name='Example compact car',...
+    OverallLength=4.55,...
+    OverallWidth=1.80,...
+    OverallHeight=1.42,...
+    Wheelbase=2.70,...
+    TrackFront=1.55,...
+    TireSize='P205/55R16',...
+    FrontOverhang=0.88,...
+    BodyColor=[0.8 0.1 0.1],...
+    Source='Example values for testing',...
+    FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
 
+% Check variable types
+assert(isstruct(vehicleSpec));
+assert(ischar(vehicleSpec.Name));
+
 % Check variable values
-assert(isequal(vehicleMesh.Units,'mm'));
-assert(isequal(vehicleMesh.Frame,'source'));
-% The length is now along the third axis, in mm
-vehicleLength = max(vehicleMesh.Vertices(:,3)) - min(vehicleMesh.Vertices(:,3));
-assert(abs(vehicleLength - 4800)<20);
+assert(isequal(vehicleSpec.TrackRear, vehicleSpec.TrackFront)); % Rear defaults to front
+% 205/55R16: 2*205*0.55 mm + 16 in = 225.5 mm + 406.4 mm = 631.9 mm
+assert(abs(vehicleSpec.TireDiameter - 0.6319)<1e-9);
+assert(abs(vehicleSpec.RearOverhang - (4.55-2.70-0.88))<1e-9);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -111,55 +121,80 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: SUV spec builds a taller sample
+%% TEST case: Values given by the user override the preset
 figNum = 20001;
-titleString = sprintf('TEST case: SUV spec builds a taller sample');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=-1);
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, FigNum=figNum);
-
-sgtitle(titleString, 'Interpreter','none');
-vehicleHeight = max(vehicleMesh.Vertices(:,3)) - min(vehicleMesh.Vertices(:,3));
-assert(abs(vehicleHeight - vehicleSpec.OverallHeight)<0.02);
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% TEST case: Fewer wheel segments gives fewer faces
-figNum = 20002;
-titleString = sprintf('TEST case: Fewer wheel segments gives fewer faces');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-mesh16 = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-mesh8 = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=8, FigNum=figNum);
-sgtitle(titleString, 'Interpreter','none');
-
-% Each wheel has 8 faces per segment (2 tread, 4 side rings, 2 rim)
-assert(size(mesh16.Faces,1) - size(mesh8.Faces,1) == 4*8*(16-8));
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% TEST case: Clean and messy samples have the same shape
-figNum = 20003;
-titleString = sprintf('TEST case: Clean and messy samples have the same shape');
+titleString = sprintf('TEST case: Values given by the user override the preset');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean');
-messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy');
-assert(isequal(cleanMesh.Faces, messyMesh.Faces));
-% Undo the messy conversion: [x y z]_clean = [z x y]_messy/1000 (after removing the offset)
-undoneVertices = (messyMesh.Vertices - [120 -35 2500])/1000;
-undoneVertices = undoneVertices(:,[3 1 2]);
-assert(max(abs(undoneVertices(:) - cleanMesh.Vertices(:)))<1e-9);
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', OverallLength=5.0, Name='Long sedan');
+
+assert(abs(vehicleSpec.OverallLength - 5.0)<1e-12);
+assert(abs(vehicleSpec.Wheelbase - 2.80)<1e-12); % From the preset
+assert(isequal(vehicleSpec.Name,'Long sedan'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
+
+%% TEST case: TireDiameter given directly takes priority over TireSize
+figNum = 20002;
+titleString = sprintf('TEST case: TireDiameter given directly takes priority over TireSize');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45R17', TireDiameter=0.70);
+assert(abs(vehicleSpec.TireDiameter - 0.70)<1e-12);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: Tire sizes with spaces and letters are read
+figNum = 20003;
+titleString = sprintf('TEST case: Tire sizes with spaces and letters are read');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+spec1 = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45ZR17');
+spec2 = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45 R17');
+spec3 = fcn_CarMesh3D_fillVehicleSpec(TireSize="225/45R17"); % string type
+assert(abs(spec1.TireDiameter - 0.6343)<1e-9);
+assert(abs(spec2.TireDiameter - 0.6343)<1e-9);
+assert(abs(spec3.TireDiameter - 0.6343)<1e-9);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: No inputs gives a structure with empty values
+figNum = 20004;
+titleString = sprintf('TEST case: No inputs gives a structure with empty values');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec;
+assert(isempty(vehicleSpec.OverallLength));
+assert(isempty(vehicleSpec.TireDiameter));
+assert(isempty(vehicleSpec.RearOverhang));
+assert(isequal(vehicleSpec.Units,'m'));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: SUV preset
+figNum = 20005;
+titleString = sprintf('TEST case: SUV preset');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(vehicleSpec.OverallHeight > 1.6);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -184,8 +219,10 @@ figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
-assert(isstruct(vehicleMesh));
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
+
+assert(isstruct(vehicleSpec));
+assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -196,8 +233,10 @@ figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
-assert(isstruct(vehicleMesh));
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
+
+assert(isstruct(vehicleSpec));
+assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -211,19 +250,19 @@ close(figNum);
 
 % (no setup needed)
 
-Niterations = 20;
+Niterations = 200;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
 end
 fast_method = toc;
 
@@ -237,7 +276,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=[]);
+        vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -263,7 +302,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_fillSampleMesh: time per call','Interpreter','none');
+title('fcn_CarMesh3D_fillVehicleSpec: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -291,19 +330,29 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Unknown style
+%% FAIL case: Unknown preset name
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(Style='tidy');
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='sportsCar');
 end
 
-%% FAIL case: Spec missing the wheelbase
+%% FAIL case: Negative length
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=fcn_CarMesh3D_fillVehicleSpec(OverallLength=4.5, OverallWidth=1.8, OverallHeight=1.4));
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(OverallLength=-4.5);
 end
 
-%% FAIL case: Too few wheel segments
+%% FAIL case: Wheelbase longer than the vehicle
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(NumWheelSegments=3);
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(OverallLength=2.5, Wheelbase=2.8);
+end
+
+%% FAIL case: Unreadable tire size
+if 1==0
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(TireSize='big tires');
+end
+
+%% FAIL case: Body color out of range
+if 1==0
+    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(BodyColor=[255 0 0]);
 end
 
 %% Functions follow

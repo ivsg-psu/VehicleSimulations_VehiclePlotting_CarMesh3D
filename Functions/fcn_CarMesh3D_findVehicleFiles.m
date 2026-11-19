@@ -15,7 +15,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % Inside the folder:
 %
 %       vehicleParameters_<ID>.mat     the IVSG vehicleParameters structure
-%       script_vehicle_<ID>.m          the vehicle's script: builds the
+%       script_CarMesh3D_vehicle_<ID>.m          the vehicle's script: builds the
 %                                      mesh and runs the standard checks
 %       vehicleMesh_<ID>.mat           the finished mesh (made by the script)
 %       model\                         the downloaded 3D model, its
@@ -69,7 +69,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %
 %       allVehicles = fcn_CarMesh3D_findVehicleFiles('', FigNum=1);   % list them
 %
-%       See the script: script_CarMesh3D_findVehicleFiles.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_findVehicleFiles.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with
@@ -81,6 +81,11 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_findVehicleFiles
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * The vehicle script is now script_CarMesh3D_vehicle_<ID>.m
+%   %   % (was script_vehicle_<ID>.m), following the naming convention
 
 % TO-DO:
 %
@@ -266,7 +271,7 @@ vehicleFiles.Trim = parts{4};
 vehicleFiles.Name = strjoin(parts', ' ');
 vehicleFiles.Folder = fullfile(dataFolder, vehicleID);
 vehicleFiles.ParametersFile = fullfile(vehicleFiles.Folder, ['vehicleParameters_' vehicleID '.mat']);
-vehicleFiles.ScriptFile = fullfile(vehicleFiles.Folder, ['script_vehicle_' vehicleID '.m']);
+vehicleFiles.ScriptFile = fullfile(vehicleFiles.Folder, ['script_CarMesh3D_vehicle_' vehicleID '.m']);
 vehicleFiles.MeshFile = fullfile(vehicleFiles.Folder, ['vehicleMesh_' vehicleID '.mat']);
 vehicleFiles.ModelFolder = fullfile(vehicleFiles.Folder, 'model');
 vehicleFiles.ChecksFolder = fullfile(vehicleFiles.Folder, 'checks');

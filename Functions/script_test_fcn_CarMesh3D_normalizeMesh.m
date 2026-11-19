@@ -1,17 +1,22 @@
-% script_CarMesh3D_fillTrajectory.m
-% Tests fcn_CarMesh3D_fillTrajectory
-% Makes vehicle motions: pose, wheel spin (with slip), and steering.
+% script_test_fcn_CarMesh3D_normalizeMesh.m
+% Tests fcn_CarMesh3D_normalizeMesh
+% Puts meshes into the CarMesh3D vehicle frame (X forward, Y left, Z up, meters).
 
 % REVISION HISTORY:
 %
-% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillTrajectory
+% 2026_11_18 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_normalizeMesh
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_normalizeMesh
+%   % * Renamed from script_CarMesh3D_normalizeMesh: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
-% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillTrajectory
+% 2026_11_18 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_normalizeMesh
 %   % * (fill in items here)
 
 
@@ -36,65 +41,32 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: A circle at constant speed
+%% DEMO case: Normalize a messy mesh (mm, Y up, Z forward)
 figNum = 10001;
-titleString = sprintf('DEMO case: A circle at constant speed');
+titleString = sprintf('DEMO case: Normalize a messy mesh (mm, Y up, Z forward)');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=15, Speed=10, Duration=12, FigNum=figNum);
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=figNum);
+
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(isstruct(trajectory));
+assert(isstruct(vehicleMesh));
+assert(isstruct(vehicleMesh.NormalizeInfo));
 
 % Check variable sizes
-K = length(trajectory.Time);
-assert(isequal(size(trajectory.Pose),[K 3]));
-assert(isequal(size(trajectory.WheelSpin),[K 4]));
-assert(isequal(size(trajectory.SteerAngle),[K 2]));
-assert(isequal(size(trajectory.BicycleSteerAngle),[K 1]));
+assert(isequal(size(vehicleMesh.Vertices), size(messyMesh.Vertices)));
 
-% Check variable values
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
-% On a circle, curvature is 1/R and steer is atan(wheelbase/R)
-middle = round(K/2);
-assert(abs(trajectory.Curvature(middle) - 1/15) < 0.002);
-assert(abs(trajectory.BicycleSteerAngle(middle) - atan(vehicleSpec.Wheelbase/15)) < 0.005);
-% Ackermann: the left (inside) tire steers more than the right (outside)
-assert(abs(trajectory.SteerAngle(middle,1) - atan(vehicleSpec.Wheelbase/(15 - vehicleSpec.TrackFront/2))) < 0.005);
-assert(abs(trajectory.SteerAngle(middle,2) - atan(vehicleSpec.Wheelbase/(15 + vehicleSpec.TrackFront/2))) < 0.005);
-% Every point is about R from the center (0, R)
-radii = vecnorm(trajectory.Pose(:,1:2) - [0 15], 2, 2);
-assert(max(abs(radii - 15)) < 0.01);
-% Wheels roll: spin = distance / tire radius
-assert(max(abs(trajectory.WheelSpin(end,:) - trajectory.Distance(end)/(vehicleSpec.TireDiameter/2))) < 1e-6);
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% DEMO case: Peel out from rest, then lock the wheels to stop
-figNum = 10002;
-titleString = sprintf('DEMO case: Peel out from rest, then lock the wheels to stop');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-Duration = 6;
-dt = 1/20;
-timeValues = (0:dt:Duration)';
-speedValues = min(3*timeValues, 6).*(timeValues<4) + max(6 - 6*(timeValues-4), 0).*(timeValues>=4);
-slip = zeros(length(timeValues),4);
-slip(timeValues<1.5, 1:2) = 2;     % Front wheels spin 3x too fast while launching (front-wheel drive)
-slip(timeValues>=4, :) = -1;       % All wheels locked while braking
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=speedValues, Duration=Duration, SampleTime=dt, ...
-    WheelSlip=slip, FigNum=figNum);
-sgtitle(titleString, 'Interpreter','none');
-
-% Peel-out: front wheels have turned more than rear wheels
-assert(trajectory.WheelSpin(end,1) > trajectory.WheelSpin(end,3));
-% Lock-up: no wheel turns after t = 4 s
-locked = trajectory.Time>=4;
-assert(max(max(abs(diff(trajectory.WheelSpin(locked,:))))) < 1e-12);
+% Check variable values: it matches the clean sample, re-centered
+cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
+cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
+assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-6);
+assert(isequal(vehicleMesh.Units,'m'));
+assert(isequal(vehicleMesh.Frame,'ISO8855'));
+assert(abs(vehicleMesh.NormalizeInfo.MetersPerFileUnit - 0.001)<1e-15);
+assert(abs(det(vehicleMesh.NormalizeInfo.RotationMatrix) - 1)<1e-12); % A rotation, not a mirror
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -117,65 +89,71 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: Every path type runs, and reverse drives backward
+%% TEST case: Numeric units give the same result as auto
 figNum = 20001;
-titleString = sprintf('TEST case: Every path type runs, and reverse drives backward');
+titleString = sprintf('TEST case: Numeric units give the same result as auto');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-pathNames = {'straight','circle','figureEight','laneChange'};
-for ith_path = 1:length(pathNames)
-    trajectory = fcn_CarMesh3D_fillTrajectory(Path=pathNames{ith_path}, Duration=5);
-    assert(all(isfinite(trajectory.Pose(:))));
-    assert(abs(trajectory.Pose(1,3)) < 0.05); % Starts heading along +X
-end
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='waypoints', Waypoints=[0 0; 20 0; 20 20], Speed=5, Duration=6);
-assert(all(isfinite(trajectory.Pose(:))));
-% Reverse: x goes down, wheels turn backward
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=-2, Duration=3);
-assert(trajectory.Pose(end,1) < -5.9);
-assert(all(trajectory.WheelSpin(end,:) < 0));
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+autoMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z');
+numericMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Units=0.001);
+mmMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Units='mm');
+assert(max(abs(autoMesh.Vertices(:) - numericMesh.Vertices(:)))<1e-12);
+assert(max(abs(autoMesh.Vertices(:) - mmMesh.Vertices(:)))<1e-12);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Lane change ends one lane over, steering left then right
+%% TEST case: Wrong forward sign turns the car around (X and Y flip)
 figNum = 20002;
-titleString = sprintf('TEST case: Lane change ends one lane over, steering left then right');
+titleString = sprintf('TEST case: Wrong forward sign turns the car around (X and Y flip)');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
+figure(figNum); clf;
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Speed=15, Duration=5);
-assert(abs(trajectory.Pose(end,2) - 3.5) < 0.01);
-assert(max(trajectory.SteerAngle,[],'all') > 0 && min(trajectory.SteerAngle,[],'all') < 0);
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+rightMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z');
+wrongMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='-z', FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
 
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+assert(max(abs(wrongMesh.Vertices(:,1) + rightMesh.Vertices(:,1)))<1e-9);
+assert(max(abs(wrongMesh.Vertices(:,2) + rightMesh.Vertices(:,2)))<1e-9);
+assert(max(abs(wrongMesh.Vertices(:,3) - rightMesh.Vertices(:,3)))<1e-9);
 
-%% TEST case: StartPose moves and turns the path
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A model in inches is detected by auto units
 figNum = 20003;
-titleString = sprintf('TEST case: StartPose moves and turns the path');
+titleString = sprintf('TEST case: A model in inches is detected by auto units');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=10, Duration=1, StartPose=[5 -3 pi/2]);
-assert(max(abs(trajectory.Pose(1,:) - [5 -3 pi/2])) < 1e-9);
-assert(abs(trajectory.Pose(end,1) - 5) < 1e-6 && abs(trajectory.Pose(end,2) - 7) < 1e-6);
+cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
+inchMesh = cleanMesh;
+inchMesh.Vertices = cleanMesh.Vertices/0.0254;
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(inchMesh);
+assert(abs(vehicleMesh.NormalizeInfo.MetersPerFileUnit - 0.0254)<1e-15);
+cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
+assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-9);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Speed as a function of time
+%% TEST case: An already-normalized mesh is unchanged except for centering
 figNum = 20004;
-titleString = sprintf('TEST case: Speed as a function of time');
+titleString = sprintf('TEST case: An already-normalized mesh is unchanged except for centering');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Speed=@(t) 2*t, Duration=5);
-assert(abs(trajectory.Distance(end) - 25) < 1e-6); % Integral of 2t from 0 to 5
+cleanMesh = fcn_CarMesh3D_fillSampleMesh(Style='clean', FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(cleanMesh);
+assert(isequal(vehicleMesh.NormalizeInfo.RotationMatrix, eye(3)));
+assert(vehicleMesh.NormalizeInfo.MetersPerFileUnit==1);
+cleanVertices = fcn_INTERNAL_recenter(cleanMesh.Vertices);
+assert(max(abs(vehicleMesh.Vertices(:) - cleanVertices(:)))<1e-12);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -204,8 +182,9 @@ figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
-assert(isstruct(trajectory));
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
+assert(isequal(vehicleMesh.Frame,'ISO8855'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -216,8 +195,8 @@ figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=-1);
-assert(isstruct(trajectory));
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=-1);
+assert(isequal(vehicleMesh.Frame,'ISO8855'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -229,21 +208,21 @@ fprintf(1,'Figure: %.0f: FAST mode comparisons\n',figNum);
 figure(figNum);
 close(figNum);
 
-% (no setup needed)
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
 
-Niterations = 20;
+Niterations = 200;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=-1);
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=-1);
 end
 fast_method = toc;
 
@@ -257,7 +236,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=[]);
+        vehicleMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -283,7 +262,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_fillTrajectory: time per call','Interpreter','none');
+title('fcn_CarMesh3D_normalizeMesh: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -311,19 +290,19 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Unknown path
+%% FAIL case: Up and forward on the same axis
 if 1==0
-    trajectory = fcn_CarMesh3D_fillTrajectory(Path='spiral');
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, UpAxis='+y', ForwardAxis='-y');
 end
 
-%% FAIL case: Waypoints path without waypoints
+%% FAIL case: Unreadable axis string
 if 1==0
-    trajectory = fcn_CarMesh3D_fillTrajectory(Path='waypoints');
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, UpAxis='up');
 end
 
-%% FAIL case: Speed vector of the wrong length
+%% FAIL case: Unknown units
 if 1==0
-    trajectory = fcn_CarMesh3D_fillTrajectory(Speed=[1 2 3], Duration=10);
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(fcn_CarMesh3D_fillSampleMesh, Units='ft');
 end
 
 %% Functions follow
@@ -337,3 +316,12 @@ end
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_recenter
+function vertices = fcn_INTERNAL_recenter(vertices)
+% Centers vertices in X and Y and puts the lowest point at Z = 0, the
+% same way fcn_CarMesh3D_normalizeMesh does
+minValues = min(vertices,[],1);
+maxValues = max(vertices,[],1);
+vertices = vertices - [(minValues(1)+maxValues(1))/2, (minValues(2)+maxValues(2))/2, minValues(3)];
+end % Ends fcn_INTERNAL_recenter

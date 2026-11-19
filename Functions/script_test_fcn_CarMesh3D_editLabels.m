@@ -1,17 +1,22 @@
-% script_CarMesh3D_editLabels.m
+% script_test_fcn_CarMesh3D_editLabels.m
 % Tests fcn_CarMesh3D_editLabels
 % Corrects part and light labels, by script or by clicking.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_editLabels
+% - In script_test_fcn_CarMesh3D_editLabels
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_editLabels
+%   % * Renamed from script_CarMesh3D_editLabels: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_editLabels
+% - In script_test_fcn_CarMesh3D_editLabels
 %   % * (fill in items here)
 
 

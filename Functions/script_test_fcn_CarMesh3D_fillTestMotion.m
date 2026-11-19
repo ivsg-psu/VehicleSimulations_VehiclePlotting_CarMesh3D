@@ -1,17 +1,23 @@
-% script_CarMesh3D_fillCameraSettings.m
-% Tests fcn_CarMesh3D_fillCameraSettings
-% Makes camera settings: where it sits, what it looks at, and how wide it sees.
+% script_test_fcn_CarMesh3D_fillTestMotion.m
+% Tests fcn_CarMesh3D_fillTestMotion
+% The standard test motion, which uses every motion input in short,
+% labeled segments (lights, body, steering, wheels).
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillCameraSettings
+% - In script_test_fcn_CarMesh3D_fillTestMotion
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillTestMotion
+%   % * Renamed from script_CarMesh3D_fillTestMotion: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillCameraSettings
+% - In script_test_fcn_CarMesh3D_fillTestMotion
 %   % * (fill in items here)
 
 
@@ -36,36 +42,52 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: The chase camera preset, drawn from above and the side
+%% DEMO case: The standard test motion for a generic sedan
 figNum = 10001;
-titleString = sprintf('DEMO case: The chase camera preset, drawn from above and the side');
+titleString = sprintf('DEMO case: The standard test motion for a generic sedan');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', FigNum=figNum);
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
+csvFile = fullfile(tempdir,'CarMesh3D_testMotion.csv');
+testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, CSVFile=csvFile, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(isstruct(cameraSettings));
+assert(isstruct(testMotion));
+assert(iscell(testMotion.Caption));
+
+% Check variable sizes
+K = length(testMotion.Time);
+assert(isequal(size(testMotion.Caption),[K 1]));
+assert(isequal(size(testMotion.WheelSpin),[K 4]));
+assert(length(testMotion.Segments)==4);
 
 % Check variable values
-assert(isequal(cameraSettings.Position,[-7 0 2.5]));
-assert(strcmp(cameraSettings.PositionFrame,'vehicle'));
-assert(strcmp(cameraSettings.TargetFrame,'vehicle'));
-assert(cameraSettings.FieldOfView==50);
-
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% DEMO case: A custom camera - start from kite, fly lower and zoom in
-figNum = 10002;
-titleString = sprintf('DEMO case: A custom camera - start from kite, fly lower and zoom in');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-10 0 5], FieldOfView=30, FigNum=figNum);
-assert(isequal(cameraSettings.Position,[-10 0 5]));
-assert(cameraSettings.FieldOfView==30);
-assert(isequal(cameraSettings.Target,[6 0 0])); % Kept from the preset
+assert(isequal({testMotion.Segments.Name}, {'lights','body','steering','wheels'}));
+assert(isfile(csvFile) && strcmp(testMotion.CSVFile, csvFile));
+% Lights: each light appears, alone, in the lights segment
+inLights = testMotion.Time <= testMotion.Segments(1).EndTime;
+lightStates = testMotion.LightStates(inLights);
+assert(any(strcmp({lightStates.Headlights},'high')) && any([lightStates.TurnLeft]) && any([lightStates.Backup]));
+assert(any(strcmp({lightStates.Tail},'brake')));
+% Body: roll reaches 5 degrees; each tire is lifted at some time
+assert(abs(max(testMotion.BodyRoll) - deg2rad(5)) < deg2rad(0.1));
+assert(all(max(testMotion.WheelLift,[],1) > 0.07));
+% Steering: near full lock, inside tire steers more
+assert(max(testMotion.SteerAngle(:,1)) > max(testMotion.SteerAngle(:,2)));
+assert(max(rad2deg(testMotion.SteerAngle(:))) > 30);
+% Wheels: locked during hard braking (spin does not change), and the
+% front tires spin faster than the rear during the peel-out
+% (wheel speeds are written as rates and integrated back, so the first
+% and last two rows of the locked span are blurred slightly; check the rest)
+lockedRows = find(contains(testMotion.Caption, 'locked'));
+lockedRows = lockedRows(3:end-2);
+assert(max(abs(diff(testMotion.WheelSpin(lockedRows,:))),[],'all') < 1e-6);
+peelRows = contains(testMotion.Caption, 'peel-out');
+assert(all(diff(testMotion.WheelSpin(peelRows,1)) >= diff(testMotion.WheelSpin(peelRows,3))));
+% The vehicle ends where it started its steering turns: heading back to 0
+assert(abs(testMotion.Pose(end,6)) < deg2rad(1));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -88,28 +110,24 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: Every preset has all settings
+%% TEST case: A longer vehicle turns on a wider circle
 figNum = 20001;
-titleString = sprintf('TEST case: Every preset has all settings');
+titleString = sprintf('TEST case: A longer vehicle turns on a wider circle');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
+figure(figNum); clf;
 
-modeNames = {'wideFixed','roadside','overhead','chase','driver','roof','side','kite','orbit'};
-for ith_mode = 1:length(modeNames)
-    cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode=modeNames{ith_mode});
-    assert(numel(cameraSettings.Position)==3 && numel(cameraSettings.Target)==3);
-    assert(any(strcmp(cameraSettings.PositionFrame,{'world','vehicle'})));
-    assert(any(strcmp(cameraSettings.TargetFrame,{'world','vehicle'})));
-    assert(cameraSettings.FieldOfView>0);
-end
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='orbit');
-assert(cameraSettings.OrbitRate==0.4);
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='overhead');
-assert(isequal(cameraSettings.UpVector,[0 1 0]));
+vanSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=-1);
+vanMotion = fcn_CarMesh3D_fillTestMotion(vanSpec, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
 
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+% Check variable values: the turn radius is 1.5 wheelbases, so the
+% centerline steer angle at full turn is the same for both vehicles
+bicycleSedan = atan(vehicleSpec.Wheelbase/(1.5*vehicleSpec.Wheelbase));
+assert(abs(max(atan(mean(tan(vanMotion.SteerAngle),2))) - bicycleSedan) < deg2rad(3));
+assert(isempty(vanMotion.CSVFile));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,25 +147,13 @@ assert(~any(figHandles==figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% FAST mode, empty figNum
-figNum = 80001;
-fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
-figure(figNum); close(figNum);
-
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='side', FigNum=[]);
-assert(isstruct(cameraSettings));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% FAST mode, figNum=-1
+%% Basic fast mode - FigNum of -1 skips the input checks
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='side', FigNum=-1);
-assert(isstruct(cameraSettings));
+fastMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, FigNum=-1);
+assert(isequal(fastMotion.Pose, testMotion.Pose));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -174,19 +180,9 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Unknown mode
+%% FAIL case: Not a vehicle spec
 if 1==0
-    cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='drone');
-end
-
-%% FAIL case: Bad frame name
-if 1==0
-    cameraSettings = fcn_CarMesh3D_fillCameraSettings(PositionFrame='car');
-end
-
-%% FAIL case: Field of view out of range
-if 1==0
-    cameraSettings = fcn_CarMesh3D_fillCameraSettings(FieldOfView=200);
+    fcn_CarMesh3D_fillTestMotion(struct('Length',4));
 end
 
 %% Functions follow

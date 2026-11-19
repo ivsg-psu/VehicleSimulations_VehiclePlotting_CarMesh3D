@@ -37,7 +37,7 @@
 %   % * Core functions: fillVehicleSpec, loadVehicleSpec, fillSampleMesh,
 %   %   % importMesh, normalizeMesh, labelParts, fitMeshToSpec,
 %   %   % simplifyMesh, validateMesh, plotVehicle
-%   % * Each core function has a matching script_CarMesh3D_<name> test
+%   % * Each core function has a matching script_test_fcn_CarMesh3D_<name> test
 %   %   % script in the Functions folder
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -118,7 +118,7 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
     OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
     Wheelbase=2.70, TrackFront=1.55, TireSize='205/55R16',...
     FrontOverhang=0.88, Source='Example values',...
-    FigNum=figNum); %#ok<NASGU>
+    FigNum=figNum); 
 
 %% Step 2: A shape source
 % The starting example is a free low-poly 2010 Toyota Prius model (a .glb
@@ -219,7 +219,7 @@ disp(validationTable);
 
 flag_saveToLibrary = 0; % Set to 1 to save
 if flag_saveToLibrary
-    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']);
+    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']); %#ok<UNRCH>
     save(libraryFile,'vehicleMesh');
     fprintf(1,'Saved: %s\n', libraryFile);
 end

@@ -1,17 +1,22 @@
-% script_CarMesh3D_saveMotionCSV.m
+% script_test_fcn_CarMesh3D_saveMotionCSV.m
 % Tests fcn_CarMesh3D_saveMotionCSV
 % Writes vehicle motions to CSV files in the CarMesh3D column convention.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_saveMotionCSV
+% - In script_test_fcn_CarMesh3D_saveMotionCSV
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_saveMotionCSV
+%   % * Renamed from script_CarMesh3D_saveMotionCSV: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_saveMotionCSV
+% - In script_test_fcn_CarMesh3D_saveMotionCSV
 %   % * (fill in items here)
 
 

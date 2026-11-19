@@ -97,8 +97,8 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %       load(vehicleFiles.MeshFile, 'vehicleMesh');
 %       fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleMesh.VehicleSpec, vehicleFiles.ChecksFolder);
 %
-%       See the script: script_CarMesh3D_runVehicleChecks.m for a test,
-%       and the vehicle scripts (Data\<ID>\script_vehicle_<ID>.m).
+%       See the script: script_test_fcn_CarMesh3D_runVehicleChecks.m for a test,
+%       and the vehicle scripts (Data\<ID>\script_CarMesh3D_vehicle_<ID>.m).
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with
 % Claude)

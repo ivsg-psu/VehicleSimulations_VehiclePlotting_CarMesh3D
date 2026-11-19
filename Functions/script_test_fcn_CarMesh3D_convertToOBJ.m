@@ -1,17 +1,22 @@
-% script_CarMesh3D_convertToOBJ.m
+% script_test_fcn_CarMesh3D_convertToOBJ.m
 % Tests fcn_CarMesh3D_convertToOBJ
 % Converts FBX, glTF, GLB, and .blend files to OBJ by running Blender in the background.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_convertToOBJ
+% - In script_test_fcn_CarMesh3D_convertToOBJ
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_convertToOBJ
+%   % * Renamed from script_CarMesh3D_convertToOBJ: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_convertToOBJ
+% - In script_test_fcn_CarMesh3D_convertToOBJ
 %   % * (fill in items here)
 
 
@@ -277,7 +282,7 @@ fclose(fid);
 
 % Geometry
 fid = fopen(objFile,'w');
-fprintf(fid,'# Written by script_CarMesh3D_importMesh\n');
+fprintf(fid,'# Written by script_test_fcn_CarMesh3D_importMesh\n');
 fprintf(fid,'mtllib %s\n', mtlName);
 fprintf(fid,'v %.15g %.15g %.15g\n', vehicleMesh.Vertices');
 currentGroup = 0;

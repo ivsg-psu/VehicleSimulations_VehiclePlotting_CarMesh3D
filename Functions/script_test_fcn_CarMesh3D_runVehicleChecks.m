@@ -1,4 +1,4 @@
-% script_CarMesh3D_runVehicleChecks.m
+% script_test_fcn_CarMesh3D_runVehicleChecks.m
 % Tests fcn_CarMesh3D_runVehicleChecks
 % The standard checks for a vehicle: the standard test motion in the
 % standard scene, saved as images and GIFs.
@@ -6,13 +6,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_runVehicleChecks
+% - In script_test_fcn_CarMesh3D_runVehicleChecks
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_runVehicleChecks
+%   % * Renamed from script_CarMesh3D_runVehicleChecks: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_runVehicleChecks
+% - In script_test_fcn_CarMesh3D_runVehicleChecks
 %   % * (fill in items here)
 
 

@@ -1,17 +1,22 @@
-% script_CarMesh3D_simplifyMesh.m
+% script_test_fcn_CarMesh3D_simplifyMesh.m
 % Tests fcn_CarMesh3D_simplifyMesh
 % Merges, cleans, reduces, and orients meshes so normals point outward.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_simplifyMesh
+% - In script_test_fcn_CarMesh3D_simplifyMesh
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_simplifyMesh
+%   % * Renamed from script_CarMesh3D_simplifyMesh: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_simplifyMesh
+% - In script_test_fcn_CarMesh3D_simplifyMesh
 %   % * (fill in items here)
 
 

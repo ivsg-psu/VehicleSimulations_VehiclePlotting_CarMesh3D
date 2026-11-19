@@ -122,7 +122,7 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 %           Lights=struct('headlights',1,'indicator',1));
 %       motion = fcn_CarMesh3D_loadMotionCSV('circle.csv');
 %
-%       See the script: script_CarMesh3D_saveMotionCSV.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_saveMotionCSV.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with

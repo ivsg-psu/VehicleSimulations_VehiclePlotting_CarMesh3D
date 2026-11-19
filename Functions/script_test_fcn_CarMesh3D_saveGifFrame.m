@@ -1,18 +1,22 @@
-% script_CarMesh3D_findVehicleFiles.m
-% Tests fcn_CarMesh3D_findVehicleFiles
-% The standard file and folder names for vehicles in the Data folder
-% (YEAR_Make_Model_Trimline).
+% script_test_fcn_CarMesh3D_saveGifFrame.m
+% Tests fcn_CarMesh3D_saveGifFrame
+% Saves animation frames to an animated GIF.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_findVehicleFiles
+% - In script_test_fcn_CarMesh3D_saveGifFrame
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_saveGifFrame
+%   % * Renamed from script_CarMesh3D_saveGifFrame: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_findVehicleFiles
+% - In script_test_fcn_CarMesh3D_saveGifFrame
 %   % * (fill in items here)
 
 
@@ -37,32 +41,29 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: The files for the 2013 Prius, and a list of all vehicles
+%% DEMO case: Save a short spinning animation as a GIF
 figNum = 10001;
-titleString = sprintf('DEMO case: The files for the 2013 Prius, and a list of all vehicles');
+titleString = sprintf('DEMO case: Save a short spinning animation as a GIF');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
+figure(figNum); clf;
 
-priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');
-allVehicles = fcn_CarMesh3D_findVehicleFiles('', FigNum=figNum);
+gifFile = fullfile(tempdir,'CarMesh3D_testAnimation.gif');
+vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
+axis([-4 4 -4 4 0 2]); axis off;
+numFrames = 12;
+for k = 1:numFrames
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=[0 0 2*pi*k/numFrames], PlotHandles=plotHandles, FigNum=-1);
+    drawnow;
+    fcn_CarMesh3D_saveGifFrame(gcf, gifFile, k, DelayTime=0.1);
+end
 
-% Check variable types
-assert(isstruct(priusFiles));
-assert(isstruct(allVehicles));
+% Check variable values: the file has one image per frame
+gifInfo = imfinfo(gifFile);
+assert(numel(gifInfo)==numFrames);
 
-% Check variable sizes
-assert(isscalar(priusFiles));
-assert(length(allVehicles) >= 2);
-
-% Check variable values
-assert(strcmp(priusFiles.Name,'2013 Toyota Prius Four') && priusFiles.Year==2013);
-assert(endsWith(priusFiles.ParametersFile, fullfile('2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat')));
-assert(priusFiles.HasParameters);
-assert(any(strcmp({allVehicles.ID},'2014_Ford_TransitConnect_XLTCargoLWB')));
-
-% Make sure plot did NOT open up (the list is printed, not plotted)
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% Test cases start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,23 +83,22 @@ assert(~any(figHandles==figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: A new vehicle gets its standard names before any file exists
+%% TEST case: Frame 1 starts a new file
 figNum = 20001;
-titleString = sprintf('TEST case: A new vehicle gets its standard names before any file exists');
+titleString = sprintf('TEST case: Frame 1 starts a new file');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
+figure(figNum); clf;
 
-newFiles = fcn_CarMesh3D_findVehicleFiles('2019_Toyota_RAV4_XLE');
+gifFile = fullfile(tempdir,'CarMesh3D_testRestart.gif');
+plot(1:10);
+for k = 1:3
+    fcn_CarMesh3D_saveGifFrame(gcf, gifFile, k);
+end
+fcn_CarMesh3D_saveGifFrame(gcf, gifFile, 1); % Start over
+assert(numel(imfinfo(gifFile))==1);
 
-% Check variable values
-assert(strcmp(newFiles.Make,'Toyota') && strcmp(newFiles.Model,'RAV4') && strcmp(newFiles.Trim,'XLE'));
-assert(endsWith(newFiles.ScriptFile, 'script_vehicle_2019_Toyota_RAV4_XLE.m'));
-assert(endsWith(newFiles.MeshFile, 'vehicleMesh_2019_Toyota_RAV4_XLE.mat'));
-assert(~newFiles.HasParameters && ~newFiles.HasMesh);
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -121,14 +121,11 @@ fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 %% Basic fast mode - FigNum of -1 skips the input checks
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
-figure(figNum); close(figNum);
-
-fastFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
-assert(isequal(fastFiles, priusFiles));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+figure(figNum); clf;
+plot(1:10);
+gifFile = fullfile(tempdir,'CarMesh3D_testFast.gif');
+fcn_CarMesh3D_saveGifFrame(gcf, gifFile, 1, FigNum=-1);
+assert(exist(gifFile,'file')==2);
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -151,14 +148,14 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Spaces and a dash in the name
+%% FAIL case: Not a .gif file name
 if 1==0
-    fcn_CarMesh3D_findVehicleFiles('2014_Ford_Transit Connect_XLT-LWB');
+    fcn_CarMesh3D_saveGifFrame(gcf, 'movie.mp4', 1);
 end
 
-%% FAIL case: Only three parts
+%% FAIL case: Frame number zero
 if 1==0
-    fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius');
+    fcn_CarMesh3D_saveGifFrame(gcf, 'movie.gif', 0);
 end
 
 %% Functions follow

@@ -159,7 +159,7 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %
 % EXAMPLES:
 %
-%       See the script: script_CarMesh3D_loadMotionCSV.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_loadMotionCSV.m for a full test
 %       suite, and fcn_CarMesh3D_saveMotionCSV to write a file.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with

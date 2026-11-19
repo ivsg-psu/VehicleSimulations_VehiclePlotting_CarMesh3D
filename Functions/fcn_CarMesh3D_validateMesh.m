@@ -62,7 +62,7 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 %
 % EXAMPLES:
 %
-%       See the script: script_CarMesh3D_validateMesh.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_validateMesh.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_18 by S. Brennan (drafted with

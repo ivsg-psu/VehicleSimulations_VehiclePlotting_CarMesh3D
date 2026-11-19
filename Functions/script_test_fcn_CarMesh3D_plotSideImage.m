@@ -1,4 +1,4 @@
-% script_CarMesh3D_plotSideImage.m
+% script_test_fcn_CarMesh3D_plotSideImage.m
 % Tests fcn_CarMesh3D_plotSideImage
 % Shows a side-view picture on the vehicle's centerline plane, placed so
 % the picture's wheel centers land on the mesh's axles, for checking the
@@ -7,13 +7,18 @@
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotSideImage
+% - In script_test_fcn_CarMesh3D_plotSideImage
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotSideImage
+%   % * Renamed from script_CarMesh3D_plotSideImage: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_plotSideImage
+% - In script_test_fcn_CarMesh3D_plotSideImage
 %   % * Add a test with a real photo of the 2013 Prius (license permitting)
 
 

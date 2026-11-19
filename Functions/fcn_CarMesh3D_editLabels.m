@@ -86,7 +86,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %
 % EXAMPLES:
 %
-%       See the script: script_CarMesh3D_editLabels.m for a full test
+%       See the script: script_test_fcn_CarMesh3D_editLabels.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with

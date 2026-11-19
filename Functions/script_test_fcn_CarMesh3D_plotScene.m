@@ -1,18 +1,22 @@
-% script_CarMesh3D_fillTestMotion.m
-% Tests fcn_CarMesh3D_fillTestMotion
-% The standard test motion, which uses every motion input in short,
-% labeled segments (lights, body, steering, wheels).
+% script_test_fcn_CarMesh3D_plotScene.m
+% Tests fcn_CarMesh3D_plotScene
+% Draws a ground plane, grid, cubes, and a path for vehicles to drive in.
 
 % REVISION HISTORY:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillTestMotion
+% - In script_test_fcn_CarMesh3D_plotScene
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotScene
+%   % * Renamed from script_CarMesh3D_plotScene: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillTestMotion
+% - In script_test_fcn_CarMesh3D_plotScene
 %   % * (fill in items here)
 
 
@@ -37,52 +41,42 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: The standard test motion for a generic sedan
+%% DEMO case: Ground, grid, cubes, and a path
 figNum = 10001;
-titleString = sprintf('DEMO case: The standard test motion for a generic sedan');
+titleString = sprintf('DEMO case: Ground, grid, cubes, and a path');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
-csvFile = fullfile(tempdir,'CarMesh3D_testMotion.csv');
-testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, CSVFile=csvFile, FigNum=figNum);
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', Radius=12, Duration=20, FigNum=-1);
+cubes = [10 8 2 1; -10 -8 2 5; 0 18 1.5 3; 25 0 3 4];
+sceneHandles = fcn_CarMesh3D_plotScene(Cubes=cubes, PathXY=trajectory.Pose(:,1:2), FigNum=figNum);
+view(-35,30);
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(isstruct(testMotion));
-assert(iscell(testMotion.Caption));
-
-% Check variable sizes
-K = length(testMotion.Time);
-assert(isequal(size(testMotion.Caption),[K 1]));
-assert(isequal(size(testMotion.WheelSpin),[K 4]));
-assert(length(testMotion.Segments)==4);
+assert(isstruct(sceneHandles));
 
 % Check variable values
-assert(isequal({testMotion.Segments.Name}, {'lights','body','steering','wheels'}));
-assert(isfile(csvFile) && strcmp(testMotion.CSVFile, csvFile));
-% Lights: each light appears, alone, in the lights segment
-inLights = testMotion.Time <= testMotion.Segments(1).EndTime;
-lightStates = testMotion.LightStates(inLights);
-assert(any(strcmp({lightStates.Headlights},'high')) && any([lightStates.TurnLeft]) && any([lightStates.Backup]));
-assert(any(strcmp({lightStates.Tail},'brake')));
-% Body: roll reaches 5 degrees; each tire is lifted at some time
-assert(abs(max(testMotion.BodyRoll) - deg2rad(5)) < deg2rad(0.1));
-assert(all(max(testMotion.WheelLift,[],1) > 0.07));
-% Steering: near full lock, inside tire steers more
-assert(max(testMotion.SteerAngle(:,1)) > max(testMotion.SteerAngle(:,2)));
-assert(max(rad2deg(testMotion.SteerAngle(:))) > 30);
-% Wheels: locked during hard braking (spin does not change), and the
-% front tires spin faster than the rear during the peel-out
-% (wheel speeds are written as rates and integrated back, so the first
-% and last two rows of the locked span are blurred slightly; check the rest)
-lockedRows = find(contains(testMotion.Caption, 'locked'));
-lockedRows = lockedRows(3:end-2);
-assert(max(abs(diff(testMotion.WheelSpin(lockedRows,:))),[],'all') < 1e-6);
-peelRows = contains(testMotion.Caption, 'peel-out');
-assert(all(diff(testMotion.WheelSpin(peelRows,1)) >= diff(testMotion.WheelSpin(peelRows,3))));
-% The vehicle ends where it started its steering turns: heading back to 0
-assert(abs(testMotion.Pose(end,6)) < deg2rad(1));
+assert(isgraphics(sceneHandles.Ground,'patch'));
+assert(isgraphics(sceneHandles.Cubes,'patch'));
+assert(isgraphics(sceneHandles.Path,'line'));
+assert(size(sceneHandles.Cubes.Faces,1)==6*size(cubes,1)); % 6 sides per cube
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% DEMO case: A vehicle in the scene
+figNum = 10002;
+titleString = sprintf('DEMO case: A vehicle in the scene');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[-10 10 -10 10], GridSpacing=2, Cubes=[6 3 1 2], FigNum=figNum);
+vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
+view(-35,30);
+sgtitle(titleString, 'Interpreter','none');
+assert(plotHandles.Axes==sceneHandles.Axes);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -105,21 +99,46 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: A longer vehicle turns on a wider circle
+%% TEST case: No grid, no cubes, no path
 figNum = 20001;
-titleString = sprintf('TEST case: A longer vehicle turns on a wider circle');
+titleString = sprintf('TEST case: No grid, no cubes, no path');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vanSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=-1);
-vanMotion = fcn_CarMesh3D_fillTestMotion(vanSpec, FigNum=figNum);
+sceneHandles = fcn_CarMesh3D_plotScene(GridSpacing=0, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
+assert(isempty(sceneHandles.GridLines));
+assert(isempty(sceneHandles.Cubes));
+assert(isempty(sceneHandles.Path));
 
-% Check variable values: the turn radius is 1.5 wheelbases, so the
-% centerline steer angle at full turn is the same for both vehicles
-bicycleSedan = atan(vehicleSpec.Wheelbase/(1.5*vehicleSpec.Wheelbase));
-assert(abs(max(atan(mean(tan(vanMotion.SteerAngle),2))) - bicycleSedan) < deg2rad(3));
-assert(isempty(vanMotion.CSVFile));
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A night scene
+figNum = 20002;
+titleString = sprintf('TEST case: A night scene');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[-20 20 -20 20], Cubes=[10 8 2 1; -6 -9 3 5], TimeOfDay='night', FigNum=figNum);
+view(-35,25);
+title(titleString, 'Interpreter','none','Color',[1 1 1]);
+
+% Check variable types
+assert(isstruct(sceneHandles));
+assert(strcmp(sceneHandles.TimeOfDay,'night'));
+
+% Check variable sizes
+assert(2==length(sceneHandles.Lights));
+
+% Check variable values: dark ground and sky, dim bluish ambient light
+assert(isequal(sceneHandles.Ground.FaceColor,[0.22 0.22 0.25]));
+assert(isequal(get(gcf,'Color'),[0.03 0.04 0.08]));
+assert(isequal(get(gca,'AmbientLightColor'),[0.35 0.38 0.55]));
+
+% Plotting a vehicle now adds no bright daytime lights
+fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=figNum);
+assert(2==length(findobj(gca,'Type','light')));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -142,17 +161,13 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% Basic fast mode - FigNum of -1 skips the input checks
+%% Basic fast mode - FigNum of -1 draws into the current figure
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
-figure(figNum); close(figNum);
-
-fastMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, FigNum=-1);
-assert(isequal(fastMotion.Pose, testMotion.Pose));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
+figure(figNum); clf;
+sceneHandles = fcn_CarMesh3D_plotScene(FigNum=-1);
+assert(isgraphics(sceneHandles.Ground,'patch'));
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -175,9 +190,19 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Not a vehicle spec
+%% FAIL case: Bad ground extent
 if 1==0
-    fcn_CarMesh3D_fillTestMotion(struct('Length',4));
+    sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[10 -10 0 5]);
+end
+
+%% FAIL case: Unknown time of day
+if 1==0
+    fcn_CarMesh3D_plotScene(TimeOfDay='dusk');
+end
+
+%% FAIL case: Cubes with too few columns
+if 1==0
+    sceneHandles = fcn_CarMesh3D_plotScene(Cubes=[1 2 3]);
 end
 
 %% Functions follow

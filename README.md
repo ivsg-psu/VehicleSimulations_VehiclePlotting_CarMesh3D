@@ -145,14 +145,14 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 |---|---|---|
 | `vehicleParameters_<ID>.mat` | you | The IVSG `vehicleParameters` structure (see [Vehicle specification files](#vehicle-specification-files)). Keep notes on where each value came from in `vehicleParameters_sources.md`. |
 | `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt` (first line: the license name; then the author and download link). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. |
-| `script_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
+| `script_CarMesh3D_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
 | `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
 | `checks/` | the script | The standard check images, animations, and test motion (below) |
 
 ### Steps
 
 1. Make the folder `Data/<ID>`, and put the parameters file and the model in it as above.
-2. Copy `Data/script_vehicle_TEMPLATE.m` into the folder as `script_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
+2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
 3. Run it, and look at every file in `checks/` (the list below). The first run usually shows something to fix: the orientation (`check_00`), labels (`check_03`), or lights (`check_04`).
 4. Fix the settings and run again. Most fixes are label edits: regions in meters, with the origin on the ground below the rear axle (`labelEditsAfterFit`), found with `flag_useInteractiveLabelEditor = 1`. Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
 5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more. This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
@@ -190,8 +190,8 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | Folder | Contents |
 |---|---|
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
-| `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_CarMesh3D_<name>.m` |
-| `Data` | One folder per vehicle, `Data/YEAR_Make_Model_Trimline` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv` |
+| `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_test_fcn_CarMesh3D_<name>.m` |
+| `Data` | One folder per vehicle, `Data/YEAR_Make_Model_Trimline` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv` |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation |
 
 ## The workflow
@@ -668,6 +668,11 @@ All functions follow the IVSG convention: required inputs first, then optional i
 - `FigNum=-1`: fast mode, which skips input checks and plots.
 - Input checks can also be turned off for every function with the environment variables `MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS` and `MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG`.
 
+**File names:**
+- Functions: `fcn_CarMesh3D_<name>.m`.
+- Scripts that test a function: `script_test_fcn_CarMesh3D_<name>.m`, next to the function in `Functions`.
+- Scripts that demonstrate the code more generally: `script_CarMesh3D_<name>.m` (for example each vehicle's `script_CarMesh3D_vehicle_<ID>.m`). The two overview demos in the root folder keep the `script_demo_` names.
+
 Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fast mode, and 9xxxx for bugs. Fail conditions are wrapped in `if 1==0` blocks.
 
 ## The vehicle frame
@@ -770,6 +775,7 @@ Animating **many vehicles in one scene** (decision branches, surrounding traffic
 
 **Done recently** (2026_11_19)
 
+- Renamed to the naming convention: test scripts are `script_test_fcn_CarMesh3D_<name>.m`, and vehicle scripts are `script_CarMesh3D_vehicle_<ID>.m`
 - Multi-vehicle animation planned as a separate repository (AnimateCar3D)
 - Open body panels that were pointed inward (and so looked darker) are found and turned by a visibility check in `fcn_CarMesh3D_simplifyMesh`; every vehicle uses the same blue body color by default
 - A vehicle library: one folder per vehicle (`YEAR_Make_Model_Trimline`), a standard script for each, standard checks (test motion, scene, cameras, images, GIFs), and a reference list with an animation of each vehicle

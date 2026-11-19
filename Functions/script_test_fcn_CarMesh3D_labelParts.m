@@ -1,17 +1,22 @@
-% script_CarMesh3D_fillVehicleSpec.m
-% Tests fcn_CarMesh3D_fillVehicleSpec
-% Shows how to enter published vehicle data.
+% script_test_fcn_CarMesh3D_labelParts.m
+% Tests fcn_CarMesh3D_labelParts
+% Labels body, glass, wheel, light, and trim faces from material and group names.
 
 % REVISION HISTORY:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillVehicleSpec
+% - In script_test_fcn_CarMesh3D_labelParts
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_labelParts
+%   % * Renamed from script_CarMesh3D_labelParts: test scripts are named
+%   %   % script_test_fcn_<Repo>_<name>
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
-% - In script_CarMesh3D_fillVehicleSpec
+% - In script_test_fcn_CarMesh3D_labelParts
 %   % * (fill in items here)
 
 
@@ -36,64 +41,48 @@ close all
 close all;
 fprintf(1,'Figure: 1XXXXXX: DEMO cases\n');
 
-%% DEMO case: Generic sedan preset, with a dimensioned plot
+%% DEMO case: Label the parts of the sample mesh
 figNum = 10001;
-titleString = sprintf('DEMO case: Generic sedan preset, with a dimensioned plot');
+titleString = sprintf('DEMO case: Label the parts of the sample mesh');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=figNum);
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(isstruct(vehicleSpec));
+assert(iscell(vehicleMesh.PartNames));
 
 % Check variable sizes
-assert(isscalar(vehicleSpec.OverallLength));
+Nfaces = size(vehicleMesh.Faces,1);
+assert(isequal(size(vehicleMesh.FacePartIndex),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.FaceWheelIndex),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
+assert(isequal(size(vehicleMesh.FaceAlpha),[Nfaces 1]));
 
-% Check variable values
-assert(isequal(vehicleSpec.Units,'m'));
-assert(abs(vehicleSpec.OverallLength - 4.80)<1e-12);
-% 225/45R17: 2*225*0.45 mm + 17 in = 202.5 mm + 431.8 mm = 634.3 mm
-assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
-% Rear overhang = 4.80 - 2.80 - 0.95
-assert(abs(vehicleSpec.RearOverhang - 1.05)<1e-9);
+% Check variable values. The sample has 8 glass faces (windshield 2, rear
+% window 2, side windows 4), 8 light faces, and 4 wheels of 8*16 faces.
+assert(8==sum(vehicleMesh.FacePartIndex==2));
+assert(512==sum(vehicleMesh.FacePartIndex==3));
+assert(8==sum(vehicleMesh.FacePartIndex==4));
+assert(0==sum(vehicleMesh.FacePartIndex==5));
+for ith_wheel = 1:4
+    assert(128==sum(vehicleMesh.FaceWheelIndex==ith_wheel));
+end
+assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.35)<1e-12));
+assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
+% Light types from names: 4 headlight faces and 4 tail light faces
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight'))));
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail'))));
+assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
 
-% Make sure plot opened up
-assert(isequal(get(gcf,'Number'),figNum));
-
-%% DEMO case: Typing in values for a vehicle, as a student would
-figNum = 10002;
-titleString = sprintf('DEMO case: Typing in values for a vehicle, as a student would');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); clf;
-
-% Example values only. For real vehicles, cite the Source.
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(...
-    Name='Example compact car',...
-    OverallLength=4.55,...
-    OverallWidth=1.80,...
-    OverallHeight=1.42,...
-    Wheelbase=2.70,...
-    TrackFront=1.55,...
-    TireSize='P205/55R16',...
-    FrontOverhang=0.88,...
-    BodyColor=[0.8 0.1 0.1],...
-    Source='Example values for testing',...
-    FigNum=figNum);
-
-sgtitle(titleString, 'Interpreter','none');
-
-% Check variable types
-assert(isstruct(vehicleSpec));
-assert(ischar(vehicleSpec.Name));
-
-% Check variable values
-assert(isequal(vehicleSpec.TrackRear, vehicleSpec.TrackFront)); % Rear defaults to front
-% 205/55R16: 2*205*0.55 mm + 16 in = 225.5 mm + 406.4 mm = 631.9 mm
-assert(abs(vehicleSpec.TireDiameter - 0.6319)<1e-9);
-assert(abs(vehicleSpec.RearOverhang - (4.55-2.70-0.88))<1e-9);
+% Wheel 1 is front-left: positive X and positive Y
+fcn_INTERNAL_checkWheelCorner(vehicleMesh, 1, [ 1  1]);
+fcn_INTERNAL_checkWheelCorner(vehicleMesh, 2, [ 1 -1]);
+fcn_INTERNAL_checkWheelCorner(vehicleMesh, 3, [-1  1]);
+fcn_INTERNAL_checkWheelCorner(vehicleMesh, 4, [-1 -1]);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -116,77 +105,88 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: Values given by the user override the preset
+%% TEST case: BodyColor and GlassAlpha options
 figNum = 20001;
-titleString = sprintf('TEST case: Values given by the user override the preset');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', OverallLength=5.0, Name='Long sedan');
-
-assert(abs(vehicleSpec.OverallLength - 5.0)<1e-12);
-assert(abs(vehicleSpec.Wheelbase - 2.80)<1e-12); % From the preset
-assert(isequal(vehicleSpec.Name,'Long sedan'));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: TireDiameter given directly takes priority over TireSize
-figNum = 20002;
-titleString = sprintf('TEST case: TireDiameter given directly takes priority over TireSize');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45R17', TireDiameter=0.70);
-assert(abs(vehicleSpec.TireDiameter - 0.70)<1e-12);
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: Tire sizes with spaces and letters are read
-figNum = 20003;
-titleString = sprintf('TEST case: Tire sizes with spaces and letters are read');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-spec1 = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45ZR17');
-spec2 = fcn_CarMesh3D_fillVehicleSpec(TireSize='225/45 R17');
-spec3 = fcn_CarMesh3D_fillVehicleSpec(TireSize="225/45R17"); % string type
-assert(abs(spec1.TireDiameter - 0.6343)<1e-9);
-assert(abs(spec2.TireDiameter - 0.6343)<1e-9);
-assert(abs(spec3.TireDiameter - 0.6343)<1e-9);
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: No inputs gives a structure with empty values
-figNum = 20004;
-titleString = sprintf('TEST case: No inputs gives a structure with empty values');
-fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-figure(figNum); close(figNum);
-
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec;
-assert(isempty(vehicleSpec.OverallLength));
-assert(isempty(vehicleSpec.TireDiameter));
-assert(isempty(vehicleSpec.RearOverhang));
-assert(isequal(vehicleSpec.Units,'m'));
-
-% Make sure plot did NOT open up
-figHandles = get(groot, 'Children');
-assert(~any(figHandles==figNum));
-
-%% TEST case: SUV preset
-figNum = 20005;
-titleString = sprintf('TEST case: SUV preset');
+titleString = sprintf('TEST case: BodyColor and GlassAlpha options');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSUV', FigNum=figNum);
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.1], GlassAlpha=0.6, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
-assert(vehicleSpec.OverallHeight > 1.6);
+
+bodyColors = vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:);
+assert(all(all(abs(bodyColors - [0.9 0.9 0.1])<1e-12)));
+assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.6)<1e-12));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: User rules are checked before the default rules
+figNum = 20002;
+titleString = sprintf('TEST case: User rules are checked before the default rules');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, PartRules={'CarPaint','trim'});
+assert(0==sum(vehicleMesh.FacePartIndex==1)); % No body faces left
+assert(sum(vehicleMesh.FacePartIndex==5)>0);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: A mesh that is not normalized gets no wheel numbers
+figNum = 20003;
+titleString = sprintf('TEST case: A mesh that is not normalized gets no wheel numbers');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+messyMesh = fcn_CarMesh3D_fillSampleMesh(Style='messy', FigNum=-1);
+lastwarn('');
+vehicleMesh = fcn_CarMesh3D_labelParts(messyMesh);
+[warningMessage,~] = lastwarn;
+assert(contains(warningMessage,'normalizeMesh'));
+assert(all(vehicleMesh.FaceWheelIndex==0));
+assert(512==sum(vehicleMesh.FacePartIndex==3)); % Parts are still labeled
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: The word trim is not mistaken for a wheel rim
+figNum = 20004;
+titleString = sprintf('TEST case: The word trim is not mistaken for a wheel rim');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+sampleMesh.MaterialNames{1} = 'Door_trim'; % Rename the paint material
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh);
+assert(0==sum(vehicleMesh.FacePartIndex==1));
+assert(sum(vehicleMesh.FacePartIndex==5)>0); % Became trim, not wheel
+assert(512==sum(vehicleMesh.FacePartIndex==3));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: PartColors sets the color of any part
+figNum = 20005;
+titleString = sprintf('TEST case: PartColors sets the color of any part');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.9], ...
+    PartColors={'body',[0.05 0.2 0.6]; 'glass',[0.35 0.35 0.38]; 'wheel',[0 0 0]}, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% PartColors wins over BodyColor
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:) - [0.05 0.2 0.6])<1e-12)));
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==2,:) - [0.35 0.35 0.38])<1e-12)));
+assert(all(all(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==3,:)==0)));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -209,29 +209,26 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 8XXXXXX: FAST mode cases\n');
 
-%% Basic example - NO FIGURE
+%% FAST mode, empty figNum
 figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
-
-assert(isstruct(vehicleSpec));
-assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
+assert(isfield(vehicleMesh,'FacePartIndex'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% Basic fast mode - NO FIGURE, FAST MODE
+%% FAST mode, figNum=-1
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
-
-assert(isstruct(vehicleSpec));
-assert(abs(vehicleSpec.TireDiameter - 0.6343)<1e-9);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
+assert(isfield(vehicleMesh,'FacePartIndex'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -243,21 +240,21 @@ fprintf(1,'Figure: %.0f: FAST mode comparisons\n',figNum);
 figure(figNum);
 close(figNum);
 
-% (no setup needed)
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 
-Niterations = 200;
+Niterations = 100;
 
 % Normal mode
 tic;
 for ith_test = 1:Niterations
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
+    vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
 end
 slow_method = toc;
 
 % Fast mode, FigNum=-1
 tic;
 for ith_test = 1:Niterations
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
+    vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
 end
 fast_method = toc;
 
@@ -271,7 +268,7 @@ setenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG","0");
 try
     tic;
     for ith_test = 1:Niterations
-        vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=[]);
+        vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
     end
     env_method = toc;
 catch ME
@@ -297,7 +294,7 @@ X = reordercats(X,barLabels); % Forces bars to appear in this exact order, not a
 Y = [slow_method env_method fast_method]*1000/Niterations;
 bar(X,Y)
 ylabel('Execution time (Milliseconds)')
-title('fcn_CarMesh3D_fillVehicleSpec: time per call','Interpreter','none');
+title('fcn_CarMesh3D_labelParts: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
 
 % Make sure plot did NOT open up
@@ -325,29 +322,24 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
-%% FAIL case: Unknown preset name
+%% FAIL case: Unknown part name in a rule
 if 1==0
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='sportsCar');
+    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, PartRules={'Paint','roof'});
 end
 
-%% FAIL case: Negative length
+%% FAIL case: Glass alpha out of range
 if 1==0
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(OverallLength=-4.5);
+    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, GlassAlpha=2);
 end
 
-%% FAIL case: Wheelbase longer than the vehicle
+%% FAIL case: PartColors with an unknown part
 if 1==0
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(OverallLength=2.5, Wheelbase=2.8);
+    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, PartColors={'roof',[1 0 0]});
 end
 
-%% FAIL case: Unreadable tire size
+%% FAIL case: Mesh without materials
 if 1==0
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(TireSize='big tires');
-end
-
-%% FAIL case: Body color out of range
-if 1==0
-    vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(BodyColor=[255 0 0]);
+    vehicleMesh = fcn_CarMesh3D_labelParts(struct('Vertices',rand(3),'Faces',[1 2 3]));
 end
 
 %% Functions follow
@@ -361,3 +353,12 @@ end
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_checkWheelCorner
+function fcn_INTERNAL_checkWheelCorner(vehicleMesh, wheelNumber, expectedSigns)
+% Checks that the faces of one numbered wheel sit at the expected corner,
+% given as the expected signs of [X Y]
+wheelFaces = vehicleMesh.Faces(vehicleMesh.FaceWheelIndex==wheelNumber,:);
+wheelCenter = mean(vehicleMesh.Vertices(unique(wheelFaces(:)),:),1);
+assert(isequal(sign(wheelCenter(1:2)), expectedSigns));
+end % Ends fcn_INTERNAL_checkWheelCorner
