@@ -8,7 +8,9 @@
 %     lights, and backup lights,
 %   * cameras: fixed, following, riding on the vehicle, and orbiting,
 %   * a night scene, where lit lamps glow and throw pools of light
-%     (headlight beams, brake and backup lights) on the ground.
+%     (headlight beams, brake and backup lights) on the ground,
+%   * a motion read from a CSV file (as written by a vehicle dynamics
+%     simulation), with body roll and pitch and a lifted wheel.
 % Every animation can be saved as an animated GIF (for example, for the
 % README). Run script_demo_CarMesh3D.m first to learn how meshes are made.
 %
@@ -38,12 +40,17 @@
 % - In script_demo_CarMesh3D_animation
 %   % * First write of the code (drafted with Claude)
 %   % * Added Step 7, night scenes with light effects
+%   % * Added Step 8, animating a motion from a CSV file (body roll, pitch,
+%   %   wheel lift); fcn_INTERNAL_animate uses a motion's own body, wheel
+%   %   lift, and light states when it has them
+%   % * Step 4 camera moved closer; overhead cameras centered over the
+%   %   figure eight; driver camera uses the (moved) preset
+%   % * Added Step 9, Ackermann steering in a tight turn, from above
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In script_demo_CarMesh3D_animation
-%   % * Move the Step 4 (signals) camera closer; the lights look small
 
 
 %% Make sure we are running out of root directory
@@ -117,7 +124,8 @@ speedValues(timeValues>=7 & timeValues<10) = max(6 - 6*(timeValues(timeValues>=7
 speedValues(timeValues>=10) = -min(1.5*(timeValues(timeValues>=10)-10), 2);
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Speed=speedValues, ...
     Duration=14, SampleTime=dt, StartPose=[-25 0 0], VehicleSpec=vehicleSpec, FigNum=-1);
-cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[-7 4 2.2], Target=[1.5 0 0.6], FieldOfView=45);
+% The camera rides close behind and to the left, so the lamps are large
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[-5.5 3.2 1.8], Target=[1.5 0 0.6], FieldOfView=40);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @fcn_INTERNAL_signalSequence, ...
     fullfile(gifFolder,'lights_signalsHazardsBackup.gif'), flag_saveGifs, figureSize, 3);
 
@@ -134,16 +142,18 @@ fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, headlightSequence,
 % Each camera is (1) where it sits, (2) what it looks at, (3) how wide it
 % sees, and (4) an optional orbit. "World" points stay put; "vehicle"
 % points ride along. The vehicle drives a figure eight past colored
-% cubes, so the riding cameras have something to see.
+% cubes, so the riding cameras have something to see. The figure eight
+% from [0 0 0] covers x 0 to 22 m and y -22 to 0 m, so the overhead
+% cameras sit above its middle, [11 -11].
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', Radius=12, Speed=7, Duration=8, ...
     SampleTime=1/framesPerSecond, StartPose=[0 0 0], VehicleSpec=vehicleSpec, FigNum=-1);
 cameraList = {
     'wideFixed', {},                                           'World camera, far away: sees the whole area';
     'roadside',  {'Position',[12 -14 1.6]},                    'World camera at the roadside, turning to follow';
-    'overhead',  {'Position',[0 0 70],'FieldOfView',45},       'World camera straight above, wide';
-    'overhead',  {'Position',[0 0 70],'FieldOfView',20},       'World camera straight above, zoomed in';
+    'overhead',  {'Position',[11 -11 70],'Target',[11 -11 0],'FieldOfView',45}, 'World camera straight above, wide';
+    'overhead',  {'Position',[11 -11 70],'Target',[11 -11 0],'FieldOfView',20}, 'World camera straight above, zoomed in';
     'chase',     {},                                           'Vehicle camera behind, looking ahead';
-    'driver',    {'Position',[1.25 0.37 1.22],'Target',[20 0.37 0.3]}, 'Vehicle camera at the driver''s eyes';
+    'driver',    {},                                           'Vehicle camera at the driver''s eyes';
     'roof',      {},                                           'Vehicle camera on the roof';
     'side',      {},                                           'Vehicle camera alongside';
     'kite',      {},                                           'Vehicle camera behind and above';
@@ -191,6 +201,110 @@ fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @fcn_INTERNAL_sign
     fullfile(gifFolder,'night_signalsHazardsBackup.gif'), flag_saveGifs, figureSize, 22, ...
     'Night: signal, change lanes, hazards and brake, back up', 'night');
 
+%% Step 8: A motion from a CSV file, with body roll and pitch and a lifted wheel
+% Vehicle dynamics simulations usually write their results as a table:
+% one row per time step, one column per variable. CarMesh3D reads such a
+% file with fcn_CarMesh3D_loadMotionCSV (see the column list in its help,
+% or in the README). Here, the file is first WRITTEN with
+% fcn_CarMesh3D_saveMotionCSV, using made-up body motion in place of a
+% real dynamics model, so this example runs on its own:
+%   * roll grows with lateral acceleration (right side down in a left turn),
+%   * pitch follows longitudinal acceleration (nose up when speeding up),
+%   * the inside front wheel lifts off the ground in the tightest part.
+% The amounts are exaggerated so they are easy to see.
+% fcn_CarMesh3D_checkGroundContact then checks whether the body reaches
+% the road at any time (a warning, and an N x 1 flag).
+dt = 1/framesPerSecond;
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=12, Speed=@(t) min(4 + 2*t, 12), ...
+    Duration=8, SampleTime=dt, StartPose=[0 -12 0], VehicleSpec=vehicleSpec, FigNum=-1);
+K = length(trajectory.Time);
+lateralAcceleration = trajectory.Speed.^2 .* trajectory.Curvature;            % m/s^2, + to the left
+longitudinalAcceleration = gradient(trajectory.Speed, trajectory.Time);       % m/s^2
+bodyRoll = deg2rad(0.6)*lateralAcceleration;                                  % + right side down
+bodyPitch = -deg2rad(1.0)*longitudinalAcceleration;                           % + nose down
+wheelLift = zeros(K,4);                                                       % [FL FR RL RR]
+wheelLift(:,1) = 0.10*min(max((lateralAcceleration - 9)/3, 0), 1);            % inside front (left)
+csvFile = fullfile(tempdir,'CarMesh3D_exampleMotion.csv');
+fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, BodyRoll=bodyRoll, BodyPitch=bodyPitch, ...
+    WheelLift=wheelLift, Lights=struct('headlights',1, 'indicator',double(trajectory.Time<2)));
+
+% Read it back, exactly as a file from a dynamics model would be read
+motion = fcn_CarMesh3D_loadMotionCSV(csvFile, VehicleSpec=vehicleSpec, FigNum=8);
+% Does the body reach the road anywhere (possible body damage)?
+flagContact = fcn_CarMesh3D_checkGroundContact(vehicleMesh, motion.BodyRoll, motion.BodyPitch, ...
+    motion.BodyHeave, Time=motion.Time, FigNum=9);
+fprintf(1,'Body touches the road in %d of %d samples\n', sum(flagContact), length(flagContact));
+
+% Three views of the same motion, each riding with the vehicle:
+%   front:  looking back at the vehicle; the body's roll shows against the ground
+%   inside: low, beside the inside (left) of the turn; the lifted front wheel shows
+%   rear:   low, behind and to the left; the lifted wheel shows under the body
+csvViews = {
+    'csv_bodyRollAndWheelLift',        [9 1.5 0.9],   [1.35 0 0.55], 30, 'From a CSV file: body roll and pitch (front view)';
+    'csv_bodyRollAndWheelLift_inside', [2.7 6.5 0.35], [2.4 0 0.3],  32, 'From a CSV file: the inside front wheel lifts (side view)';
+    'csv_bodyRollAndWheelLift_rear',   [-6 3.5 0.6],   [2.2 0.6 0.3], 32, 'From a CSV file: roll, pitch, and wheel lift (rear view)'};
+for ith_view = 1:size(csvViews,1)
+    cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=csvViews{ith_view,2}, ...
+        Target=csvViews{ith_view,3}, FieldOfView=csvViews{ith_view,4});
+    fcn_INTERNAL_animate(vehicleMesh, motion, cameraSettings, [], ...
+        fullfile(gifFolder,[csvViews{ith_view,1} '.gif']), flag_saveGifs, figureSize, 22+ith_view, ...
+        csvViews{ith_view,5});
+end
+
+%% Step 9: Ackermann steering in a tight turn, seen from above
+% In a turn, every wheel rolls around the same turn center, so each tire
+% points at right angles to the line from the turn center to that tire.
+% The inside front tire is closer to the center and steers more than the
+% outside one (see fcn_CarMesh3D_calcAckermannSteering). The dashed lines
+% go from the turn center to each wheel; the caption gives both angles.
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=5, Speed=1.5, Duration=8, ...
+    SampleTime=1/framesPerSecond, StartPose=[0 0 0], VehicleSpec=vehicleSpec, FigNum=-1);
+yaw0 = trajectory.Pose(1,3);
+turnCenter = trajectory.Pose(1,1:2) + [-sin(yaw0) cos(yaw0)]/trajectory.Curvature(1);
+figNum = 30;
+figureHandle = figure(figNum);
+clf;
+set(figureHandle,'Color',[0.78 0.86 0.95],'Position',[100 100 figureSize]);
+axesHandle = axes('Parent',figureHandle,'Position',[0 0 1 1]);
+groundExtent = [turnCenter(1)+[-25 25] turnCenter(2)+[-25 25]];
+fcn_CarMesh3D_plotScene(GroundExtent=groundExtent, GridSpacing=1, FigNum=figNum);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', FigNum=figNum);
+axis(axesHandle,'off');
+axis(axesHandle,[groundExtent -1 25]);
+hold(axesHandle,'on');
+plot3(axesHandle, turnCenter(1), turnCenter(2), 0.05, 'ko', 'MarkerFaceColor','k', 'MarkerSize', 6);
+radiusLines = gobjects(4,1);
+lineColors = [0 0 1; 1 0 0; 0.2 0.2 0.2; 0.2 0.2 0.2]; % FL blue, FR red, rear gray
+for ith_wheel = 1:4
+    radiusLines(ith_wheel) = plot3(axesHandle, nan(1,2), nan(1,2), [0.05 0.05], '--', ...
+        'Color', lineColors(ith_wheel,:), 'LineWidth', 1.5);
+end
+captionHandle = annotation(figureHandle,'textbox',[0.01 0.90 0.9 0.08],'String','', ...
+    'FitBoxToText','on','FontWeight','bold','BackgroundColor',[1 1 1],'FaceAlpha',0.6, ...
+    'EdgeColor','none','Interpreter','none');
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='overhead', Position=[turnCenter 26], ...
+    Target=[turnCenter 0], FieldOfView=32);
+for k = 1:length(trajectory.Time)
+    pose = trajectory.Pose(k,:);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=pose, WheelSpin=trajectory.WheelSpin(k,:), ...
+        SteerAngle=trajectory.SteerAngle(k,:), PlotHandles=plotHandles, FigNum=-1);
+    fcn_CarMesh3D_updateCamera(cameraSettings, pose, AxesHandle=axesHandle, FigNum=-1);
+    % Wheel centers in the world: rotate by the heading, then move to the pose
+    rotation = [cos(pose(3)) -sin(pose(3)); sin(pose(3)) cos(pose(3))];
+    wheelXY = (rotation*plotHandles.WheelCenters(:,1:2)')' + pose(1:2);
+    for ith_wheel = 1:4
+        set(radiusLines(ith_wheel), 'XData', [turnCenter(1) wheelXY(ith_wheel,1)], ...
+            'YData', [turnCenter(2) wheelXY(ith_wheel,2)]);
+    end
+    set(captionHandle, 'String', sprintf('Ackermann steering: inside (left) %.1f%s, outside (right) %.1f%s', ...
+        rad2deg(trajectory.SteerAngle(k,1)), char(176), rad2deg(trajectory.SteerAngle(k,2)), char(176)));
+    drawnow;
+    if flag_saveGifs
+        fcn_CarMesh3D_saveGifFrame(figureHandle, fullfile(gifFolder,'wheels_ackermannTightTurn.gif'), k, ...
+            DelayTime=mean(diff(trajectory.Time)), FigNum=-1);
+    end
+end
+
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
@@ -208,7 +322,11 @@ function fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, lightFunc
 % The animation loop used by every example: draw the scene and vehicle
 % once, then for each frame move the vehicle (pose, wheels, lights),
 % point the camera, draw, and optionally save a GIF frame.
-%   lightFunction: a function of time that returns the LightStates
+%   lightFunction: a function of time that returns the LightStates, or
+%       [] to use the motion's own LightStates (one per time step)
+%   The motion may also carry BodyRoll, BodyPitch, BodyHeave, and
+%   WheelLift (for example, from fcn_CarMesh3D_loadMotionCSV); they are
+%   used when present.
 %   timeOfDay: 'day' (default) or 'night' (dark scene, light effects on)
 if nargin<9
     titleString = '';
@@ -243,11 +361,22 @@ if ~isempty(titleString)
         'EdgeColor','none','Interpreter','none');
 end
 
-for k = 1:length(trajectory.Time)
+Ntimes = length(trajectory.Time);
+bodyRoll = fcn_INTERNAL_fieldOrZeros(trajectory, 'BodyRoll', Ntimes, 1);
+bodyPitch = fcn_INTERNAL_fieldOrZeros(trajectory, 'BodyPitch', Ntimes, 1);
+bodyHeave = fcn_INTERNAL_fieldOrZeros(trajectory, 'BodyHeave', Ntimes, 1);
+wheelLift = fcn_INTERNAL_fieldOrZeros(trajectory, 'WheelLift', Ntimes, 4);
+for k = 1:Ntimes
     t = trajectory.Time(k);
+    if isempty(lightFunction)
+        lightStates = trajectory.LightStates(k);
+    else
+        lightStates = lightFunction(t);
+    end
     fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), ...
         WheelSpin=trajectory.WheelSpin(k,:), SteerAngle=trajectory.SteerAngle(k,:), ...
-        LightStates=lightFunction(t), PlotHandles=plotHandles, FigNum=-1);
+        WheelLift=wheelLift(k,:), BodyRoll=bodyRoll(k), BodyPitch=bodyPitch(k), BodyHeave=bodyHeave(k), ...
+        LightStates=lightStates, PlotHandles=plotHandles, FigNum=-1);
     fcn_CarMesh3D_updateCamera(cameraSettings, trajectory.Pose(k,:), Time=t, ...
         AxesHandle=axesHandle, FigNum=-1);
     drawnow;
@@ -257,6 +386,16 @@ for k = 1:length(trajectory.Time)
     end
 end
 end % Ends fcn_INTERNAL_animate
+
+%% fcn_INTERNAL_fieldOrZeros
+function values = fcn_INTERNAL_fieldOrZeros(motion, fieldName, Nrows, Ncolumns)
+% A field of the motion, or zeros if it does not have one
+if isfield(motion, fieldName) && ~isempty(motion.(fieldName))
+    values = motion.(fieldName);
+else
+    values = zeros(Nrows, Ncolumns);
+end
+end % Ends fcn_INTERNAL_fieldOrZeros
 
 %% fcn_INTERNAL_cameraPathXY
 function cameraXY = fcn_INTERNAL_cameraPathXY(cameraSettings, trajectory)
@@ -275,7 +414,7 @@ for ith_frame = 1:numFrames
         pivot = cameraSettings.Target(:);
         position = pivot + [cos(orbitAngle) -sin(orbitAngle) 0; sin(orbitAngle) cos(orbitAngle) 0; 0 0 1]*(position - pivot);
     end
-    yaw = trajectory.Pose(ith_frame,3);
+    yaw = trajectory.Pose(ith_frame,end); % [x y yaw] or [x y z roll pitch yaw]
     cameraXY(ith_frame,:) = trajectory.Pose(ith_frame,1:2) + ([cos(yaw) -sin(yaw); sin(yaw) cos(yaw)]*position(1:2))';
 end
 end % Ends fcn_INTERNAL_cameraPathXY

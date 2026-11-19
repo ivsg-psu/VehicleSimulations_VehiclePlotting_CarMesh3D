@@ -175,6 +175,47 @@ assert(all(validationTable.Pass));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: Many vehicles at once, from an array of vehicleParameters
+figNum = 20006;
+titleString = sprintf('TEST case: Many vehicles at once, from an array of vehicleParameters');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% Three vehicles with the same fields: the Prius, and two made-up
+% variants (longer wheelbase; larger tires)
+loadedData = load(fcn_INTERNAL_priusFile);
+dataNames = fieldnames(loadedData);
+priusParameters = loadedData.(dataNames{1});
+longParameters = priusParameters;
+longParameters.DistancesWheelbase = priusParameters.DistancesWheelbase + 0.1;   % this file's units are m
+longParameters.DistancesLength = priusParameters.DistancesLength + 0.1;
+bigTireParameters = priusParameters;
+bigTireParameters.TireSidewallMarkings = '215/55R17';
+allParameters = [priusParameters, longParameters, bigTireParameters];
+
+% Directly from the workspace
+vehicleSpecs = fcn_CarMesh3D_loadVehicleSpec(allParameters);
+
+% Check variable types and sizes
+assert(isstruct(vehicleSpecs));
+assert(isequal(size(vehicleSpecs),[1 3]));
+
+% Check variable values: each vehicle keeps its own numbers, in order
+assert(abs(vehicleSpecs(2).Wheelbase - vehicleSpecs(1).Wheelbase - 0.1) < 1e-9);
+assert(vehicleSpecs(3).TireDiameter > vehicleSpecs(1).TireDiameter);
+assert(strcmp(vehicleSpecs(2).Source,'(structure)(2)'));
+
+% The same array saved in a .mat file
+arrayFile = fullfile(tempdir,'CarMesh3D_testFleet.mat');
+save(arrayFile,'allParameters');
+vehicleSpecsFromFile = fcn_CarMesh3D_loadVehicleSpec(arrayFile);
+assert(isequal([vehicleSpecsFromFile.Wheelbase],[vehicleSpecs.Wheelbase]));
+assert(strcmp(vehicleSpecsFromFile(3).Source, sprintf('%s(3)', arrayFile)));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

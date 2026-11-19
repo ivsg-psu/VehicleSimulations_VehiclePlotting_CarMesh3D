@@ -95,6 +95,12 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      For different left and right angles in a turn (the inside tire
 %      steers more), see fcn_CarMesh3D_calcAckermannSteering.
 %
+%      WheelLift: how far each wheel is lifted off the ground, in meters,
+%      as a scalar (all four) or 1 x 4 [FL FR RL RR]. Default 0. Use it
+%      for the rare case of wheel lift; in normal driving the wheels stay
+%      on the ground and the body moves on them (BodyHeave, BodyRoll,
+%      BodyPitch).
+%
 %      BodyRoll, BodyPitch, BodyHeave: motion of the body (the sprung
 %      mass) relative to the wheels (the unsprung mass), which stay on
 %      the ground. Roll and pitch are in radians, heave in meters. These
@@ -122,8 +128,8 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      or fcn_CarMesh3D_editLabels. Turn signals are split into left and
 %      right by position. A light that is on is drawn unshaded, so it
 %      appears to glow. Default is [] (lights keep their plain colors).
-%      WheelSpin, SteerAngle, BodyRoll, BodyPitch, BodyHeave, and
-%      LightStates can all be changed on the fast path (with PlotHandles)
+%      WheelSpin, SteerAngle, WheelLift, BodyRoll, BodyPitch, BodyHeave,
+%      and LightStates can all be changed on the fast path (with PlotHandles)
 %      for animation.
 %
 %      LightEffects: true to "fake" light shining from the lamps, for
@@ -205,6 +211,7 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   BodyRoll, BodyPitch, BodyHeave, and BodyPivot options.
 %   % * Added LightEffects: glows around lit lamps and pools of light on
 %   %   the ground (headlight beams, tail, brake, backup), for night scenes
+%   % * Added WheelLift (wheels lifted off the ground, per wheel)
 
 % TO-DO:
 %
@@ -231,6 +238,7 @@ arguments
     options.SceneLights = 'auto'    % 'auto' (add key and fill lights) or 'none'
     options.WheelSpin = 0           % Wheel rotation angle(s) [rad], scalar or 1 x 4
     options.SteerAngle = 0          % Front wheel steer angle [rad], scalar or 1 x 2
+    options.WheelLift = 0           % Wheel height above the ground [m], scalar or 1 x 4 [FL FR RL RR]
     options.BodyRoll = 0            % Body roll relative to the wheels [rad], + right side down
     options.BodyPitch = 0           % Body pitch relative to the wheels [rad], + nose down
     options.BodyHeave = 0           % Body rise relative to the wheels [m], + up
@@ -299,6 +307,11 @@ if 0==flag_max_speed
         % Check the Pose input
         if ~isnumeric(options.Pose) || ~any(numel(options.Pose)==[3 6]) || any(~isfinite(options.Pose))
             error('Pose must be a finite numeric [x y yaw] or [x y z roll pitch yaw]');
+        end
+
+        % Check the WheelLift input
+        if ~isnumeric(options.WheelLift) || ~any(numel(options.WheelLift)==[1 4]) || any(~isfinite(options.WheelLift))
+            error('WheelLift must be a finite scalar or a 1 x 4 vector [FL FR RL RR], in meters');
         end
 
         % Check the body motion inputs
@@ -413,7 +426,7 @@ if flag_update_only
     plotHandles = options.PlotHandles;
     plotHandles.Transform.Matrix = poseMatrix;
     fcn_INTERNAL_updateBody(plotHandles, options);
-    fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle);
+    fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
     end
@@ -557,7 +570,7 @@ else
     % Set the pose, wheels, and lights
     transformHandle.Matrix = poseMatrix;
     fcn_INTERNAL_updateBody(plotHandles, options);
-    fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle);
+    fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
     end
@@ -715,9 +728,9 @@ end
 end % Ends fcn_INTERNAL_defaultBodyPivot
 
 %% fcn_INTERNAL_updateWheels
-function fcn_INTERNAL_updateWheels(plotHandles, wheelSpin, steerAngle)
-% Spins each wheel about its axle and steers the front wheels about a
-% vertical line through their centers
+function fcn_INTERNAL_updateWheels(plotHandles, wheelSpin, steerAngle, wheelLift)
+% Spins each wheel about its axle, steers the front wheels about a
+% vertical line through their centers, and lifts wheels off the ground
 if ~isfield(plotHandles,'WheelTransforms')
     return;
 end
@@ -730,13 +743,17 @@ if isscalar(steerAngle)
     steerAngle = [steerAngle steerAngle];
 end
 steerAngles = [steerAngle 0 0];
+wheelLift = wheelLift(:)';
+if isscalar(wheelLift)
+    wheelLift = repmat(wheelLift,1,4);
+end
 for ith_wheel = 1:4
     thisTransform = plotHandles.WheelTransforms{ith_wheel};
     if isempty(thisTransform)
         continue;
     end
     center = plotHandles.WheelCenters(ith_wheel,:);
-    thisTransform.Matrix = makehgtform('translate',center) * ...
+    thisTransform.Matrix = makehgtform('translate',center + [0 0 wheelLift(ith_wheel)]) * ...
         makehgtform('zrotate',steerAngles(ith_wheel)) * ...
         makehgtform('yrotate',wheelSpin(ith_wheel)) * ...
         makehgtform('translate',-center);

@@ -20,6 +20,72 @@ The workflow is meant to be simple enough for undergraduate students to make a n
 
 ---
 
+## Inputs: what CarMesh3D needs
+
+CarMesh3D draws a vehicle from two kinds of input. Everything else in this README is about how those inputs are turned into pictures and animations.
+
+**1. The vehicle (fixed for a vehicle):**
+- A **vehicle specification**: an IVSG `vehicleParameters` structure (or `.mat` file), or an array of them for many vehicles. The fields used are `DistancesLength`, `DistancesWidth`, `DistancesWidthWithMirrors`, `DistancesHeight`, `DistancesWheelbase`, `DistancesFrontTrack`, `DistancesRearTrack`, `DistancesFrontOverhang`, `DistancesGroundClearance` (each with a `_Units` field), `TireSidewallMarkings`, and `Year`, `Make`, `Model`, `Trim` (see [Vehicle specification files](#vehicle-specification-files)).
+- A **3D model** of the vehicle's shape (OBJ, STL, FBX, glTF/GLB, or .blend), or the built-in sample car. It is scaled to match the specification.
+
+**2. The motion (one row per time step):** a table, usually a CSV file from a vehicle dynamics simulation, read by `fcn_CarMesh3D_loadMotionCSV`. These are the **motion input columns**. All names are valid MATLAB and Python variable names. Units are SI, with angles in radians.
+
+| # | Column | Units | Meaning | If missing |
+|---|---|---|---|---|
+| 1 | `time` | s | Time | give `SampleTime=` |
+| 2 | `X` | m | Global X of the rear-axle center, on the ground | **required** |
+| 3 | `Y` | m | Global Y of the rear-axle center, on the ground | **required** |
+| 4 | `Z` | m | Sprung mass: displacement up from static equilibrium | 0 |
+| 5 | `roll` | rad | Sprung mass: roll, + right side down | 0 |
+| 6 | `pitch` | rad | Sprung mass: pitch, + nose down | 0 |
+| 7 | `yaw` | rad | Heading, + counterclockwise from +X | **required** |
+| 8 | `U` | m/s | Body-fixed forward speed | from the path |
+| 9 | `V` | m/s | Body-fixed lateral speed | not used |
+| 10 | `W` | m/s | Body-fixed vertical speed | not used |
+| 11 | `roll_rate` | rad/s | Roll rate | not used |
+| 12 | `pitch_rate` | rad/s | Pitch rate | not used |
+| 13 | `yaw_rate` | rad/s | Yaw rate | (used for steering only if there is no steering column) |
+| 14 | `wheelSpeed_FL` | rad/s | Tire 1 (front left) spin rate, + rolling forward | `U` / tire radius |
+| 15 | `wheelSpeed_RL` | rad/s | Tire 2 (rear left) | `U` / tire radius |
+| 16 | `wheelSpeed_RR` | rad/s | Tire 3 (rear right) | `U` / tire radius |
+| 17 | `wheelSpeed_FR` | rad/s | Tire 4 (front right) | `U` / tire radius |
+| 18 | `wheelLift_FL` | m | Tire 1 height above the road | 0 |
+| 19 | `wheelLift_RL` | m | Tire 2 height above the road | 0 |
+| 20 | `wheelLift_RR` | m | Tire 3 height above the road | 0 |
+| 21 | `wheelLift_FR` | m | Tire 4 height above the road | 0 |
+| 22 | `roadRoll` | rad | Road tilt under the vehicle, about X (unsprung roll) | 0 |
+| 23 | `roadPitch` | rad | Road tilt under the vehicle, about Y (unsprung pitch) | 0 |
+| 24 | `steer_FL` | rad | Front-left road-wheel angle, + left | see below |
+| 25 | `steer_FR` | rad | Front-right road-wheel angle, + left | see below |
+| 26 | `headlights` | – | 0 off, 1 low beams, 2 high beams | 0 (off) |
+| 27 | `indicator` | – | 0 off, 1 left, 2 right, 3 hazard (both) | 0 (off) |
+| 28 | `brakeLight` | – | 0 off, 1 on, 2 strong | 0 (off) |
+| 29 | `reverseLight` | – | 0 off, 1 on | 0 (off) |
+| 30 | `runningLights` | – | 0 off, 1 on | 0 (off) |
+
+Optional extra columns: `roadZ` (m, ground height under the rear axle; default 0), `steerAngle` (rad, one centerline angle), `steeringWheelAngle` (rad), and `wheelAngle_FL`, `wheelAngle_RL`, `wheelAngle_RR`, `wheelAngle_FR` (rad, wheel rotation angles). Any other column is read and ignored. Columns 1–13 and the four wheel speeds follow the IVSG state vector `[X Y Z roll pitch yaw U V W roll_rate pitch_rate yaw_rate w1 w2 w3 w4]`; `w1`–`w4` are accepted as names for the wheel speeds.
+
+### Assumptions behind the inputs
+
+Read these before writing a file for CarMesh3D:
+
+- **Frames and signs.** ISO 8855: X forward, Y left, Z up. Angles follow the right-hand rule: positive yaw turns left, positive roll lowers the right side, positive pitch lowers the nose, and positive steering turns left.
+- **The vehicle's reference point** is the center of the rear axle, on the ground. `X` and `Y` give where that point is; `yaw` gives the heading.
+- **Two rigid frames.** The **sprung mass** (body, glass, trim, lights) moves with `Z`, `roll`, and `pitch`. The **unsprung mass** (the four wheels) stays on the road, except for `wheelLift_*`. Both share `X`, `Y`, and `yaw`.
+- **`Z` is a displacement from equilibrium**, not a height: 0 means the sprung mass sits at its static ride height, and positive is upward. On a road with changing elevation, it is the motion relative to the road surface; give the road's own height in `roadZ` if it matters.
+- **`roll` and `pitch` are the sprung mass's angles. The road tilt is separate** (`roadRoll`, `roadPitch`; zero for normal driving). The body is drawn tilted by `roll − roadRoll` and `pitch − roadPitch` relative to the road under it. This is exact on flat ground and a close approximation on gentle slopes.
+- **The road is a flat plane under the vehicle.** Bumps, curbs, and potholes are not modeled.
+- **Wheel lift is an input.** CarMesh3D does not work out when a wheel leaves the road; give the height of each tire above the road in `wheelLift_*` (0 for normal driving).
+- **Tires are numbered by quadrant**, seen from above: 1 front left, 2 rear left, 3 rear right, 4 front right. The column names say the position (`_FL`, `_RL`, `_RR`, `_FR`), so the numbering cannot be mixed up. (Inside CarMesh3D, wheel options use the order `[FL FR RL RR]`; the reader converts.)
+- **Wheel spin.** Wheel speeds are integrated over time to give the rotation angle, so a small drift is possible over long runs; give `wheelAngle_*` to avoid it. With no wheel columns, every wheel rolls without slipping at `U` / tire radius.
+- **Steering.** The front road-wheel angles `steer_FL` and `steer_FR` are used as given. Without them, one angle is taken from `steerAngle`, or from `steeringWheelAngle` / `SteeringRatio` (default 15), or from the path's curvature (`yaw_rate / U`, or the change in yaw per meter); that one angle is split into left and right angles with Ackermann steering. The rear wheels do not steer.
+- **Lights are inputs, never worked out from the motion.** A vehicle can brake while speeding up (coasting downhill), and can roll backward without being in reverse (parked on a hill), so `brakeLight` and `reverseLight` must come from the simulation or the driver's inputs. A missing light column means that light is off.
+- **Turn signals blink by themselves.** `indicator` gives the switch position (off, left, right, hazard); CarMesh3D makes the blinking (`BlinkPeriod=`, default 0.8 s), starting "on" whenever the switch changes. Do not put the blinking itself in the file.
+- **Tail lights** are on whenever the headlights or running lights are on, and bright when `brakeLight` is 1 or 2 (2, "strong", is drawn like 1).
+- **Names and units.** Columns are found by name, so their order does not matter. Matching ignores upper and lower case and underscores (`yaw_rate`, `Yaw_Rate`, and `yawRate` are the same). A name ending in `_deg` is in degrees (or degrees per second); a wheel speed ending in `_rpm` is in revolutions per minute. Both are converted.
+- **Files without a header row** are read with `ColumnNames=` (a list of names in the file's order) and, if there is no time column, `SampleTime=`.
+- **Vehicle dimensions** for steering and wheel spin (wheelbase, front track, tire diameter) come from `VehicleSpec=`.
+
 ## Getting started
 
 1. Put this folder somewhere whose path has **no minus signs** (spaces are fine).
@@ -34,7 +100,7 @@ There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Da
 
 | Folder | Contents |
 |---|---|
-| (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, GIFs); this README |
+| (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_CarMesh3D_<name>.m` |
 | `Data` | Vehicle specification files (e.g. `vehicleParameters_2013ToyotaPriusFour.mat`), downloaded models, finished meshes |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo |
@@ -51,7 +117,8 @@ There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Da
 | 5. Fit to spec | `fcn_CarMesh3D_fitMeshToSpec` | Scales the body to length, width, and height, then stretches it so the axles land at the true wheelbase. Moves each wheel, without stretching it, to the true track and tire diameter. Puts the origin below the rear axle. |
 | 6. Simplify | `fcn_CarMesh3D_simplifyMesh` | Merges duplicate vertices, removes bad faces, reduces to a face budget, and makes all normals point outward. |
 | 7. Validate | `fcn_CarMesh3D_validateMesh` | Returns a table of target vs. measured dimensions with percent error, plus side, top, and front views. |
-| 8. Plot / animate | `fcn_CarMesh3D_plotVehicle` | Draws the mesh as a few patches under one `hgtransform`. Pass `PlotHandles` back in to move the vehicle quickly. `Finish=` sets how shiny it looks (`'matte'`, `'satin'`, `'glossy'`, `'metallic'`, or `[ka kd ks n sc]`); `ShowEdges=` and `EdgeColor=` control the face edges. Also moves the wheels (`WheelSpin=`, `SteerAngle=`), the body (`BodyRoll=`, `BodyPitch=`, `BodyHeave=`), switches the lights (`LightStates=`), and adds glows and light pools for night scenes (`LightEffects=`). |
+| 7b. Check the outline | `fcn_CarMesh3D_plotSideImage` | Puts a side-view photo of the real vehicle on the centerline plane, with its wheel centers on the mesh's axles, so the outlines can be compared (see [Checking against a side photo](#checking-against-a-side-photo)). |
+| 8. Plot / animate | `fcn_CarMesh3D_plotVehicle` | Draws the mesh as a few patches under one `hgtransform`. Pass `PlotHandles` back in to move the vehicle quickly. `Finish=` sets how shiny it looks (`'matte'`, `'satin'`, `'glossy'`, `'metallic'`, or `[ka kd ks n sc]`); `ShowEdges=` and `EdgeColor=` control the face edges. Also moves the wheels (`WheelSpin=`, `SteerAngle=`, `WheelLift=`), the body (`BodyRoll=`, `BodyPitch=`, `BodyHeave=`), switches the lights (`LightStates=`), and adds glows and light pools for night scenes (`LightEffects=`). |
 
 Labeling comes before fitting so the fit can treat wheels as rigid objects. Label fixes by region are easiest after fitting (regions are then in meters, with the origin below the rear axle) and before simplifying.
 
@@ -61,6 +128,9 @@ Labeling comes before fitting so the fit can treat wheels as rigid objects. Labe
 |---|---|
 | `fcn_CarMesh3D_fillTrajectory` | A motion along a path (straight, circle, figure eight, lane change, waypoints): pose, speed, wheel spin (with slip), and left and right steer angles at every time step |
 | `fcn_CarMesh3D_calcAckermannSteering` | The left and right (inside and outside) front tire steer angles for a turn |
+| `fcn_CarMesh3D_loadMotionCSV` | Reads a motion from a CSV file (for example, a vehicle dynamics simulation's output): pose, body roll/pitch/heave, wheel spin and lift, steering, lights |
+| `fcn_CarMesh3D_saveMotionCSV` | Writes a motion to a CSV file in the same column convention |
+| `fcn_CarMesh3D_checkGroundContact` | Flags the time steps where body roll, pitch, and heave push part of the body to the road |
 | `fcn_CarMesh3D_plotScene` | Ground plane, grid, colored cubes, and a path line to drive in, by day or by night (`TimeOfDay=`) |
 | `fcn_CarMesh3D_fillCameraSettings` | A camera: where it sits, what it looks at, how wide it sees (presets for 9 common views) |
 | `fcn_CarMesh3D_updateCamera` | Points the camera each frame from the settings and the vehicle pose |
@@ -237,6 +307,41 @@ The pools are flat on the ground and ride with the vehicle's ground frame, so th
 |---|---|
 | ![Night headlights](Images/animations/night_headlights.gif) | ![Night signals](Images/animations/night_signalsHazardsBackup.gif) |
 
+## Checking against a side photo
+
+The dimension table from `fcn_CarMesh3D_validateMesh` checks lengths, but not shape. To check the shape, `fcn_CarMesh3D_plotSideImage` puts a side-view picture of the real vehicle on a vertical plane through the vehicle's centerline (Y = 0), and draws the vehicle partly see-through around it:
+
+```matlab
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/sideView_2013ToyotaPriusFour.jpg', vehicleMesh, FigNum=1);
+% First time: click the REAR wheel center, then the FRONT one. The values are printed,
+% so later runs can skip the clicking:
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/sideView_2013ToyotaPriusFour.jpg', vehicleMesh, ...
+    WheelCentersPixels=[1210 655; 395 652], FigNum=1);
+```
+
+**How the picture is placed.** The two wheel centers in the picture must land on the mesh's two axles, at wheel-center height (half the tire diameter). Two points set:
+- the **scale**: meters per pixel = wheelbase / (pixel distance between the wheel centers);
+- a small **rotation**, if the picture is tilted (`TiltDegrees` in the output);
+- the **position**.
+
+If the vehicle faces left in the picture, the picture is flipped left-to-right first, so the front always points to +X.
+
+**One plane works from both sides.** A picture on a plane looks mirrored from the back, and a vehicle's left side is (nearly) the mirror image of its right side. So the same picture lines up from both sides; only lettering reads backwards from the far side.
+
+| Option | Default | Use |
+|---|---|---|
+| `WheelCentersPixels` | `[]` (click) | `[colRear rowRear; colFront rowFront]` in pixels, row 1 at the top |
+| `VehicleAlpha` | `0.4` | How solid the vehicle is drawn, so the picture shows through |
+| `PlaneY` | `0` | Move the picture outside the vehicle (e.g. `-1.5`) to see it in front of the mesh |
+| `ImageAlpha` | `1` | Make the picture see-through (useful with `PlaneY` outside the vehicle) |
+| `ShowVehicle`, `SetView` | `true` | Also draw the vehicle; look from the side without perspective |
+
+![A matching picture and a different car's picture](Images/validate_sideImage.png)
+
+In the left picture, the outlines agree. On the right, a picture of a different body shape (the sample sedan, stretched to the same wheelbase) shows where it disagrees with the Prius: the roof line, hood, and trunk.
+
+**Tips for photos.** Use a photo taken from far away with a zoom lens, level with the wheel centers and square to the side of the vehicle. Close-up photos have perspective (the near wheel looks bigger and the ends of the car shrink), which no flat overlay can remove. Manufacturer press photos and car-review "profile" shots often work well; check their license before adding them to the repository.
+
 ## Fixing labels
 
 Downloaded models are labeled from their material and group names, and those names are often unhelpful. In the 2010 Prius model, the headlights and taillights use the same material as the black bumper trim, so they are labeled trim. `fcn_CarMesh3D_editLabels` fixes this in two ways.
@@ -322,6 +427,10 @@ rad2deg(steerAngles)    % [left right]: for the 2013 Prius, about [22.1 18.3] de
 
 ![Ackermann steering geometry and angles](Images/ackermann_geometry.png)
 
+In motion (Step 9 of `script_demo_CarMesh3D_animation.m`): a 5 m radius turn seen from above, with dashed lines from the turn center to each wheel. Each front tire points at right angles to its own line, so the inside (left, blue) tire steers more than the outside (right, red) one.
+
+![Ackermann steering in a tight turn](Images/animations/wheels_ackermannTightTurn.gif)
+
 | Rolling and steering (lane change) | Peel out, then lock up (brake lights on) |
 |---|---|
 | ![Rolling and steering](Images/animations/wheels_rollAndSteer.gif) | ![Peel out and lock up](Images/animations/wheels_peelOutAndLockUp.gif) |
@@ -349,6 +458,58 @@ fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=pose, WheelSpin=spin, SteerAngle=ste
 | `BodyPitch` | rad | rotation about +Y: the nose goes down (as in braking) |
 | `BodyHeave` | m | the body moves up |
 | `BodyPivot` | m, `[x y z]` | the point the body rotates about; default is midway between the axles, on the centerline, at wheel-center height |
+
+## Motion from a CSV file
+
+Vehicle dynamics simulations usually save their results as a table, one row per time step. `fcn_CarMesh3D_loadMotionCSV` reads such a file and returns everything `fcn_CarMesh3D_plotVehicle` needs at each step. `fcn_CarMesh3D_saveMotionCSV` writes the same format (a worked example of the convention, and a way to save any motion made in MATLAB).
+
+```matlab
+motion = fcn_CarMesh3D_loadMotionCSV('myRun.csv', VehicleSpec=vehicleSpec, FigNum=1);
+h = fcn_CarMesh3D_plotVehicle(vehicleMesh);
+for k = 1:length(motion.Time)
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=motion.Pose(k,:), ...
+        WheelSpin=motion.WheelSpin(k,:), SteerAngle=motion.SteerAngle(k,:), WheelLift=motion.WheelLift(k,:), ...
+        BodyRoll=motion.BodyRoll(k), BodyPitch=motion.BodyPitch(k), BodyHeave=motion.BodyHeave(k), ...
+        LightStates=motion.LightStates(k), PlotHandles=h, FigNum=-1);
+    drawnow;
+end
+```
+
+**The columns** are listed in [Inputs: what CarMesh3D needs](#inputs-what-carmesh3d-needs), with the [assumptions](#assumptions-behind-the-inputs) behind each. Files with **no header row** are read by naming the columns:
+
+```matlab
+motion = fcn_CarMesh3D_loadMotionCSV('legacyRun.csv', SampleTime=0.01, ColumnNames= ...
+    {'X','Y','Z','roll','pitch','yaw','U','V','W','roll_rate','pitch_rate','yaw_rate','w1','w2','w3','w4'});
+```
+
+**What the reader returns.** It turns `[X Y roadZ roadRoll roadPitch yaw]` into the ground frame (`Pose`, K x 6), gives the body motion relative to it (`BodyHeave = Z`, `BodyRoll = roll − roadRoll`, `BodyPitch = pitch − roadPitch`), and converts the wheels to CarMesh3D's `[FL FR RL RR]` order (`WheelSpin`, `WheelLift`), the steering to `SteerAngle` (`[FL FR]`, with `SteerSource` saying which column it came from), and the light columns to one `LightStates` structure per row.
+
+**How this compares to other tools.** CarSim names the sprung-mass position `Xo`, `Yo`, `Zo`, writes angles in degrees, and labels wheels by side and axle (`L1`, `R1`, `L2`, `R2`). ASAM OSI numbers wheels by axle (0 = front) and then right-to-left along the axle, uses rad/s with the right-hand rule for wheel spin, and has light states (indicator off/left/right/warning; brake light off/normal/strong) that the light columns above follow. Use `_deg` names or `ColumnNames=` to read such files.
+
+| Front: roll and pitch | Inside of the turn: the front wheel lifts | Behind: roll, pitch, and lift |
+|---|---|---|
+| ![Front view](Images/animations/csv_bodyRollAndWheelLift.gif) | ![Inside view](Images/animations/csv_bodyRollAndWheelLift_inside.gif) | ![Rear view](Images/animations/csv_bodyRollAndWheelLift_rear.gif) |
+
+(In this example, from Step 8 of `script_demo_CarMesh3D_animation.m`, the body motion is made up and exaggerated in place of a real dynamics model: roll grows with lateral acceleration, pitch follows longitudinal acceleration, and the inside front wheel lifts 10 cm in the tightest part. The three views ride with the vehicle.)
+
+### Checking for body contact with the road
+
+Large roll, pitch, and heave together can push part of the body down to the road, for example a front corner of the bumper in hard braking while turning. `fcn_CarMesh3D_checkGroundContact` checks this at every time step, using the vehicle's own shape:
+
+```matlab
+[flagContact, clearance, lowestPoint] = fcn_CarMesh3D_checkGroundContact(vehicleMesh, ...
+    motion.BodyRoll, motion.BodyPitch, motion.BodyHeave, Time=motion.Time, FigNum=1);
+```
+
+- `flagContact` (N x 1, true/false) is true where the body reaches the road; a warning is printed if any are true, since body damage is likely there unless that part is protected (for example, by a skid plate).
+- `clearance` (N x 1, meters) is the height of the lowest body point above the road (negative means it would be below the road surface). `MinimumClearance=` sets a safety margin (default 0).
+- `lowestPoint` (N x 3) says which part of the body is lowest, in the vehicle frame.
+
+It moves every body vertex exactly as `fcn_CarMesh3D_plotVehicle` does (roll and pitch about `BodyPivot`, then heave), so what it reports matches what is drawn. The road is treated as flat under the vehicle, and the wheels are not checked.
+
+![Body clearance over time, and the lowest moment from the front](Images/checkGroundContact.png)
+
+(Made-up, very large body motion: 8° of roll, 6° of nose-down pitch, and 6 cm of drop together push the front right corner below the road.)
 
 ## Cameras
 
@@ -379,13 +540,13 @@ The presets:
 | `'overhead'` | `[0 0 60]` (world) | `[0 0 0]` (world) | 40 | ![](Images/animations/camera_overheadWide.gif) |
 | `'overhead'`, `FieldOfView=20` | `[0 0 70]` (world) | `[0 0 0]` (world) | 20 | ![](Images/animations/camera_overheadZoom.gif) |
 | `'chase'` | `[-7 0 2.5]` (vehicle) | `[4 0 1]` (vehicle) | 50 | ![](Images/animations/camera_chase.gif) |
-| `'driver'` | `[1.25 0.37 1.15]` (vehicle) | `[20 0.37 0.9]` (vehicle) | 70 | ![](Images/animations/camera_driver.gif) |
+| `'driver'` | `[1.5 0.37 1.15]` (vehicle) | `[20 0.37 0.9]` (vehicle) | 70 | ![](Images/animations/camera_driver.gif) |
 | `'roof'` | `[0.6 0 1.9]` (vehicle) | `[12 0 0.4]` (vehicle) | 65 | ![](Images/animations/camera_roof.gif) |
 | `'side'` | `[1.35 -7 1.2]` (vehicle) | `[1.35 0 0.7]` (vehicle) | 40 | ![](Images/animations/camera_side.gif) |
 | `'kite'` | `[-14 0 10]` (vehicle) | `[6 0 0]` (vehicle) | 45 | ![](Images/animations/camera_kite.gif) |
 | `'orbit'` (`OrbitRate` 0.4) | `[-9 0 4]` (vehicle) | `[1.35 0 0.7]` (vehicle) | 45 | ![](Images/animations/camera_orbit.gif) |
 
-(The GIFs use the figure eight from `script_demo_CarMesh3D_animation.m`, with some positions changed there to suit it.) Vehicle-frame numbers assume a car about 4.5 m long; scale them for other vehicles. Two tips:
+(The GIFs use the figure eight from `script_demo_CarMesh3D_animation.m`, with some positions changed there to suit it: the overhead cameras sit above the middle of the figure eight, `[11 -11]`, rather than above `[0 0]`.) Vehicle-frame numbers assume a car about 4.5 m long; scale them for other vehicles. Two tips:
 
 - **Fix the axis limits** to cover the whole scene before animating (`axis([xmin xmax ymin ymax zmin zmax])`), so the axes do not rescale as the camera moves.
 - **Give riding cameras something to see.** `fcn_CarMesh3D_plotScene` draws a ground grid and colored cubes; without them, a driver or roof camera shows only an empty plane.
@@ -456,6 +617,14 @@ Angles follow the right-hand rule about these axes: positive yaw and steering tu
 
 If the file also has `DistancesRearOverhang`, the loader warns when it disagrees with length minus wheelbase minus front overhang.
 
+**Many vehicles at once.** `fcn_CarMesh3D_loadVehicleSpec` also takes a vehicleParameters structure directly, or an **array** of them (all with the same fields), from the workspace or saved in a `.mat` file. It returns an array of specs in the same order:
+
+```matlab
+allParameters = [priusParameters, camryParameters, f150Parameters];
+vehicleSpecs = fcn_CarMesh3D_loadVehicleSpec(allParameters);
+vehicleSpecs(3).Wheelbase
+```
+
 Note: in the Prius file, the `_Text` descriptions of both overhangs say "from the center of the rear axle." The values use the usual definitions (front axle to front bumper, rear axle to rear bumper), and 0.924 + 2.700 + 0.856 = 4.480. The descriptions should probably be corrected.
 
 ## Finding models
@@ -476,35 +645,33 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 
 ## TO-DO
 
-Items are grouped from easiest to hardest. Each function's header also has its own TO-DO list.
+Two lists: **high priority** (the current focus), and **low priority** (parked; may not be needed). Each function's header also has its own TO-DO list.
 
-**Next (small)**
+### High priority
 
-- Night scenes: let the light pools brighten objects they reach (for example, color the cube faces inside a beam)
-- GIFs for the README of body roll and pitch (using roll and pitch from another repo's dynamics model) and of Ackermann steering in a tight turn
-- CSV input for many vehicles at once (settle the column names first)
+Numbered from the smallest (easiest) to the largest (hardest):
 
-**Known issues in the demo GIFs**
+1. **Several vehicles in one motion file** (an `id` column in the CSV), and animating several vehicles in one scene.
+2. **Body-type templates:** a small set of vehicle body types, each with an "exemplar" model, to use as the starting shape for any vehicle of that type when no model of the vehicle itself is found.
 
-- Signals GIF: the lights are small; move that camera closer (for example `Position=[-5.5 3.2 1.8]`, `FieldOfView=40`)
-- Daytime headlights GIF: the difference between low and high beams is hard to see (it is clear in the night GIF)
-- GIF colors: tail and brake pools look slightly speckled, because GIFs have only 256 colors
-- Driver camera: the view is dark, because the dashboard fills most of the frame
-- Wide overhead camera: a thin strip of background shows at one edge
+### Low priority
 
-**Medium**
-
+- Shape from blueprints: cut out the side, top, and front outlines and keep only the space inside all three. (Free-to-use blueprints are very hard to find.)
+- Night scenes: let the light pools brighten objects they reach (for example, the cube faces inside a beam)
+- Daytime headlights GIF: low and high beams are hard to tell apart (they are clear in the night GIF)
+- GIF colors: tail and brake light pools look slightly speckled, because GIFs have only 256 colors
+- A converter for other simulators' output files (for example CarSim's names and degrees) to the CarMesh3D motion columns, if it becomes necessary
 - Box (drag) selection in the interactive label editor
 - Labeling of STL files by geometry (they have no material names)
-- Overlay a side-view photo during validation
-
-**Larger**
-
-- Shape from blueprints: extrude traced side, front, and top silhouettes
-- Parametric body template as a fallback shape source
 
 **Done recently** (2026_11_19)
 
+- Signals GIF camera moved closer; overhead cameras centered; driver camera moved forward toward the windshield; Ackermann steering GIF
+- Motion inputs: valid variable names (`roll_rate`, `pitch_rate`, `yaw_rate`); brake and backup lights are inputs only; inputs and assumptions listed near the top of this README
+- Body contact with the road (`fcn_CarMesh3D_checkGroundContact`), and three views of the wheel-lift GIF
+- Motion from CSV files (`fcn_CarMesh3D_loadMotionCSV`, `fcn_CarMesh3D_saveMotionCSV`), with wheel lift (`WheelLift=`) and a body roll/pitch GIF
+- Many vehicles at once: `fcn_CarMesh3D_loadVehicleSpec` takes arrays of vehicleParameters structures
+- Side-photo overlay for checking the shape (`fcn_CarMesh3D_plotSideImage`)
 - Night scenes (`TimeOfDay='night'`) with drawn light effects: lamp glows and pools of light on the ground (`LightEffects=true`)
 - Ackermann steering (`fcn_CarMesh3D_calcAckermannSteering`), used by `fcn_CarMesh3D_fillTrajectory`
 - Body roll, pitch, and heave on the wheels (sprung and unsprung frames in `fcn_CarMesh3D_plotVehicle`)

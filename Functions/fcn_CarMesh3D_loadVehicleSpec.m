@@ -1,8 +1,9 @@
-function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
+function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource, options)
 % fcn_CarMesh3D_loadVehicleSpec
-% Loads a vehicle specification from a .mat file and returns a CarMesh3D
-% vehicle specification structure (the same structure made by
-% fcn_CarMesh3D_fillVehicleSpec). Two kinds of .mat files are read:
+% Loads one or many vehicle specifications, from a .mat file or from a
+% structure already in the workspace, and returns CarMesh3D vehicle
+% specification structures (the same structure made by
+% fcn_CarMesh3D_fillVehicleSpec). Two kinds of structures are read:
 %
 %   1. IVSG "vehicleParameters" files, which hold a structure with fields
 %      such as DistancesLength, DistancesWheelbase, DistancesFrontTrack,
@@ -14,6 +15,14 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 %   2. Files holding a CarMesh3D spec structure that was saved earlier
 %      (with fields such as OverallLength). These are passed through
 %      fcn_CarMesh3D_fillVehicleSpec again so they are checked.
+%
+% MANY VEHICLES: give an ARRAY of vehicleParameters structures (all with
+% the same fields), either directly or saved in a .mat file, and an array
+% of specs comes back, one per vehicle, in the same order:
+%
+%       allParameters = [prius, camry, f150];   % vehicleParameters structures
+%       vehicleSpecs = fcn_CarMesh3D_loadVehicleSpec(allParameters);
+%       vehicleSpecs(2).Wheelbase
 %
 % The mapping from vehicleParameters fields to CarMesh3D spec fields is:
 %
@@ -31,7 +40,7 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 %
 % FORMAT:
 %
-%       vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName,...
+%       vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource,...
 %           (BodyColor=[r g b]),...
 %           (FigNum=figNum))
 %
@@ -40,7 +49,8 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 %
 % INPUTS:
 %
-%      fileName: the full or relative path to a .mat file.
+%      specSource: the full or relative path to a .mat file, or a
+%      structure (or array of structures) of either kind above.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -48,14 +58,17 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 %      the spec, since vehicleParameters files do not store a color.
 %      Default is [] (none).
 %
-%      FigNum: a figure number to plot the dimensioned specification. If
-%      empty or omitted, no plot is made. If set to -1, input checking is
+%      FigNum: a figure number to plot the dimensioned specification
+%      (for an array, the first vehicle's). If empty or omitted, no plot
+%      is made. If set to -1, input checking is
 %      skipped and no plot is made (fast mode).
 %
 % OUTPUTS:
 %
 %      vehicleSpec: a CarMesh3D vehicle specification structure, with
-%      Source set to the file name.
+%      Source set to the file name (or '(structure)'), or an array of
+%      them (the same size as the input array). For arrays, Source also
+%      gives each vehicle's position, such as 'myFleet.mat(3)'.
 %
 % DEPENDENCIES:
 %
@@ -75,12 +88,16 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadVehicleSpec
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_loadVehicleSpec
+%   % * Accepts a structure, or an array of vehicleParameters structures
+%   %   (many vehicles at once), as well as a .mat file
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadVehicleSpec
-%   % * Add CSV input (one row per vehicle) for class-wide data sets
 %   % * The _Text descriptions of DistancesFrontOverhang and
 %   %   % DistancesRearOverhang in the Prius file say "from the center of
 %   %   % the rear axle", but the values (0.924 + 2.700 + 0.856 = 4.480)
@@ -95,7 +112,7 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fileName, options)
 % gated section below, which can be skipped with FigNum=-1 or with
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
-    fileName
+    specSource
     options.BodyColor = []   % 1 x 3 RGB paint color to add
     options.FigNum = []      % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -148,16 +165,22 @@ if 0==flag_max_speed
         % The number of inputs and the option names are checked by the
         % arguments block above
 
-        % Check the fileName input
-        if ~(ischar(fileName) || isstring(fileName))
-            error('fileName must be a character string');
-        end
-        if ~exist(fileName,'file')
-            error('File not found: %s',char(fileName));
-        end
-        [~,~,tempExtension] = fileparts(char(fileName));
-        if ~strcmpi(tempExtension,'.mat')
-            error('fileName must be a .mat file. Found: %s',tempExtension);
+        % Check the specSource input: a structure, or a .mat file
+        if isstruct(specSource)
+            if isempty(specSource)
+                error('specSource is an empty structure array');
+            end
+        else
+            if ~(ischar(specSource) || isstring(specSource))
+                error('specSource must be a .mat file name or a structure');
+            end
+            if ~exist(specSource,'file')
+                error('File not found: %s',char(specSource));
+            end
+            [~,~,tempExtension] = fileparts(char(specSource));
+            if ~strcmpi(tempExtension,'.mat')
+                error('specSource must be a .mat file. Found: %s',tempExtension);
+            end
         end
     end
 end
@@ -179,101 +202,44 @@ end
 %  |_|  |_|\__,_|_|_| |_|
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fileName = char(fileName);
-loadedData = load(fileName);
-
-% Find the first structure in the file
-variableNames = fieldnames(loadedData);
-loadedStruct = [];
-for ith_variable = 1:length(variableNames)
-    if isstruct(loadedData.(variableNames{ith_variable}))
-        loadedStruct = loadedData.(variableNames{ith_variable});
-        break;
-    end
-end
-if isempty(loadedStruct)
-    error('No structure variable was found in file: %s',fileName);
-end
-
-if isfield(loadedStruct,'DistancesLength')
-    % IVSG vehicleParameters format
-    fieldMap = {...
-        'DistancesLength',           'OverallLength';
-        'DistancesWidth',            'OverallWidth';
-        'DistancesWidthWithMirrors', 'WidthWithMirrors';
-        'DistancesHeight',           'OverallHeight';
-        'DistancesWheelbase',        'Wheelbase';
-        'DistancesFrontTrack',       'TrackFront';
-        'DistancesRearTrack',        'TrackRear';
-        'DistancesFrontOverhang',    'FrontOverhang';
-        'DistancesGroundClearance',  'GroundClearance'};
-    specArguments = {};
-    for ith_field = 1:size(fieldMap,1)
-        sourceName = fieldMap{ith_field,1};
-        if isfield(loadedStruct,sourceName) && ~isempty(loadedStruct.(sourceName))
-            value = double(loadedStruct.(sourceName));
-            unitsName = [sourceName '_Units'];
-            if isfield(loadedStruct,unitsName)
-                value = value*fcn_INTERNAL_metersPerUnit(loadedStruct.(unitsName), sourceName);
-            end
-            specArguments = [specArguments, {fieldMap{ith_field,2}, value}]; %#ok<AGROW>
-        end
-    end
-    if isfield(loadedStruct,'TireSidewallMarkings') && ~isempty(loadedStruct.TireSidewallMarkings)
-        specArguments = [specArguments, {'TireSize', char(loadedStruct.TireSidewallMarkings)}];
-    end
-
-    % Name from year, make, model, and trim
-    nameParts = {};
-    nameFields = {'Year','Make','Model','Trim'};
-    for ith_field = 1:length(nameFields)
-        if isfield(loadedStruct,nameFields{ith_field}) && ~isempty(loadedStruct.(nameFields{ith_field}))
-            thisValue = loadedStruct.(nameFields{ith_field});
-            if isnumeric(thisValue)
-                thisValue = sprintf('%d',thisValue);
-            end
-            nameParts{end+1} = char(thisValue); %#ok<AGROW>
-        end
-    end
-    if ~isempty(nameParts)
-        specArguments = [specArguments, {'Name', strjoin(nameParts,' ')}];
-    end
+if isstruct(specSource)
+    loadedStruct = specSource;
+    sourceName = '(structure)';
 else
-    % A saved CarMesh3D spec: copy the fields fillVehicleSpec knows
-    knownFields = {'Name','OverallLength','OverallWidth','WidthWithMirrors','OverallHeight',...
-        'Wheelbase','TrackFront','TrackRear','TireSize','TireDiameter',...
-        'FrontOverhang','GroundClearance','BodyColor'};
-    specArguments = {};
-    for ith_field = 1:length(knownFields)
-        if isfield(loadedStruct,knownFields{ith_field}) && ~isempty(loadedStruct.(knownFields{ith_field}))
-            specArguments = [specArguments, {knownFields{ith_field}, loadedStruct.(knownFields{ith_field})}]; %#ok<AGROW>
+    sourceName = char(specSource);
+    loadedData = load(sourceName);
+
+    % Find the first structure in the file
+    variableNames = fieldnames(loadedData);
+    loadedStruct = [];
+    for ith_variable = 1:length(variableNames)
+        if isstruct(loadedData.(variableNames{ith_variable}))
+            loadedStruct = loadedData.(variableNames{ith_variable});
+            break;
         end
     end
-    if isempty(specArguments)
-        error('The structure in %s is neither a vehicleParameters structure nor a CarMesh3D spec',fileName);
+    if isempty(loadedStruct)
+        error('No structure variable was found in file: %s',sourceName);
     end
 end
 
-if ~isempty(options.BodyColor)
-    specArguments = [specArguments, {'BodyColor', options.BodyColor}];
-end
-specArguments = [specArguments, {'Source', fileName, 'FigNum', figNum}];
-
-% Build (and check) the spec
-vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(specArguments{:});
-
-% Cross-check the rear overhang, if the file gives it
-if isfield(loadedStruct,'DistancesRearOverhang') && ~isempty(vehicleSpec.RearOverhang) && 0==flag_max_speed
-    fileRearOverhang = double(loadedStruct.DistancesRearOverhang);
-    if isfield(loadedStruct,'DistancesRearOverhang_Units')
-        fileRearOverhang = fileRearOverhang*fcn_INTERNAL_metersPerUnit(loadedStruct.DistancesRearOverhang_Units,'DistancesRearOverhang');
+% Convert each vehicle (one, or every element of an array)
+Nvehicles = numel(loadedStruct);
+specList = cell(Nvehicles,1);
+for ith_vehicle = 1:Nvehicles
+    if Nvehicles==1
+        thisSource = sourceName;
+        thisFigNum = figNum;
+    else
+        thisSource = sprintf('%s(%d)', sourceName, ith_vehicle);
+        thisFigNum = -1;
+        if ith_vehicle==1
+            thisFigNum = figNum;
+        end
     end
-    if abs(fileRearOverhang - vehicleSpec.RearOverhang) > 0.01
-        warning('on','backtrace');
-        warning('Rear overhang in the file (%.3f m) does not match Length - Wheelbase - FrontOverhang (%.3f m). Check the file values.',...
-            fileRearOverhang, vehicleSpec.RearOverhang);
-    end
+    specList{ith_vehicle} = fcn_INTERNAL_convertOne(loadedStruct(ith_vehicle), thisSource, options.BodyColor, thisFigNum, flag_max_speed);
 end
+vehicleSpec = reshape([specList{:}], size(loadedStruct));
 
 if flag_do_debug
     disp(vehicleSpec);
@@ -333,3 +299,88 @@ switch lower(strtrim(char(unitsValue)))
         error('Unknown units ''%s'' for field %s',char(unitsValue),fieldName);
 end
 end % Ends fcn_INTERNAL_metersPerUnit
+
+%% fcn_INTERNAL_convertOne
+function vehicleSpec = fcn_INTERNAL_convertOne(loadedStruct, sourceName, bodyColor, figNum, flag_max_speed)
+% Converts one vehicleParameters structure (or saved CarMesh3D spec) into
+% a CarMesh3D spec, checked by fcn_CarMesh3D_fillVehicleSpec
+if isfield(loadedStruct,'DistancesLength')
+    % IVSG vehicleParameters format
+    fieldMap = {...
+        'DistancesLength',           'OverallLength';
+        'DistancesWidth',            'OverallWidth';
+        'DistancesWidthWithMirrors', 'WidthWithMirrors';
+        'DistancesHeight',           'OverallHeight';
+        'DistancesWheelbase',        'Wheelbase';
+        'DistancesFrontTrack',       'TrackFront';
+        'DistancesRearTrack',        'TrackRear';
+        'DistancesFrontOverhang',    'FrontOverhang';
+        'DistancesGroundClearance',  'GroundClearance'};
+    specArguments = {};
+    for ith_field = 1:size(fieldMap,1)
+        parameterName = fieldMap{ith_field,1};
+        if isfield(loadedStruct,parameterName) && ~isempty(loadedStruct.(parameterName))
+            value = double(loadedStruct.(parameterName));
+            unitsName = [parameterName '_Units'];
+            if isfield(loadedStruct,unitsName)
+                value = value*fcn_INTERNAL_metersPerUnit(loadedStruct.(unitsName), parameterName);
+            end
+            specArguments = [specArguments, {fieldMap{ith_field,2}, value}]; %#ok<AGROW>
+        end
+    end
+    if isfield(loadedStruct,'TireSidewallMarkings') && ~isempty(loadedStruct.TireSidewallMarkings)
+        specArguments = [specArguments, {'TireSize', char(loadedStruct.TireSidewallMarkings)}];
+    end
+
+    % Name from year, make, model, and trim
+    nameParts = {};
+    nameFields = {'Year','Make','Model','Trim'};
+    for ith_field = 1:length(nameFields)
+        if isfield(loadedStruct,nameFields{ith_field}) && ~isempty(loadedStruct.(nameFields{ith_field}))
+            thisValue = loadedStruct.(nameFields{ith_field});
+            if isnumeric(thisValue)
+                thisValue = sprintf('%d',thisValue);
+            end
+            nameParts{end+1} = char(thisValue); %#ok<AGROW>
+        end
+    end
+    if ~isempty(nameParts)
+        specArguments = [specArguments, {'Name', strjoin(nameParts,' ')}];
+    end
+else
+    % A saved CarMesh3D spec: copy the fields fillVehicleSpec knows
+    knownFields = {'Name','OverallLength','OverallWidth','WidthWithMirrors','OverallHeight',...
+        'Wheelbase','TrackFront','TrackRear','TireSize','TireDiameter',...
+        'FrontOverhang','GroundClearance','BodyColor'};
+    specArguments = {};
+    for ith_field = 1:length(knownFields)
+        if isfield(loadedStruct,knownFields{ith_field}) && ~isempty(loadedStruct.(knownFields{ith_field}))
+            specArguments = [specArguments, {knownFields{ith_field}, loadedStruct.(knownFields{ith_field})}]; %#ok<AGROW>
+        end
+    end
+    if isempty(specArguments)
+        error('The structure in %s is neither a vehicleParameters structure nor a CarMesh3D spec',sourceName);
+    end
+end
+
+if ~isempty(bodyColor)
+    specArguments = [specArguments, {'BodyColor', bodyColor}];
+end
+specArguments = [specArguments, {'Source', sourceName, 'FigNum', figNum}];
+
+% Build (and check) the spec
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(specArguments{:});
+
+% Cross-check the rear overhang, if the file gives it
+if isfield(loadedStruct,'DistancesRearOverhang') && ~isempty(vehicleSpec.RearOverhang) && 0==flag_max_speed
+    fileRearOverhang = double(loadedStruct.DistancesRearOverhang);
+    if isfield(loadedStruct,'DistancesRearOverhang_Units')
+        fileRearOverhang = fileRearOverhang*fcn_INTERNAL_metersPerUnit(loadedStruct.DistancesRearOverhang_Units,'DistancesRearOverhang');
+    end
+    if abs(fileRearOverhang - vehicleSpec.RearOverhang) > 0.01
+        warning('on','backtrace');
+        warning('Rear overhang in the file (%.3f m) does not match Length - Wheelbase - FrontOverhang (%.3f m). Check the file values.',...
+            fileRearOverhang, vehicleSpec.RearOverhang);
+    end
+end
+end % Ends fcn_INTERNAL_convertOne

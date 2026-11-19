@@ -26,6 +26,7 @@
 %   5. Fit to spec    fcn_CarMesh3D_fitMeshToSpec  (exact wheelbase, track, tires)
 %   6. Simplify       fcn_CarMesh3D_simplifyMesh   (face budget, outward normals)
 %   7. Validate       fcn_CarMesh3D_validateMesh   (table of target vs. measured)
+%                     fcn_CarMesh3D_plotSideImage  (outline vs. a side photo)
 %   8. Plot / animate fcn_CarMesh3D_plotVehicle    (fast pose updates)
 
 % REVISION HISTORY:
@@ -50,6 +51,8 @@
 %   %   % (blue body, nearly opaque gray glass, black trim), compared side
 %   %   % by side with the reduced version
 %   % * Steps 11-12 show the Finish (glossy) and ShowEdges/EdgeColor options
+%   % * Added Step 13: check the outline against a side-view picture
+%   %   % (fcn_CarMesh3D_plotSideImage)
 
 % TO-DO:
 %
@@ -57,7 +60,6 @@
 % - In script_demo_CarMesh3D
 %   % * Add blueprint (side/front/top silhouette) extrusion as a shape source
 %   % * Add a parametric body template as a fallback shape source
-%   % * Add photo overlay to validation
 %   % * Decide on DebugTools dependency and the standard IVSG installer
 
 
@@ -116,7 +118,7 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
     OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
     Wheelbase=2.70, TrackFront=1.55, TireSize='205/55R16',...
     FrontOverhang=0.88, Source='Example values',...
-    FigNum=figNum); 
+    FigNum=figNum); %#ok<NASGU>
 
 %% Step 2: A shape source
 % The starting example is a free low-poly 2010 Toyota Prius model (a .glb
@@ -137,8 +139,7 @@ flag_useDownloadedModel = exist(modelFile,'file')==2;
 if flag_useDownloadedModel
     try
         vehicleMesh = fcn_CarMesh3D_importMesh(modelFile, ...
-			Source='https://sketchfab.com/3d-models/2010-toyota-prius-f4ed90af97264198b65f28a7532be138', ...
-            License='Free Standard', FigNum=figNum); % For license, fill in from the models download page
+            License='(fill in from the model''s download page)', FigNum=figNum);
         vehicleMesh.Name = '2010 Toyota Prius (downloaded model)';
     catch ME
         fprintf(1,'Could not import %s:\n  %s\nUsing the built-in sample car instead.\n', modelFile, ME.message);
@@ -218,7 +219,7 @@ disp(validationTable);
 
 flag_saveToLibrary = 0; % Set to 1 to save
 if flag_saveToLibrary
-    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']); %#ok<UNRCH>
+    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']);
     save(libraryFile,'vehicleMesh');
     fprintf(1,'Saved: %s\n', libraryFile);
 end
@@ -319,6 +320,32 @@ nexttile;
 fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', ShowEdges=true, EdgeColor=[0.85 0.85 0.85], FigNum=figNum);
 title('Light gray edges');
 
+%% Step 13: Check the outline against a side-view picture
+% fcn_CarMesh3D_plotSideImage puts a side-view picture of the real vehicle
+% on a plane through the vehicle's centerline. The picture is scaled and
+% placed so that its two wheel centers land on the mesh's two axles, so
+% any difference in the roof line, hood, trunk, or bumpers shows up.
+%
+% To use a real photo: save a side view of the vehicle (taken from far
+% away, so it is nearly free of perspective, and level with the wheels)
+% as the file below. The first time, leave out WheelCentersPixels and
+% click the rear, then the front, wheel center; the values are printed so
+% they can be pasted in here. Without a photo, a side view drawn from the
+% mesh itself is used, so the outlines agree exactly.
+
+figNum = 15;
+figure(figNum); clf;
+sideImageFile = fullfile('Data','sideView_2013ToyotaPriusFour.jpg');
+if isfile(sideImageFile)
+    overlayHandles = fcn_CarMesh3D_plotSideImage(sideImageFile, vehicleMesh, FigNum=figNum);
+else
+    fprintf(1,'No side photo found (%s); using a side view drawn from the mesh\n', sideImageFile);
+    [sideImage, wheelPixels] = fcn_INTERNAL_renderSideView(vehicleMesh);
+    overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, ...
+        WheelCentersPixels=wheelPixels, FigNum=figNum);
+end
+title(sprintf('Side picture on the centerline: %.2f mm per pixel', 1000*overlayHandles.MetersPerPixel));
+
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
@@ -330,6 +357,30 @@ title('Light gray edges');
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_renderSideView
+function [sideImage, wheelPixels] = fcn_INTERNAL_renderSideView(vehicleMesh)
+% Draws the vehicle from the right side, without perspective, filling a
+% figure exactly, and captures it as a picture. The wheel-center pixels
+% follow from the axis limits. (A stand-in for a real side photo.)
+figureSize = [800 300];
+renderFigure = figure('Position',[100 100 figureSize],'Color',[1 1 1]);
+renderAxes = axes('Parent',renderFigure,'Position',[0 0 1 1]);
+fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', FigNum=-1);
+view(renderAxes,0,0);
+camproj(renderAxes,'orthographic');
+axis(renderAxes,'off');
+xLimits = [min(vehicleMesh.Vertices(:,1))-0.3, max(vehicleMesh.Vertices(:,1))+0.3];
+zLimits = [-0.2, -0.2 + diff(xLimits)*figureSize(2)/figureSize(1)];
+set(renderAxes,'XLim',xLimits,'ZLim',zLimits,'YLim',[-2 2],'DataAspectRatio',[1 1 1]);
+drawnow;
+frame = getframe(renderFigure);
+sideImage = frame.cdata;
+close(renderFigure);
+tireRadius = vehicleMesh.VehicleSpec.TireDiameter/2;
+wheelPixels = [(vehicleMesh.AxleX(:) - xLimits(1))/diff(xLimits)*size(sideImage,2) + 0.5, ...
+    (zLimits(2) - tireRadius)/diff(zLimits)*size(sideImage,1) + 0.5 + [0; 0]];
+end % Ends fcn_INTERNAL_renderSideView
 
 %% fcn_INTERNAL_setupWorkspace
 function fcn_INTERNAL_setupWorkspace

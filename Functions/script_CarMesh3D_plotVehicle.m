@@ -246,6 +246,11 @@ topPoint = [plotHandles.WheelCenters(3,1:2) 2*plotHandles.WheelCenters(3,3) 1]';
 movedPoint = plotHandles.WheelTransforms{3}.Matrix*topPoint;
 assert(movedPoint(1) > topPoint(1));
 
+% Wheel lift: the front-right wheel rises 0.1 m; the others stay down
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, WheelLift=[0 0.1 0 0], FigNum=-1);
+assert(abs(plotHandles.WheelTransforms{2}.Matrix(3,4) - 0.1) < 1e-12);
+assert(abs(plotHandles.WheelTransforms{1}.Matrix(3,4)) < 1e-12);
+
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 

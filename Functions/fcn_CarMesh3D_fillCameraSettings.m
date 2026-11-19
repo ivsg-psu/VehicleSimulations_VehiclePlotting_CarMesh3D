@@ -20,7 +20,7 @@ function cameraSettings = fcn_CarMesh3D_fillCameraSettings(options)
 %   'roadside'   [0 -8 1.5]     (world)      [1.35 0 0.7]  (vehicle) 40
 %   'overhead'   [0 0 60]       (world)      [0 0 0]       (world)   40
 %   'chase'      [-7 0 2.5]     (vehicle)    [4 0 1]       (vehicle) 50
-%   'driver'     [1.25 0.37 1.15] (vehicle)  [20 0.37 0.9] (vehicle) 70
+%   'driver'     [1.5 0.37 1.15] (vehicle)   [20 0.37 0.9] (vehicle) 70
 %   'roof'       [0.6 0 1.9]    (vehicle)    [12 0 0.4]    (vehicle) 65
 %   'side'       [1.35 -7 1.2]  (vehicle)    [1.35 0 0.7]  (vehicle) 40
 %   'kite'       [-14 0 10]     (vehicle)    [6 0 0]       (vehicle) 45
@@ -91,6 +91,11 @@ function cameraSettings = fcn_CarMesh3D_fillCameraSettings(options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fillCameraSettings
 %   % * Wrote the code originally (drafted with Claude)
+
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fillCameraSettings
+%   % * Driver camera moved forward (x 1.25 to 1.5 m), closer to the
+%   %   windshield, so the dashboard and roof fill less of the view
 
 % TO-DO:
 %
@@ -316,7 +321,7 @@ switch lower(modeName)
     case 'chase'
         cameraSettings = fcn_INTERNAL_set(cameraSettings, [-7 0 2.5], 'vehicle', [4 0 1], 'vehicle', 50);
     case 'driver'
-        cameraSettings = fcn_INTERNAL_set(cameraSettings, [1.25 0.37 1.15], 'vehicle', [20 0.37 0.9], 'vehicle', 70);
+        cameraSettings = fcn_INTERNAL_set(cameraSettings, [1.5 0.37 1.15], 'vehicle', [20 0.37 0.9], 'vehicle', 70);
     case 'roof'
         cameraSettings = fcn_INTERNAL_set(cameraSettings, [0.6 0 1.9], 'vehicle', [12 0 0.4], 'vehicle', 65);
     case 'side'
