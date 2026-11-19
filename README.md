@@ -407,4 +407,6 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 
 ## License
 
-To be decided by the project owner (IVSG repositories typically use MIT).
+CarMesh3D is released under the [MIT License](LICENSE), Copyright (c) 2026 Intelligent Vehicles and Systems Group (Prof. Sean Brennan).
+
+The MIT License covers the CarMesh3D code and the images it made. **Downloaded 3D models in `Data` keep their own licenses**, which can require attribution or forbid redistribution. Record each model's license with `License=` in `fcn_CarMesh3D_importMesh`, and check it before sharing the model, meshes made from it, or images and GIFs of it.
