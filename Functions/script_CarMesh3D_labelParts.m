@@ -68,6 +68,10 @@ for ith_wheel = 1:4
 end
 assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.35)<1e-12));
 assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
+% Light types from names: 4 headlight faces and 4 tail light faces
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight'))));
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail'))));
+assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
 
 % Wheel 1 is front-left: positive X and positive Y
 fcn_INTERNAL_checkWheelCorner(vehicleMesh, 1, [ 1  1]);
@@ -162,6 +166,25 @@ assert(512==sum(vehicleMesh.FacePartIndex==3));
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
+
+%% TEST case: PartColors sets the color of any part
+figNum = 20005;
+titleString = sprintf('TEST case: PartColors sets the color of any part');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.9], ...
+    PartColors={'body',[0.05 0.2 0.6]; 'glass',[0.35 0.35 0.38]; 'wheel',[0 0 0]}, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% PartColors wins over BodyColor
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:) - [0.05 0.2 0.6])<1e-12)));
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==2,:) - [0.35 0.35 0.38])<1e-12)));
+assert(all(all(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==3,:)==0)));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -302,6 +325,11 @@ end
 %% FAIL case: Glass alpha out of range
 if 1==0
     vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, GlassAlpha=2);
+end
+
+%% FAIL case: PartColors with an unknown part
+if 1==0
+    vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh, PartColors={'roof',[1 0 0]});
 end
 
 %% FAIL case: Mesh without materials

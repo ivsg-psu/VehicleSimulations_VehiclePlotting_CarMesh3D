@@ -32,6 +32,7 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %       vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec,...
 %           (FitMethod=methodString),...
 %           (Origin=originString),...
+%           (WidthReference=widthString),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -57,6 +58,16 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %               rear axle (the usual vehicle dynamics convention). Needs a
 %               Wheelbase in the spec.
 %           'center': on the ground, at the center of the length and width.
+%
+%      WidthReference: what is scaled to OverallWidth:
+%           'all' (default): the whole mesh.
+%           'body': only the faces labeled 'body'. Use this when the
+%               model's side mirrors are labeled trim and the published
+%               width excludes them, as most published widths do.
+%           'mirrors': the whole mesh is scaled to the spec's
+%               WidthWithMirrors. Use this when the mirrors are part of
+%               the body mesh and the spec gives the width with mirrors.
+%      fcn_CarMesh3D_validateMesh measures the width the same way.
 %
 %      FigNum: a figure number to plot the fitted mesh. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
@@ -99,13 +110,13 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %   %   % first testing in MATLAB: box scaling changed the clearance)
 %   % * Wheel width is scaled to the tire section width from TireSize
 %   %   % (found with a downloaded model whose sport tires were too wide)
+%   % * Added WidthReference option ('all', 'body', 'mirrors'), since
+%   %   % published widths usually exclude mirrors
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fitMeshToSpec
-%   % * Published widths usually exclude mirrors. Add an option to
-%   %   % measure width without 'trim' faces (where mirrors usually land)
 
 
 
@@ -119,6 +130,7 @@ arguments
     vehicleSpec
     options.FitMethod = 'auto'    % 'auto', 'wheels', or 'box'
     options.Origin = 'rearAxle'   % 'rearAxle' or 'center'
+    options.WidthReference = 'all' % 'all', 'body', or 'mirrors'
     options.FigNum = []           % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -198,6 +210,15 @@ if 0==flag_max_speed
         if ~any(strcmpi(char(options.Origin),{'rearAxle','center'}))
             error('Origin must be ''rearAxle'' or ''center''');
         end
+
+        % Check the WidthReference input
+        if ~any(strcmpi(char(options.WidthReference),{'all','body','mirrors'}))
+            error('WidthReference must be ''all'', ''body'', or ''mirrors''');
+        end
+        if strcmpi(char(options.WidthReference),'mirrors') && ...
+                (~isfield(vehicleSpec,'WidthWithMirrors') || isempty(vehicleSpec.WidthWithMirrors))
+            error('WidthReference ''mirrors'' needs WidthWithMirrors in the vehicle spec');
+        end
     end
 end
 
@@ -246,6 +267,24 @@ extents = maxValues - minValues;
 centerX = (minValues(1)+maxValues(1))/2;
 centerY = (minValues(2)+maxValues(2))/2;
 boxScale = [L W H]./extents;
+
+% Width from the body only (leaving out mirrors), if asked
+widthReference = lower(char(options.WidthReference));
+if strcmp(widthReference,'body')
+    if isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
+        bodyVertexIndices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
+        bodyMinY = min(originalVertices(bodyVertexIndices,2));
+        bodyMaxY = max(originalVertices(bodyVertexIndices,2));
+        centerY = (bodyMinY + bodyMaxY)/2;
+        boxScale(2) = W/(bodyMaxY - bodyMinY);
+    else
+        warning('on','backtrace');
+        warning('WidthReference ''body'' needs labeled body faces (run fcn_CarMesh3D_labelParts). Using the whole mesh.');
+        widthReference = 'all';
+    end
+elseif strcmp(widthReference,'mirrors')
+    boxScale(2) = vehicleSpec.WidthWithMirrors/extents(2);
+end
 fittedVertices = [...
     (originalVertices(:,1) - centerX)*boxScale(1), ...
     (originalVertices(:,2) - centerY)*boxScale(2), ...
@@ -405,6 +444,7 @@ vehicleMesh.FitInfo = struct(...
     'Method', fitMethod,...
     'Origin', originString,...
     'BoxScale', boxScale,...
+    'WidthReference', widthReference,...
     'WheelScale', wheelScale);
 
 if flag_do_debug

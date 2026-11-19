@@ -11,6 +11,14 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % 'Glass', 'Windshield', 'Tire', 'Wheel_FL', 'HeadLight', 'Chrome').
 % Users can add their own rules, which are checked first.
 %
+% Light faces are also given a light type, used to switch them on and off
+% in fcn_CarMesh3D_plotVehicle: 'headlight', 'turnsignal', 'running',
+% 'tail', or 'backup'. The type comes from the names (for example
+% 'TurnSignal', 'Reverse', 'TailLight'); a light with no recognized type
+% becomes a headlight if it is in the front half of the vehicle, and a
+% tail light if it is in the rear half. Fix any mistakes with
+% fcn_CarMesh3D_editLabels.
+%
 % Wheel faces are also numbered by corner: 1 = front-left, 2 =
 % front-right, 3 = rear-left, 4 = rear-right. This needs the mesh to be
 % in the CarMesh3D vehicle frame (run fcn_CarMesh3D_normalizeMesh first).
@@ -24,6 +32,8 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %           (PartRules=partRules),...
 %           (BodyColor=[r g b]),...
 %           (GlassAlpha=alpha),...
+%           (UseMaterialColors=flag),...
+%           (PartColors=partColors),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -59,6 +69,18 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      GlassAlpha: the transparency of glass faces, from 0 (invisible) to
 %      1 (opaque). Default is 0.35.
 %
+%      UseMaterialColors: true (default) to color faces from the file's
+%      material colors where known. Set false for models colored by
+%      texture images, whose material colors are just placeholders (often
+%      all the same gray); faces then get one color per part (and
+%      BodyColor for the body).
+%
+%      PartColors: an N x 2 cell array of {partName, [r g b]} pairs that
+%      set the color of every face of a part, for example
+%           PartColors = {'glass',[0.35 0.35 0.38]; 'trim',[0 0 0]}
+%      These are applied last, so they override material colors and
+%      BodyColor. Default is {} (none).
+%
 %      FigNum: a figure number to plot the labeled parts. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
 %      and no plot is made (fast mode).
@@ -72,6 +94,10 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %               (1 FL, 2 FR, 3 RL, 4 RR)
 %           FaceColors (M x 3): RGB display color of each face
 %           FaceAlpha (M x 1): transparency of each face
+%           LightTypeNames (5 x 1 cell): {'headlight';'turnsignal';
+%               'running';'tail';'backup'}
+%           FaceLightType (M x 1): index into LightTypeNames for light
+%               faces, 0 for all other faces
 %
 % DEPENDENCIES:
 %
@@ -96,6 +122,9 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % - In fcn_CarMesh3D_labelParts
 %   % * Wheel-named faces near the centerline (axles) are now trim. Found
 %   %   % when testing a downloaded FBX whose wheel groups included axles.
+%   % * Added UseMaterialColors option, for texture-colored models
+%   % * Added PartColors option, to set the color of any part
+%   % * Light faces get a light type (FaceLightType), for switchable lights
 
 % TO-DO:
 %
@@ -118,6 +147,8 @@ arguments
     options.PartRules = {}    % N x 2 cell of {pattern, partName}, checked first
     options.BodyColor = []    % 1 x 3 RGB for all body faces
     options.GlassAlpha = 0.35 % Transparency of glass faces
+    options.UseMaterialColors = true % Use the file's material colors?
+    options.PartColors = {}   % N x 2 cell of {partName, [r g b]}
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -199,6 +230,27 @@ if 0==flag_max_speed
             if ~isnumeric(options.BodyColor) || ~isequal(size(options.BodyColor),[1 3]) || any(options.BodyColor<0) || any(options.BodyColor>1)
                 error('BodyColor must be empty or a 1 x 3 RGB vector with values from 0 to 1');
             end
+        end
+
+        % Check the PartColors input
+        if ~isempty(options.PartColors)
+            if ~iscell(options.PartColors) || size(options.PartColors,2)~=2
+                error('PartColors must be an N x 2 cell array of {partName, [r g b]}');
+            end
+            for ith_row = 1:size(options.PartColors,1)
+                if ~any(strcmpi(options.PartColors{ith_row,1}, partNames))
+                    error('PartColors row %d has an unknown part name: %s. Allowed: body, glass, wheel, light, trim.',ith_row,char(options.PartColors{ith_row,1}));
+                end
+                thisColor = options.PartColors{ith_row,2};
+                if ~isnumeric(thisColor) || ~isequal(size(thisColor),[1 3]) || any(thisColor<0) || any(thisColor>1)
+                    error('PartColors row %d must have a 1 x 3 RGB color with values from 0 to 1',ith_row);
+                end
+            end
+        end
+
+        % Check the UseMaterialColors input
+        if ~(islogical(options.UseMaterialColors) || isnumeric(options.UseMaterialColors)) || ~isscalar(options.UseMaterialColors)
+            error('UseMaterialColors must be true or false');
         end
 
         % Check the GlassAlpha input
@@ -294,7 +346,7 @@ defaultPartColors = [...
     0.95 0.90 0.80;   % light
     0.20 0.20 0.20];  % trim
 faceColors = defaultPartColors(facePartIndex,:);
-if isfield(vehicleMesh,'MaterialColors') && ~isempty(vehicleMesh.MaterialColors)
+if options.UseMaterialColors && isfield(vehicleMesh,'MaterialColors') && ~isempty(vehicleMesh.MaterialColors)
     flagHasMaterial = materialIndex>0;
     materialFaceColors = nan(Nfaces,3);
     materialFaceColors(flagHasMaterial,:) = vehicleMesh.MaterialColors(materialIndex(flagHasMaterial),:);
@@ -306,11 +358,56 @@ if ~isempty(options.BodyColor)
     faceColors(flagBody,:) = repmat(options.BodyColor, sum(flagBody), 1);
 end
 
+% Colors set by part name override everything else
+for ith_row = 1:size(options.PartColors,1)
+    thisPart = find(strcmpi(options.PartColors{ith_row,1}, partNames));
+    flagThisPart = facePartIndex==thisPart;
+    faceColors(flagThisPart,:) = repmat(options.PartColors{ith_row,2}, sum(flagThisPart), 1);
+end
+
 % Alpha: glass faces get GlassAlpha, everything else is opaque
 faceAlpha = ones(Nfaces,1);
 faceAlpha(facePartIndex==2) = options.GlassAlpha;
 
+% Light types, for switchable lights
+lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
+lightTypeRules = {...
+    'turn|indicator|blinker|signal',   'turnsignal';
+    'reverse|backup|back_up',          'backup';
+    'drl|running|daytime',             'running';
+    'tail|brake|stop|rear',            'tail';
+    'head|front',                      'headlight'};
+faceLightType = zeros(Nfaces,1);
+flagLightFace = facePartIndex==4;
+if any(flagLightFace)
+    % By name
+    pairLightType = zeros(size(uniquePairs,1),1);
+    for ith_pair = 1:size(uniquePairs,1)
+        labelText = [fcn_INTERNAL_nameOrEmpty(vehicleMesh.MaterialNames, uniquePairs(ith_pair,1)), ' ', ...
+                     fcn_INTERNAL_nameOrEmpty(vehicleMesh.GroupNames,    uniquePairs(ith_pair,2))];
+        for ith_rule = 1:size(lightTypeRules,1)
+            if ~isempty(regexpi(labelText, lightTypeRules{ith_rule,1}, 'once'))
+                pairLightType(ith_pair) = find(strcmp(lightTypeRules{ith_rule,2}, lightTypeNames));
+                break;
+            end
+        end
+    end
+    faceLightType(flagLightFace) = pairLightType(pairOfFace(flagLightFace));
+
+    % By position, for lights whose names did not say
+    flagUntyped = flagLightFace & faceLightType==0;
+    if any(flagUntyped) && isfield(vehicleMesh,'Frame') && strcmp(vehicleMesh.Frame,'ISO8855')
+        lightCentersX = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),1) + ...
+            vehicleMesh.Vertices(vehicleMesh.Faces(:,2),1) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),1))/3;
+        middleX = (min(vehicleMesh.Vertices(:,1)) + max(vehicleMesh.Vertices(:,1)))/2;
+        faceLightType(flagUntyped & lightCentersX>=middleX) = 1; % headlight
+        faceLightType(flagUntyped & lightCentersX<middleX)  = 4; % tail
+    end
+end
+
 vehicleMesh.PartNames = partNames;
+vehicleMesh.LightTypeNames = lightTypeNames;
+vehicleMesh.FaceLightType = faceLightType;
 vehicleMesh.FacePartIndex = facePartIndex;
 vehicleMesh.FaceWheelIndex = faceWheelIndex;
 vehicleMesh.FaceColors = faceColors;

@@ -55,13 +55,18 @@ sgtitle(titleString, 'Interpreter','none');
 assert(isstruct(plotHandles));
 assert(iscell(plotHandles.Patches));
 
-% Check variable sizes: one opaque patch and one glass patch
-assert(isequal(size(plotHandles.Patches),[2 1]));
+% Check variable sizes: opaque body, glass, 4 wheels, head and tail lights
+assert(isequal(size(plotHandles.Patches),[8 1]));
+assert(isequal(size(plotHandles.WheelTransforms),[4 1]));
 
 % Check variable values
 fcn_INTERNAL_checkPlotHandles(plotHandles, figNum);
 assert(plotHandles.Patches{1}.FaceAlpha==1);
 assert(abs(plotHandles.Patches{2}.FaceAlpha - 0.35)<1e-9);
+assert(all(cellfun(@(h) isgraphics(h), plotHandles.WheelTransforms)));
+assert(isgraphics(plotHandles.LightPatches.headlight));
+assert(isgraphics(plotHandles.LightPatches.tail));
+assert(isempty(plotHandles.LightPatches.backup)); % The sample has no backup lights
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -93,7 +98,7 @@ expectedMatrix = makehgtform('translate',[pose(1) pose(2) 0])*makehgtform('zrota
 assert(max(abs(plotHandles.Transform.Matrix(:) - expectedMatrix(:)))<1e-9);
 
 % Only one copy of the vehicle exists in the axes
-assert(1==length(findobj(gca,'Type','hgtransform')));
+assert(1==length(findobj(gca,'-depth',1,'Type','hgtransform'))); % Wheel transforms are nested inside
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -178,8 +183,92 @@ plotHandles1 = fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=[0 0 0], FigNum=figNu
 plotHandles2 = fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=[0 4 pi], FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
-assert(2==length(findobj(gca,'Type','hgtransform')));
+assert(2==length(findobj(gca,'-depth',1,'Type','hgtransform')));
 assert(plotHandles1.Axes==plotHandles2.Axes);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: Finish presets, lighting, and edge settings
+figNum = 20005;
+titleString = sprintf('TEST case: Finish presets, lighting, and edge settings');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+finishNames = {'matte','satin','glossy','metallic'};
+tiledlayout(2,2);
+for ith_finish = 1:4
+    nexttile;
+    plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish=finishNames{ith_finish}, ...
+        ShowEdges=(ith_finish==4), EdgeColor=[1 1 1], FigNum=figNum);
+    title(finishNames{ith_finish});
+    if ith_finish==1
+        assert(strcmp(plotHandles.Patches{1}.FaceLighting,'flat')); % 'auto' gives flat for matte
+    else
+        assert(strcmp(plotHandles.Patches{1}.FaceLighting,'gouraud')); % and gouraud otherwise
+    end
+end
+sgtitle(titleString, 'Interpreter','none');
+% The last plot (metallic) has the strongest highlights
+assert(plotHandles.Patches{1}.SpecularStrength==1.00); % metallic
+% Edges: shown in the given color on the last plot only
+assert(isequal(plotHandles.Patches{1}.EdgeColor,[1 1 1]));
+
+% A custom finish vector, with edges hidden
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish=[0.3 0.6 0.8 50 0], FigNum=figNum);
+assert(plotHandles.Patches{1}.SpecularExponent==50);
+assert(strcmp(plotHandles.Patches{1}.EdgeColor,'none'));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: Wheels spin and steer
+figNum = 20006;
+titleString = sprintf('TEST case: Wheels spin and steer');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, WheelSpin=[0.5 0.5 1.0 1.0], SteerAngle=0.3, ShowEdges=true, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% The front-left wheel: steered 0.3 rad and spun 0.5 rad about its center
+center = plotHandles.WheelCenters(1,:);
+expectedMatrix = makehgtform('translate',center)*makehgtform('zrotate',0.3)*makehgtform('yrotate',0.5)*makehgtform('translate',-center);
+assert(max(abs(plotHandles.WheelTransforms{1}.Matrix(:) - expectedMatrix(:)))<1e-12);
+% A rear wheel is spun but not steered
+center = plotHandles.WheelCenters(3,:);
+expectedMatrix = makehgtform('translate',center)*makehgtform('yrotate',1.0)*makehgtform('translate',-center);
+assert(max(abs(plotHandles.WheelTransforms{3}.Matrix(:) - expectedMatrix(:)))<1e-12);
+% Forward rolling: a point at the top of a wheel moves forward
+topPoint = [plotHandles.WheelCenters(3,1:2) 2*plotHandles.WheelCenters(3,3) 1]';
+movedPoint = plotHandles.WheelTransforms{3}.Matrix*topPoint;
+assert(movedPoint(1) > topPoint(1));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: Lights switch on and off, also on the fast path
+figNum = 20007;
+titleString = sprintf('TEST case: Lights switch on and off, also on the fast path');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+lightStates = struct('Headlights','high','Tail','brake');
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=lightStates, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+% On: one glowing color, drawn unshaded
+assert(all(all(plotHandles.LightPatches.headlight.FaceVertexCData==1)));
+assert(strcmp(plotHandles.LightPatches.headlight.FaceLighting,'none'));
+assert(all(abs(plotHandles.LightPatches.tail.FaceVertexCData(1,:) - [1.00 0.12 0.08])<1e-12));
+
+% Off again, on the fast path: back to the plain colors, shaded
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','off'), FigNum=-1);
+assert(isequal(plotHandles.LightPatches.headlight.FaceVertexCData, plotHandles.LightOffColors.headlight));
+assert(~strcmp(plotHandles.LightPatches.headlight.FaceLighting,'none'));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -280,6 +369,26 @@ end
 %% FAIL case: Pose with the wrong number of values
 if 1==0
     plotHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh, Pose=[1 2]);
+end
+
+%% FAIL case: Unknown light state field
+if 1==0
+    plotHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh), LightStates=struct('FogLights','on'));
+end
+
+%% FAIL case: Wheel spin with the wrong number of values
+if 1==0
+    plotHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh, WheelSpin=[1 2 3]);
+end
+
+%% FAIL case: Unknown finish
+if 1==0
+    plotHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh, Finish='shiny');
+end
+
+%% FAIL case: Edge color out of range
+if 1==0
+    plotHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh, ShowEdges=true, EdgeColor=[255 255 255]);
 end
 
 %% FAIL case: Unknown lighting

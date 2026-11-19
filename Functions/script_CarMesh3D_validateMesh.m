@@ -53,7 +53,7 @@ disp(validationTable);
 assert(istable(validationTable));
 
 % Check variable sizes
-assert(9==height(validationTable));
+assert(10==height(validationTable));
 assert(isequal(validationTable.Properties.VariableNames, {'Quantity','Target_m','Measured_m','Error_m','PercentError','Pass'}));
 
 % Check variable values

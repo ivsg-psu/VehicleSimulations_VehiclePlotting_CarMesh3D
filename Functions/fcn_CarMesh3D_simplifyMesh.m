@@ -85,6 +85,10 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_simplifyMesh
+%   % * Light types (FaceLightType) are kept, and groups split by them
 
 % TO-DO:
 %
@@ -211,10 +215,11 @@ faceColors = vehicleMesh.FaceColors;
 faceAlpha = vehicleMesh.FaceAlpha(:);
 faceMaterial = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceMaterialIndex',Nfaces);
 faceGroup    = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceGroupIndex',Nfaces);
+faceLightType = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceLightType',Nfaces);
 
-% Group faces by part, wheel, and color/alpha
+% Group faces by part, wheel, light type, and color/alpha
 [~,~,colorIndex] = unique(round([faceColors faceAlpha]*1e4)/1e4, 'rows');
-[groupKeys,~,groupOfFace] = unique([facePart faceWheel colorIndex], 'rows');
+[groupKeys,~,groupOfFace] = unique([facePart faceWheel faceLightType colorIndex], 'rows');
 numGroups = size(groupKeys,1);
 
 % Vehicle center, used to point open surfaces outward
@@ -279,6 +284,7 @@ newColors = zeros(0,3);
 newAlpha = zeros(0,1);
 newMaterial = zeros(0,1);
 newGroup = zeros(0,1);
+newLightType = zeros(0,1);
 for ith_group = 1:numGroups
     theseFaces = groupFaces{ith_group};
     if isempty(theseFaces)
@@ -294,6 +300,7 @@ for ith_group = 1:numGroups
     newAlpha = [newAlpha; repmat(faceAlpha(firstFace), numThese, 1)]; %#ok<AGROW>
     newMaterial = [newMaterial; repmat(faceMaterial(firstFace), numThese, 1)]; %#ok<AGROW>
     newGroup = [newGroup; repmat(faceGroup(firstFace), numThese, 1)]; %#ok<AGROW>
+    newLightType = [newLightType; repmat(faceLightType(firstFace), numThese, 1)]; %#ok<AGROW>
 end
 
 % 4. Consistent winding, then outward normals. This is done per part and
@@ -332,6 +339,9 @@ vehicleMesh.FaceColors = newColors;
 vehicleMesh.FaceAlpha = newAlpha;
 vehicleMesh.FaceMaterialIndex = newMaterial;
 vehicleMesh.FaceGroupIndex = newGroup;
+if isfield(vehicleMesh,'FaceLightType')
+    vehicleMesh.FaceLightType = newLightType;
+end
 vehicleMesh.FaceNormals = faceNormals;
 vehicleMesh.SimplifyInfo = struct(...
     'OriginalFaces', Nfaces,...

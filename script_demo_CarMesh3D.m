@@ -44,6 +44,12 @@
 %   % * Added a 0.05 s pause after each animation frame (first MATLAB run)
 %   % * Added FBX, glTF, GLB, and .blend import through Blender
 %   %   % (fcn_CarMesh3D_convertToOBJ)
+%   % * The starting example is now a downloaded 2010 Prius model (GLB),
+%   %   % fitted to the 2013 Prius spec; falls back to the sample car
+%   % * Added Steps 10-11: a full-detail variation with custom part colors
+%   %   % (blue body, nearly opaque gray glass, black trim), compared side
+%   %   % by side with the reduced version
+%   % * Steps 11-12 show the Finish (glossy) and ShowEdges/EdgeColor options
 
 % TO-DO:
 %
@@ -110,55 +116,88 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
     OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
     Wheelbase=2.70, TrackFront=1.55, TireSize='205/55R16',...
     FrontOverhang=0.88, Source='Example values',...
-    FigNum=figNum); %#ok<NASGU>
+    FigNum=figNum); 
 
 %% Step 2: A shape source
-% For a downloaded model, use the importer. OBJ and STL are read directly;
-% FBX, glTF, GLB, and .blend files are converted to OBJ first by running
-% the free program Blender in the background (install it from
-% blender.org). Set the file name and the license, and change 1==0 to 1==1:
+% The starting example is a free low-poly 2010 Toyota Prius model (a .glb
+% file) in Data\2010-toyota-prius. It is close in shape to the 2013 Prius
+% spec loaded above. GLB and FBX files are converted to OBJ by Blender
+% (free, blender.org) the first time, then the converted file is reused.
 %
-% Good places to look for free models: Kenney.nl, OpenGameArt.org, and
-% itch.io (search "low poly car", filter by CC0), and Sketchfab (filter by
-% "Downloadable"; most are CC-BY, which requires attribution).
-
-if 1==0
-    figNum = 3;
-    downloadedFile = fullfile('Data','myDownloadedCar.obj'); %#ok<UNRCH>
-    vehicleMesh = fcn_CarMesh3D_importMesh(downloadedFile, License='CC0, author: ...', FigNum=figNum);
-end
-
-%%
-% For this demo, use the built-in sample in its "messy" style, which
-% imitates a downloaded file: millimeters, Y up, Z forward, offset from
-% the origin. (The sample's proportions come from the Prius spec.)
+% Good places to look for other models: Sketchfab (filter by
+% "Downloadable"; check each license), Kenney.nl, OpenGameArt.org, and
+% itch.io (search "low poly car").
+%
+% If the model or Blender is not available, the built-in sample car is
+% used instead, so the rest of the demo still runs.
 
 figNum = 3;
-vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, Style='messy', FigNum=figNum);
+modelFile = fullfile('Data','2010-toyota-prius','source','2010 Toyota Prius.glb');
+flag_useDownloadedModel = exist(modelFile,'file')==2;
+if flag_useDownloadedModel
+    try
+        vehicleMesh = fcn_CarMesh3D_importMesh(modelFile, ...
+			Source='https://sketchfab.com/3d-models/2010-toyota-prius-f4ed90af97264198b65f28a7532be138', ...
+            License='Free Standard', FigNum=figNum); % For license, fill in from the models download page
+        vehicleMesh.Name = '2010 Toyota Prius (downloaded model)';
+    catch ME
+        fprintf(1,'Could not import %s:\n  %s\nUsing the built-in sample car instead.\n', modelFile, ME.message);
+        flag_useDownloadedModel = false;
+    end
+end
+if ~flag_useDownloadedModel
+    % The sample's "messy" style imitates a downloaded file: millimeters,
+    % Y up, Z forward, offset from the origin
+    vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, Style='messy', FigNum=figNum);
+end
 
 %% Step 3: Normalize into the vehicle frame
 % Tell the function which file axis points up and which points to the
-% front of the car. Check the plot: the red arrow (X) must point to the
-% front bumper.
+% front of the car. ALWAYS check the plot: the red arrow (X) must point
+% to the front bumper (headlights). Part names in downloaded files can be
+% misleading, so trust the picture.
 
 figNum = 4;
-vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+y', ForwardAxis='+z', FigNum=figNum);
+if flag_useDownloadedModel
+    % Blender writes Z up. For this Prius model, the front is toward +X.
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+z', ForwardAxis='+x', FigNum=figNum);
+else
+    vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+y', ForwardAxis='+z', FigNum=figNum);
+end
 
 %% Step 4: Label the parts
-% Parts are found from material and group names. For a downloaded model
-% whose names are unhelpful (e.g. 'Material.012'), add rules such as
-%       PartRules={'Material\.012','glass'}
+% Parts are found from material and group names. When the names are not
+% recognized, add rules: in this model the wheels are named '17in' and
+% the unpainted parts (bumper trim, mirrors' caps) use 'color_notint'.
+% This model's colors come from texture images, which CarMesh3D does not
+% read, so use one color per part (UseMaterialColors=false) with the
+% spec's body color.
 
 figNum = 5;
-vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, BodyColor=vehicleSpec.BodyColor, FigNum=figNum);
+if flag_useDownloadedModel
+    vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, ...
+        PartRules={'17in','wheel'; 'color_notint','trim'}, ...
+        BodyColor=vehicleSpec.BodyColor, UseMaterialColors=false, FigNum=figNum);
+else
+    vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, BodyColor=vehicleSpec.BodyColor, FigNum=figNum);
+end
 
 %% Step 5: Fit to the specification
 % The body is scaled to the length, width, and height, then stretched so
-% the axles land at the true wheelbase. Wheels are moved as rigid
-% objects to the true track and scaled to the true tire diameter.
+% the axles land at the true wheelbase and the body bottom at the true
+% ground clearance. Wheels are moved as rigid objects to the true track
+% and scaled to the true tire size.
+%
+% Width: published widths usually EXCLUDE the mirrors. This model's
+% mirrors are part of the body, so its full width is fitted to the spec's
+% width WITH mirrors (WidthReference='mirrors').
 
 figNum = 6;
-vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, FigNum=figNum);
+if flag_useDownloadedModel
+    vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference='mirrors', FigNum=figNum);
+else
+    vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, FigNum=figNum);
+end
 
 %% Step 6: Simplify and fix normals
 % Choose a face budget. About 2000 to 5000 faces animates smoothly.
@@ -179,7 +218,7 @@ disp(validationTable);
 
 flag_saveToLibrary = 0; % Set to 1 to save
 if flag_saveToLibrary
-    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']);
+    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']); %#ok<UNRCH>
     save(libraryFile,'vehicleMesh');
     fprintf(1,'Saved: %s\n', libraryFile);
 end
@@ -207,6 +246,78 @@ for ith_frame = 1:numFrames
     drawnow limitrate;
     pause(frameDelaySeconds);
 end
+
+%% Step 10: A variation - full detail and a custom color scheme
+% The same steps again, starting from the downloaded file, but this time:
+%   * keeping every face of the model (no reduction), and
+%   * choosing the colors: blue body, nearly opaque gray glass, black trim.
+% PartColors sets any part's color: 'body', 'glass', 'wheel', 'light', or
+% 'trim'. GlassAlpha sets how see-through the glass is (0 = invisible,
+% 1 = solid).
+
+bodyBlue  = [0.05 0.20 0.60];
+glassGray = [0.30 0.30 0.32];
+trimBlack = [0.02 0.02 0.02];
+variantColors = {'body',bodyBlue; 'glass',glassGray; 'trim',trimBlack};
+
+figNum = 10;
+if flag_useDownloadedModel
+    variantMesh = fcn_CarMesh3D_importMesh(modelFile, ...
+        License='(fill in from the model''s download page)', FigNum=-1); % Reuses the converted file
+    variantMesh.Name = '2010 Toyota Prius (full detail, blue)';
+    variantMesh = fcn_CarMesh3D_normalizeMesh(variantMesh, UpAxis='+z', ForwardAxis='+x', FigNum=-1);
+    variantMesh = fcn_CarMesh3D_labelParts(variantMesh, ...
+        PartRules={'17in','wheel'; 'color_notint','trim'}, ...
+        UseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
+    variantMesh = fcn_CarMesh3D_fitMeshToSpec(variantMesh, vehicleSpec, WidthReference='mirrors', FigNum=-1);
+else
+    variantMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, FigNum=-1);
+    variantMesh.Name = 'Sample car (full detail, blue)';
+    variantMesh = fcn_CarMesh3D_labelParts(variantMesh, ...
+        UseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
+    variantMesh = fcn_CarMesh3D_fitMeshToSpec(variantMesh, vehicleSpec, FigNum=-1);
+end
+
+% Keep all faces: a target equal to the current face count means the mesh
+% is only cleaned (duplicate vertices merged, normals pointed outward),
+% not reduced. For this model, the count still drops from 6818 to 6648:
+% its glass is "double-sided", with a reversed copy of each of 170 glass
+% triangles. MATLAB already draws both sides of every face, and the
+% copies would make see-through glass look twice as dark, so cleaning
+% removes them. Every other face is kept.
+numFacesOriginal = size(variantMesh.Faces,1);
+variantMesh = fcn_CarMesh3D_simplifyMesh(variantMesh, TargetFaces=numFacesOriginal, FigNum=figNum+1);
+fprintf(1,'Full-detail variation: %d faces in, %d faces out\n', numFacesOriginal, size(variantMesh.Faces,1));
+
+validationTable = fcn_CarMesh3D_validateMesh(variantMesh, vehicleSpec, FigNum=figNum+2);
+disp(validationTable);
+
+%% Step 11: Compare the two versions side by side, with a glossy finish
+% Finish sets how shiny the surface looks: 'matte' (the default),
+% 'satin', 'glossy', or 'metallic'. Shiny finishes automatically use
+% smooth (gouraud) shading so the highlights blend across faces.
+
+figNum = 13;
+figure(figNum); clf;
+fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=[0  1.4 0], FigNum=figNum);                  % matte
+fcn_CarMesh3D_plotVehicle(variantMesh, Pose=[0 -1.4 0], Finish='glossy', FigNum=figNum); % glossy
+view(-30,25);
+title(sprintf('Left: %d faces, default colors, matte.  Right: %d faces, custom colors, glossy.', ...
+    size(vehicleMesh.Faces,1), size(variantMesh.Faces,1)), 'Interpreter','none');
+
+%% Step 12: Show the mesh edges
+% ShowEdges turns the face edges on or off, and EdgeColor sets their
+% color. Edges help when checking a mesh; leave them off for animation.
+
+figNum = 14;
+figure(figNum); clf;
+tiledlayout(1,2);
+nexttile;
+fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', ShowEdges=true, EdgeColor=[0 0 0], FigNum=figNum);
+title('Black edges');
+nexttile;
+fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', ShowEdges=true, EdgeColor=[0.85 0.85 0.85], FigNum=figNum);
+title('Light gray edges');
 
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

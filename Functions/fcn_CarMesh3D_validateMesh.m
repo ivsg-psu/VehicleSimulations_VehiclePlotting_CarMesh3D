@@ -6,7 +6,12 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 % students to include in a report.
 %
 % Measured values:
-%       OverallLength, OverallWidth, OverallHeight  (bounding box)
+%       OverallLength, OverallWidth, OverallHeight  (bounding box; the
+%                        width uses only the body faces if the mesh was
+%                        fitted with WidthReference='body')
+%       WidthWithMirrors (bounding box width, measured only if the mesh
+%                        was fitted with WidthReference='mirrors'; then
+%                        OverallWidth is not measured)
 %       Wheelbase        (front wheel centers minus rear wheel centers)
 %       TrackFront, TrackRear (left minus right wheel centers)
 %       TireDiameter     (mean height of the four wheels)
@@ -69,6 +74,11 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_validateMesh
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_validateMesh
+%   % * Width follows the fit's WidthReference ('body' leaves out mirrors,
+%   %   % 'mirrors' compares the full width to WidthWithMirrors)
 
 % TO-DO:
 %
@@ -214,12 +224,31 @@ if isfield(vehicleMesh,'FacePartIndex') && ~isempty(vehicleMesh.FacePartIndex)
     end
 end
 
+% Width: the whole mesh, only the body, or (with mirrors) not measured
+widthReference = 'all';
+if isfield(vehicleMesh,'FitInfo') && isfield(vehicleMesh.FitInfo,'WidthReference')
+    widthReference = vehicleMesh.FitInfo.WidthReference;
+end
+measuredWidth = maxValues(2) - minValues(2);
+measuredWidthWithMirrors = NaN;
+switch widthReference
+    case 'body'
+        if isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
+            bodyY = vertices(unique(faces(vehicleMesh.FacePartIndex==1,:)),2);
+            measuredWidth = max(bodyY) - min(bodyY);
+        end
+    case 'mirrors'
+        measuredWidthWithMirrors = measuredWidth;
+        measuredWidth = NaN; % The body width without mirrors is not known
+end
+
 % Measurements, in the same order as the quantity names
-quantityNames = {'OverallLength';'OverallWidth';'OverallHeight';'Wheelbase';...
+quantityNames = {'OverallLength';'OverallWidth';'WidthWithMirrors';'OverallHeight';'Wheelbase';...
     'TrackFront';'TrackRear';'TireDiameter';'FrontOverhang';'GroundClearance'};
 measuredValues = [...
     maxValues(1) - minValues(1);
-    maxValues(2) - minValues(2);
+    measuredWidth;
+    measuredWidthWithMirrors;
     maxValues(3) - minValues(3);
     xFrontAxle - xRearAxle;
     wheelCenters(1,2) - wheelCenters(2,2);
@@ -267,8 +296,12 @@ if flag_do_plots
     % Target envelope: centered on the mesh in X and Y, from the ground up
     centerX = (minValues(1) + maxValues(1))/2;
     targetL = fcn_INTERNAL_targetOrMeasured(targetValues(1), measuredValues(1));
-    targetW = fcn_INTERNAL_targetOrMeasured(targetValues(2), measuredValues(2));
-    targetH = fcn_INTERNAL_targetOrMeasured(targetValues(3), measuredValues(3));
+    if strcmp(widthReference,'mirrors')
+        targetW = fcn_INTERNAL_targetOrMeasured(targetValues(3), measuredValues(3));
+    else
+        targetW = fcn_INTERNAL_targetOrMeasured(targetValues(2), measuredValues(2));
+    end
+    targetH = fcn_INTERNAL_targetOrMeasured(targetValues(4), measuredValues(4));
     envelopeX = centerX + targetL/2*[-1 1 1 -1 -1];
 
     % Side view (X-Z)
@@ -277,8 +310,8 @@ if flag_do_plots
     hold on;
     view(0,0);
     plot3(envelopeX, zeros(1,5), targetH*[0 0 1 1 0], 'k--', 'LineWidth',1.5, 'DisplayName','Target length x height');
-    if ~isnan(xRearAxle) && ~isnan(targetValues(4))
-        plot3((xRearAxle + targetValues(4))*[1 1], [0 0], [0 targetH], 'r--', 'LineWidth',1.5, 'DisplayName','Target front axle');
+    if ~isnan(xRearAxle) && ~isnan(targetValues(5))
+        plot3((xRearAxle + targetValues(5))*[1 1], [0 0], [0 targetH], 'r--', 'LineWidth',1.5, 'DisplayName','Target front axle');
         plot3(xRearAxle*[1 1], [0 0], [0 targetH], 'r:', 'LineWidth',1.5, 'DisplayName','Measured rear axle');
     end
     title('Side view');
