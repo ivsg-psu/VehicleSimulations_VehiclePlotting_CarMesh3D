@@ -13,9 +13,15 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %            - stretches the body along X piecewise (rear overhang,
 %              wheelbase, front overhang) so the axles land exactly at
 %              the specified wheelbase (and front overhang, if given);
+%            - if the spec has a GroundClearance and the body faces are
+%              labeled, stretches the body along Z piecewise (below and
+%              above the body bottom) so both the ground clearance and the
+%              overall height match;
 %            - moves each wheel as a rigid object (no stretching) to its
-%              axle and track position, and scales it uniformly to the
-%              specified tire diameter so it touches the ground.
+%              axle and track position, and scales it to the specified
+%              tire diameter so it touches the ground. If the spec has a
+%              TireSize (such as '195/65R15'), the wheel width is also
+%              scaled to the tire's section width (195 mm).
 %            Needs wheel faces numbered by fcn_CarMesh3D_labelParts.
 %
 % The default, 'auto', uses 'wheels' when wheel faces are found and the
@@ -86,6 +92,13 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fitMeshToSpec
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fitMeshToSpec
+%   % * Added piecewise Z stretch to match GroundClearance (found when
+%   %   % first testing in MATLAB: box scaling changed the clearance)
+%   % * Wheel width is scaled to the tire section width from TireSize
+%   %   % (found with a downloaded model whose sport tires were too wide)
 
 % TO-DO:
 %
@@ -93,7 +106,6 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 % - In fcn_CarMesh3D_fitMeshToSpec
 %   % * Published widths usually exclude mirrors. Add an option to
 %   %   % measure width without 'trim' faces (where mirrors usually land)
-%   % * Use GroundClearance to adjust the body height above the wheels
 
 
 
@@ -217,6 +229,8 @@ FOH = fcn_INTERNAL_getField(vehicleSpec,'FrontOverhang');
 TF  = fcn_INTERNAL_getField(vehicleSpec,'TrackFront');
 TR  = fcn_INTERNAL_getField(vehicleSpec,'TrackRear');
 D   = fcn_INTERNAL_getField(vehicleSpec,'TireDiameter');
+GC  = fcn_INTERNAL_getField(vehicleSpec,'GroundClearance');
+tireWidth = fcn_INTERNAL_tireWidthFromSize(fcn_INTERNAL_getField(vehicleSpec,'TireSize'));
 if isempty(TR)
     TR = TF;
 end
@@ -242,6 +256,7 @@ fittedVertices = [...
 wheelVertexIndices = cell(4,1);
 wheelSourceCenters = nan(4,3);
 wheelSourceDiameters = nan(4,1);
+wheelSourceWidths = nan(4,1);
 if isfield(vehicleMesh,'FaceWheelIndex') && ~isempty(vehicleMesh.FaceWheelIndex)
     for ith_wheel = 1:4
         theseFaces = vehicleMesh.FaceWheelIndex==ith_wheel;
@@ -252,6 +267,7 @@ if isfield(vehicleMesh,'FaceWheelIndex') && ~isempty(vehicleMesh.FaceWheelIndex)
             wheelMax = max(originalVertices(theseVertices,:),[],1);
             wheelSourceCenters(ith_wheel,:) = (wheelMin + wheelMax)/2;
             wheelSourceDiameters(ith_wheel) = max(wheelMax(1)-wheelMin(1), wheelMax(3)-wheelMin(3));
+            wheelSourceWidths(ith_wheel) = wheelMax(2)-wheelMin(2);
         end
     end
 end
@@ -303,6 +319,19 @@ if strcmp(fitMethod,'wheels')
         warning('Axle positions are outside the vehicle length (check Wheelbase and FrontOverhang). Body was not stretched piecewise.');
     end
 
+    % Piecewise stretch of the body along Z, so the lowest body point sits
+    % at the ground clearance and the roof stays at the overall height
+    if ~isempty(GC) && isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
+        bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
+        bodyBottomBox = min(fittedVertices(bodyVertices,3));
+        if bodyBottomBox>0 && bodyBottomBox<H && GC<H
+            fittedVertices(:,3) = interp1([0 bodyBottomBox H], [0 GC H], fittedVertices(:,3), 'linear', 'extrap');
+        else
+            warning('on','backtrace');
+            warning('Could not match GroundClearance (body bottom at %.3f m after scaling). Height was scaled uniformly.', bodyBottomBox);
+        end
+    end
+
     % Move each wheel rigidly, scaled uniformly to the tire diameter
     for ith_wheel = 1:4
         theseVertices = wheelVertexIndices{ith_wheel};
@@ -333,8 +362,13 @@ if strcmp(fitMethod,'wheels')
             targetY = (wheelSourceCenters(ith_wheel,2) - centerY)*boxScale(2);
         end
         targetZ = wheelScale(ith_wheel)*wheelSourceDiameters(ith_wheel)/2; % Touches the ground
+        % Width (Y) scale: to the tire section width if known
+        widthScale = wheelScale(ith_wheel);
+        if ~isempty(tireWidth) && wheelSourceWidths(ith_wheel)>0
+            widthScale = tireWidth/wheelSourceWidths(ith_wheel);
+        end
         fittedVertices(theseVertices,:) = [targetX targetY targetZ] + ...
-            wheelScale(ith_wheel)*(originalVertices(theseVertices,:) - wheelSourceCenters(ith_wheel,:));
+            (originalVertices(theseVertices,:) - wheelSourceCenters(ith_wheel,:)).*[wheelScale(ith_wheel) widthScale wheelScale(ith_wheel)];
     end
 elseif ~isempty(WB)
     % Box method: axles are only estimated
@@ -440,3 +474,16 @@ else
     value = [];
 end
 end % Ends fcn_INTERNAL_getField
+
+%% fcn_INTERNAL_tireWidthFromSize
+function tireWidth = fcn_INTERNAL_tireWidthFromSize(tireSize)
+% Returns the tire section width in meters from a size string such as
+% '195/65R15' (195 mm), or [] if there is no readable size
+tireWidth = [];
+if ~isempty(tireSize)
+    tokens = regexp(char(tireSize),'(\d{3})\s*/','tokens','once');
+    if ~isempty(tokens)
+        tireWidth = str2double(tokens{1})/1000;
+    end
+end
+end % Ends fcn_INTERNAL_tireWidthFromSize

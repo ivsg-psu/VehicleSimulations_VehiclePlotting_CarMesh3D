@@ -11,7 +11,7 @@ CarMesh3D turns a 3D model of a vehicle (a free download, or the built-in sample
 
 The workflow is meant to be simple enough for undergraduate students to make a new vehicle quickly from easy-to-find public data.
 
-> **Status:** first prototype (2026_11_18). Written without access to MATLAB, so expect small fixes on the first run of the test scripts.
+> **Status:** prototype (2026_11_19). All test scripts pass in MATLAB R2025b, and FBX conversion was tested with Blender 5.3 on a downloaded model.
 
 ---
 
@@ -128,6 +128,10 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 - **Sketchfab:** many specific production models are available. Filter by "Downloadable," check the license (usually CC-BY, which requires attribution), and expect dense meshes that need `TargetFaces`.
 - OBJ and STL are read directly. FBX, glTF, GLB, and .blend are converted through Blender, which writes Z-up axes. After converting, normalize with `UpAxis='+z'` and check the plot to find the forward axis (often `'-y'` or `'+y'`).
 - Very old ASCII FBX files (version 6.1 and earlier) can't be read by Blender.
+- **Always check the normalize plot.** Part names in downloaded files can be misleading. In the test model `Car3.fbx`, the parts named "Front" are actually at the rear. The red X arrow must point at the front bumper (headlights, not the wing or taillights).
+- **Textures are not read.** Many downloaded models color their surfaces with texture images (materials named `*_Baked`). Those faces get a default color, so use `BodyColor=` in `fcn_CarMesh3D_labelParts`, and `PartRules=` when a big body part has a misleading name (e.g. `PartRules={'Bumper_Front','body'}`).
+- Some models have no separate glass, so there is nothing to make transparent.
+- Wheel-named parts near the car's centerline (axles, drive shafts) are labeled trim automatically so they don't throw off the wheel positions.
 
 ## TO-DO
 

@@ -58,7 +58,12 @@ assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
 
 % Check variable values
 assert(vehicleMesh.SimplifyInfo.FinalFaces <= vehicleMesh.SimplifyInfo.OriginalFaces);
-assert(vehicleMesh.SimplifyInfo.FinalVertices < vehicleMesh.SimplifyInfo.OriginalVertices); % Duplicates merged
+% Duplicate body vertices (the body sides and end caps) are merged. (The
+% total vertex count can still grow, because each color group keeps its
+% own copy of shared vertices, which keeps color edges sharp.)
+originalBodyVertices = numel(unique(fittedMesh.Faces(fittedMesh.FacePartIndex==1,:)));
+finalBodyVertices = numel(unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:)));
+assert(finalBodyVertices < originalBodyVertices);
 assert(max(abs(vecnorm(vehicleMesh.FaceNormals,2,2) - 1))<1e-9);
 fcn_INTERNAL_checkOutward(vehicleMesh);
 

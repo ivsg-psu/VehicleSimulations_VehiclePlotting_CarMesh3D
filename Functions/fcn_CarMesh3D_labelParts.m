@@ -14,6 +14,9 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % Wheel faces are also numbered by corner: 1 = front-left, 2 =
 % front-right, 3 = rear-left, 4 = rear-right. This needs the mesh to be
 % in the CarMesh3D vehicle frame (run fcn_CarMesh3D_normalizeMesh first).
+% Faces named as wheel parts but centered in the middle half of the car's
+% width are axles or drive shafts; they are labeled 'trim' instead, so
+% they do not distort the wheel positions.
 %
 % FORMAT:
 %
@@ -88,6 +91,11 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_labelParts
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * Wheel-named faces near the centerline (axles) are now trim. Found
+%   %   % when testing a downloaded FBX whose wheel groups included axles.
 
 % TO-DO:
 %
@@ -258,6 +266,13 @@ if any(flagWheelFace)
         faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
                        vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + ...
                        vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+        % Axles and drive shafts: wheel-named faces whose centers are in
+        % the middle half of the width become trim
+        halfWidthOfWheels = max(abs(faceCenters(flagWheelFace,2)));
+        flagAxleFace = flagWheelFace & abs(faceCenters(:,2)) < 0.5*halfWidthOfWheels;
+        facePartIndex(flagAxleFace) = 5;
+        flagWheelFace = flagWheelFace & ~flagAxleFace;
+
         wheelCenters = faceCenters(flagWheelFace,:);
         xSplit = (min(wheelCenters(:,1)) + max(wheelCenters(:,1)))/2;
         flagFront = wheelCenters(:,1) > xSplit;

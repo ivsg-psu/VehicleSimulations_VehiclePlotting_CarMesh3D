@@ -80,6 +80,9 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_convertToOBJ
 %   % * Wrote the code originally (drafted with Claude)
+%   % * Fixed brace indexing on a function call (found by Code Analyzer)
+%   % * Removed extra command quoting on Windows (MATLAB's system already
+%   %   % handles it); tested with Blender 5.3
 
 % TO-DO:
 %
@@ -241,7 +244,8 @@ if flag_convert
     if fid<0
         error('Unable to write the temporary Blender script: %s',scriptFile);
     end
-    fprintf(fid,'%s\n',fcn_INTERNAL_blenderScriptLines{:});
+    scriptLines = fcn_INTERNAL_blenderScriptLines;
+    fprintf(fid,'%s\n',scriptLines{:});
     fclose(fid);
     cleanupScript = onCleanup(@() fcn_INTERNAL_deleteIfExists(scriptFile));
 
@@ -257,11 +261,6 @@ if flag_convert
         fprintf(1,'Running: %s\n',commandString);
     end
 
-    % On Windows, cmd.exe removes the first and last quote of a command
-    % that starts with a quote, so wrap the whole command in one more pair
-    if ispc
-        commandString = sprintf('"%s"', commandString);
-    end
 
     [commandStatus, commandOutput] = system(commandString);
 
