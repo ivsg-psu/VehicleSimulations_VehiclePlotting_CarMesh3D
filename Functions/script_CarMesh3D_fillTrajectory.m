@@ -52,14 +52,18 @@ assert(isstruct(trajectory));
 K = length(trajectory.Time);
 assert(isequal(size(trajectory.Pose),[K 3]));
 assert(isequal(size(trajectory.WheelSpin),[K 4]));
-assert(isequal(size(trajectory.SteerAngle),[K 1]));
+assert(isequal(size(trajectory.SteerAngle),[K 2]));
+assert(isequal(size(trajectory.BicycleSteerAngle),[K 1]));
 
 % Check variable values
 vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
 % On a circle, curvature is 1/R and steer is atan(wheelbase/R)
 middle = round(K/2);
 assert(abs(trajectory.Curvature(middle) - 1/15) < 0.002);
-assert(abs(trajectory.SteerAngle(middle) - atan(vehicleSpec.Wheelbase/15)) < 0.005);
+assert(abs(trajectory.BicycleSteerAngle(middle) - atan(vehicleSpec.Wheelbase/15)) < 0.005);
+% Ackermann: the left (inside) tire steers more than the right (outside)
+assert(abs(trajectory.SteerAngle(middle,1) - atan(vehicleSpec.Wheelbase/(15 - vehicleSpec.TrackFront/2))) < 0.005);
+assert(abs(trajectory.SteerAngle(middle,2) - atan(vehicleSpec.Wheelbase/(15 + vehicleSpec.TrackFront/2))) < 0.005);
 % Every point is about R from the center (0, R)
 radii = vecnorm(trajectory.Pose(:,1:2) - [0 15], 2, 2);
 assert(max(abs(radii - 15)) < 0.01);
@@ -144,7 +148,7 @@ figure(figNum); close(figNum);
 
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Speed=15, Duration=5);
 assert(abs(trajectory.Pose(end,2) - 3.5) < 0.01);
-assert(max(trajectory.SteerAngle) > 0 && min(trajectory.SteerAngle) < 0);
+assert(max(trajectory.SteerAngle,[],'all') > 0 && min(trajectory.SteerAngle,[],'all') < 0);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

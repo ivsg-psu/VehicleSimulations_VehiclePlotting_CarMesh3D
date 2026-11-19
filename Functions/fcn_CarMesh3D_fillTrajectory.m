@@ -8,7 +8,11 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 % steering angle follows exactly from the path's curvature with the
 % kinematic bicycle model:
 %
-%       steerAngle = atan(wheelbase * curvature)
+%       bicycleSteerAngle = atan(wheelbase * curvature)
+%
+% The left and right front tires then steer by different amounts
+% (Ackermann steering: the inside tire steers more), calculated by
+% fcn_CarMesh3D_calcAckermannSteering.
 %
 % Wheel spin is the distance traveled divided by the tire radius, times
 % (1 + slip). Slip makes wheels lock up or spin faster than the ground:
@@ -24,7 +28,7 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 %           (Speed=speed), (Duration=seconds), (SampleTime=dt),...
 %           (Radius=R), (LaneOffset=offset), (StartPose=[x y yaw]),...
 %           (VehicleSpec=vehicleSpec), (WheelSlip=slip),...
-%           (FigNum=figNum))
+%           (AckermannFraction=fraction), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -65,11 +69,17 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 %
 %      VehicleSpec: a spec from fcn_CarMesh3D_fillVehicleSpec or
 %      fcn_CarMesh3D_loadVehicleSpec, for the wheelbase and tire
-%      diameter. Default is the 'genericSedan' preset.
+%      diameter, and the front track (for Ackermann steering). Default is
+%      the 'genericSedan' preset.
 %
 %      WheelSlip: slip for each wheel, as a scalar (all wheels), a 1 x 4
 %      vector [FL FR RL RR], or a K x 4 matrix (one row per time step).
 %      Default is 0.
+%
+%      AckermannFraction: how much Ackermann steering to use, passed to
+%      fcn_CarMesh3D_calcAckermannSteering: 1 for full Ackermann (the
+%      default), 0 for parallel steering (both tires at the bicycle
+%      angle).
 %
 %      FigNum: a figure number to plot the path, speed, steering, and
 %      wheel spin. If empty or omitted, no plot is made. If set to -1,
@@ -80,15 +90,18 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 %      trajectory: a structure with one row per time step:
 %           Time (K x 1), Pose (K x 3: [x y yaw] of the rear axle),
 %           Speed (K x 1), Distance (K x 1, along the path),
-%           Curvature (K x 1, 1/m), SteerAngle (K x 1, rad),
+%           Curvature (K x 1, 1/m),
+%           SteerAngle (K x 2, rad, [FL FR], with Ackermann steering),
+%           BicycleSteerAngle (K x 1, rad, one centerline tire),
 %           WheelSpin (K x 4, rad, [FL FR RL RR]), WheelSlip (K x 4)
 %      Use row k with fcn_CarMesh3D_plotVehicle:
 %           Pose=trajectory.Pose(k,:), WheelSpin=trajectory.WheelSpin(k,:),
-%           SteerAngle=trajectory.SteerAngle(k)
+%           SteerAngle=trajectory.SteerAngle(k,:)
 %
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_fillVehicleSpec (only for the default spec)
+%      fcn_CarMesh3D_calcAckermannSteering
 %
 % EXAMPLES:
 %
@@ -104,13 +117,16 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fillTrajectory
 %   % * Wrote the code originally (drafted with Claude)
+%   % * Added Ackermann steering: SteerAngle is now K x 2 [FL FR], from
+%   %   fcn_CarMesh3D_calcAckermannSteering. The single centerline angle
+%   %   is kept as BicycleSteerAngle. Added AckermannFraction option.
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fillTrajectory
-%   % * Add Ackermann steering (inner wheel steers more than outer)
-%   % * Add body roll and pitch from acceleration
+%   % * (Body roll and pitch come from other repos; pass them to
+%   %   fcn_CarMesh3D_plotVehicle as BodyRoll, BodyPitch, BodyHeave)
 
 
 
@@ -130,6 +146,7 @@ arguments
     options.StartPose = [0 0 0]    % [x y yaw] of the path start
     options.VehicleSpec = []       % For wheelbase and tire diameter
     options.WheelSlip = 0          % Scalar, 1 x 4, or K x 4
+    options.AckermannFraction = 1  % 1 full Ackermann, 0 parallel steering
     options.FigNum = []            % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -217,6 +234,11 @@ if 0==flag_max_speed
         if ~isnumeric(options.WheelSlip) || ~(isscalar(options.WheelSlip) || isequal(size(options.WheelSlip),[1 4]) || size(options.WheelSlip,2)==4)
             error('WheelSlip must be a scalar, a 1 x 4 vector, or a K x 4 matrix');
         end
+
+        % Check the AckermannFraction input
+        if ~isnumeric(options.AckermannFraction) || ~isscalar(options.AckermannFraction) || ~isfinite(options.AckermannFraction)
+            error('AckermannFraction must be a finite number (1 full Ackermann, 0 parallel steering)');
+        end
     end
 end
 
@@ -249,6 +271,11 @@ if isempty(vehicleSpec)
 end
 wheelbase = vehicleSpec.Wheelbase;
 tireRadius = vehicleSpec.TireDiameter/2;
+frontTrack = vehicleSpec.TrackFront;
+if isempty(frontTrack)
+    % No track given: estimate it from the overall width
+    frontTrack = 0.85*vehicleSpec.OverallWidth;
+end
 
 %%%%
 % Time and speed
@@ -308,8 +335,11 @@ movedXY = [positionX positionY]*rotation' + startPose(1:2);
 poseValues = [movedXY, headingValues + startPose(3)];
 
 %%%%
-% Steering (kinematic bicycle model, rear axle on the path)
-steerValues = atan(wheelbase*curvatureValues);
+% Steering (kinematic bicycle model, rear axle on the path), then the
+% left and right tire angles (Ackermann steering)
+bicycleSteerValues = atan(wheelbase*curvatureValues);
+steerValues = fcn_CarMesh3D_calcAckermannSteering(bicycleSteerValues, wheelbase, frontTrack, ...
+    AckermannFraction=options.AckermannFraction, FigNum=-1);
 
 %%%%
 % Wheel spin: integrate (1 + slip) * speed / radius
@@ -331,6 +361,7 @@ trajectory.Speed = speedValues;
 trajectory.Distance = distanceValues;
 trajectory.Curvature = curvatureValues;
 trajectory.SteerAngle = steerValues;
+trajectory.BicycleSteerAngle = bicycleSteerValues;
 trajectory.WheelSpin = wheelSpinValues;
 trajectory.WheelSlip = slipValues;
 trajectory.Path = char(options.Path);
@@ -364,8 +395,13 @@ if flag_do_plots
     grid on; xlabel('Time [s]'); ylabel('Speed [m/s]'); title('Speed');
 
     nexttile;
-    plot(trajectory.Time, rad2deg(trajectory.SteerAngle), 'LineWidth', 1.5);
-    grid on; xlabel('Time [s]'); ylabel('Steer angle [deg]'); title('Front wheel steer angle');
+    plot(trajectory.Time, rad2deg(trajectory.SteerAngle(:,1)), 'b-', 'LineWidth', 1.5);
+    hold on;
+    plot(trajectory.Time, rad2deg(trajectory.SteerAngle(:,2)), 'r-', 'LineWidth', 1.5);
+    plot(trajectory.Time, rad2deg(trajectory.BicycleSteerAngle), 'k--', 'LineWidth', 1);
+    grid on; xlabel('Time [s]'); ylabel('Steer angle [deg]');
+    legend({'left (FL)','right (FR)','bicycle'},'Location','best');
+    title('Front wheel steer angles');
 
     nexttile;
     plot(trajectory.Time, trajectory.WheelSpin/(2*pi), 'LineWidth', 1.5);

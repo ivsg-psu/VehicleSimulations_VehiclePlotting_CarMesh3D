@@ -59,6 +59,7 @@ Labeling comes before fitting so the fit can treat wheels as rigid objects. Labe
 | Function | What it does |
 |---|---|
 | `fcn_CarMesh3D_fillTrajectory` | A motion along a path (straight, circle, figure eight, lane change, waypoints): pose, speed, wheel spin (with slip), and steer angle at every time step |
+| `fcn_CarMesh3D_calcAckermannSteering` | The left and right (inside and outside) front tire steer angles for a turn |
 | `fcn_CarMesh3D_plotScene` | Ground plane, grid, colored cubes, and a path line to drive in |
 | `fcn_CarMesh3D_fillCameraSettings` | A camera: where it sits, what it looks at, how wide it sees (presets for 9 common views) |
 | `fcn_CarMesh3D_updateCamera` | Points the camera each frame from the settings and the vehicle pose |
@@ -244,7 +245,7 @@ Use the clicking tool to find the faces and the printed regions, then paste the 
 
 `fcn_CarMesh3D_fillTrajectory` gives everything needed for each frame. The pose is the position of the **rear axle** and the heading, which is CarMesh3D's vehicle origin, so:
 
-- **Steering** follows exactly from the path's curvature (kinematic bicycle model): `steerAngle = atan(wheelbase * curvature)`.
+- **Steering** follows exactly from the path's curvature (kinematic bicycle model): `bicycleSteerAngle = atan(wheelbase * curvature)`. This is the angle of one imaginary tire on the centerline; the real left and right tires get different angles from Ackermann steering (below), returned as `SteerAngle` (K x 2, `[left right]`).
 - **Wheel spin** is distance traveled divided by tire radius, times `(1 + slip)`:
 
 | `WheelSlip` | Wheels | Use for |
@@ -260,13 +261,57 @@ trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', Speed=8, Duration=6
 h = fcn_CarMesh3D_plotVehicle(vehicleMesh);
 for k = 1:length(trajectory.Time)
     fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), ...
-        WheelSpin=trajectory.WheelSpin(k,:), SteerAngle=trajectory.SteerAngle(k), ...
+        WheelSpin=trajectory.WheelSpin(k,:), SteerAngle=trajectory.SteerAngle(k,:), ...
         PlotHandles=h, FigNum=-1);
     drawnow;
 end
 ```
 
 Each wheel has its own transform inside the vehicle's, so wheels spin and the front wheels steer without redrawing the mesh.
+
+### Body roll, pitch, and heave
+
+The vehicle is drawn as two kinds of rigid frames inside one moving transform:
+
+```
+Transform            ground frame: moved by Pose [x y yaw]
+├── BodyTransform    sprung mass: body, glass, trim, lights  ← BodyRoll, BodyPitch, BodyHeave
+└── WheelTransforms  unsprung mass: the four wheels          ← WheelSpin, SteerAngle
+```
+
+The wheels stay on the ground while the body rolls, pitches, and moves up and down on them. CarMesh3D does not calculate these motions; take them from your vehicle dynamics model and pass them in each frame:
+
+```matlab
+fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=pose, WheelSpin=spin, SteerAngle=steer, ...
+    BodyRoll=roll(k), BodyPitch=pitch(k), BodyHeave=heave(k), PlotHandles=h, FigNum=-1);
+```
+
+| Option | Units | Positive means (ISO 8855) |
+|---|---|---|
+| `BodyRoll` | rad | rotation about +X: the right side goes down (as in a left turn) |
+| `BodyPitch` | rad | rotation about +Y: the nose goes down (as in braking) |
+| `BodyHeave` | m | the body moves up |
+| `BodyPivot` | m, `[x y z]` | the point the body rotates about; default is midway between the axles, on the centerline, at wheel-center height |
+
+### Ackermann steering: inside and outside tires
+
+In a turn, all four wheels roll on circles around one **turn center**, which lies on the line of the rear axle. The inside front tire is closer to the turn center, so it must steer more than the outside tire; otherwise one tire would slide sideways. `fcn_CarMesh3D_calcAckermannSteering` calculates both angles:
+
+| Quantity | Formula |
+|---|---|
+| Turn radius of the rear axle center | `R = wheelbase / tan(bicycleSteerAngle)` |
+| Inside front tire | `atan(wheelbase / (R - track/2))` |
+| Outside front tire | `atan(wheelbase / (R + track/2))` |
+
+```matlab
+[steerAngles, insideOutsideAngles, turnRadius] = fcn_CarMesh3D_calcAckermannSteering( ...
+    deg2rad(20), vehicleSpec.Wheelbase, vehicleSpec.TrackFront, FigNum=1);
+rad2deg(steerAngles)    % [left right]: for the 2013 Prius, about [22.1 18.3] degrees
+```
+
+`steerAngles(k,:)` can be passed straight to `fcn_CarMesh3D_plotVehicle(..., SteerAngle=steerAngles(k,:))`. `AckermannFraction=` blends from parallel steering (`0`, both tires at the bicycle angle) to full Ackermann (`1`, the default); many real cars use something in between. `fcn_CarMesh3D_fillTrajectory` calls this function for you and also accepts `AckermannFraction=`.
+
+![Ackermann steering geometry and angles](Images/ackermann_geometry.png)
 
 | Rolling and steering (lane change) | Peel out, then lock up (brake lights on) |
 |---|---|
@@ -400,7 +445,6 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 - Parametric body template as a fallback shape source
 - Overlay a side-view photo during validation
 - Box (drag) selection in the interactive label editor
-- Ackermann steering, and body roll and pitch from acceleration
 - A night scene, to show the lights better
 - Labeling of STL files by geometry (they have no material names)
 - CSV input for many vehicles at once

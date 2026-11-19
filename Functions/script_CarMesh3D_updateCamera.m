@@ -51,7 +51,7 @@ axis off;
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase');
 for k = 1:length(trajectory.Time)
     fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), WheelSpin=trajectory.WheelSpin(k,:), ...
-        SteerAngle=trajectory.SteerAngle(k), PlotHandles=plotHandles, FigNum=-1);
+        SteerAngle=trajectory.SteerAngle(k,:), PlotHandles=plotHandles, FigNum=-1);
     [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, trajectory.Pose(k,:), ...
         Time=trajectory.Time(k), AxesHandle=plotHandles.Axes, FigNum=-1);
     drawnow limitrate;

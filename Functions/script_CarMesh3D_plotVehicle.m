@@ -249,6 +249,55 @@ assert(movedPoint(1) > topPoint(1));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: Body rolls and pitches while the wheels stay on the ground
+figNum = 20010;
+titleString = sprintf('TEST case: Body rolls and pitches while the wheels stay on the ground');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+% Roll and pitch would come from a vehicle dynamics model; here they are
+% made large so the motion is easy to see
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, BodyRoll=deg2rad(6), BodyPitch=deg2rad(3), ...
+    BodyHeave=-0.03, ShowEdges=true, FigNum=figNum);
+view(0,0); % Look from the side
+sgtitle(titleString, 'Interpreter','none');
+
+% Check variable types: a body transform inside the vehicle transform
+assert(isgraphics(plotHandles.BodyTransform));
+assert(plotHandles.BodyTransform.Parent==plotHandles.Transform);
+% Wheels are NOT inside the body transform (they stay on the ground)
+assert(plotHandles.WheelTransforms{1}.Parent==plotHandles.Transform);
+% Lights ride with the body
+assert(isempty(plotHandles.LightPatches.headlight) || plotHandles.LightPatches.headlight.Parent==plotHandles.BodyTransform);
+
+% Check variable sizes
+assert(isequal(size(plotHandles.BodyPivot),[1 3]));
+
+% Check variable values
+pivot = plotHandles.BodyPivot;
+expectedMatrix = makehgtform('translate',[0 0 -0.03])*makehgtform('translate',pivot)* ...
+    makehgtform('yrotate',deg2rad(3))*makehgtform('xrotate',deg2rad(6))*makehgtform('translate',-pivot);
+assert(max(abs(plotHandles.BodyTransform.Matrix(:) - expectedMatrix(:)))<1e-12);
+% Default pivot: midway between the axles, on the centerline
+assert(abs(pivot(1) - mean(plotHandles.WheelCenters(:,1))) < 1e-9 && pivot(2)==0);
+% Signs: positive roll lowers the right side, positive pitch lowers the nose
+rightPoint = [pivot(1) pivot(2)-1 pivot(3) 1]';
+frontPoint = [pivot(1)+1 pivot(2) pivot(3) 1]';
+rollOnly = makehgtform('translate',pivot)*makehgtform('xrotate',deg2rad(6))*makehgtform('translate',-pivot);
+pitchOnly = makehgtform('translate',pivot)*makehgtform('yrotate',deg2rad(3))*makehgtform('translate',-pivot);
+movedRight = rollOnly*rightPoint;
+movedFront = pitchOnly*frontPoint;
+assert(movedRight(3) < pivot(3));
+assert(movedFront(3) < pivot(3));
+
+% The fast path moves the body back to level
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, FigNum=-1);
+assert(max(abs(plotHandles.BodyTransform.Matrix(:) - reshape(eye(4),[],1)))<1e-12);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
 %% TEST case: Lights switch on and off, also on the fast path
 figNum = 20007;
 titleString = sprintf('TEST case: Lights switch on and off, also on the fast path');

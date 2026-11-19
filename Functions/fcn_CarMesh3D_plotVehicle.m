@@ -92,6 +92,24 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %
 %      SteerAngle: the steer angle of the front wheels, in radians, as a
 %      scalar (both) or 1 x 2 [FL FR]. Positive steers left. Default 0.
+%      For different left and right angles in a turn (the inside tire
+%      steers more), see fcn_CarMesh3D_calcAckermannSteering.
+%
+%      BodyRoll, BodyPitch, BodyHeave: motion of the body (the sprung
+%      mass) relative to the wheels (the unsprung mass), which stay on
+%      the ground. Roll and pitch are in radians, heave in meters. These
+%      come from your own vehicle dynamics model (this function does not
+%      calculate them). Signs follow ISO 8855 (X forward, Y left, Z up):
+%           BodyRoll  > 0  rotates about +X: the right side goes down
+%                          (as in a left turn)
+%           BodyPitch > 0  rotates about +Y: the nose goes down (as in
+%                          braking)
+%           BodyHeave > 0  the body moves up
+%      Default 0 for each. Roll and pitch are applied about BodyPivot.
+%
+%      BodyPivot: the point [x y z], in the vehicle frame, that the body
+%      rolls and pitches about. Default [] puts it midway between the
+%      axles, on the centerline, at the height of the wheel centers.
 %
 %      LightStates: a structure that switches the vehicle's lights. Any
 %      field may be left out (it then stays off):
@@ -104,8 +122,9 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      or fcn_CarMesh3D_editLabels. Turn signals are split into left and
 %      right by position. A light that is on is drawn unshaded, so it
 %      appears to glow. Default is [] (lights keep their plain colors).
-%      WheelSpin, SteerAngle, and LightStates can all be changed on the
-%      fast path (with PlotHandles) for animation.
+%      WheelSpin, SteerAngle, BodyRoll, BodyPitch, BodyHeave, and
+%      LightStates can all be changed on the fast path (with PlotHandles)
+%      for animation.
 %
 %      FigNum: a figure number to plot into. If empty or omitted, plots
 %      into the current figure (creating one if none exists). If set to
@@ -116,11 +135,16 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %
 %      plotHandles: a structure with fields
 %           Transform: the hgtransform holding the whole vehicle
+%               (the ground frame: moved by Pose)
+%           BodyTransform: the hgtransform holding the body and lights
+%               (the sprung mass: BodyRoll, BodyPitch, BodyHeave). It
+%               sits inside Transform, beside the wheel transforms.
 %           Patches: a [P x 1] cell array of all patch handles
 %           Axes: the axes that were plotted into
 %           WheelTransforms: 4 x 1 cell of hgtransforms, one per wheel
 %               ([] for wheels not found)
 %           WheelCenters: 4 x 3 wheel centers in the vehicle frame
+%           BodyPivot: 1 x 3 point the body rolls and pitches about
 %           LightPatches: a structure with one patch handle (or []) per
 %               light group: headlight, turnLeft, turnRight, running,
 %               tail, backup
@@ -155,6 +179,9 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % CarMesh3D meshes), which hid specular highlights
 %   % * Wheels spin (WheelSpin) and front wheels steer (SteerAngle)
 %   % * Switchable lights (LightStates); SceneLights option
+%   % * Split the vehicle into two rigid frames: the body and lights
+%   %   (sprung mass, BodyTransform) and the wheels (unsprung mass). Added
+%   %   BodyRoll, BodyPitch, BodyHeave, and BodyPivot options.
 
 % TO-DO:
 %
@@ -181,6 +208,10 @@ arguments
     options.SceneLights = 'auto'    % 'auto' (add key and fill lights) or 'none'
     options.WheelSpin = 0           % Wheel rotation angle(s) [rad], scalar or 1 x 4
     options.SteerAngle = 0          % Front wheel steer angle [rad], scalar or 1 x 2
+    options.BodyRoll = 0            % Body roll relative to the wheels [rad], + right side down
+    options.BodyPitch = 0           % Body pitch relative to the wheels [rad], + nose down
+    options.BodyHeave = 0           % Body rise relative to the wheels [m], + up
+    options.BodyPivot = []          % [x y z] point the body rolls and pitches about
     options.LightStates = []        % Struct of light states (see help)
     options.FigNum = []             % Figure to plot into; [] for current figure, -1 for fast mode
 end
@@ -244,6 +275,18 @@ if 0==flag_max_speed
         % Check the Pose input
         if ~isnumeric(options.Pose) || ~any(numel(options.Pose)==[3 6]) || any(~isfinite(options.Pose))
             error('Pose must be a finite numeric [x y yaw] or [x y z roll pitch yaw]');
+        end
+
+        % Check the body motion inputs
+        bodyNames = {'BodyRoll','BodyPitch','BodyHeave'};
+        for ith_name = 1:3
+            thisValue = options.(bodyNames{ith_name});
+            if ~isnumeric(thisValue) || ~isscalar(thisValue) || ~isfinite(thisValue)
+                error('%s must be a finite number', bodyNames{ith_name});
+            end
+        end
+        if ~isempty(options.BodyPivot) && (~isnumeric(options.BodyPivot) || numel(options.BodyPivot)~=3 || any(~isfinite(options.BodyPivot)))
+            error('BodyPivot must be empty or a point [x y z] in meters');
         end
 
         % Check the PlotHandles input
@@ -340,6 +383,7 @@ end
 if flag_update_only
     plotHandles = options.PlotHandles;
     plotHandles.Transform.Matrix = poseMatrix;
+    fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle);
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
@@ -389,14 +433,18 @@ else
     faceLightGroup = fcn_INTERNAL_faceLightGroups(vehicleMesh);
     lightGroupNames = fcn_INTERNAL_lightGroupNames;
 
-    % One transform for the whole vehicle
+    % Two rigid frames under one transform for the whole vehicle:
+    %   transformHandle      ground frame, moved by Pose
+    %     bodyTransform      sprung mass: body and lights (roll, pitch, heave)
+    %     wheelTransforms    unsprung mass: one per wheel (spin, steer)
     transformHandle = hgtransform('Parent',axesHandle);
+    bodyTransform = hgtransform('Parent',transformHandle);
     patchHandles = {};
 
     % Body (everything that is not a wheel or a switchable light), one
     % patch per alpha level: opaque first, then each transparent level
     flagBody = faceWheel==0 & faceLightGroup==0;
-    newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody), faceColors, faceAlpha, patchStyle, transformHandle);
+    newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody), faceColors, faceAlpha, patchStyle, bodyTransform);
     patchHandles = [patchHandles; newPatches];
 
     % Wheels: each under its own transform, which spins and steers it
@@ -425,7 +473,7 @@ else
         if isempty(theseFaces)
             continue;
         end
-        newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, transformHandle);
+        newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, bodyTransform);
         lightPatches.(thisName) = newPatches{1};
         lightOffColors.(thisName) = faceColors(theseFaces,:);
         set(newPatches{1},'DisplayName',sprintf('Light: %s',thisName));
@@ -452,8 +500,16 @@ else
         end
     end
 
+    % The point the body rolls and pitches about
+    bodyPivot = options.BodyPivot;
+    if isempty(bodyPivot)
+        bodyPivot = fcn_INTERNAL_defaultBodyPivot(vehicleMesh, wheelCenters);
+    end
+
     plotHandles = struct;
     plotHandles.Transform = transformHandle;
+    plotHandles.BodyTransform = bodyTransform;
+    plotHandles.BodyPivot = bodyPivot(:)';
     plotHandles.Patches = patchHandles;
     plotHandles.Axes = axesHandle;
     plotHandles.WheelTransforms = wheelTransforms;
@@ -464,6 +520,7 @@ else
 
     % Set the pose, wheels, and lights
     transformHandle.Matrix = poseMatrix;
+    fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle);
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
@@ -588,6 +645,38 @@ faceLightGroup(strcmp(faceTypeName,'running')) = 4;
 faceLightGroup(strcmp(faceTypeName,'tail'))    = 5;
 faceLightGroup(strcmp(faceTypeName,'backup'))  = 6;
 end % Ends fcn_INTERNAL_faceLightGroups
+
+%% fcn_INTERNAL_updateBody
+function fcn_INTERNAL_updateBody(plotHandles, options)
+% Rolls, pitches, and heaves the body (sprung mass) relative to the
+% ground frame, about the body pivot. The wheels are not moved.
+if ~isfield(plotHandles,'BodyTransform') || isempty(plotHandles.BodyTransform)
+    return;
+end
+bodyPivot = plotHandles.BodyPivot;
+if ~isempty(options.BodyPivot)
+    bodyPivot = options.BodyPivot(:)';
+end
+plotHandles.BodyTransform.Matrix = makehgtform('translate',[0 0 options.BodyHeave]) * ...
+    makehgtform('translate',bodyPivot) * ...
+    makehgtform('yrotate',options.BodyPitch) * ...
+    makehgtform('xrotate',options.BodyRoll) * ...
+    makehgtform('translate',-bodyPivot);
+end % Ends fcn_INTERNAL_updateBody
+
+%% fcn_INTERNAL_defaultBodyPivot
+function bodyPivot = fcn_INTERNAL_defaultBodyPivot(vehicleMesh, wheelCenters)
+% Midway between the axles, on the centerline, at wheel-center height.
+% Without wheels, use the middle of the mesh at 40% of its height.
+if any(all(isfinite(wheelCenters),2))
+    knownCenters = wheelCenters(all(isfinite(wheelCenters),2),:);
+    bodyPivot = [(min(knownCenters(:,1)) + max(knownCenters(:,1)))/2, 0, mean(knownCenters(:,3))];
+else
+    lowCorner = min(vehicleMesh.Vertices,[],1);
+    highCorner = max(vehicleMesh.Vertices,[],1);
+    bodyPivot = [(lowCorner(1) + highCorner(1))/2, 0, lowCorner(3) + 0.4*(highCorner(3) - lowCorner(3))];
+end
+end % Ends fcn_INTERNAL_defaultBodyPivot
 
 %% fcn_INTERNAL_updateWheels
 function fcn_INTERNAL_updateWheels(plotHandles, wheelSpin, steerAngle)
