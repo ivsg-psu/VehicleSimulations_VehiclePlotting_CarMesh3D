@@ -109,6 +109,35 @@ assert(isempty(sceneHandles.Path));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: A night scene
+figNum = 20002;
+titleString = sprintf('TEST case: A night scene');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[-20 20 -20 20], Cubes=[10 8 2 1; -6 -9 3 5], TimeOfDay='night', FigNum=figNum);
+view(-35,25);
+title(titleString, 'Interpreter','none','Color',[1 1 1]);
+
+% Check variable types
+assert(isstruct(sceneHandles));
+assert(strcmp(sceneHandles.TimeOfDay,'night'));
+
+% Check variable sizes
+assert(2==length(sceneHandles.Lights));
+
+% Check variable values: dark ground and sky, dim bluish ambient light
+assert(isequal(sceneHandles.Ground.FaceColor,[0.22 0.22 0.25]));
+assert(isequal(get(gcf,'Color'),[0.03 0.04 0.08]));
+assert(isequal(get(gca,'AmbientLightColor'),[0.35 0.38 0.55]));
+
+% Plotting a vehicle now adds no bright daytime lights
+fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=figNum);
+assert(2==length(findobj(gca,'Type','light')));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -159,6 +188,11 @@ assert(isequal(get(gcf,'Number'),figNum));
 %% FAIL case: Bad ground extent
 if 1==0
     sceneHandles = fcn_CarMesh3D_plotScene(GroundExtent=[10 -10 0 5]);
+end
+
+%% FAIL case: Unknown time of day
+if 1==0
+    fcn_CarMesh3D_plotScene(TimeOfDay='dusk');
 end
 
 %% FAIL case: Cubes with too few columns

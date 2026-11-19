@@ -322,6 +322,54 @@ assert(~strcmp(plotHandles.LightPatches.headlight.FaceLighting,'none'));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: Night light effects (glows and ground pools) follow the lights
+figNum = 20011;
+titleString = sprintf('TEST case: Night light effects (glows and ground pools) follow the lights');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+fcn_CarMesh3D_plotScene(GroundExtent=[-15 30 -12 12], TimeOfDay='night', FigNum=figNum);
+lightStates = struct('Headlights','high','Tail','brake','TurnLeft',true);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=lightStates, LightEffects=true, FigNum=figNum);
+view(-60,25);
+sgtitle(titleString, 'Interpreter','none');
+
+% Check variable types
+assert(isstruct(plotHandles.LightEffects));
+assert(isfield(plotHandles.LightEffects,'Glow') && isfield(plotHandles.LightEffects,'Pools'));
+
+% Check variable values
+pools = plotHandles.LightEffects.Pools;
+% High beams show both the low and the high beam pools
+assert(strcmp(pools.lowBeam.Visible,'on') && strcmp(pools.highBeam.Visible,'on'));
+% Braking shows the brake pool, not the dimmer tail pool; no backup
+assert(strcmp(pools.brake.Visible,'on') && strcmp(pools.tail.Visible,'off') && strcmp(pools.backup.Visible,'off'));
+% Pools ride with the ground frame; glows ride with the body
+assert(pools.lowBeam.Parent==plotHandles.Transform);
+glowHeadlight = plotHandles.LightEffects.Glow.headlight;
+assert(glowHeadlight.Parent==plotHandles.BodyTransform && strcmp(glowHeadlight.Visible,'on'));
+% The low beam is ahead of the vehicle, the brake pool behind it
+assert(min(pools.lowBeam.Vertices(:,1)) > 0.5*max(vehicleMesh.Vertices(:,1)));
+assert(max(pools.brake.Vertices(:,1)) < 0.5*max(vehicleMesh.Vertices(:,1)));
+% Pools fade out at the far end
+assert(max(pools.lowBeam.FaceVertexAlphaData) <= 0.5 && min(pools.lowBeam.FaceVertexAlphaData) == 0);
+% The night scene darkened the axes and added its own lights
+assert(isequal(get(gca,'AmbientLightColor'),[0.35 0.38 0.55]));
+assert(2==length(findobj(gca,'Type','light')));
+
+% Fast path: low beams, backing up, no brake
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, ...
+    LightStates=struct('Headlights','low','Tail','on','Backup',true), FigNum=-1);
+assert(strcmp(pools.lowBeam.Visible,'on') && strcmp(pools.highBeam.Visible,'off'));
+assert(strcmp(pools.tail.Visible,'on') && strcmp(pools.brake.Visible,'off') && strcmp(pools.backup.Visible,'on'));
+if ~isempty(plotHandles.LightEffects.Glow.turnLeft)
+    assert(strcmp(plotHandles.LightEffects.Glow.turnLeft.Visible,'off'));
+end
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

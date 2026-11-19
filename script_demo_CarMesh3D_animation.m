@@ -6,7 +6,9 @@
 %   * front wheels that steer to follow the path,
 %   * lights that switch: headlights, turn signals, hazards, brake
 %     lights, and backup lights,
-%   * cameras: fixed, following, riding on the vehicle, and orbiting.
+%   * cameras: fixed, following, riding on the vehicle, and orbiting,
+%   * a night scene, where lit lamps glow and throw pools of light
+%     (headlight beams, brake and backup lights) on the ground.
 % Every animation can be saved as an animated GIF (for example, for the
 % README). Run script_demo_CarMesh3D.m first to learn how meshes are made.
 %
@@ -35,12 +37,13 @@
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In script_demo_CarMesh3D_animation
 %   % * First write of the code (drafted with Claude)
+%   % * Added Step 7, night scenes with light effects
 
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In script_demo_CarMesh3D_animation
-%   % * Add a night scene (dark background) to show the lights better
+%   % * Move the Step 4 (signals) camera closer; the lights look small
 
 
 %% Make sure we are running out of root directory
@@ -158,6 +161,36 @@ for ith_camera = 1:size(cameraList,1)
         cameraList{ith_camera,3});
 end
 
+%% Step 7: At night - headlight beams, then signals, brakes, and backing up
+% fcn_CarMesh3D_plotScene(TimeOfDay='night') makes a dark sky and ground
+% with dim "moonlight". fcn_CarMesh3D_plotVehicle(LightEffects=true)
+% fakes light shining from the lamps: lit lamps get a glowing shell, and
+% see-through pools of light are drawn on the ground (headlight beams
+% ahead; red tail and brake light and white backup light behind). They
+% switch with LightStates, so the animation loop does not change.
+% The camera is above and behind, to see the beams on the road ahead.
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=0.001, Duration=6, ...
+    SampleTime=1/framesPerSecond, VehicleSpec=vehicleSpec, FigNum=-1);
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-6 -5 4], Target=[9 0 0], FieldOfView=55);
+nightHeadlights = @(t) struct('Headlights', fcn_INTERNAL_choose(t<2,'off', fcn_INTERNAL_choose(t<4,'low','high')), ...
+    'Running', t>=2, 'Tail', fcn_INTERNAL_choose(t<2,'off','on'));
+fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, nightHeadlights, ...
+    fullfile(gifFolder,'night_headlights.gif'), flag_saveGifs, figureSize, 21, ...
+    'Night: headlights off, low, high', 'night');
+
+% The same drive as Step 4 (signal, lane change, hazards, back up), at night
+dt = 1/framesPerSecond;
+timeValues = (0:dt:14)';
+speedValues = 6*ones(size(timeValues));
+speedValues(timeValues>=7 & timeValues<10) = max(6 - 6*(timeValues(timeValues>=7 & timeValues<10)-7), 0);
+speedValues(timeValues>=10) = -min(1.5*(timeValues(timeValues>=10)-10), 2);
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Speed=speedValues, ...
+    Duration=14, SampleTime=dt, StartPose=[-25 0 0], VehicleSpec=vehicleSpec, FigNum=-1);
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-8 5 4], Target=[3 0 0], FieldOfView=50);
+fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @fcn_INTERNAL_signalSequence, ...
+    fullfile(gifFolder,'night_signalsHazardsBackup.gif'), flag_saveGifs, figureSize, 22, ...
+    'Night: signal, change lanes, hazards and brake, back up', 'night');
+
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
@@ -171,14 +204,19 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% fcn_INTERNAL_animate
-function fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, lightFunction, gifFile, flag_saveGif, figureSize, figNum, titleString)
+function fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, lightFunction, gifFile, flag_saveGif, figureSize, figNum, titleString, timeOfDay)
 % The animation loop used by every example: draw the scene and vehicle
 % once, then for each frame move the vehicle (pose, wheels, lights),
 % point the camera, draw, and optionally save a GIF frame.
 %   lightFunction: a function of time that returns the LightStates
+%   timeOfDay: 'day' (default) or 'night' (dark scene, light effects on)
 if nargin<9
     titleString = '';
 end
+if nargin<10
+    timeOfDay = 'day';
+end
+flagNight = strcmpi(timeOfDay,'night');
 
 % Scene: ground, grid, and cubes around the area the vehicle drives.
 % Cubes are kept at least 7 m from the path and from a fixed camera, so
@@ -193,8 +231,8 @@ figureHandle = figure(figNum);
 clf;
 set(figureHandle,'Color',[0.78 0.86 0.95],'Position',[100 100 figureSize]);
 axesHandle = axes('Parent',figureHandle,'Position',[0 0 1 1]);
-fcn_CarMesh3D_plotScene(GroundExtent=groundExtent, GridSpacing=4, Cubes=cubes, FigNum=figNum);
-plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', FigNum=figNum);
+fcn_CarMesh3D_plotScene(GroundExtent=groundExtent, GridSpacing=4, Cubes=cubes, TimeOfDay=timeOfDay, FigNum=figNum);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', LightEffects=flagNight, FigNum=figNum);
 axis(axesHandle,'off');
 % Fixed axis limits: the camera moves, the axes do not rescale
 axis(axesHandle,[groundExtent -1 25]);

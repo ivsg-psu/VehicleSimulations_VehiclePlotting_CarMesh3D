@@ -126,6 +126,24 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      LightStates can all be changed on the fast path (with PlotHandles)
 %      for animation.
 %
+%      LightEffects: true to "fake" light shining from the lamps, for
+%      night scenes (see fcn_CarMesh3D_plotScene with TimeOfDay='night').
+%      Default is false. Two effects are added, each shown only while its
+%      light is on:
+%           Glows: a see-through shell, slightly larger than each lamp,
+%               in the lamp's color, so lit lamps seem to bloom.
+%           Pools of light on the ground: a fading, see-through shape in
+%               the light's color, ahead of the headlights (short and wide
+%               for low beams; long and narrow added for high beams) and
+%               behind the tail lights (dim red when on, brighter red when
+%               braking, white when backing up).
+%      These are drawn shapes, not MATLAB light objects: MATLAB lights
+%      shine in every direction, do not fade with distance, and cast no
+%      shadows, so they cannot make a beam. The pools do not light up
+%      other objects (such as cubes), and they ride with the vehicle's
+%      ground frame, so they stay flat on the ground when the body rolls
+%      or pitches.
+%
 %      FigNum: a figure number to plot into. If empty or omitted, plots
 %      into the current figure (creating one if none exists). If set to
 %      -1, input checking is skipped and the plot also goes into the
@@ -149,6 +167,9 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               light group: headlight, turnLeft, turnRight, running,
 %               tail, backup
 %           LightOffColors, FaceLighting: used to switch lights back off
+%           LightEffects: [] or, with LightEffects=true, a structure with
+%               Glow (one patch or [] per light group) and Pools (patches
+%               lowBeam, highBeam, tail, brake, backup, each or [])
 %
 % DEPENDENCIES:
 %
@@ -182,6 +203,8 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   % * Split the vehicle into two rigid frames: the body and lights
 %   %   (sprung mass, BodyTransform) and the wheels (unsprung mass). Added
 %   %   BodyRoll, BodyPitch, BodyHeave, and BodyPivot options.
+%   % * Added LightEffects: glows around lit lamps and pools of light on
+%   %   the ground (headlight beams, tail, brake, backup), for night scenes
 
 % TO-DO:
 %
@@ -213,6 +236,7 @@ arguments
     options.BodyHeave = 0           % Body rise relative to the wheels [m], + up
     options.BodyPivot = []          % [x y z] point the body rolls and pitches about
     options.LightStates = []        % Struct of light states (see help)
+    options.LightEffects = false    % Glows and ground light pools, for night scenes
     options.FigNum = []             % Figure to plot into; [] for current figure, -1 for fast mode
 end
 
@@ -287,6 +311,11 @@ if 0==flag_max_speed
         end
         if ~isempty(options.BodyPivot) && (~isnumeric(options.BodyPivot) || numel(options.BodyPivot)~=3 || any(~isfinite(options.BodyPivot)))
             error('BodyPivot must be empty or a point [x y z] in meters');
+        end
+
+        % Check the LightEffects input
+        if ~(islogical(options.LightEffects) || isnumeric(options.LightEffects)) || ~isscalar(options.LightEffects)
+            error('LightEffects must be true or false');
         end
 
         % Check the PlotHandles input
@@ -500,6 +529,12 @@ else
         end
     end
 
+    % Light effects (glows and ground pools), for night scenes
+    lightEffects = [];
+    if options.LightEffects
+        lightEffects = fcn_INTERNAL_makeLightEffects(vehicleMesh, faceLightGroup, lightGroupNames, transformHandle, bodyTransform);
+    end
+
     % The point the body rolls and pitches about
     bodyPivot = options.BodyPivot;
     if isempty(bodyPivot)
@@ -517,6 +552,7 @@ else
     plotHandles.LightPatches = lightPatches;
     plotHandles.LightOffColors = lightOffColors;
     plotHandles.FaceLighting = faceLighting;
+    plotHandles.LightEffects = lightEffects;
 
     % Set the pose, wheels, and lights
     transformHandle.Matrix = poseMatrix;
@@ -730,7 +766,162 @@ for ith_group = 1:length(lightGroupNames)
             'FaceLighting','none');
     end
 end
+
+% Light effects: glows follow their lamps; ground pools follow the states
+if ~isfield(plotHandles,'LightEffects') || isempty(plotHandles.LightEffects)
+    return;
+end
+lightEffects = plotHandles.LightEffects;
+for ith_group = 1:length(lightGroupNames)
+    thisName = lightGroupNames{ith_group};
+    thisGlow = lightEffects.Glow.(thisName);
+    if isempty(thisGlow)
+        continue;
+    end
+    onColor = fcn_INTERNAL_lightColor(thisName, lightStates);
+    if isempty(onColor)
+        fcn_INTERNAL_setVisible(thisGlow, false);
+    else
+        set(thisGlow,'FaceColor',onColor);
+        fcn_INTERNAL_setVisible(thisGlow, true);
+    end
+end
+headlightState = lower(char(string(fcn_INTERNAL_stateValue(lightStates,'Headlights','off'))));
+tailState = fcn_INTERNAL_stateValue(lightStates,'Tail','off');
+if islogical(tailState) || isnumeric(tailState)
+    if tailState
+        tailState = 'on';
+    else
+        tailState = 'off';
+    end
+end
+tailState = lower(char(tailState));
+fcn_INTERNAL_setVisible(lightEffects.Pools.lowBeam, any(strcmp(headlightState,{'low','high'})));
+fcn_INTERNAL_setVisible(lightEffects.Pools.highBeam, strcmp(headlightState,'high'));
+fcn_INTERNAL_setVisible(lightEffects.Pools.tail, strcmp(tailState,'on'));
+fcn_INTERNAL_setVisible(lightEffects.Pools.brake, strcmp(tailState,'brake'));
+fcn_INTERNAL_setVisible(lightEffects.Pools.backup, fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'Backup',false)));
 end % Ends fcn_INTERNAL_updateLights
+
+%% fcn_INTERNAL_setVisible
+function fcn_INTERNAL_setVisible(graphicsHandle, flagVisible)
+% Shows or hides a graphics object, if it exists (only when it changes)
+if isempty(graphicsHandle)
+    return;
+end
+if flagVisible
+    newValue = 'on';
+else
+    newValue = 'off';
+end
+if ~strcmp(graphicsHandle.Visible, newValue)
+    graphicsHandle.Visible = newValue;
+end
+end % Ends fcn_INTERNAL_setVisible
+
+%% fcn_INTERNAL_makeLightEffects
+function lightEffects = fcn_INTERNAL_makeLightEffects(vehicleMesh, faceLightGroup, lightGroupNames, groundParent, bodyParent)
+% Makes the (hidden) light effects: a glow shell around each light group,
+% riding with the body, and pools of light on the ground, riding with
+% the ground frame. fcn_INTERNAL_updateLights shows and hides them.
+glowOffset = 0.025; % How far each glow shell sits outside its lamp [m]
+glowAlpha = 0.35;   % How see-through the glow is (0 clear, 1 solid)
+
+lightEffects = struct;
+lightEffects.Glow = struct;
+lightEffects.Pools = struct;
+
+% Glows: push each lamp's vertices outward along their normals
+for ith_group = 1:length(lightGroupNames)
+    thisName = lightGroupNames{ith_group};
+    lightEffects.Glow.(thisName) = [];
+    theseFaces = vehicleMesh.Faces(faceLightGroup==ith_group,:);
+    if isempty(theseFaces)
+        continue;
+    end
+    [~, vertexNormals] = fcn_INTERNAL_outwardNormals(vehicleMesh.Vertices, theseFaces);
+    lightEffects.Glow.(thisName) = patch('Parent',bodyParent, ...
+        'Faces',theseFaces,'Vertices',vehicleMesh.Vertices + glowOffset*vertexNormals, ...
+        'FaceColor',[1 1 1],'FaceAlpha',glowAlpha,'EdgeColor','none','FaceLighting','none', ...
+        'Visible','off','HitTest','off','DisplayName',sprintf('Glow: %s',thisName));
+end
+
+% Where the lamps are: the front of the headlights and the back of the
+% rear lights, and how far apart the left and right lamps are. Without
+% labeled lamps, use the front and back of the mesh.
+meshLow = min(vehicleMesh.Vertices,[],1);
+meshHigh = max(vehicleMesh.Vertices,[],1);
+frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(strcmp(lightGroupNames,'headlight')));
+rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(ismember(lightGroupNames,{'tail','backup'})));
+if isempty(frontVertices)
+    frontX = meshHigh(1);
+    frontHalfSpacing = 0.3*(meshHigh(2) - meshLow(2));
+else
+    frontX = max(frontVertices(:,1));
+    frontHalfSpacing = mean(abs(frontVertices(:,2)));
+end
+if isempty(rearVertices)
+    rearX = meshLow(1);
+    rearHalfSpacing = 0.3*(meshHigh(2) - meshLow(2));
+else
+    rearX = min(rearVertices(:,1));
+    rearHalfSpacing = mean(abs(rearVertices(:,2)));
+end
+
+% The pools: start x, direction (+1 ahead, -1 behind), half spacing [m],
+% length [m], spread half angle [deg], peak alpha, height above the
+% ground [m], color. Change these numbers to change the look of the
+% beams. Pools that can be on together get different heights, so the
+% graphics card does not flicker between them ("z-fighting").
+poolList = {
+    'lowBeam',  frontX, +1, frontHalfSpacing,     15,  16, 0.50, 0.010, [1.00 0.95 0.78];
+    'highBeam', frontX, +1, 0.8*frontHalfSpacing, 40,   6, 0.40, 0.025, [1.00 1.00 0.95];
+    'tail',     rearX,  -1, rearHalfSpacing,      2.0, 45, 0.15, 0.010, [1.00 0.08 0.05];
+    'brake',    rearX,  -1, rearHalfSpacing,      3.0, 45, 0.40, 0.010, [1.00 0.10 0.06];
+    'backup',   rearX,  -1, rearHalfSpacing,      6.0, 30, 0.45, 0.025, [1.00 1.00 1.00]};
+for ith_pool = 1:size(poolList,1)
+    [poolVertices, poolFaces, poolAlpha] = fcn_INTERNAL_poolMesh(poolList{ith_pool,2:8});
+    lightEffects.Pools.(poolList{ith_pool,1}) = patch('Parent',groundParent, ...
+        'Faces',poolFaces,'Vertices',poolVertices, ...
+        'FaceColor',poolList{ith_pool,9},'EdgeColor','none','FaceLighting','none', ...
+        'FaceVertexAlphaData',poolAlpha,'FaceAlpha','interp','AlphaDataMapping','none', ...
+        'Visible','off','HitTest','off','DisplayName',sprintf('Light pool: %s',poolList{ith_pool,1}));
+end
+end % Ends fcn_INTERNAL_makeLightEffects
+
+%% fcn_INTERNAL_groupVertices
+function groupVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, groupIndices)
+% The vertices of the faces in the given light groups (empty if none)
+theseFaces = vehicleMesh.Faces(ismember(faceLightGroup, groupIndices),:);
+groupVertices = vehicleMesh.Vertices(unique(theseFaces(:)),:);
+end % Ends fcn_INTERNAL_groupVertices
+
+%% fcn_INTERNAL_poolMesh
+function [vertices, faces, vertexAlpha] = fcn_INTERNAL_poolMesh(startX, direction, halfSpacing, poolLength, spreadDegrees, peakAlpha, poolZ)
+% A fan-shaped grid on the ground, starting at the lamps and widening
+% with distance. Its alpha (see-through-ness) rises quickly near the
+% lamps, fades to zero at the far end, and fades to zero at the sides.
+Nalong = 24;
+Nacross = 11;
+along = poolLength*((0:Nalong-1)'/(Nalong-1)).^1.3;  % Closer rows near the lamps
+across = linspace(-1,1,Nacross);
+halfWidth = halfSpacing + 0.3 + along*tand(spreadDegrees);
+[acrossGrid, alongGrid] = meshgrid(across, along);
+halfWidthGrid = repmat(halfWidth, 1, Nacross);
+x = startX + direction*alongGrid;
+y = acrossGrid.*halfWidthGrid;
+rise = min(1, (alongGrid + 0.3)/(0.15*poolLength + 0.3));
+fade = (1 - alongGrid/poolLength).^1.5;
+edge = 1 - acrossGrid.^2;
+vertexAlpha = peakAlpha*rise.*fade.*edge;
+vertices = [x(:) y(:) poolZ*ones(numel(x),1)];
+vertexAlpha = vertexAlpha(:);
+
+% Quad faces of the grid (column-major vertex numbering)
+[rowIndex, columnIndex] = meshgrid(1:Nalong-1, 1:Nacross-1);
+first = sub2ind([Nalong Nacross], rowIndex(:), columnIndex(:));
+faces = [first, first+1, first+1+Nalong, first+Nalong];
+end % Ends fcn_INTERNAL_poolMesh
 
 %% fcn_INTERNAL_lightColor
 function onColor = fcn_INTERNAL_lightColor(groupName, lightStates)
