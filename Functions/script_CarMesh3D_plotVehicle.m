@@ -7,6 +7,10 @@
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In script_CarMesh3D_plotVehicle
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_plotVehicle
+%   % * Added a 0.05 s pause after each animation frame
 
 % TO-DO:
 %
@@ -75,11 +79,13 @@ sgtitle(titleString, 'Interpreter','none');
 
 radius = 10;
 numFrames = 120;
+frameDelaySeconds = 0.05; % Pause after each frame so the motion is visible
 for ith_frame = 1:numFrames
     angle = 2*pi*ith_frame/numFrames;
     pose = [radius*cos(angle), radius*sin(angle), angle + pi/2]; % [x y yaw]
     plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=pose, PlotHandles=plotHandles, FigNum=-1);
     drawnow limitrate;
+    pause(frameDelaySeconds);
 end
 
 % The last pose is stored in the transform

@@ -19,7 +19,7 @@
 % Every mesh, whatever its source, goes through the same steps:
 %
 %   1. Vehicle spec   fcn_CarMesh3D_loadVehicleSpec or fcn_CarMesh3D_fillVehicleSpec
-%   2. Shape source   fcn_CarMesh3D_importMesh (downloaded OBJ/STL) or
+%   2. Shape source   fcn_CarMesh3D_importMesh (downloaded OBJ/STL/FBX/glTF) or
 %                     fcn_CarMesh3D_fillSampleMesh (built-in sample)
 %   3. Normalize      fcn_CarMesh3D_normalizeMesh  (X forward, Y left, Z up, meters)
 %   4. Label parts    fcn_CarMesh3D_labelParts     (body, glass, wheels, lights, trim)
@@ -38,12 +38,17 @@
 %   %   % simplifyMesh, validateMesh, plotVehicle
 %   % * Each core function has a matching script_CarMesh3D_<name> test
 %   %   % script in the Functions folder
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_demo_CarMesh3D
+%   % * Added a 0.05 s pause after each animation frame (first MATLAB run)
+%   % * Added FBX, glTF, GLB, and .blend import through Blender
+%   %   % (fcn_CarMesh3D_convertToOBJ)
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In script_demo_CarMesh3D
-%   % * Add glTF/GLB import (most common format on model-sharing sites)
 %   % * Add blueprint (side/front/top silhouette) extrusion as a shape source
 %   % * Add a parametric body template as a fallback shape source
 %   % * Add photo overlay to validation
@@ -105,11 +110,13 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
     OverallLength=4.55, OverallWidth=1.80, OverallHeight=1.42,...
     Wheelbase=2.70, TrackFront=1.55, TireSize='205/55R16',...
     FrontOverhang=0.88, Source='Example values',...
-    FigNum=figNum); 
+    FigNum=figNum); %#ok<NASGU>
 
 %% Step 2: A shape source
-% For a downloaded model (OBJ or STL), use the importer. Set the file name
-% and the license, and change 1==0 to 1==1:
+% For a downloaded model, use the importer. OBJ and STL are read directly;
+% FBX, glTF, GLB, and .blend files are converted to OBJ first by running
+% the free program Blender in the background (install it from
+% blender.org). Set the file name and the license, and change 1==0 to 1==1:
 %
 % Good places to look for free models: Kenney.nl, OpenGameArt.org, and
 % itch.io (search "low poly car", filter by CC0), and Sketchfab (filter by
@@ -117,8 +124,8 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
 
 if 1==0
     figNum = 3;
-    downloadedFile = fullfile('Data','myDownloadedCar.obj'); 
-    vehicleMesh = fcn_CarMesh3D_importMesh(downloadedFile, License='CC0, author: ...', FigNum=figNum); %#ok<NASGU>
+    downloadedFile = fullfile('Data','myDownloadedCar.obj'); %#ok<UNRCH>
+    vehicleMesh = fcn_CarMesh3D_importMesh(downloadedFile, License='CC0, author: ...', FigNum=figNum);
 end
 
 %%
@@ -172,7 +179,7 @@ disp(validationTable);
 
 flag_saveToLibrary = 0; % Set to 1 to save
 if flag_saveToLibrary
-    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']); %#ok<UNRCH>
+    libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']);
     save(libraryFile,'vehicleMesh');
     fprintf(1,'Saved: %s\n', libraryFile);
 end
@@ -188,6 +195,7 @@ axis([-25 25 -25 25 0 4]);
 title(sprintf('%s driving a figure eight', vehicleSpec.Name), 'Interpreter','none');
 
 numFrames = 300;
+frameDelaySeconds = 0.05; % Pause after each frame so the motion is visible (0 for maximum speed)
 timeValues = linspace(0, 2*pi, numFrames);
 xValues = 20*sin(timeValues);
 yValues = 10*sin(2*timeValues);
@@ -197,7 +205,7 @@ for ith_frame = 1:numFrames
         Pose=[xValues(ith_frame) yValues(ith_frame) yawValues(ith_frame)], ...
         PlotHandles=plotHandles, FigNum=-1);
     drawnow limitrate;
-	pause(0.05);
+    pause(frameDelaySeconds);
 end
 
 %% Functions follow

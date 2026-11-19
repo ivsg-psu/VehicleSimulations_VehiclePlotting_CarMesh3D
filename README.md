@@ -21,7 +21,9 @@ The workflow is meant to be simple enough for undergraduate students to make a n
 2. Open MATLAB (R2021a or newer; written for 2025a/2025b) and run `script_demo_CarMesh3D.m` from this folder.
 3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation.
 
-There are no external dependencies. The demo only adds `Functions` and `Data` to the MATLAB path.
+There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Data` to the MATLAB path.
+
+**For FBX, glTF, GLB, or .blend models**, also install [Blender](https://www.blender.org) (free). CarMesh3D finds it in the usual install folders. If Blender is installed somewhere else, run `setenv('CARMESH3D_BLENDER_PATH','<full path to blender.exe>')` once per MATLAB session, or pass `BlenderPath=...`. The converted `.obj` is saved next to the original as `<name>_converted.obj` and reused on later calls.
 
 ## Folders
 
@@ -37,7 +39,7 @@ There are no external dependencies. The demo only adds `Functions` and `Data` to
 | Step | Function | What it does |
 |---|---|---|
 | 1. Vehicle spec | `fcn_CarMesh3D_loadVehicleSpec` or `fcn_CarMesh3D_fillVehicleSpec` | Loads an IVSG vehicleParameters `.mat` file, or takes typed-in values. Converts a tire size such as `195/65R15` to a diameter. |
-| 2. Shape source | `fcn_CarMesh3D_importMesh` or `fcn_CarMesh3D_fillSampleMesh` | Reads a downloaded OBJ (with materials and groups) or STL, or builds a simple sample car. |
+| 2. Shape source | `fcn_CarMesh3D_importMesh` or `fcn_CarMesh3D_fillSampleMesh` | Reads a downloaded OBJ (with materials and groups) or STL, or builds a simple sample car. FBX, glTF, GLB, and .blend files are converted to OBJ first by `fcn_CarMesh3D_convertToOBJ`, which runs Blender in the background. |
 | 3. Normalize | `fcn_CarMesh3D_normalizeMesh` | Rotates into the vehicle frame (X forward, Y left, Z up), converts units to meters, and puts the origin on the ground. |
 | 4. Label parts | `fcn_CarMesh3D_labelParts` | Marks each face as body, glass, wheel, light, or trim from material and group names. Numbers the wheels FL, FR, RL, RR. Sets colors and glass transparency. |
 | 5. Fit to spec | `fcn_CarMesh3D_fitMeshToSpec` | Scales the body to length, width, and height, then stretches it so the axles land at the true wheelbase. Moves each wheel, without stretching it, to the true track and tire diameter. Puts the origin below the rear axle. |
@@ -124,11 +126,11 @@ Note: in the Prius file, the `_Text` descriptions of both overhangs say "from th
 
 - **CC0 (no attribution needed):** Kenney.nl, OpenGameArt.org, and itch.io (search "low poly car" and filter by license). These are mostly generic body types; scaling a generic sedan to a specific car's dimensions works well for plots.
 - **Sketchfab:** many specific production models are available. Filter by "Downloadable," check the license (usually CC-BY, which requires attribution), and expect dense meshes that need `TargetFaces`.
-- OBJ is supported now. glTF/GLB, the most common format on model sites, is on the TO-DO list. Until then, convert glTF/GLB to OBJ in Blender.
+- OBJ and STL are read directly. FBX, glTF, GLB, and .blend are converted through Blender, which writes Z-up axes. After converting, normalize with `UpAxis='+z'` and check the plot to find the forward axis (often `'-y'` or `'+y'`).
+- Very old ASCII FBX files (version 6.1 and earlier) can't be read by Blender.
 
 ## TO-DO
 
-- glTF / GLB import
 - Shape from blueprints: extrude traced side, front, and top silhouettes
 - Parametric body template as a fallback shape source
 - Overlay a side-view photo during validation

@@ -10,6 +10,11 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 %   .stl  STL (ASCII or binary), read with MATLAB's stlread. STL files
 %         have no materials or colors, so every face gets one 'default'
 %         material.
+%   .fbx, .glb, .gltf, .blend
+%         Converted to OBJ first by fcn_CarMesh3D_convertToOBJ, which runs
+%         the free program Blender in the background, then read as OBJ.
+%         The converted file is saved next to the original and reused on
+%         later calls. Converted files use Blender's axes (Z up).
 %
 % The mesh is returned exactly as stored in the file (its own units and
 % axis directions). Use fcn_CarMesh3D_normalizeMesh next to put it into
@@ -20,6 +25,7 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 %       vehicleMesh = fcn_CarMesh3D_importMesh(fileName,...
 %           (Name=nameString),...
 %           (License=licenseString),...
+%           (BlenderPath=blenderExecutable),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -27,7 +33,8 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 %
 % INPUTS:
 %
-%      fileName: the full or relative path to a .obj or .stl file.
+%      fileName: the full or relative path to a .obj, .stl, .fbx, .glb,
+%      .gltf, or .blend file.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -36,6 +43,10 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 %      License: the license of the downloaded model, for example
 %      'CC0' or 'CC-BY 4.0, author: ...'. Default is 'unknown'. Recording
 %      this is strongly recommended for any model that will be shared.
+%
+%      BlenderPath: the full path to the Blender program, used only for
+%      .fbx, .glb, .gltf, and .blend files. Default is '' (search for it;
+%      see fcn_CarMesh3D_convertToOBJ).
 %
 %      FigNum: a figure number to plot the imported mesh. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
@@ -52,6 +63,7 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 %
 % DEPENDENCIES:
 %
+%      fcn_CarMesh3D_convertToOBJ (only for .fbx, .glb, .gltf, .blend)
 %      fcn_CarMesh3D_plotVehicle (only if plotting)
 %      stlread (MATLAB base, R2018b or newer)
 %
@@ -69,13 +81,15 @@ function vehicleMesh = fcn_CarMesh3D_importMesh(fileName, options)
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_importMesh
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_importMesh
+%   % * Added FBX, glTF, GLB, and .blend files, converted through Blender
 
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_importMesh
-%   % * Add glTF / GLB import (keeps materials and alpha, common on
-%   %   % Sketchfab and other model sites)
 %   % * Read per-vertex colors (v x y z r g b) when present
 %   % * Speed up OBJ parsing for very large files (over ~1 million lines)
 
@@ -90,6 +104,7 @@ arguments
     fileName
     options.Name = []          % Mesh name; [] for the file name
     options.License = 'unknown' % License of the downloaded model
+    options.BlenderPath = ''   % Blender program, for FBX/glTF; '' to search
     options.FigNum = []        % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -149,8 +164,8 @@ if 0==flag_max_speed
             error('File not found: %s',char(fileName));
         end
         [~,~,tempExtension] = fileparts(char(fileName));
-        if ~any(strcmpi(tempExtension,{'.obj','.stl'}))
-            error('Unsupported file type: %s. Supported types are .obj and .stl (see TO-DO for glTF).',tempExtension);
+        if ~any(strcmpi(tempExtension,{'.obj','.stl','.fbx','.glb','.gltf','.blend'}))
+            error('Unsupported file type: %s. Supported types are .obj, .stl, .fbx, .glb, .gltf, and .blend.',tempExtension);
         end
 
         % Check the string options
@@ -189,6 +204,16 @@ fileName = char(fileName);
 switch lower(fileExtension)
     case '.obj'
         vehicleMesh = fcn_INTERNAL_readOBJ(fileName, filePath);
+    case {'.fbx','.glb','.gltf','.blend'}
+        % Convert with Blender, then read the OBJ (and its .mtl)
+        if flag_max_speed
+            convertFigNum = -1;
+        else
+            convertFigNum = [];
+        end
+        objFile = fcn_CarMesh3D_convertToOBJ(fileName, BlenderPath=options.BlenderPath, FigNum=convertFigNum);
+        [objPath, ~, ~] = fileparts(objFile);
+        vehicleMesh = fcn_INTERNAL_readOBJ(objFile, objPath);
     case '.stl'
         vehicleMesh = fcn_INTERNAL_readSTL(fileName);
     otherwise
