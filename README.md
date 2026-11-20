@@ -147,6 +147,7 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 | `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt` (first line: the license name; then the author and download link). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. |
 | `script_CarMesh3D_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
 | `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
+| `vehicleLevels_<ID>.mat` | the script | The detail levels (`detailLevels`): lighter versions of the mesh for animation (see [Detail levels for animation](#detail-levels-for-animation)) |
 | `checks/` | the script | The standard check images, animations, and test motion (below) |
 
 ### Steps
@@ -181,6 +182,7 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 | `check_08_wheels.gif` | The `wheels` segment from the side |
 | `check_09_drive.gif` | The `steering` and `wheels` segments from a camera following above and behind (the reference animation) |
 | `check_10_groundContact.png` | Whether the body touches the road during the body segment |
+| `check_11_detailLevels.png` | The finished mesh and its detail levels side by side (made by the vehicle's script, Step 6b): each should still look like the vehicle, down to the box |
 | `check_summary.txt` | A summary of the above |
 
 A check that shows a problem is doing its job: for example, a model with one material for all its rear lamps shows the whole lamp lit for every rear light in `check_04` until its lamps are split by label edits.
@@ -192,7 +194,7 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_test_fcn_CarMesh3D_<name>.m` |
 | `Data` | One folder per vehicle, `Data/YEAR_Make_Model_Trimline` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv` |
-| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation |
+| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design |
 
 ## The workflow
 
@@ -233,6 +235,8 @@ Labeling comes before fitting so the fit can treat wheels as rigid objects. Labe
 | `fcn_CarMesh3D_fillTestMotion` | The standard test motion: lights, body, steering, and wheels segments |
 | `fcn_CarMesh3D_runVehicleChecks` | Runs the standard test motion in the standard scene and saves the check images and GIFs |
 | `fcn_CarMesh3D_addReferenceVehicle` | Adds a finished vehicle to `Data/referenceVehicles.csv`, `Images/vehicles`, and the table in this README |
+| `fcn_CarMesh3D_makeDetailLevels` | Makes the vehicle's detail levels: lighter versions of its mesh for animation, each made for a range of sizes on screen (see [Detail levels for animation](#detail-levels-for-animation)) |
+| `fcn_CarMesh3D_loadDetailLevels` | Loads a vehicle's detail levels from its folder (or makes them, with a warning, if it has none yet) |
 
 ### Minimal example
 
@@ -701,6 +705,118 @@ Angles follow the right-hand rule about these axes: positive yaw and steering tu
 | `VehicleSpec`, `AxleX`, `FitInfo` | struct, 1 x 2, struct | fit | Spec used, axle positions, fit details |
 | `FaceNormals`, `SimplifyInfo` | M x 3, struct | simplify | Unit outward normals, face counts |
 
+## Detail levels for animation
+
+> **Status:** built 2026_11_19 (`fcn_CarMesh3D_makeDetailLevels`, `fcn_CarMesh3D_loadDetailLevels`), with levels for both reference vehicles. Agreed with AnimateCar3D, which will choose among the levels (see its README, "Design: detail levels set by size on screen").
+
+A finished mesh has a few thousand faces: right for a vehicle seen up close, far too many for a vehicle 100 m away that covers a few dozen pixels. For animations with many vehicles, CarMesh3D makes, for each vehicle, a **ladder of lighter versions** of its mesh, each made for a range of sizes on screen, and saves them with the vehicle. The animation chooses among them; CarMesh3D only makes, saves, and checks them.
+
+```matlab
+detailLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four');   % from Data/<ID>/vehicleLevels_<ID>.mat
+[detailLevels.Levels.MaxScreenSize]    % 105  74.2  52.5  37.1  26.2  18.6  13.1  9.3 (pixels)
+[detailLevels.Levels.Faces]            % 1026  512   256   128   64    32    16    5 (a box)
+fcn_CarMesh3D_plotVehicle(detailLevels.Levels(3).Mesh, FigNum=1);         % any level is a normal mesh
+```
+
+![The Prius's finished mesh and its detail levels](Images/detailLevels/detailLevels_prius.png)
+
+### The size-on-screen standard
+
+Both repositories measure an object's size on screen the same way:
+
+- **D**, the object's size: the diagonal of its bounding box, from (minX, minY, minZ) to (maxX, maxY, maxZ) of its vertices **in its own frame** (so it does not change as the object turns). One number per object, worked out once. It works for any object (vehicle, pedestrian, gate arm, building). Mirrors and antennas count; that only overstates the size a little (the Prius: D = 5.14 m, against a length of 4.48 m), which gives slightly more detail, never less. Long, thin objects (poles, gate arms) are overstated more; that costs a few faces and is accepted.
+- **Distance:** from the camera to the **center of that bounding box** (not the vehicle's origin, which is below the rear axle).
+- **Size on screen**, in pixels:
+
+  ```
+  size = D x (the axes' smaller side, pixels) / (2 x distance x tan(CameraViewAngle / 2))
+  ```
+
+  **MATLAB's `CameraViewAngle` spans the smaller side of the axes** (its `Position` in pixels, not the figure). This was measured with axes 800 x 450, 450 x 800, 600 x 600, and 1200 x 400, filling their figures and inside them: in every case a 2 m bar at 10 m covered the pixels predicted from the smaller side (for example 124 px in an 800 x 450 axes, and also 124 px in a 450 x 800 one).
+
+**Reference view** for the examples below: an axes 450 px on its smaller side (an 800 x 450 axes filling its figure) with a 40 degree view angle, where size = D x 618 / distance; a Prius 30 m away is 105 px across by this measure. (A figure 800 x 450 with MATLAB's default axes, as in the AnimateCar3D demos, has axes only 620 x 367 inside it, so there size = D x 504 / distance.)
+
+### The rule: about 0.2 visible faces per pixel
+
+The finished Prius mesh (6648 faces), seen from 10 m in an 800 x 450 figure (default axes, 367 px on the smaller side) with a 40 degree view angle, covers 15315 pixels: about 0.2 visible faces (half its faces) per pixel, or one visible face per 4.6 pixels. That is the density standard, for every vehicle:
+
+```
+faces(level) = 2 x 0.2 x A x (S / D)^2
+```
+
+where S is the largest size on screen (pixels) the level is made for, and A is the vehicle's mean shadow area (m^2): the area it covers, seen from 12 directions around it at 10, 30, and 50 degrees above it, worked out from the filled solid that the hull method builds anyway (the Prius: 6.13 m^2, close to the 6.03 m^2 that the 15315 pixels above give). Adding up face areas would not do: downloaded meshes have hidden inner surfaces (inner panels, glass behind body), and adding up the faces facing a viewer gives 12.6 m^2 for the Prius. No level has more faces than the finished mesh.
+
+Measured on the Prius (pixels counted in rendered frames): the pixels a vehicle covers fall with the square of its distance (1588 at 30 m and 279 at 70 m, against 1702 and 313 predicted from 15315 at 10 m), and meshes made by this rule keep the density (0.213 visible faces per pixel at both 30 m and 70 m, in the test before the ladder was settled).
+
+![The Prius at three levels: close up (top), and at each level's starting distance at its true size on screen, enlarged (bottom)](Images/detailLevels/detailLevels_facesPerPixel.png)
+
+### The ladder
+
+- **The full (finished) mesh is the top level.** It is the only level with wheels that spin and steer, a body that rolls, pitches, and heaves, and lights that switch, so it is drawn whenever the vehicle is larger on screen than the ladder's top (`TopScreenSize`, default 105 px).
+- **Reduced levels** go down from there, each made for a size `Step` (default sqrt(2)) times smaller than the one above, so each has about half the faces: small steps, so the change when the animation switches level is small, and a vehicle drawn with the level made for the next size up carries at most about twice the faces it needs. All of them together have fewer faces than the full mesh.
+- **The last level is a box** (5 faces), once the rule gives fewer than `MinFaces` (default 15) faces.
+- A level that would need as many faces as the finished mesh is not made (for a light mesh, the finished mesh is used there).
+
+The two reference vehicles (the reference view distances are for the Prius):
+
+| Made for sizes up to | Prius faces | Prius distance (reference view) | Transit Connect faces |
+|---|---|---|---|
+| (larger than 105 px) | 6648 (finished mesh) | within 30 m | 14984 (finished mesh) |
+| 105 px | 1026 | 30 m | 1144 |
+| 74 px | 512 | 43 m | 572 |
+| 52 px | 256 | 60 m | 286 |
+| 37 px | 128 | 86 m | 142 |
+| 26 px | 64 | 121 m | 70 |
+| 19 px | 32 | 171 m | 36 |
+| 13 px | 16 | 242 m | 18 |
+| 9 px and below | box (5) | from 342 m | box (5) |
+
+(Prius: D = 5.14 m, A = 6.14 m^2, made in 4 s. Transit Connect: D = 5.58 m, A = 8.07 m^2, made in 4 s. Each levels file is about 80 kB.) A bus (D about 12.7 m) gets the same sizes at about 2.5 times the distances, with more faces at each (a larger A).
+
+**The animation uses the coarsest level made for at least the vehicle's current size**, so a vehicle is never drawn with less than the standard density; the ladder's spacing only affects speed and how noticeable a switch is. The animation may also use only some of the levels.
+
+### Making the reduced levels: a closed hull
+
+Reducing a downloaded mesh directly (as `fcn_CarMesh3D_simplifyMesh` does, part by part with `reducepatch`) opens gaps: bodies are made of many separate open panels, and reducing an open panel pulls its edges in. Instead, the vehicle is wrapped in one closed surface first:
+
+1. Sample points over every face of the finished mesh, at most half a voxel apart (voxels of 3 cm, `VoxelSize`).
+2. Mark the voxels the points fall in, and grow the marks by half of `GapSize` (default 0.36 m), closing seams, gaps between panels, and openings up to that size, such as a window with no glass in the model.
+3. Fill the outside from the edge of the voxel grid; everything not reached is solid. Shrink the solid back by the same amount (undoing the growth). The solid also gives A, the shadow area, and `SolidFraction`, its volume over its bounding box's (about 0.55 for a car or van).
+
+**Why `GapSize` matters:** the first version closed only 6 cm gaps. The Transit Connect model has openings between about 0.2 and 0.3 m across (its front windows), so the outside flowed into the cab: the solid was then only the body panels (17% of the box instead of 54%), and each level was a hollow shell with see-through holes where the windows are, which the face-edge check could not catch (a hollow shell is still closed). Closing openings up to 0.3 m fixed it; the default, 0.36 m, leaves a margin. It barely changes a sealed model (the Prius's solid: 7.41 m^3 with 6 cm gaps closed, 7.44 m^3 with 30 cm). Concave parts narrower than `GapSize` (the gap between a tire and its wheel arch) are filled too, which cannot be seen at the sizes the levels are made for. The test now also checks each level's enclosed volume.
+4. Smooth it and take its isosurface: one closed surface.
+5. Reduce that surface with `reducepatch` to each level's face count. A closed surface has no open edges to pull in, so no gaps open, and it can go as low as wanted. (The test checks that no edge of any level is used by only one face, and that each level encloses a solid volume; reducing can pinch a thin part, such as a mirror, to an edge shared by four faces, which does no harm.)
+6. Give each new face the part, light type, color, and opacity of the outer surface of the finished mesh under it, by a vote of seven points on the face (so a small lamp cannot color a large face). Only the outer surface is used (the sampled points next to the outside), so hidden inner surfaces cannot color the hull; the nearest point is found by looking in the 27 voxels around each point, which is what makes it fast.
+7. Outward normals (from the closed surface's signed volume).
+
+Each level is a normal CarMesh3D mesh structure, so `fcn_CarMesh3D_plotVehicle` draws it like any other. Its wheels are part of the hull: `FaceWheelIndex` is 0 everywhere, so the level moves as one piece (the wheel faces keep the wheel part, and their color). Lamp faces keep their light types.
+
+![Reducing the Prius: the current part-by-part method vs. the closed hull, at the middle and far face counts](Images/detailLevels/meshReduction_methods.png)
+
+### Window colors: examined, left as they are
+
+A reduced face can only have one color, and reducing does not follow the edges between colors, so close up the windows of the reduced levels look blotchy. A fix was built and tested on the Prius: **windows and lamps as decals.** The hull was colored from the body, wheels, and trim only, and each window pane and lamp of the finished mesh was reduced on its own (keeping its outline), pushed out to 1 cm past the hull (checked at 7 points per face by casting rays, capped at 8 cm), and added within the same face budget, with the glass opaque in a color measured to render like the see-through glass.
+
+Close up, the decal windows are clean; at each level's true size on screen they look nearly the same as without them (at 70 m the only visible change was one tail lamp pixel; at 200 m none). Since a level is never drawn larger than the size it was made for, the close-up view does not occur in an animation, and the decals add real work (an extra making step, ray tests for every pane, panes a few centimeters off the body, slivers still to remove). **So the reduced levels have no decals** (decided 2026_11_19).
+
+![Before and after the decals, in one view at each level's starting distance](Images/detailLevels/windows_beforeAfter.png)
+
+![Close up, tinted by part: decals pushed out at their corners only, decals clear of the hull, and no decals (chosen)](Images/detailLevels/windows_decalsCloseUp.png)
+
+(One more close-up: `Images/detailLevels/windows_beforeAfter_closeUp.png`.)
+
+### The levels file and functions
+
+- **`Data/<ID>/vehicleLevels_<ID>.mat`**, next to the finished mesh (separate, so the levels can be remade without touching it), holding `detailLevels`, a structure with:
+  - `Levels`: an array, finest first, each with `MaxScreenSize` (pixels: the largest size on screen it is made for), `Faces`, `IsBox`, and `Mesh` (a CarMesh3D mesh structure; empty for the box)
+  - `SizeDiagonal` (D, m), `BoxCenter` (the bounding box's center, in the vehicle frame), `BoxSize` (its length, width, and height), `ShadowArea` (A, m^2)
+  - `SolidFraction` (the hull's volume over its box's), the settings used (`FacesPerPixel`, `TopScreenSize`, `Step`, `MinFaces`, `VoxelSize`, `GapSize`), `FullFaces`, `Method` (`'closedHull'`), `FormatVersion` (1), `MadeBy`, `MadeOn`, and `MakeSeconds`
+- **`fcn_CarMesh3D_makeDetailLevels(vehicleMesh, ...)`** makes the ladder (options `TopScreenSize=105`, `Step=sqrt(2)`, `FacesPerPixel=0.2`, `VoxelSize=0.03`, `GapSize=0.36`, `MinFaces=15`; `FigNum=` shows every level side by side). Each vehicle's script calls it (Step 6b), saves the file, and saves the picture as `checks/check_11_detailLevels.png`.
+- **`fcn_CarMesh3D_loadDetailLevels(vehicleID)`** returns the structure (adding `VehicleID`, and `Source`: `'file'` or `'made'`). If a vehicle has a finished mesh but no levels file yet, it warns and makes them (`MakeIfMissing=true`; `SaveIfMade=false`); a levels file older than the finished mesh gives a warning to run the vehicle's script again.
+- `fcn_CarMesh3D_findVehicleFiles` also returns `LevelsFile` and `HasLevels`.
+
+AnimateCar3D's contract check will check these functions and fields, so a change on either side is caught.
+
 ## Vehicle specification files
 
 `fcn_CarMesh3D_loadVehicleSpec` reads IVSG `vehicleParameters` `.mat` files. Values are converted to meters using their `_Units` fields:
@@ -772,9 +888,13 @@ Animating **many vehicles in one scene** (decision branches, surrounding traffic
 - A converter for other simulators' output files (for example CarSim's names and degrees) to the CarMesh3D motion columns, if it becomes necessary
 - Box (drag) selection in the interactive label editor
 - Labeling of STL files by geometry (they have no material names)
+- `fcn_CarMesh3D_simplifyMesh` with a low `TargetFaces` opens gaps between open body panels (it reduces part by part); the detail levels avoid it, but its own reduction could use the closed hull too
+- Detail levels for very large vehicles (a bus or a truck): the voxel grid and sampled points grow with size; the step could use coarser voxels for them
+- Detail levels: the Transit Connect's small lamps do not survive into its reduced levels (the vote gives their faces to the body); a larger level could keep lamp colors with a lower vote threshold for lights
 
 **Done recently** (2026_11_19)
 
+- Detail levels for animation (`fcn_CarMesh3D_makeDetailLevels`, `fcn_CarMesh3D_loadDetailLevels`, `vehicleLevels_<ID>.mat` for both reference vehicles, Step 6b in every vehicle script, and `check_11_detailLevels.png`); `CameraViewAngle` measured to span the axes' smaller side
 - Renamed to the naming convention: test scripts are `script_test_fcn_CarMesh3D_<name>.m`, and vehicle scripts are `script_CarMesh3D_vehicle_<ID>.m`
 - Multi-vehicle animation planned as a separate repository (AnimateCar3D)
 - Open body panels that were pointed inward (and so looked darker) are found and turned by a visibility check in `fcn_CarMesh3D_simplifyMesh`; every vehicle uses the same blue body color by default

@@ -25,7 +25,11 @@
 %   checks\                the standard check images and GIFs (see
 %                          fcn_CarMesh3D_runVehicleChecks), plus
 %                          check_00_orientation.png (the model after
-%                          turning it to X forward, Y left, Z up)
+%                          turning it to X forward, Y left, Z up) and
+%                          check_11_detailLevels.png (the detail levels)
+%   vehicleLevels_<ID>.mat the detail levels (lighter versions of the
+%                          mesh, for animation; see
+%                          fcn_CarMesh3D_makeDetailLevels)
 
 % REVISION HISTORY:
 %
@@ -37,6 +41,11 @@
 % - In script_CarMesh3D_vehicle_2013_Toyota_Prius_Four
 %   % * Renamed from script_vehicle_...: scripts that demonstrate the code
 %   %   % are named script_<Repo>_<name>
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2013_Toyota_Prius_Four
+%   % * Makes and saves the detail levels (Step 6b,
+%   %   % vehicleLevels_<ID>.mat and check_11_detailLevels.png)
 
 % TO-DO:
 %
@@ -153,6 +162,17 @@ fprintf(1,'Finished mesh: %d faces\n', size(vehicleMesh.Faces,1));
 %% Step 6: Save the finished mesh
 save(vehicleFiles.MeshFile, 'vehicleMesh', 'vehicleSpec');
 fprintf(1,'Saved %s\n', vehicleFiles.MeshFile);
+
+%% Step 6b: Make and save the detail levels (lighter versions, for animation)
+% A ladder of reduced meshes, each made for a range of sizes on screen
+% (see fcn_CarMesh3D_makeDetailLevels); used by AnimateCar3D for vehicles
+% that are far away. Its picture is checks\check_11_detailLevels.png.
+detailLevels = fcn_CarMesh3D_makeDetailLevels(vehicleMesh, FigNum=2);
+save(vehicleFiles.LevelsFile, 'detailLevels');
+fprintf(1,'Saved %s: %d levels, %d faces down to %d (a box)\n', vehicleFiles.LevelsFile, ...
+    numel(detailLevels.Levels), detailLevels.Levels(1).Faces, detailLevels.Levels(end).Faces);
+set(figure(2), 'Position', [50 50 1400 520]);
+fcn_INTERNAL_savePicture(2, fullfile(vehicleFiles.ChecksFolder,'check_11_detailLevels.png'));
 
 %% Step 7: The standard checks
 if flag_runChecks

@@ -100,6 +100,7 @@ assert(strcmp(newFiles.Make,'Toyota') && strcmp(newFiles.Model,'RAV4') && strcmp
 assert(endsWith(newFiles.ScriptFile, 'script_CarMesh3D_vehicle_2019_Toyota_RAV4_XLE.m'));
 assert(endsWith(newFiles.MeshFile, 'vehicleMesh_2019_Toyota_RAV4_XLE.mat'));
 assert(~newFiles.HasParameters && ~newFiles.HasMesh);
+assert(endsWith(newFiles.LevelsFile, 'vehicleLevels_2019_Toyota_RAV4_XLE.mat') && ~newFiles.HasLevels);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

@@ -18,6 +18,9 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %       script_CarMesh3D_vehicle_<ID>.m          the vehicle's script: builds the
 %                                      mesh and runs the standard checks
 %       vehicleMesh_<ID>.mat           the finished mesh (made by the script)
+%       vehicleLevels_<ID>.mat         its detail levels, for animation
+%                                      (made by the script; see
+%                                      fcn_CarMesh3D_makeDetailLevels)
 %       model\                         the downloaded 3D model, its
 %                                      LICENSE.txt, and converted files
 %       checks\                        the standard check images and GIFs
@@ -53,9 +56,11 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %      vehicleFiles: a structure (or, when listing, a structure array, one
 %      element per vehicle folder) with fields:
 %           ID, Year (number), Make, Model, Trim, Name ('2013 Toyota Prius Four')
-%           Folder, ParametersFile, ScriptFile, MeshFile, ModelFolder,
-%           ChecksFolder: full paths, following the convention above
-%           HasParameters, HasScript, HasMesh: true if those files exist
+%           Folder, ParametersFile, ScriptFile, MeshFile, LevelsFile,
+%           ModelFolder, ChecksFolder: full paths, following the
+%           convention above
+%           HasParameters, HasScript, HasMesh, HasLevels: true if those
+%           files exist
 %      For a new vehicle the paths are returned even if nothing exists yet.
 %
 % DEPENDENCIES:
@@ -86,6 +91,11 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % - In fcn_CarMesh3D_findVehicleFiles
 %   % * The vehicle script is now script_CarMesh3D_vehicle_<ID>.m
 %   %   % (was script_vehicle_<ID>.m), following the naming convention
+%
+% 2026_11_19 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * Added LevelsFile and HasLevels (vehicleLevels_<ID>.mat, the
+%   %   % detail levels made by fcn_CarMesh3D_makeDetailLevels)
 
 % TO-DO:
 %
@@ -224,12 +234,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if flag_do_plots
     fprintf(1,'\nVehicles in %s:\n', dataFolder);
-    fprintf(1,'%-45s %-10s %-7s %-6s\n', 'ID', 'Parameters', 'Script', 'Mesh');
+    fprintf(1,'%-45s %-10s %-7s %-6s %-6s\n', 'ID', 'Parameters', 'Script', 'Mesh', 'Levels');
     yesNo = {'-','yes'};
     for ith_vehicle = 1:length(vehicleFiles)
-        fprintf(1,'%-45s %-10s %-7s %-6s\n', vehicleFiles(ith_vehicle).ID, ...
+        fprintf(1,'%-45s %-10s %-7s %-6s %-6s\n', vehicleFiles(ith_vehicle).ID, ...
             yesNo{vehicleFiles(ith_vehicle).HasParameters+1}, yesNo{vehicleFiles(ith_vehicle).HasScript+1}, ...
-            yesNo{vehicleFiles(ith_vehicle).HasMesh+1});
+            yesNo{vehicleFiles(ith_vehicle).HasMesh+1}, yesNo{vehicleFiles(ith_vehicle).HasLevels+1});
     end
 end
 
@@ -273,9 +283,11 @@ vehicleFiles.Folder = fullfile(dataFolder, vehicleID);
 vehicleFiles.ParametersFile = fullfile(vehicleFiles.Folder, ['vehicleParameters_' vehicleID '.mat']);
 vehicleFiles.ScriptFile = fullfile(vehicleFiles.Folder, ['script_CarMesh3D_vehicle_' vehicleID '.m']);
 vehicleFiles.MeshFile = fullfile(vehicleFiles.Folder, ['vehicleMesh_' vehicleID '.mat']);
+vehicleFiles.LevelsFile = fullfile(vehicleFiles.Folder, ['vehicleLevels_' vehicleID '.mat']);
 vehicleFiles.ModelFolder = fullfile(vehicleFiles.Folder, 'model');
 vehicleFiles.ChecksFolder = fullfile(vehicleFiles.Folder, 'checks');
 vehicleFiles.HasParameters = isfile(vehicleFiles.ParametersFile);
 vehicleFiles.HasScript = isfile(vehicleFiles.ScriptFile);
 vehicleFiles.HasMesh = isfile(vehicleFiles.MeshFile);
+vehicleFiles.HasLevels = isfile(vehicleFiles.LevelsFile);
 end % Ends fcn_INTERNAL_filesForID

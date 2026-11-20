@@ -6,6 +6,7 @@ One folder per vehicle, named `YEAR_Make_Model_Trimline` (letters and digits in 
 - `model/`: the downloaded 3D model (in `model/source/`) and its `LICENSE.txt`
 - `script_CarMesh3D_vehicle_<ID>.m`: the standard script, copied from `script_CarMesh3D_vehicle_TEMPLATE.m`
 - `vehicleMesh_<ID>.mat`: the finished mesh, made by the script
+- `vehicleLevels_<ID>.mat`: the detail levels (lighter versions of the mesh, for animation), made by the script
 - `checks/`: the standard check images and GIFs, made by the script
 
 Also here:
