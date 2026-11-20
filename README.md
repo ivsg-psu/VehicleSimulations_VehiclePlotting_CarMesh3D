@@ -871,13 +871,22 @@ Overhangs use the usual definitions: **front overhang** is from the center of th
 
 ## TO-DO
 
-Two lists: **high priority** (the current focus), and **low priority** (parked; may not be needed). Each function's header also has its own TO-DO list.
+Three lists: **high priority** (the current focus), **changes wanted by AnimateCar3D**, and **low priority** (parked; may not be needed). Each function's header also has its own TO-DO list.
 
 ### High priority
 
 1. **Body-type templates:** a small set of vehicle body types, each with an "exemplar" model, to use as the starting shape for any vehicle of that type when no model of the vehicle itself is found.
 
 Animating **many vehicles in one scene** (decision branches, surrounding traffic, pedestrians, moving items, live data) has moved to a separate repository, **AnimateCar3D**, which uses CarMesh3D's meshes and functions. CarMesh3D stays focused on making, viewing, and checking one vehicle at a time.
+
+### Changes wanted by AnimateCar3D
+
+AnimateCar3D (which installs CarMesh3D releases) works around each of these for now; its README lists them too, under "Changes wanted in CarMesh3D".
+
+- **The sample car as a vehicle folder:** a `Data` folder for the built-in sample car (scaled to the `genericSedan` preset), with its finished mesh and its levels file, so that `'sample'` loads like any other vehicle. (Work-around: AnimateCar3D makes the sample car and its levels once, about 3 s, and keeps them in a cache file in MATLAB's temporary folder, remade when the CarMesh3D copy changes.)
+- **`fcn_CarMesh3D_plotVehicle` and hidden-handle scenes:** it decides whether an axes is "new" from its visible children only, so it reformats an axes holding only `fcn_CarMesh3D_plotScene`'s hidden-handle objects, and adds lights when the scene's lights are hidden handles. (Work-around: AnimateCar3D's player draws each new vehicle in a hidden scratch axes, then moves it into the scene.)
+- **A fixed color map for `fcn_CarMesh3D_saveGifFrame`:** it picks a new 256-color map for each frame, so small colored details (thin lines, tinted vehicles) can turn gray. An option for one fixed color map would help. (Work-around: AnimateCar3D writes its GIFs with its own fixed color map.)
+- **A version function,** so AnimateCar3D can check that the installed CarMesh3D release is new enough (its contract check now checks functions, options, and fields, but not a version).
 
 ### Low priority
 
