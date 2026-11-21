@@ -191,6 +191,35 @@ assert(all(all(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==3,:)==0)));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: SeeThroughGlass: see-through body faces become glass, see-through lamps stay lights
+figNum = 20006;
+titleString = sprintf('TEST case: SeeThroughGlass: see-through body faces become glass, see-through lamps stay lights');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+% (the sample's labels, then see-through marks as a .glb would give: half
+% the lamp faces and some body faces see-through)
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+plainLabels = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
+lampFaces = find(plainLabels.FacePartIndex==4);
+bodyFaces = find(plainLabels.FacePartIndex==1);
+assert(~isempty(lampFaces) && numel(bodyFaces) >= 10);
+sampleMesh.FaceTextureAlpha = ones(size(sampleMesh.Faces,1),1);
+sampleMesh.FaceTextureAlpha(lampFaces(1:2:end)) = 0.4;
+sampleMesh.FaceTextureAlpha(bodyFaces(1:10)) = 0.4;
+sampleMesh.SeeThroughReliable = true;
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, SeeThroughGlass=true, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+
+assert(all(vehicleMesh.FacePartIndex(bodyFaces(1:10))==2));                  % (see-through body: glass)
+assert(all(vehicleMesh.FacePartIndex(lampFaces)==4));                         % (see-through lamps: still lights)
+% (and with SeeThroughGlass off, nothing changes)
+offMesh = fcn_CarMesh3D_labelParts(sampleMesh, SeeThroughGlass=false, FigNum=-1);
+assert(isequal(offMesh.FacePartIndex, plainLabels.FacePartIndex));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

@@ -33,6 +33,7 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %           (FitMethod=methodString),...
 %           (Origin=originString),...
 %           (WidthReference=widthString),...
+%           (Symmetric=flag),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -46,8 +47,10 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %
 %      vehicleSpec: a vehicle specification structure. OverallLength,
 %      OverallWidth, and OverallHeight are required. Wheelbase,
-%      FrontOverhang, TrackFront, TrackRear, and TireDiameter are used
-%      when given.
+%      FrontOverhang, TrackFront, TrackRear, TireDiameter, and (for
+%      different front and rear tires) TireDiameterRear and TireSizeRear
+%      are used when given: each axle's wheels are sized to its own
+%      tires.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -68,6 +71,15 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %               WidthWithMirrors. Use this when the mirrors are part of
 %               the body mesh and the spec gives the width with mirrors.
 %      fcn_CarMesh3D_validateMesh measures the width the same way.
+%
+%      Symmetric: true when the mesh will later be made symmetric by
+%      reducing its left half and mirroring it (fcn_CarMesh3D_simplifyMesh
+%      Symmetric=true). The length and height are then measured on the
+%      left half only (Y at or above 0.15 m right of the center, the
+%      region the mirroring keeps),
+%      so a one-sided part that the mirroring removes (a mast antenna on
+%      the right A-pillar, as on the 2004 RAV4) does not set the scale.
+%      The width is measured as usual. Default: false.
 %
 %      FigNum: a figure number to plot the fitted mesh. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
@@ -112,6 +124,21 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %   %   % (found with a downloaded model whose sport tires were too wide)
 %   % * Added WidthReference option ('all', 'body', 'mirrors'), since
 %   %   % published widths usually exclude mirrors
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fitMeshToSpec
+%   % * Each axle's wheels are sized to its own tires (TireDiameterRear
+%   %   % and TireSizeRear for the rear; TireDiameter and TireSize for the
+%   %   % front)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fitMeshToSpec
+%   % * Added Symmetric option: length and height measured on the left
+%   %   % half (kept when mirroring), since the 2004 RAV4's right-side mast
+%   %   % antenna set the height and the mirrored mesh came out 4.6% low
+%   %   % (the kept region includes the 15 cm margin past the center that
+%   %   % the mirroring keeps)
+%   %   % and the ground clearance from the body in that region too
 
 % TO-DO:
 %
@@ -131,6 +158,7 @@ arguments
     options.FitMethod = 'auto'    % 'auto', 'wheels', or 'box'
     options.Origin = 'rearAxle'   % 'rearAxle' or 'center'
     options.WidthReference = 'all' % 'all', 'body', or 'mirrors'
+    options.Symmetric = false     % true: length and height from the left half (the half kept when mirroring)
     options.FigNum = []           % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -219,6 +247,11 @@ if 0==flag_max_speed
                 (~isfield(vehicleSpec,'WidthWithMirrors') || isempty(vehicleSpec.WidthWithMirrors))
             error('WidthReference ''mirrors'' needs WidthWithMirrors in the vehicle spec');
         end
+
+        % Check the Symmetric input
+        if ~(islogical(options.Symmetric) || isnumeric(options.Symmetric)) || ~isscalar(options.Symmetric)
+            error('Symmetric must be true or false');
+        end
     end
 end
 
@@ -249,9 +282,17 @@ WB  = fcn_INTERNAL_getField(vehicleSpec,'Wheelbase');
 FOH = fcn_INTERNAL_getField(vehicleSpec,'FrontOverhang');
 TF  = fcn_INTERNAL_getField(vehicleSpec,'TrackFront');
 TR  = fcn_INTERNAL_getField(vehicleSpec,'TrackRear');
-D   = fcn_INTERNAL_getField(vehicleSpec,'TireDiameter');
+D   = fcn_INTERNAL_getField(vehicleSpec,'TireDiameter');                % (the front tires')
+DR  = fcn_INTERNAL_getField(vehicleSpec,'TireDiameterRear');            % (the rear tires': [] for the front's)
+if isempty(DR)
+    DR = D;
+end
 GC  = fcn_INTERNAL_getField(vehicleSpec,'GroundClearance');
 tireWidth = fcn_INTERNAL_tireWidthFromSize(fcn_INTERNAL_getField(vehicleSpec,'TireSize'));
+tireWidthRear = fcn_INTERNAL_tireWidthFromSize(fcn_INTERNAL_getField(vehicleSpec,'TireSizeRear'));
+if isempty(tireWidthRear)
+    tireWidthRear = tireWidth;
+end
 if isempty(TR)
     TR = TF;
 end
@@ -264,8 +305,27 @@ Nvertices = size(originalVertices,1);
 minValues = min(originalVertices,[],1);
 maxValues = max(originalVertices,[],1);
 extents = maxValues - minValues;
-centerX = (minValues(1)+maxValues(1))/2;
 centerY = (minValues(2)+maxValues(2))/2;
+% (a mesh to be mirrored: length and height from the half that is kept,
+% so a one-sided part removed by the mirroring does not set the scale)
+if logical(options.Symmetric)
+    % (the region fcn_CarMesh3D_simplifyMesh keeps and mirrors: Y at or
+    % above 0.15 m right of the center, in this mesh's units before
+    % scaling; the 1999 F-150's bumper trim, just right of the center, was
+    % kept by the mirroring but missed by a Y >= 0 measurement)
+    targetWidth = W;
+    if strcmpi(char(options.WidthReference),'mirrors') && isfield(vehicleSpec,'WidthWithMirrors') && ~isempty(vehicleSpec.WidthWithMirrors)
+        targetWidth = vehicleSpec.WidthWithMirrors;
+    end
+    keptMargin = 0.15*extents(2)/targetWidth;
+    keptHalf = originalVertices(:,2) >= centerY - keptMargin;
+    if any(keptHalf)
+        minValues([1 3]) = min(originalVertices(keptHalf,[1 3]),[],1);
+        maxValues([1 3]) = max(originalVertices(keptHalf,[1 3]),[],1);
+        extents = maxValues - minValues;
+    end
+end
+centerX = (minValues(1)+maxValues(1))/2;
 boxScale = [L W H]./extents;
 
 % Width from the body only (leaving out mirrors), if asked
@@ -362,6 +422,15 @@ if strcmp(fitMethod,'wheels')
     % at the ground clearance and the roof stays at the overall height
     if ~isempty(GC) && isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
         bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
+        if logical(options.Symmetric)
+            % (only the body the mirroring keeps, Y >= -0.15 m: a low part
+            % on the right, such as the 2025 Camry's, is mirrored away and
+            % left the clearance 3.7% high)
+            keptBody = bodyVertices(fittedVertices(bodyVertices,2) >= -0.15);
+            if ~isempty(keptBody)
+                bodyVertices = keptBody;
+            end
+        end
         bodyBottomBox = min(fittedVertices(bodyVertices,3));
         if bodyBottomBox>0 && bodyBottomBox<H && GC<H
             fittedVertices(:,3) = interp1([0 bodyBottomBox H], [0 GC H], fittedVertices(:,3), 'linear', 'extrap');
@@ -377,12 +446,20 @@ if strcmp(fitMethod,'wheels')
         if isempty(theseVertices)
             continue;
         end
-        if ~isempty(D)
-            wheelScale(ith_wheel) = D/wheelSourceDiameters(ith_wheel);
+        flagFrontWheel = ith_wheel<=2;
+        % (each axle's own tire diameter and width)
+        if flagFrontWheel
+            thisDiameter = D;
+            thisTireWidth = tireWidth;
+        else
+            thisDiameter = DR;
+            thisTireWidth = tireWidthRear;
+        end
+        if ~isempty(thisDiameter)
+            wheelScale(ith_wheel) = thisDiameter/wheelSourceDiameters(ith_wheel);
         else
             wheelScale(ith_wheel) = sqrt(boxScale(1)*boxScale(3));
         end
-        flagFrontWheel = ith_wheel<=2;
         flagLeftWheel = any(ith_wheel==[1 3]);
         if flagFrontWheel
             targetX = xFrontAxle;
@@ -403,8 +480,8 @@ if strcmp(fitMethod,'wheels')
         targetZ = wheelScale(ith_wheel)*wheelSourceDiameters(ith_wheel)/2; % Touches the ground
         % Width (Y) scale: to the tire section width if known
         widthScale = wheelScale(ith_wheel);
-        if ~isempty(tireWidth) && wheelSourceWidths(ith_wheel)>0
-            widthScale = tireWidth/wheelSourceWidths(ith_wheel);
+        if ~isempty(thisTireWidth) && wheelSourceWidths(ith_wheel)>0
+            widthScale = thisTireWidth/wheelSourceWidths(ith_wheel);
         end
         fittedVertices(theseVertices,:) = [targetX targetY targetZ] + ...
             (originalVertices(theseVertices,:) - wheelSourceCenters(ith_wheel,:)).*[wheelScale(ith_wheel) widthScale wheelScale(ith_wheel)];

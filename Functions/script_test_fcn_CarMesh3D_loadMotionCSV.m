@@ -13,6 +13,11 @@
 % - In script_test_fcn_CarMesh3D_loadMotionCSV
 %   % * Renamed from script_CarMesh3D_loadMotionCSV: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_loadMotionCSV
+%   % * Tests a table and a matrix in place of a file, and different rear
+%   %   % tires
 
 % TO-DO:
 %
@@ -254,6 +259,29 @@ assert(max(abs(motion.SteerAngle(1,:) - expectedAngles)) < 1e-12);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A table or a matrix of numbers, in place of a file; different rear tires
+figNum = 20007;
+titleString = sprintf('TEST case: A table or a matrix of numbers, in place of a file; different rear tires');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', FigNum=-1);
+tableFile = fullfile(tempdir,'CarMesh3D_testTable.csv');
+fcn_CarMesh3D_saveMotionCSV(tableFile, trajectory);
+fromFile = fcn_CarMesh3D_loadMotionCSV(tableFile);
+motionTable = readtable(tableFile, 'VariableNamingRule','preserve');
+fromTable = fcn_CarMesh3D_loadMotionCSV(motionTable);
+assert(max(abs(fromTable.Pose - fromFile.Pose), [], 'all') < 1e-12 && strcmp(fromTable.FileName, '(table)'));
+fromNumbers = fcn_CarMesh3D_loadMotionCSV(table2array(motionTable), ColumnNames=motionTable.Properties.VariableNames);
+assert(max(abs(fromNumbers.Pose - fromFile.Pose), [], 'all') < 1e-12 && max(abs(fromNumbers.WheelSpin - fromFile.WheelSpin), [], 'all') < 1e-12);
+% (wheel spin from speed: the larger rear tires turn slower)
+noWheelColumns = motionTable(:, ~startsWith(motionTable.Properties.VariableNames, {'wheel','w1','w2','w3','w4'}));
+staggeredSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', TireSize='225/40R18', TireSizeRear='275/40R19');
+staggered = fcn_CarMesh3D_loadMotionCSV(noWheelColumns, VehicleSpec=staggeredSpec);
+ratio = staggered.WheelSpin(end,3)/staggered.WheelSpin(end,1);                   % (RL over FL)
+assert(abs(ratio - staggeredSpec.TireDiameter/staggeredSpec.TireDiameterRear) < 1e-9);
+delete(tableFile);
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -77,7 +77,8 @@ end
 if 1==0
     figNum = 10002; %#ok<UNRCH>
     fbxFile = fullfile('Data','myDownloadedCar.fbx');
-    vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fullfile('Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat'));
+    priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');
+    vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(priusFiles.ParametersFile);
     vehicleMesh = fcn_CarMesh3D_importMesh(fbxFile, License='(fill in)', FigNum=figNum);
     vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+z', ForwardAxis='-y', FigNum=figNum+1);
     vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, FigNum=figNum+2);

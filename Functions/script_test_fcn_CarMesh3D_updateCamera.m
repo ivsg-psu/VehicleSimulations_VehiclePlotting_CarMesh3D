@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_updateCamera
 %   % * Renamed from script_CarMesh3D_updateCamera: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_updateCamera
+%   % * Tests FollowHeight and FollowPitch
 
 % TO-DO:
 %
@@ -113,6 +117,32 @@ sgtitle(titleString, 'Interpreter','none');
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: On a hill: following the vehicle's height, and its pitch
+figNum = 20002;
+titleString = sprintf('TEST case: On a hill: following the vehicle''s height, and its pitch');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+axesHandle = axes;
+plot3(axesHandle,0,0,0,'o');
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[-8 0 3], Target=[4 0 1]);
+% (a six-value pose 12 m up a hill: the camera rides 12 m higher)
+[levelPosition, levelTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0 0 0 0], AxesHandle=axesHandle);
+[hillPosition, hillTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 12 0 0 0], AxesHandle=axesHandle);
+assert(max(abs(hillPosition - levelPosition - [0 0 12])) < 1e-9 && max(abs(hillTarget - levelTarget - [0 0 12])) < 1e-9);
+% (the old behavior: z = 0)
+oldPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 12 0 0 0], FollowHeight=false, AxesHandle=axesHandle);
+assert(max(abs(oldPosition - levelPosition)) < 1e-9);
+% (pitched nose up by 0.1 rad: the target rises, the camera drops, the up vector tilts back)
+[pitchPosition, pitchTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0 0 -0.1 0], FollowPitch=true, AxesHandle=axesHandle);
+assert(pitchTarget(3) > levelTarget(3) && pitchPosition(3) < levelPosition(3));
+upVector = get(axesHandle, 'CameraUpVector');
+assert(upVector(1) < 0 && abs(norm(upVector) - 1) < 1e-9);
+% (without FollowPitch, the pitch is not used)
+[~, flatTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0 0 -0.1 0], AxesHandle=axesHandle);
+assert(max(abs(flatTarget - levelTarget)) < 1e-9);
+sgtitle(titleString, 'Interpreter','none');
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

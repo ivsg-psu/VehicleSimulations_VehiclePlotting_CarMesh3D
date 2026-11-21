@@ -1,0 +1,571 @@
+function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
+% fcn_CarMesh3D_addFloorPanel
+
+% Adds a flat floor panel under a vehicle: one polygon at the ground
+% clearance height, the shape of the lower body seen from above, with
+% each wheel's footprint cut out. Downloaded models often have no
+% underside (the cabin is open from below), so a reduced mesh can be
+% seen through from below or through its windows; the panel closes it.
+%
+% The panel's outline is the top-down outline (fcn_CarMesh3D_makeOutline2D)
+% of the faces whose centers are below LowerBodyHeight (so the mirrors
+% and roof are left out), shrunk by Inset so the panel stays hidden
+% behind the body's sides. Around each wheel a rectangle is cut out: as
+% long as the tire's chord at the panel height plus WheelClearance, and
+% as wide as the tire plus WheelClearance (front wheels also get room to
+% steer). The panel is flat, except a strip along its edges that rises
+% to meet the body's lower edge (BlendWidth). It faces down, is labeled
+% trim, and is dark gray.
+%
+% FORMAT:
+%
+%       vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh,...
+%           (Height=meters), (LowerBodyHeight=meters), (Inset=meters),...
+%           (WheelClearance=meters), (SteerRoom=meters),...
+%           (BlendWidth=meters), (MaxRise=meters), (Color=rgb),...
+%           (Symmetric=flag), (FigNum=figNum))
+%
+% INPUTS:
+%
+%      vehicleMesh: a finished CarMesh3D mesh (labeled and fit to its
+%      spec, in the vehicle frame: origin on the ground below the rear
+%      axle, X forward, Y left, Z up).
+%
+%     (OPTIONAL INPUTS, given as Name=Value pairs)
+%
+%      Height: meters above the ground for the panel. Default: the
+%      spec's GroundClearance (vehicleMesh.VehicleSpec), or the lowest
+%      point of the body (not the wheels) if there is none.
+%
+%      LowerBodyHeight: meters; the outline is traced from the faces
+%      whose centers are below this. Default 0.6.
+%
+%      Inset: meters the outline is shrunk by. Default 0.03.
+%
+%      WheelClearance: meters added around each wheel's cutout. Default
+%      0.05.
+%
+%      BlendWidth: meters; a strip this wide along the panel's edges
+%      rises to meet the body: each edge point (every 5 cm) goes up to the
+%      lowest body corner within 6 cm of it (seen from above), up or
+%      down (to at most half the panel height), so the panel joins the
+%      body's lower edge with no gap seen from the side; the edge heights
+%      are then smoothed along the edge (the median within 15 cm each
+%      way, then a running mean), so no spikes rise where a point found a
+%      door skin above the rocker.
+%      Default 0.15; 0 keeps the panel flat.
+%
+%      Symmetric: 'auto' (default) builds the left half of the panel
+%      (Y >= 0) and mirrors it when the mesh is its own mirror image (90%
+%      of its faces have a mirror twin), so both sides of the car meet
+%      the panel the same way; true always does; false never does.
+%
+%      MaxRise: meters; the most an edge point rises above the panel.
+%      Default 0.30.
+%
+%      SteerRoom: meters added to the width of the front wheels' cutouts,
+%      so a steered tire does not cut through the panel. Default 0.15.
+%
+%      Color: the panel's color. Default [0.15 0.15 0.15].
+%
+%      FigNum: a figure to plot the panel (and the mesh, faded) from
+%      below. If empty or omitted, no plot is made. If set to -1, input
+%      checking is skipped and no plot is made (fast mode).
+%
+% OUTPUTS:
+%
+%      vehicleMesh: the mesh with the panel's faces added at the end
+%      (every per-face field extended), its material named
+%      'CarMesh3D_floorPanel', and FloorPanel set to a structure with
+%      Height, Polygon (the panel's outline with holes, a polyshape), and
+%      Faces (the indices of the panel's faces).
+%
+% DEPENDENCIES:
+%
+%      fcn_CarMesh3D_makeOutline2D, fcn_CarMesh3D_plotVehicle (only if
+%      plotting); polyshape, polybuffer, triangulation (MATLAB base)
+%
+% EXAMPLES:
+%
+%       vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');
+%       load(vehicleFiles.MeshFile, 'vehicleMesh');
+%       vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FigNum=1);
+%
+%       See the script: script_test_fcn_CarMesh3D_addFloorPanel.m for a
+%       full test suite.
+%
+% This function was written on 2026_11_21 by S. Brennan (drafted with
+% Claude)
+% Questions or comments? sbrennan@psu.edu
+
+% REVISION HISTORY:
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_addFloorPanel
+%   % * First write: downloads with no underside could be seen through
+%   %   % from below and through the windows (2010 Toyota Camry)
+%   % * BlendWidth, MaxRise: the panel's edges rise to meet the body (a
+%   %   % flat panel left a gap below the body's lower edge, seen from the
+%   %   % side)
+%   % * The edge heights are smoothed along the edge (a running minimum
+%   %   % over 15 cm each way, then a running mean): edge points that found
+%   %   % a door skin above the rocker made dark spikes along the bottoms
+%   %   % of the doors (2010 Toyota Camry)
+%   % * The edge follows the body's lowest edge down as well as up, and
+%   %   % the running minimum is now a running median: the minimum held the
+%   %   % edge below the body where the body's edge rises, and a sill lip
+%   %   % hanging below the panel left a slit (2021 Subaru Outback; found by
+%   %   % the see-through check of fcn_CarMesh3D_compareToOriginal)
+%   % * Points on a mirrored panel's center cut are interpolated from
+%   %   % their neighbors (held at the panel height, they made a V notch)
+%   % * The wheel cutouts run out past the body's outline, and edge points
+%   %   % along them stay at the panel height (a strip outboard of the rear
+%   %   % tires rose to the wheel arch and hung in front of the tires, like
+%   %   % mud flaps; 2014 CR-V)
+%   % * Symmetric: a mirrored car gets a mirrored panel (built as one
+%   %   % piece, the panel met the two sills differently, and the inside of
+%   %   % one sill showed from below; 2021 Subaru Outback)
+
+% TO-DO:
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_addFloorPanel
+%   % * (none yet)
+
+
+
+% Declare the inputs. This block only names the inputs and sets the
+% option defaults: it has no class, size, or validator checks, so it
+% adds little time to each call. The real input checks are in the
+% gated section below, which can be skipped with FigNum=-1 or with
+% the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
+arguments
+
+    vehicleMesh
+    options.Height = []              % meters; [] for the spec's ground clearance
+    options.LowerBodyHeight = 0.6    % meters: trace the outline from faces below this
+    options.Inset = 0.03             % meters the outline is shrunk by
+    options.WheelClearance = 0.05    % meters added around each wheel's cutout
+    options.SteerRoom = 0.15         % meters added to the front cutouts' width
+    options.BlendWidth = 0.15        % meters: the edge strip that rises to meet the body
+    options.MaxRise = 0.30           % meters: the most an edge rises above the panel
+    options.Color = [0.15 0.15 0.15] % The panel's color
+    options.Symmetric = 'auto'       % Build the left half and mirror it: 'auto', true, false
+    options.FigNum = []              % Figure to plot into; [] for no plot, -1 for fast mode
+end
+
+%% Debugging and Input checks
+
+% Check if flag_max_speed set. This occurs if the FigNum option is given
+% a value of -1, which is not a valid figure number.
+flag_max_speed = 0; % The default. This runs code with all error checking
+if isequal(options.FigNum,-1)
+    flag_do_debug = 0; % % % % Flag to plot the results for debugging
+    flag_check_inputs = 0; % Flag to perform input checking
+    flag_max_speed = 1;
+else
+    % Check to see if we are externally setting debug mode to be "on"
+    flag_do_debug = 0; % % % % Flag to plot the results for debugging
+    flag_check_inputs = 1; % Flag to perform input checking
+    MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS = getenv("MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS");
+    MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG = getenv("MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG");
+    if ~isempty(MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS) && ~isempty(MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG)
+        flag_do_debug = str2double(MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG);
+        flag_check_inputs  = str2double(MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS);
+    end
+end
+
+% flag_do_debug = 1;
+
+if flag_do_debug % If debugging is on, print on entry/exit to the function
+    st = dbstack; %#ok<*UNRCH>
+    fprintf(1,'STARTING function: %s, in file: %s\n',st(1).name,st(1).file);
+    debug_figNum = 999978; %#ok<NASGU>
+else
+    debug_figNum = []; %#ok<NASGU>
+end
+
+%% check input arguments?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   _____                   _
+%  |_   _|                 | |
+%    | |  _ __  _ __  _   _| |_ ___
+%    | | | '_ \| '_ \| | | | __/ __|
+%   _| |_| | | | |_) | |_| | |_\__ \
+%  |_____|_| |_| .__/ \__,_|\__|___/
+%              | |
+%              |_|
+% See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if 0==flag_max_speed
+    if flag_check_inputs
+        % The number of inputs and the option names are checked by the
+        % arguments block above
+
+        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex','FaceWheelIndex'})))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex, FaceWheelIndex)');
+        end
+        if ~isempty(options.Height) && ~(isnumeric(options.Height) && isscalar(options.Height) && options.Height >= 0)
+            error('Height must be a height of 0 or more, or empty');
+        end
+        for fieldName = {'LowerBodyHeight','Inset','WheelClearance','SteerRoom','BlendWidth','MaxRise'}
+            thisValue = options.(fieldName{1});
+            if ~(isnumeric(thisValue) && isscalar(thisValue) && thisValue >= 0)
+                error('%s must be a distance of 0 or more', fieldName{1});
+            end
+        end
+        if ~(isnumeric(options.Color) && numel(options.Color)==3)
+            error('Color must be an [r g b] triple');
+        end
+    end
+end
+
+% Does user want to show the plots?
+flag_do_plots = 0; % Default is to NOT show plots
+if (0==flag_max_speed)
+    temp = options.FigNum;
+    if ~isempty(temp) % Did the user NOT give an empty figure number?
+        figNum = temp;
+        flag_do_plots = 1;
+    end
+end
+
+%% Main code starts here
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   __  __       _
+%  |  \/  |     (_)
+%  | \  / | __ _ _ _ __
+%  | |\/| |/ _` | | '_ \
+%  | |  | | (_| | | | | |
+%  |_|  |_|\__,_|_|_| |_|
+%
+%See: http://patorjk.com/software/taag/#p=display&f=Big&t=Main
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Nfaces = size(vehicleMesh.Faces,1);
+vertices = vehicleMesh.Vertices;
+faces = vehicleMesh.Faces;
+faceCenters = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
+flagWheel = vehicleMesh.FaceWheelIndex(:) > 0;
+
+% The panel's height
+panelHeight = options.Height;
+if isempty(panelHeight)
+    if isfield(vehicleMesh,'VehicleSpec') && isfield(vehicleMesh.VehicleSpec,'GroundClearance') && ~isempty(vehicleMesh.VehicleSpec.GroundClearance)
+        panelHeight = vehicleMesh.VehicleSpec.GroundClearance;
+    else
+        bodyCorners = unique(faces(~flagWheel,:));
+        panelHeight = min(vertices(bodyCorners,3));
+    end
+end
+
+% The lower body's outline seen from above (with the wheels, for their
+% footprints): the faces below LowerBodyHeight, and all wheel faces
+flagLower = faceCenters(:,3) < options.LowerBodyHeight | flagWheel;
+lowerMesh = vehicleMesh;
+for fieldName = reshape(fieldnames(vehicleMesh),1,[])
+    thisValue = vehicleMesh.(fieldName{1});
+    if ~strcmp(fieldName{1},'Vertices') && (isnumeric(thisValue) || islogical(thisValue)) && size(thisValue,1)==Nfaces
+        lowerMesh.(fieldName{1}) = thisValue(flagLower,:);
+    end
+end
+outlineWarning = warning('off','CarMesh3D:asymmetricOutline');   % (only the body and wheels are used here)
+lowerOutline = fcn_CarMesh3D_makeOutline2D(lowerMesh, FigNum=-1);
+warning(outlineWarning);
+
+% The panel: the body outline shrunk by Inset, less each wheel's cutout
+warningState = warning('off','MATLAB:polyshape:repairedBySimplify');   % (a traced outline can touch itself)
+panelShape = polyshape(lowerOutline.Body(1:end-1,:), 'Simplify', true);
+warning(warningState);
+if options.Inset > 0
+    panelShape = polybuffer(panelShape, -options.Inset, 'JointType','miter');
+end
+wheelCutouts = polyshape();   % (all the cutouts, for the edge heights below)
+for ith_wheel = 1:numel(lowerOutline.Wheels)
+    thisWheel = lowerOutline.Wheels(ith_wheel);
+    tireRadius = thisWheel.Length/2;
+    % (the tire's chord at the panel height, or its whole diameter if
+    % the panel is above the axle)
+    if panelHeight < tireRadius
+        cutLength = 2*sqrt(max(tireRadius^2 - (tireRadius - panelHeight)^2, 0));
+    else
+        cutLength = 2*tireRadius;
+    end
+    cutLength = cutLength + 2*options.WheelClearance;
+    cutWidth = thisWheel.Width + 2*options.WheelClearance;
+    if thisWheel.Steers
+        cutLength = max(cutLength, 2*tireRadius + 2*options.WheelClearance);   % (a steered tire swings)
+        cutWidth = cutWidth + 2*options.SteerRoom;
+    end
+    cutX = thisWheel.Center(1) + [-1 1 1 -1]*cutLength/2;
+    cutY = thisWheel.Center(2) + [-1 -1 1 1]*cutWidth/2;
+    % (the cutout runs out past the body's outline on the wheel's side:
+    % a strip of panel left outboard of the tire rose to the wheel arch and
+    % hung in front of the tire, like a mud flap; 2014 CR-V's rear wheels)
+    if thisWheel.Center(2) >= 0
+        cutY(3:4) = max(cutY(3:4), thisWheel.Center(2) + 5);
+    else
+        cutY(1:2) = min(cutY(1:2), thisWheel.Center(2) - 5);
+    end
+    panelShape = subtract(panelShape, polyshape(cutX, cutY));
+    wheelCutouts = union(wheelCutouts, polyshape(cutX, cutY));
+end
+% (a mirrored car: the left half only, mirrored after it is built)
+fullShape = panelShape;
+flagSymmetric = false;
+if islogical(options.Symmetric) || isnumeric(options.Symmetric)
+    flagSymmetric = logical(options.Symmetric);
+elseif strcmpi(options.Symmetric,'auto')
+    [~, twinDistance] = knnsearch(faceCenters, faceCenters.*[1 -1 1]);
+    flagSymmetric = mean(twinDistance < 1e-4) >= 0.9;
+end
+if flagSymmetric && fullShape.NumRegions > 0
+    [shapeX, shapeY] = boundingbox(fullShape);
+    panelShape = intersect(fullShape, polyshape(shapeX([1 2 2 1]) + [-1 1 1 -1], [0 0 shapeY(2)+1 shapeY(2)+1]));
+end
+if panelShape.NumRegions == 0
+    warning('CarMesh3D:noFloorPanel', 'No floor panel was added: the outline was empty after the inset and the wheel cutouts.');
+    return;
+end
+
+% Triangulate it. The panel is flat at the panel height, except a strip
+% BlendWidth wide along its edges, which rises to meet the body: each
+% edge point (every 5 cm) goes up to the lowest body corner within 6 cm
+% of it (seen from above), at most MaxRise above the panel
+bodyCorners = unique(faces(~flagWheel & faceCenters(:,3) < options.LowerBodyHeight,:));
+bodyPoints = vertices(bodyCorners,:);
+outerPoints = zeros(0,2);
+outerLoops = {};
+for ith_boundary = 1:panelShape.NumRegions + panelShape.NumHoles
+    [loopX, loopY] = boundary(panelShape, ith_boundary);
+    loopPoints = fcn_INTERNAL_densify([loopX loopY], 0.05);
+    outerLoops{end+1} = size(outerPoints,1) + (1:size(loopPoints,1))'; %#ok<AGROW>
+    outerPoints = [outerPoints; loopPoints]; %#ok<AGROW>
+end
+innerShape = polybuffer(panelShape, -options.BlendWidth, 'JointType','miter');
+innerPoints = zeros(0,2);
+innerLoops = {};
+if options.BlendWidth > 0 && innerShape.NumRegions > 0
+    for ith_boundary = 1:innerShape.NumRegions + innerShape.NumHoles
+        [loopX, loopY] = boundary(innerShape, ith_boundary);
+        loopPoints = fcn_INTERNAL_densify([loopX loopY], 0.10);
+        innerLoops{end+1} = size(outerPoints,1) + size(innerPoints,1) + (1:size(loopPoints,1))'; %#ok<AGROW>
+        innerPoints = [innerPoints; loopPoints]; %#ok<AGROW>
+    end
+end
+allPoints = [outerPoints; innerPoints];
+constraintEdges = zeros(0,2);
+for thisLoop = [outerLoops innerLoops]
+    loopIndices = thisLoop{1};
+    constraintEdges = [constraintEdges; loopIndices, circshift(loopIndices,-1)]; %#ok<AGROW>
+end
+[allPoints, ~, pointMap] = unique(round(allPoints*1e6)/1e6, 'rows', 'stable');
+constraintEdges = pointMap(constraintEdges);
+constraintEdges = constraintEdges(constraintEdges(:,1)~=constraintEdges(:,2),:);
+warningState = warning('off','MATLAB:delaunayTriangulation:ConsConsSplitWarnId');
+panelTriangles = delaunayTriangulation(allPoints, constraintEdges);
+warning(warningState);
+panelFaces = panelTriangles.ConnectivityList;
+trianglePoints = panelTriangles.Points;
+triangleCenters = (trianglePoints(panelFaces(:,1),:) + trianglePoints(panelFaces(:,2),:) + trianglePoints(panelFaces(:,3),:))/3;
+panelFaces = panelFaces(isinterior(panelShape, triangleCenters(:,1), triangleCenters(:,2)),:);
+
+% Heights: the panel height, and the edge points raised to the body
+pointHeights = repmat(panelHeight, size(trianglePoints,1), 1);
+% (a mirrored car's cut along Y = 0, which is not an edge: its points away
+% from the panel's front and rear tips)
+flagCut = false(size(trianglePoints,1),1);
+if flagSymmetric
+    flagCut = abs(trianglePoints(:,2)) < 1e-6 & ...
+        isinterior(fullShape, trianglePoints(:,1) - 0.02, trianglePoints(:,2)) & ...
+        isinterior(fullShape, trianglePoints(:,1) + 0.02, trianglePoints(:,2));
+end
+flagEdgePoint = ismember(round(trianglePoints*1e6)/1e6, round(outerPoints*1e6)/1e6, 'rows');
+edgeIndices = find(flagEdgePoint);
+if options.BlendWidth > 0 && ~isempty(bodyPoints) && ~isempty(edgeIndices)
+    for ith_point = reshape(edgeIndices,1,[])
+        flagNear = vecnorm(bodyPoints(:,1:2) - trianglePoints(ith_point,:), 2, 2) <= 0.06;
+        if any(flagNear)
+            lowestBody = min(bodyPoints(flagNear,3));
+            % (up or down to the body's lowest edge: a sill lip that hangs
+            % below the panel height is met too, so no slit shows under it;
+            % never below half the panel height)
+            pointHeights(ith_point) = min(max(lowestBody, 0.5*panelHeight), panelHeight + options.MaxRise);
+        end
+    end
+    % (along each edge loop: the median height within 15 cm each way, then
+    % a running mean, so the edge follows the body's lower line without
+    % spikes where a point found a door skin above the rocker; a running
+    % minimum here kept the edge below the body where the body's edge
+    % rises, leaving a slit)
+    for thisLoop = outerLoops
+        loopPoints = outerPoints(thisLoop{1},:);
+        [~, loopIndex] = ismember(round(loopPoints*1e6)/1e6, round(trianglePoints*1e6)/1e6, 'rows');
+        loopIndex = loopIndex(loopIndex>0);
+        if numel(loopIndex) < 5
+            continue;
+        end
+        loopIndex = loopIndex(:);
+        cutInLoop = flagCut(loopIndex);
+        if any(cutInLoop) && ~all(cutInLoop)
+            % (a mirrored car: the edge is an open chain from tip to tip,
+            % padded at each end with its own mirror image, which is what
+            % the other half continues as; the cut itself is not an edge)
+            firstAfterCut = find(~cutInLoop & circshift(cutInLoop,1), 1);
+            loopIndex = circshift(loopIndex, -(firstAfterCut-1));
+            cutInLoop = circshift(cutInLoop, -(firstAfterCut-1));
+            chainIndex = loopIndex(~cutInLoop);
+            numPad = min(6, numel(chainIndex)-1);
+            chainHeights = pointHeights(chainIndex);
+            paddedHeights = [flipud(chainHeights(2:numPad+1)); chainHeights; flipud(chainHeights(end-numPad:end-1))];
+            paddedHeights = fcn_INTERNAL_circularFilter(paddedHeights, 3, 'median');
+            paddedHeights = fcn_INTERNAL_circularFilter(paddedHeights, 2, 'mean');
+            pointHeights(chainIndex) = paddedHeights(numPad+1:end-numPad);
+            continue;
+        end
+        loopHeights = pointHeights(loopIndex);
+        loopHeights = fcn_INTERNAL_circularFilter(loopHeights, 3, 'median');
+        loopHeights = fcn_INTERNAL_circularFilter(loopHeights, 2, 'mean');
+        pointHeights(loopIndex) = loopHeights;
+    end
+    % (a mirrored car's cut along Y = 0 is not an edge: its points take
+    % the heights between their neighbors and the neighbors' mirror
+    % images, as a panel built in one piece would have; held at the panel
+    % height, they left a V-shaped notch at the center of each blend strip)
+    if flagSymmetric && any(flagCut) && sum(~flagCut) >= 3
+        knownPoints = trianglePoints(~flagCut,:);
+        knownHeights = pointHeights(~flagCut);
+        flagOffAxis = abs(knownPoints(:,2)) > 1e-6;   % (points on Y = 0 are not mirrored: they would repeat)
+        heightInterpolant = scatteredInterpolant([knownPoints; knownPoints(flagOffAxis,:).*[1 -1]], ...
+            [knownHeights; knownHeights(flagOffAxis)], 'linear', 'nearest');
+        pointHeights(flagCut) = heightInterpolant(trianglePoints(flagCut,1), trianglePoints(flagCut,2));
+    end
+    % (edge points along a wheel cutout stay at the panel height: the
+    % nearest body there is the wheel arch above the tire, and an edge
+    % raised to it hung in front of the tire, like a skirt; 2014 CR-V)
+    if wheelCutouts.NumRegions > 0
+        nearCutout = isinterior(polybuffer(wheelCutouts, 0.03, 'JointType','miter'), trianglePoints(:,1), trianglePoints(:,2));
+        pointHeights(flagEdgePoint & nearCutout) = panelHeight;
+    end
+end
+panelVertices = [trianglePoints, pointHeights];
+
+% Facing down
+upNormals = cross(panelVertices(panelFaces(:,2),:) - panelVertices(panelFaces(:,1),:), ...
+    panelVertices(panelFaces(:,3),:) - panelVertices(panelFaces(:,1),:), 2);
+flagUp = upNormals(:,3) > 0;
+panelFaces(flagUp,:) = panelFaces(flagUp,[1 3 2]);
+if flagSymmetric
+    % (the right half: mirrored, corner order reversed so it still faces down)
+    panelFaces = [panelFaces; panelFaces(:,[1 3 2]) + size(panelVertices,1)];
+    panelVertices = [panelVertices; panelVertices.*[1 -1 1]];
+end
+Npanel = size(panelFaces,1);
+
+% Add it: every per-face field gets rows (zeros, then set below)
+newIndices = (Nfaces+1:Nfaces+Npanel)';
+for fieldName = reshape(fieldnames(vehicleMesh),1,[])
+    thisValue = vehicleMesh.(fieldName{1});
+    if any(strcmp(fieldName{1},{'Vertices','Faces'})) || ~(isnumeric(thisValue) || islogical(thisValue)) || size(thisValue,1)~=Nfaces
+        continue;
+    end
+    vehicleMesh.(fieldName{1}) = [thisValue; zeros(Npanel, size(thisValue,2), 'like', thisValue)];
+end
+vehicleMesh.Faces = [faces; panelFaces + size(vertices,1)];
+vehicleMesh.Vertices = [vertices; panelVertices];
+
+trimIndex = find(strcmp(vehicleMesh.PartNames,'trim'), 1);
+if isempty(trimIndex)
+    vehicleMesh.PartNames{end+1} = 'trim';
+    trimIndex = numel(vehicleMesh.PartNames);
+end
+vehicleMesh.FacePartIndex(newIndices) = trimIndex;
+if isfield(vehicleMesh,'FaceColors')
+    vehicleMesh.FaceColors(newIndices,:) = repmat(options.Color(:)', Npanel, 1);
+end
+if isfield(vehicleMesh,'FaceAlpha')
+    vehicleMesh.FaceAlpha(newIndices) = 1;
+end
+if isfield(vehicleMesh,'FaceNormals')
+    panelNormals = cross(panelVertices(panelFaces(:,2),:) - panelVertices(panelFaces(:,1),:), ...
+        panelVertices(panelFaces(:,3),:) - panelVertices(panelFaces(:,1),:), 2);
+    vehicleMesh.FaceNormals(newIndices,:) = panelNormals./max(vecnorm(panelNormals,2,2), eps);
+end
+if isfield(vehicleMesh,'MaterialNames') && isfield(vehicleMesh,'FaceMaterialIndex')
+    vehicleMesh.MaterialNames{end+1} = 'CarMesh3D_floorPanel';
+    vehicleMesh.FaceMaterialIndex(newIndices) = numel(vehicleMesh.MaterialNames);
+    if isfield(vehicleMesh,'MaterialColors') && size(vehicleMesh.MaterialColors,1)==numel(vehicleMesh.MaterialNames)-1
+        vehicleMesh.MaterialColors(end+1,:) = options.Color(:)';
+    end
+    if isfield(vehicleMesh,'MaterialAlpha') && numel(vehicleMesh.MaterialAlpha)==numel(vehicleMesh.MaterialNames)-1
+        vehicleMesh.MaterialAlpha(end+1) = 1;
+    end
+end
+vehicleMesh.FloorPanel = struct('Height',panelHeight, 'Polygon',fullShape, 'Faces',newIndices);
+
+%% Plot the results (for debugging)?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   _____       _
+%  |  __ \     | |
+%  | |  | | ___| |__  _   _  __ _
+%  | |  | |/ _ \ '_ \| | | |/ _` |
+%  | |__| |  __/ |_) | |_| | (_| |
+%  |_____/ \___|_.__/ \__,_|\__, |
+%                            __/ |
+%                           |___/
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if flag_do_plots
+    figure(figNum);
+    clf;
+    hold on;
+    patch('Vertices',vertices, 'Faces',faces, 'FaceColor',[0.75 0.75 0.75], 'EdgeColor','none', 'FaceAlpha',0.15);
+    patch('Vertices',panelVertices, 'Faces',panelFaces, 'FaceColor',options.Color, 'EdgeColor',[0.5 0.5 0.5]);
+    axis equal;
+    grid on;
+    view(0,-90);   % (from below)
+    xlabel('X [m] (forward)');
+    ylabel('Y [m] (left)');
+    zlabel('Z [m]');
+    title(sprintf('Floor panel at %.3f m (%d faces), seen from below', panelHeight, Npanel));
+end
+
+if flag_do_debug
+    fprintf(1,'ENDING function: %s, in file: %s\n\n',st(1).name,st(1).file);
+end
+
+end % Ends main function
+
+%% fcn_INTERNAL_densify
+function points = fcn_INTERNAL_densify(points, spacing)
+% A closed loop of points with extra points added so no edge is longer
+% than spacing (the loop is not repeated at its end)
+points = points(all(isfinite(points),2),:);
+nextPoints = circshift(points,-1,1);
+edgeLength = vecnorm(nextPoints - points, 2, 2);
+numSteps = max(1, ceil(edgeLength/spacing));
+allPoints = cell(size(points,1),1);
+for ith_edge = 1:size(points,1)
+    steps = (0:numSteps(ith_edge)-1)'/numSteps(ith_edge);
+    allPoints{ith_edge} = points(ith_edge,:) + steps.*(nextPoints(ith_edge,:) - points(ith_edge,:));
+end
+points = vertcat(allPoints{:});
+end % Ends fcn_INTERNAL_densify
+
+%% fcn_INTERNAL_circularFilter
+function values = fcn_INTERNAL_circularFilter(values, halfWidth, kind)
+% A running minimum, median, or mean over a closed loop (halfWidth points
+% each way)
+values = values(:);
+numValues = numel(values);
+shifted = zeros(numValues, 2*halfWidth+1);
+for ith_shift = -halfWidth:halfWidth
+    shifted(:, ith_shift+halfWidth+1) = circshift(values, ith_shift);
+end
+if strcmp(kind,'min')
+    values = min(shifted, [], 2);
+elseif strcmp(kind,'median')
+    values = median(shifted, 2);
+else
+    values = mean(shifted, 2);
+end
+end % Ends fcn_INTERNAL_circularFilter

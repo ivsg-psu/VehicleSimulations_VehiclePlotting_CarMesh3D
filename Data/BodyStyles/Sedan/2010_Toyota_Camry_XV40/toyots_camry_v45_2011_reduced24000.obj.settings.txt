@@ -1,0 +1,1 @@
+Reducer=2026_11_21e; TargetFaces=24000; WheelPattern=^Matte__FF8F8F8F__spec|^Matte__FF0A0A0A(\.\d+)? |^Matte__FFAEAEAE__env_39|^Matte__FF0D0D0D__spec|tire|tyre|wheel|(^|[^a-z])rim|hub|brake; WheelFaces=2000; RemovePattern=

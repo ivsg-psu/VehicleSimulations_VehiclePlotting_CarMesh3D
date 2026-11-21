@@ -1,0 +1,8 @@
+Standard checks for 2025 Volkswagen Golf RVariantMk8
+Written 2026-11-21 06:40 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 26994 faces, 52764 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2025_Volkswagen_Golf_RVariantMk8\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2025_Volkswagen_Golf_RVariantMk8\checks\check_03_labels.png

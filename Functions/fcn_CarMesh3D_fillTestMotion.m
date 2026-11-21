@@ -89,6 +89,11 @@ function testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fillTestMotion
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fillTestMotion
+%   % * Wheel spin uses each axle's own tire radius
+%   %   % (VehicleSpec.TireDiameterRear for the rear wheels)
 
 % TO-DO:
 %
@@ -195,6 +200,10 @@ end
 dt = options.SampleTime;
 wheelbase = vehicleSpec.Wheelbase;
 tireRadius = vehicleSpec.TireDiameter/2;
+tireRadiusRear = tireRadius;                                      % (different front and rear tires?)
+if isfield(vehicleSpec,'TireDiameterRear') && ~isempty(vehicleSpec.TireDiameterRear)
+    tireRadiusRear = vehicleSpec.TireDiameterRear/2;
+end
 frontTrack = vehicleSpec.TrackFront;
 if isempty(frontTrack)
     frontTrack = 0.85*vehicleSpec.OverallWidth;
@@ -323,7 +332,7 @@ bicycleSteer = atan(wheelbase*columns.curvature);
 steerAngles = fcn_CarMesh3D_calcAckermannSteering(bicycleSteer, wheelbase, frontTrack, FigNum=-1);
 
 % Wheels: spin rate = factor x speed / radius, integrated to angles
-wheelRates = columns.spinFactor.*(speedValues/tireRadius);
+wheelRates = columns.spinFactor.*(speedValues./[tireRadius tireRadius tireRadiusRear tireRadiusRear]);   % ([FL FR RL RR])
 wheelSpin = cumtrapz(timeValues, wheelRates);
 
 %%%%

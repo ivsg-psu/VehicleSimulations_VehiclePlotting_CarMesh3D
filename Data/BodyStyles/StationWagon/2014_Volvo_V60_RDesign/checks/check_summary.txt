@@ -1,0 +1,8 @@
+Standard checks for 2014 Volvo V60 RDesign
+Written 2026-11-21 06:41 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 26850 faces, 32388 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_03_labels.png

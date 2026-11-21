@@ -4,15 +4,24 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % Data folder, or lists every vehicle stored there. This function is the
 % CarMesh3D naming convention, in code.
 %
-% THE NAMING CONVENTION. Each vehicle has its own folder in Data, named
+% WHERE VEHICLES ARE KEPT. Each vehicle has its own folder, found
+% anywhere below Data (up to three levels down):
+%
+%       Data\BodyStyles\<Style>\<ID>\   a real vehicle, filed under its body
+%                                      style (Sedan, Hatchback, Liftback, ...;
+%                                      see fcn_CarMesh3D_loadBodyStyles)
+%       Data\Samples\<ID>\              made-up vehicles (the sample car)
+%       Data\<ID>\                       (older layout, still found)
+%
+% THE NAMING CONVENTION. The vehicle's folder is named
 %
 %       YEAR_Make_Model_Trimline        for example   2013_Toyota_Prius_Four
 %                                                     2014_Ford_TransitConnect_XLTCargoLWB
 %
 % Underscores only separate the four parts. Each part is letters and
 % digits only; several words are joined in CamelCase (Transit Connect is
-% TransitConnect). The year has four digits. This name is the vehicle ID.
-% Inside the folder:
+% TransitConnect). The year has four digits. This name is the vehicle ID,
+% and it must be used by only one folder. Inside the folder:
 %
 %       vehicleParameters_<ID>.mat     the IVSG vehicleParameters structure
 %       script_CarMesh3D_vehicle_<ID>.m          the vehicle's script: builds the
@@ -21,8 +30,11 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %       vehicleLevels_<ID>.mat         its detail levels, for animation
 %                                      (made by the script; see
 %                                      fcn_CarMesh3D_makeDetailLevels)
+%       vehicleOutline_<ID>.mat        its top-down 2D outlines
 %       model\                         the downloaded 3D model, its
-%                                      LICENSE.txt, and converted files
+%                                      LICENSE.txt, and converted files.
+%                                      A download may instead be left
+%                                      directly in the vehicle's folder.
 %       checks\                        the standard check images and GIFs
 %                                      (made by fcn_CarMesh3D_runVehicleChecks)
 %
@@ -32,7 +44,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % FORMAT:
 %
 %       vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID,...
-%           (DataFolder=folder), (FigNum=figNum))
+%           (BodyStyle=style), (DataFolder=folder), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -40,9 +52,14 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % INPUTS:
 %
 %      vehicleID: the vehicle ID, such as '2013_Toyota_Prius_Four', or ''
-%      (empty) to list every vehicle folder in the Data folder.
+%      (empty) to list every vehicle folder below the Data folder.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
+%
+%      BodyStyle: for a NEW vehicle (no folder yet), the body style it
+%      will be filed under, such as 'sedan' or 'compactCargoVan': its
+%      paths are then in Data\BodyStyles\<Style>\<ID>. Default '' puts a
+%      new vehicle's paths in Data\<ID>. Ignored when the folder exists.
 %
 %      DataFolder: the Data folder. Default [] uses the Data folder next to
 %      the Functions folder that holds this function.
@@ -57,10 +74,19 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %      element per vehicle folder) with fields:
 %           ID, Year (number), Make, Model, Trim, Name ('2013 Toyota Prius Four')
 %           Folder, ParametersFile, ScriptFile, MeshFile, LevelsFile,
-%           ModelFolder, ChecksFolder: full paths, following the
-%           convention above
-%           HasParameters, HasScript, HasMesh, HasLevels: true if those
-%           files exist
+%           OutlineFile, ModelFolder, ChecksFolder: full paths, following
+%           the convention above (ModelFolder is the vehicle's folder
+%           itself when it has no model subfolder)
+%           ModelFiles: the 3D model files found (glb, gltf, obj, stl,
+%               ply, fbx, blend) in ModelFolder and its source subfolder,
+%               as full paths in a cell array
+%           BodyStyle: the style ID from the folder it is filed under,
+%               such as 'sedan' ('' if not under Data\BodyStyles)
+%           BodyStyleFolder: that folder's name, such as 'Sedan'
+%           IsSample: true for a vehicle under Data\Samples
+%           Found: true if the vehicle's folder exists
+%           HasParameters, HasScript, HasMesh, HasLevels, HasOutline: true
+%           if those files exist
 %      For a new vehicle the paths are returned even if nothing exists yet.
 %
 % DEPENDENCIES:
@@ -73,6 +99,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %       vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(priusFiles.ParametersFile);
 %
 %       allVehicles = fcn_CarMesh3D_findVehicleFiles('', FigNum=1);   % list them
+%       sedans = allVehicles(strcmp({allVehicles.BodyStyle}, 'sedan'));
 %
 %       See the script: script_test_fcn_CarMesh3D_findVehicleFiles.m for a full test
 %       suite.
@@ -96,6 +123,20 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % - In fcn_CarMesh3D_findVehicleFiles
 %   % * Added LevelsFile and HasLevels (vehicleLevels_<ID>.mat, the
 %   %   % detail levels made by fcn_CarMesh3D_makeDetailLevels)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * Added OutlineFile and HasOutline (vehicleOutline_<ID>.mat, the
+%   %   % top-down outlines made by fcn_CarMesh3D_makeOutline2D)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * Vehicles are found anywhere below Data (Data\BodyStyles\<Style>\<ID>,
+%   %   % Data\Samples\<ID>, or the older Data\<ID>); an ID used by two
+%   %   % folders is an error
+%   % * Added BodyStyle, BodyStyleFolder, IsSample, Found, and ModelFiles;
+%   %   % a download left directly in the vehicle's folder is found
+%   % * Added the BodyStyle option, for a new vehicle's paths
 
 % TO-DO:
 %
@@ -112,6 +153,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     vehicleID
+    options.BodyStyle = ''    % A new vehicle's body style, such as 'sedan'; '' for Data\<ID>
     options.DataFolder = []   % The Data folder; [] for the one next to Functions
     options.FigNum = []       % Print a table if given; -1 for fast mode
 end
@@ -174,6 +216,12 @@ if 0==flag_max_speed
                 '(for example 2014_Ford_TransitConnect_XLTCargoLWB)'], char(vehicleID));
         end
 
+        % Check the BodyStyle input
+        if ~((ischar(options.BodyStyle) || isstring(options.BodyStyle)) && ...
+                (isempty(char(options.BodyStyle)) || ~isempty(regexp(char(options.BodyStyle), '^[A-Za-z][A-Za-z0-9]*$', 'once'))))
+            error('BodyStyle must be a style ID such as ''sedan'' (letters and digits), or empty');
+        end
+
         % Check the DataFolder input
         if ~isempty(options.DataFolder) && ~isfolder(options.DataFolder)
             error('DataFolder not found: %s', char(options.DataFolder));
@@ -207,18 +255,34 @@ end
 dataFolder = char(dataFolder);
 vehicleID = char(vehicleID);
 
+% Every vehicle folder below Data, with its ID
+[folderPaths, folderIDs] = fcn_INTERNAL_findFolders(dataFolder);
+
 if isempty(vehicleID)
-    % List every folder in Data whose name is a valid vehicle ID
-    folderList = dir(dataFolder);
-    folderList = folderList([folderList.isdir]);
-    folderNames = {folderList.name};
-    folderNames = folderNames(cellfun(@fcn_INTERNAL_isValidID, folderNames));
-    vehicleFiles = repmat(fcn_INTERNAL_filesForID('0000_A_B_C', dataFolder), 0, 1);
-    for ith_folder = 1:length(folderNames)
-        vehicleFiles(end+1,1) = fcn_INTERNAL_filesForID(folderNames{ith_folder}, dataFolder); %#ok<AGROW>
+    % List every vehicle folder (sorted by ID)
+    [~, sortOrder] = sort(folderIDs);
+    vehicleFiles = repmat(fcn_INTERNAL_filesForID('0000_A_B_C', fullfile(dataFolder,'0000_A_B_C'), dataFolder), 0, 1);
+    for ith_folder = sortOrder(:)'
+        vehicleFiles(end+1,1) = fcn_INTERNAL_filesForID(folderIDs{ith_folder}, folderPaths{ith_folder}, dataFolder); %#ok<AGROW>
+    end
+    repeatedIDs = unique(folderIDs(cellfun(@(id) sum(strcmp(folderIDs, id)) > 1, folderIDs)));
+    if ~isempty(repeatedIDs)
+        warning('CarMesh3D:repeatedID', 'These vehicle IDs are used by more than one folder: %s', strjoin(repeatedIDs, ', '));
     end
 else
-    vehicleFiles = fcn_INTERNAL_filesForID(vehicleID, dataFolder);
+    matches = find(strcmp(folderIDs, vehicleID));
+    if numel(matches) > 1
+        error('The vehicle ID %s is used by more than one folder:\n%s', vehicleID, strjoin(folderPaths(matches), newline));
+    elseif isscalar(matches)
+        vehicleFolder = folderPaths{matches};
+    elseif ~isempty(char(options.BodyStyle))
+        styleFolder = char(options.BodyStyle);
+        styleFolder(1) = upper(styleFolder(1));
+        vehicleFolder = fullfile(dataFolder, 'BodyStyles', styleFolder, vehicleID);
+    else
+        vehicleFolder = fullfile(dataFolder, vehicleID);
+    end
+    vehicleFiles = fcn_INTERNAL_filesForID(vehicleID, vehicleFolder, dataFolder);
 end
 
 %% Any debugging?
@@ -234,10 +298,15 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if flag_do_plots
     fprintf(1,'\nVehicles in %s:\n', dataFolder);
-    fprintf(1,'%-45s %-10s %-7s %-6s %-6s\n', 'ID', 'Parameters', 'Script', 'Mesh', 'Levels');
+    fprintf(1,'%-45s %-17s %-6s %-10s %-7s %-6s %-6s\n', 'ID', 'Style', 'Model', 'Parameters', 'Script', 'Mesh', 'Levels');
     yesNo = {'-','yes'};
     for ith_vehicle = 1:length(vehicleFiles)
-        fprintf(1,'%-45s %-10s %-7s %-6s %-6s\n', vehicleFiles(ith_vehicle).ID, ...
+        styleText = vehicleFiles(ith_vehicle).BodyStyle;
+        if vehicleFiles(ith_vehicle).IsSample
+            styleText = '(sample)';
+        end
+        fprintf(1,'%-45s %-17s %-6s %-10s %-7s %-6s %-6s\n', vehicleFiles(ith_vehicle).ID, styleText, ...
+            yesNo{~isempty(vehicleFiles(ith_vehicle).ModelFiles)+1}, ...
             yesNo{vehicleFiles(ith_vehicle).HasParameters+1}, yesNo{vehicleFiles(ith_vehicle).HasScript+1}, ...
             yesNo{vehicleFiles(ith_vehicle).HasMesh+1}, yesNo{vehicleFiles(ith_vehicle).HasLevels+1});
     end
@@ -268,9 +337,35 @@ function flagValid = fcn_INTERNAL_isValidID(vehicleID)
 flagValid = ~isempty(regexp(char(vehicleID), '^\d{4}_[A-Za-z0-9]+_[A-Za-z0-9]+_[A-Za-z0-9]+$', 'once'));
 end % Ends fcn_INTERNAL_isValidID
 
+%% fcn_INTERNAL_findFolders
+function [folderPaths, folderIDs] = fcn_INTERNAL_findFolders(dataFolder)
+% Every folder up to three levels below Data whose name is a vehicle ID.
+% A vehicle's own folder is not searched further.
+folderPaths = {};
+folderIDs = {};
+searchList = {dataFolder};
+for ith_level = 1:3
+    nextList = {};
+    for ith_search = 1:numel(searchList)
+        listing = dir(searchList{ith_search});
+        listing = listing([listing.isdir] & ~ismember({listing.name}, {'.','..','model','checks','source','textures'}));
+        for ith_entry = 1:numel(listing)
+            thisPath = fullfile(searchList{ith_search}, listing(ith_entry).name);
+            if fcn_INTERNAL_isValidID(listing(ith_entry).name)
+                folderPaths{end+1} = thisPath; %#ok<AGROW>
+                folderIDs{end+1} = listing(ith_entry).name; %#ok<AGROW>
+            else
+                nextList{end+1} = thisPath; %#ok<AGROW>
+            end
+        end
+    end
+    searchList = nextList;
+end
+end % Ends fcn_INTERNAL_findFolders
+
 %% fcn_INTERNAL_filesForID
-function vehicleFiles = fcn_INTERNAL_filesForID(vehicleID, dataFolder)
-% The standard names for one vehicle ID
+function vehicleFiles = fcn_INTERNAL_filesForID(vehicleID, vehicleFolder, dataFolder)
+% The standard names for one vehicle ID, in its folder
 parts = split(vehicleID, '_');
 vehicleFiles = struct;
 vehicleFiles.ID = vehicleID;
@@ -279,15 +374,56 @@ vehicleFiles.Make = parts{2};
 vehicleFiles.Model = parts{3};
 vehicleFiles.Trim = parts{4};
 vehicleFiles.Name = strjoin(parts', ' ');
-vehicleFiles.Folder = fullfile(dataFolder, vehicleID);
+vehicleFiles.Folder = vehicleFolder;
 vehicleFiles.ParametersFile = fullfile(vehicleFiles.Folder, ['vehicleParameters_' vehicleID '.mat']);
 vehicleFiles.ScriptFile = fullfile(vehicleFiles.Folder, ['script_CarMesh3D_vehicle_' vehicleID '.m']);
 vehicleFiles.MeshFile = fullfile(vehicleFiles.Folder, ['vehicleMesh_' vehicleID '.mat']);
 vehicleFiles.LevelsFile = fullfile(vehicleFiles.Folder, ['vehicleLevels_' vehicleID '.mat']);
+vehicleFiles.OutlineFile = fullfile(vehicleFiles.Folder, ['vehicleOutline_' vehicleID '.mat']);
 vehicleFiles.ModelFolder = fullfile(vehicleFiles.Folder, 'model');
+if isfolder(vehicleFiles.Folder) && ~isfolder(vehicleFiles.ModelFolder)
+    vehicleFiles.ModelFolder = vehicleFiles.Folder;     % (a download left in the vehicle's folder)
+end
 vehicleFiles.ChecksFolder = fullfile(vehicleFiles.Folder, 'checks');
+vehicleFiles.ModelFiles = fcn_INTERNAL_modelFiles(vehicleFiles.ModelFolder);
+
+% The body style, from the folder the vehicle is filed under
+[parentFolder, ~] = fileparts(vehicleFolder);
+[grandFolder, parentName] = fileparts(parentFolder);
+[~, grandName] = fileparts(grandFolder);
+vehicleFiles.BodyStyle = '';
+vehicleFiles.BodyStyleFolder = '';
+if strcmpi(grandName, 'BodyStyles') && strcmpi(fileparts(grandFolder), fileparts(fullfile(dataFolder, 'x')))
+    vehicleFiles.BodyStyleFolder = parentName;
+    vehicleFiles.BodyStyle = [lower(parentName(1)) parentName(2:end)];
+end
+vehicleFiles.IsSample = strcmpi(parentName, 'Samples') && strcmpi(grandFolder, fileparts(fullfile(dataFolder, 'x')));
+
+vehicleFiles.Found = isfolder(vehicleFiles.Folder);
 vehicleFiles.HasParameters = isfile(vehicleFiles.ParametersFile);
 vehicleFiles.HasScript = isfile(vehicleFiles.ScriptFile);
 vehicleFiles.HasMesh = isfile(vehicleFiles.MeshFile);
 vehicleFiles.HasLevels = isfile(vehicleFiles.LevelsFile);
+vehicleFiles.HasOutline = isfile(vehicleFiles.OutlineFile);
 end % Ends fcn_INTERNAL_filesForID
+
+%% fcn_INTERNAL_modelFiles
+function modelFiles = fcn_INTERNAL_modelFiles(modelFolder)
+% The 3D model files in the model folder and its source subfolder
+modelFiles = {};
+extensions = {'.glb','.gltf','.obj','.stl','.ply','.fbx','.blend'};
+searchFolders = {modelFolder, fullfile(modelFolder, 'source')};
+for ith_folder = 1:numel(searchFolders)
+    if ~isfolder(searchFolders{ith_folder})
+        continue;
+    end
+    listing = dir(searchFolders{ith_folder});
+    listing = listing(~[listing.isdir]);
+    for ith_file = 1:numel(listing)
+        [~, ~, extension] = fileparts(listing(ith_file).name);
+        if any(strcmpi(extension, extensions))
+            modelFiles{end+1,1} = fullfile(searchFolders{ith_folder}, listing(ith_file).name); %#ok<AGROW>
+        end
+    end
+end
+end % Ends fcn_INTERNAL_modelFiles

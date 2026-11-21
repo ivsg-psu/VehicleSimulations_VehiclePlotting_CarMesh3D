@@ -1,0 +1,8 @@
+Standard checks for 2010 Toyota Camry XV40
+Written 2026-11-21 06:29 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 25767 faces, 21153 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_03_labels.png

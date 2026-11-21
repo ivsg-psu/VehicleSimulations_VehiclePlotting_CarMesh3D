@@ -53,6 +53,12 @@
 %   % * Steps 11-12 show the Finish (glossy) and ShowEdges/EdgeColor options
 %   % * Added Step 13: check the outline against a side-view picture
 %   %   % (fcn_CarMesh3D_plotSideImage)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In script_demo_CarMesh3D
+%   % * The Prius model is loaded again (the Acura NSX model had been put
+%   %   % in its place while the rest of the steps still used the Prius
+%   %   % name, part rules, axes, and spec, so the result looked broken)
 
 % TO-DO:
 %
@@ -105,7 +111,10 @@ disp('Welcome to the demo code for the CarMesh3D library!')
 % data can come from an IVSG vehicleParameters .mat file:
 
 figNum = 1;
-specFile = fullfile('Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
+% (fcn_CarMesh3D_findVehicleFiles finds a vehicle's folder by its ID,
+% wherever it is filed under Data\BodyStyles)
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');
+specFile = priusFiles.ParametersFile;
 vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specFile, BodyColor=[0.75 0.76 0.78], FigNum=figNum);
 disp(vehicleSpec);
 
@@ -122,7 +131,7 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
 
 %% Step 2: A shape source
 % The starting example is a free low-poly 2010 Toyota Prius model (a .glb
-% file) in Data\2013_Toyota_Prius_Four\model. It is close in shape to the 2013 Prius
+% file) in Data\BodyStyles\Liftback\2013_Toyota_Prius_Four\model. It is close in shape to the 2013 Prius
 % spec loaded above. GLB and FBX files are converted to OBJ by Blender
 % (free, blender.org) the first time, then the converted file is reused.
 %
@@ -134,7 +143,9 @@ exampleSpec = fcn_CarMesh3D_fillVehicleSpec(...
 % used instead, so the rest of the demo still runs.
 
 figNum = 3;
-modelFile = fullfile('Data','2013_Toyota_Prius_Four','model','source','2010 Toyota Prius.glb');
+modelFile = fullfile(priusFiles.ModelFolder,'source','2010 Toyota Prius.glb');
+
+
 flag_useDownloadedModel = exist(modelFile,'file')==2;
 if flag_useDownloadedModel
     try

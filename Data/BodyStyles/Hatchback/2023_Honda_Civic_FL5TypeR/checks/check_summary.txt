@@ -1,0 +1,8 @@
+Standard checks for 2023 Honda Civic FL5TypeR
+Written 2026-11-21 06:33 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 44005 faces, 35164 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2023_Honda_Civic_FL5TypeR\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2023_Honda_Civic_FL5TypeR\checks\check_03_labels.png

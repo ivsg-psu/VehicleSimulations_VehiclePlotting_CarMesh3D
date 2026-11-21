@@ -1,0 +1,13 @@
+Quantity	Target_m	Measured_m	Error_m	PercentError	Pass
+OverallLength	4.458	4.458	0	0	1
+OverallWidth	1.753	NaN	NaN	NaN	1
+WidthWithMirrors	2.023	2.023	0	0	1
+OverallHeight	1.397	1.397	0	0	1
+Wheelbase	2.621	2.621	0	0	1
+TrackFront	1.499	1.499	0	0	1
+TrackRear	1.521	1.521	0	0	1
+TireDiameter	0.6253	0.6253	0	0	1
+TireRoundMin	0.6253	0.623093144801472	-0.00220685519852759	-0.352927426599647	1
+TireRoundMax	0.6253	0.625304923595298	4.92359529757902e-06	0.000787397296910126	1
+FrontOverhang	0.887	0.887	0	0	1
+GroundClearance	0.14	0.14	0	0	1

@@ -92,7 +92,7 @@ Read these before writing a file for CarMesh3D:
 
 1. Put this folder somewhere whose path has **no minus signs** (spaces are fine).
 2. Open MATLAB (R2021a or newer; written for 2025a/2025b) and run `script_demo_CarMesh3D.m` from this folder.
-3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/2013_Toyota_Prius_Four/model/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
+3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/BodyStyles/Liftback/2013_Toyota_Prius_Four/model/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
 
 There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Data` to the MATLAB path.
 
@@ -100,7 +100,7 @@ There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Da
 
 ## Vehicles available
 
-These vehicles are finished and checked, and are ready to use. Each one's folder in `Data` holds its parameters, its 3D model, its script, its finished mesh (`vehicleMesh_<ID>.mat`), and its check images and animations (`checks`). The same list is kept in the text file `Data/referenceVehicles.csv`, so it can be read without searching the folders. To use a finished vehicle:
+These vehicles are finished and checked, and are ready to use. Each one's folder (in `Data/BodyStyles/<Style>`) holds its parameters, its 3D model, its script, its finished mesh (`vehicleMesh_<ID>.mat`), and its check images and animations (`checks`). The same list is kept in the text file `Data/referenceVehicles.csv`, so it can be read without searching the folders. To use a finished vehicle:
 
 ```matlab
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2014_Ford_TransitConnect_XLTCargoLWB');
@@ -114,8 +114,8 @@ Each animation is the vehicle's `check_09_drive.gif`: the standard test drive (s
 
 | Vehicle | Animation | Size L x W x H (m) | Wheelbase (m) | Faces | Model license |
 |---|---|---|---|---|---|
-| **2013 Toyota Prius Four**<br>`Data/2013_Toyota_Prius_Four` | ![2013_Toyota_Prius_Four](Images/vehicles/2013_Toyota_Prius_Four.gif) | 4.48 x 2.02 x 1.49 | 2.700 | 6648 | Free Standard |
-| **2014 Ford TransitConnect XLTCargoLWB**<br>`Data/2014_Ford_TransitConnect_XLTCargoLWB` | ![2014_Ford_TransitConnect_XLTCargoLWB](Images/vehicles/2014_Ford_TransitConnect_XLTCargoLWB.gif) | 4.81 x 2.13 x 1.85 | 3.063 | 14984 | 2014 Ford Transit Connect Cargo by tonielpro520 is licensed under Creative Commons Attribution |
+| **2013 Toyota Prius Four**<br>`Data/BodyStyles/Liftback/2013_Toyota_Prius_Four` | ![2013_Toyota_Prius_Four](Images/vehicles/2013_Toyota_Prius_Four.gif) | 4.48 x 2.02 x 1.49 | 2.700 | 6648 | Free Standard |
+| **2014 Ford TransitConnect XLTCargoLWB**<br>`Data/BodyStyles/CompactCargoVan/2014_Ford_TransitConnect_XLTCargoLWB` | ![2014_Ford_TransitConnect_XLTCargoLWB](Images/vehicles/2014_Ford_TransitConnect_XLTCargoLWB.gif) | 4.82 x 2.14 x 1.85 | 3.063 | 36841 | 2014 Ford Transit Connect Cargo by tonielpro520 is licensed under Creative Commons Attribution |
 
 (This table is written by fcn_CarMesh3D_addReferenceVehicle from Data/referenceVehicles.csv; 2 vehicles.)
 
@@ -144,19 +144,102 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 | File or folder | Made by | Contents |
 |---|---|---|
 | `vehicleParameters_<ID>.mat` | you | The IVSG `vehicleParameters` structure (see [Vehicle specification files](#vehicle-specification-files)). Keep notes on where each value came from in `vehicleParameters_sources.md`. |
-| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt` (first line: the license name; then the author and download link). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. |
+| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt`, written in the [standard license format](#the-licensetxt-file). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. |
 | `script_CarMesh3D_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
 | `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
 | `vehicleLevels_<ID>.mat` | the script | The detail levels (`detailLevels`): lighter versions of the mesh for animation (see [Detail levels for animation](#detail-levels-for-animation)) |
 | `checks/` | the script | The standard check images, animations, and test motion (below) |
 
+### The LICENSE.txt file
+
+Every downloaded model comes with a `LICENSE.txt`, written in this format: five labeled lines, in this order, copied from the model's download page.
+
+```
+License: (the license type, as the download page names it)
+License meaning: (what the license imposes, as the download page explains it)
+Credits: (the required credit line; left empty for a license that requires none, such as Free Standard)
+Source website: (the link to the model's page)
+Author: (the author's name as the website lists it)
+```
+
+Two examples:
+
+```
+License: CC Attribution
+License meaning: Author must be credited. Commercial use is allowed.
+Credits: 2006 Toyota Camry 24 G by tonielpro520 is licensed under Creative Commons Attribution
+Source website: https://sketchfab.com/3d-models/2006-toyota-camry-24-g-e47c4e766b104f8f9a095810e3b83459
+Author: tonielpro520
+```
+
+```
+License: Free Standard
+License meaning: Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
+Credits: 
+Source website: https://sketchfab.com/3d-models/2010-toyota-prius-f4ed90af97264198b65f28a7532be138#download
+Author: ActsOfDoge
+```
+
+The whole file becomes the mesh's `License` field. The [Vehicles available](#vehicles-available) table shows the `Credits` line, or the `License` line when no credit is required. Avoid NonCommercial (NC) and ShareAlike (SA) licenses if the repository is shared publicly or used in funded work: their terms carry over to every mesh, image, and GIF made from the model.
+
 ### Steps
 
-1. Make the folder `Data/<ID>`, and put the parameters file and the model in it as above.
-2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
+1. Make the folder `Data/BodyStyles/<Style>/<ID>` (the style folders are listed in `Data/bodyStyles.csv`; for example `Data/BodyStyles/Sedan/2025_Toyota_Camry_XV80`), and put the parameters file and the model in it as above. `fcn_CarMesh3D_findVehicleFiles(ID)` finds the folder wherever it is filed, so scripts and functions only need the ID. A download left directly in the vehicle folder (not yet moved into `model/`) is found too (`ModelFiles`).
+2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, any faces to delete (`removeFaces`: stray pieces that would spoil the fit, such as a lone point above the roof), the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
 3. Run it, and look at every file in `checks/` (the list below). The first run usually shows something to fix: the orientation (`check_00`), labels (`check_03`), or lights (`check_04`).
 4. Fix the settings and run again. Most fixes are label edits: regions in meters, with the origin on the ground below the rear axle (`labelEditsAfterFit`), found with `flag_useInteractiveLabelEditor = 1`. Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
 5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more. This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
+
+### No model of the vehicle? Use its body style
+
+When no 3D model of a vehicle can be found, it can be made from its **body style**: a finished vehicle of the same style (an **exemplar**: any vehicle in the style's folder with a finished mesh; the one closest in size is used) is refit to this vehicle's published dimensions, labels, lights, and all. In the vehicle's script, set `modelFile = ''` and `bodyStyle` to the style's ID; everything else (parameters file, checks, detail levels, reference list) is the same. From MATLAB directly:
+
+```matlab
+vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('vehicleParameters_2020_Toyota_Corolla_HatchbackSE.mat');
+vehicleMesh = fcn_CarMesh3D_fillBodyStyleMesh('liftback', vehicleSpec, FigNum=1);
+```
+
+| A Corolla hatchback and a ProMaster City, each from its style's exemplar |
+|---|
+| ![Refit from exemplars](Images/bodyStyles_refit.png) |
+
+The styles are the folders of `Data/BodyStyles`; their names and descriptions are in `Data/bodyStyles.csv` (`fcn_CarMesh3D_loadBodyStyles` reads both and lists each style's vehicles, `VehicleIDs`, and finished ones, `ExemplarIDs`; with a figure number it shows every exemplar). A style is only as good as its exemplars, so each is a finished, checked vehicle, made the usual way from a downloaded model.
+
+**When a style has several exemplars**, the one closest in size to the new vehicle is refit: the smallest root-mean-square relative difference in length, width, height, and wheelbase (each candidate and its difference are kept in `BodyStyleInfo.CandidateIDs` and `SizeDifference`). `ExemplarID=` picks one instead. One exemplar is enough for a style to work; two or three that span small to large help most (one each is plenty for the optional styles).
+
+| Style ID (folder) | Body style | Exemplars (finished) | Good exemplars still to add |
+|---|---|---|---|
+| `sedan` | Sedan (separate trunk) | (none yet) | Toyota Camry, Honda Accord |
+| `hatchback` | Hatchback (5-door) | (none yet) | Honda Civic hatchback, VW Golf |
+| `liftback` | Liftback (sloped rear hatch) | 2013 Toyota Prius Four | |
+| `stationWagon` | Station wagon | (none yet) | Subaru Outback, VW Golf SportWagen, Volvo V60 |
+| `coupe` | Coupe (2-door) | (none yet) | Ford Mustang, Honda Civic coupe |
+| `convertible` | Convertible or roadster | (none yet) | Mazda MX-5 Miata |
+| `sportsCar` | Sports car (low, often mid-engine) | (none yet) | Chevrolet Corvette C8, Acura NSX |
+| `crossover` | Crossover or compact SUV | (none yet) | Toyota RAV4, Honda CR-V |
+| `fullSizeSUV` | Full-size SUV | (none yet) | Chevrolet Tahoe, Ford Expedition |
+| `minivan` | Minivan | (none yet) | Honda Odyssey, Chrysler Pacifica, Toyota Sienna |
+| `pickupCrewCab` | Full-size pickup (crew cab) | (none yet) | Ford F-150 SuperCrew |
+| `compactCargoVan` | Compact cargo van | 2014 Ford Transit Connect XLT Cargo LWB | |
+| `fullSizeCargoVan` | Full-size cargo van (high roof) | (none yet) | Ford Transit, Mercedes Sprinter, Ram ProMaster |
+| `midsizeSUV` | Midsize three-row SUV (optional) | (none yet) | Ford Explorer, Toyota Highlander |
+| `pickupMidsize` | Midsize pickup (optional) | (none yet) | Toyota Tacoma |
+| `passengerVan` | Passenger van (optional) | (none yet) | Ford Transit passenger van |
+| `microcar` | Microcar or city car (optional) | (none yet) | Smart Fortwo |
+| `boxTruck` | Box truck or cutaway (optional) | (none yet) | Isuzu NPR, Ford E-350 cutaway |
+| `stepVan` | Step van (optional) | (none yet) | Freightliner MT45 |
+| `schoolBus` | School bus, type C (optional) | (none yet) | Blue Bird Vision, Thomas C2 |
+| `transitBus` | Transit bus, 40 ft (optional) | (none yet) | New Flyer Xcelsior, Gillig Low Floor |
+| `semiTractor` | Semi tractor (optional) | (none yet) | Freightliner Cascadia |
+
+Each style's folder is its ID with a capital first letter (`compactCargoVan` is `Data/BodyStyles/CompactCargoVan`). Models downloaded so far and not yet finished: seven sedans (2002, 2006, 2010, 2025 Camry; 2013, 2017, 2023 Accord) and three hatchbacks (2007 Golf GTI, 2023 Civic Type R, 2025 Golf R Variant); the 2022 Acura NSX (sports car) is downloaded too. The optional styles' larger vehicles (box truck to semi) need multi-axle fitting first.
+
+To add an exemplar: file the vehicle under its style's folder and finish it as usual; nothing else is needed. A style without one makes the sample car at the vehicle's size, with a warning (`Fallback='error'` stops instead).
+
+Notes:
+- **The width** is fit the way the exemplar's was. Both exemplars were fit with their mirrors (their mirrors are part of the body mesh), so if the new vehicle's parameters give only the width without mirrors, the width with mirrors is estimated from the exemplar's own ratio of the two (written in the mesh's `BodyStyleInfo.WidthNote`). The width check then shows the width with mirrors as measured but not compared.
+- **The license** of a refit mesh is the exemplar's (its `License` field is copied): a CC-BY exemplar's attribution goes with every vehicle made from it.
+- The shape between the measured points (hood length, roof line, glass) is the exemplar's, stretched; a vehicle whose shape differs much from its style's exemplar is better made from its own model.
 
 ### The standard checks
 
@@ -193,7 +276,7 @@ A check that shows a problem is doing its job: for example, a model with one mat
 |---|---|
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_test_fcn_CarMesh3D_<name>.m` |
-| `Data` | One folder per vehicle, `Data/YEAR_Make_Model_Trimline` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv` |
+| `Data` | One folder per vehicle, filed by body style: `Data/BodyStyles/<Style>/YEAR_Make_Model_Trimline`, and made-up vehicles in `Data/Samples` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv`; the body styles, `bodyStyles.csv` |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design |
 
 ## The workflow
@@ -201,7 +284,7 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | Step | Function | What it does |
 |---|---|---|
 | 1. Vehicle spec | `fcn_CarMesh3D_loadVehicleSpec` or `fcn_CarMesh3D_fillVehicleSpec` | Loads an IVSG vehicleParameters `.mat` file, or takes typed-in values. Converts a tire size such as `195/65R15` to a diameter. |
-| 2. Shape source | `fcn_CarMesh3D_importMesh` or `fcn_CarMesh3D_fillSampleMesh` | Reads a downloaded OBJ (with materials and groups) or STL, or builds a simple sample car. FBX, glTF, GLB, and .blend files are converted to OBJ first by `fcn_CarMesh3D_convertToOBJ`, which runs Blender in the background. |
+| 2. Shape source | `fcn_CarMesh3D_importMesh`, `fcn_CarMesh3D_fillBodyStyleMesh`, or `fcn_CarMesh3D_fillSampleMesh` | Reads a downloaded OBJ (with materials and groups) or STL; or, with no model, refits the body style's exemplar (already labeled and fit: steps 3 to 5 are done); or builds a simple sample car. FBX, glTF, GLB, and .blend files are converted to OBJ first by `fcn_CarMesh3D_convertToOBJ`, which runs Blender in the background. |
 | 3. Normalize | `fcn_CarMesh3D_normalizeMesh` | Rotates into the vehicle frame (X forward, Y left, Z up), converts units to meters, and puts the origin on the ground. |
 | 4. Label parts | `fcn_CarMesh3D_labelParts` | Marks each face as body, glass, wheel, light, or trim from material and group names. Numbers the wheels FL, FR, RL, RR. Sets colors and glass transparency. |
 | 4b. Fix labels | `fcn_CarMesh3D_editLabels` | Corrects labels the name rules got wrong (for example headlights stored as trim), by region in a script or by clicking (see [Fixing labels](#fixing-labels)). Also sets light types for switchable lights. |
@@ -237,11 +320,17 @@ Labeling comes before fitting so the fit can treat wheels as rigid objects. Labe
 | `fcn_CarMesh3D_addReferenceVehicle` | Adds a finished vehicle to `Data/referenceVehicles.csv`, `Images/vehicles`, and the table in this README |
 | `fcn_CarMesh3D_makeDetailLevels` | Makes the vehicle's detail levels: lighter versions of its mesh for animation, each made for a range of sizes on screen (see [Detail levels for animation](#detail-levels-for-animation)) |
 | `fcn_CarMesh3D_loadDetailLevels` | Loads a vehicle's detail levels from its folder (or makes them, with a warning, if it has none yet) |
+| `fcn_CarMesh3D_version` | This copy's version (its release date, `'YYYY_MM_DD'`), and whether it is at least a given one |
+| `fcn_CarMesh3D_makeOutline2D` | Makes the vehicle's top-down (2D) outlines from its finished mesh: body, upward glass, wheels, lights (see [Top-down (2D) outlines](#top-down-2d-outlines)) |
+| `fcn_CarMesh3D_loadOutline2D` | Loads a vehicle's top-down outlines from its folder (or makes them, with a warning, if it has none yet) |
+| `fcn_CarMesh3D_loadBodyStyles` | Lists the body styles (`Data/bodyStyles.csv` and the folders of `Data/BodyStyles`), each one's vehicles and exemplars (and shows the exemplars) |
+| `fcn_CarMesh3D_fillBodyStyleMesh` | Makes a vehicle's mesh from its body style: the style's exemplar closest in size refit to the vehicle's dimensions (see [No model of the vehicle? Use its body style](#no-model-of-the-vehicle-use-its-body-style)) |
 
 ### Minimal example
 
 ```matlab
-vehicleSpec = fcn_CarMesh3D_loadVehicleSpec('Data/2013_Toyota_Prius_Four/vehicleParameters_2013_Toyota_Prius_Four.mat');
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four');   % (wherever it is filed under Data)
+vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(priusFiles.ParametersFile);
 vehicleMesh = fcn_CarMesh3D_importMesh('Data/myDownloadedCar.obj', License='CC0');
 vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+y', ForwardAxis='-z');
 vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh);
@@ -414,10 +503,10 @@ The pools are flat on the ground and ride with the vehicle's ground frame, so th
 The dimension table from `fcn_CarMesh3D_validateMesh` checks lengths, but not shape. To check the shape, `fcn_CarMesh3D_plotSideImage` puts a side-view picture of the real vehicle on a vertical plane through the vehicle's centerline (Y = 0), and draws the vehicle partly see-through around it:
 
 ```matlab
-overlayHandles = fcn_CarMesh3D_plotSideImage('Data/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, FigNum=1);
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/BodyStyles/Liftback/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, FigNum=1);
 % First time: click the REAR wheel center, then the FRONT one. The values are printed,
 % so later runs can skip the clicking:
-overlayHandles = fcn_CarMesh3D_plotSideImage('Data/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, ...
+overlayHandles = fcn_CarMesh3D_plotSideImage('Data/BodyStyles/Liftback/2013_Toyota_Prius_Four/sideView.jpg', vehicleMesh, ...
     WheelCentersPixels=[1210 655; 395 652], FigNum=1);
 ```
 
@@ -563,7 +652,7 @@ fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=pose, WheelSpin=spin, SteerAngle=ste
 
 ## Motion from a CSV file
 
-Vehicle dynamics simulations usually save their results as a table, one row per time step. `fcn_CarMesh3D_loadMotionCSV` reads such a file and returns everything `fcn_CarMesh3D_plotVehicle` needs at each step. `fcn_CarMesh3D_saveMotionCSV` writes the same format (a worked example of the convention, and a way to save any motion made in MATLAB).
+Vehicle dynamics simulations usually save their results as a table, one row per time step. `fcn_CarMesh3D_loadMotionCSV` reads such a file and returns everything `fcn_CarMesh3D_plotVehicle` needs at each step. It also takes the motion already in memory, as a table or as a matrix of numbers (with `ColumnNames=`, or in the usual column order), read exactly as a file would be. `fcn_CarMesh3D_saveMotionCSV` writes the same format (a worked example of the convention, and a way to save any motion made in MATLAB).
 
 ```matlab
 motion = fcn_CarMesh3D_loadMotionCSV('myRun.csv', VehicleSpec=vehicleSpec, FigNum=1);
@@ -615,6 +704,8 @@ It moves every body vertex exactly as `fcn_CarMesh3D_plotVehicle` does (roll and
 
 ## Cameras
 
+`fcn_CarMesh3D_updateCamera` places the camera each frame from the vehicle's pose. With a six-value pose it rides at the vehicle's height (`FollowHeight`, on by default), so it stays above the vehicle on a hilly road; `FollowPitch=true` also tilts it with the vehicle's pitch.
+
 Every camera, however different it looks, is described by the same four things:
 
 1. **Where the camera sits** (`Position`), measured in the world or in the vehicle's frame (`PositionFrame='world'` or `'vehicle'`).
@@ -661,7 +752,7 @@ Add one line inside the animation loop, after `drawnow`:
 fcn_CarMesh3D_saveGifFrame(gcf, 'myAnimation.gif', k, DelayTime=1/12);
 ```
 
-Frame 1 starts a new file; later frames are added. Smaller figures make smaller files (the demo GIFs are 560 x 320 pixels at 12 frames per second, about 0.5–1.5 MB each). Set `flag_saveGifs = 0` in `script_demo_CarMesh3D_animation.m` to watch without saving.
+Frame 1 starts a new file; later frames are added. Each frame is reduced to 256 colors (a GIF limit); by default each frame gets its own 256, so small colored details can shift from frame to frame. `ColorMap='fixed'` uses one standard map for every frame (a 6 x 7 x 6 color cube and 4 grays), `'firstFrame'` reuses frame 1's map, and an N x 3 map uses your own. Smaller figures make smaller files (the demo GIFs are 560 x 320 pixels at 12 frames per second, about 0.5–1.5 MB each). Set `flag_saveGifs = 0` in `script_demo_CarMesh3D_animation.m` to watch without saving.
 
 ## Calling convention
 
@@ -712,7 +803,7 @@ Angles follow the right-hand rule about these axes: positive yaw and steering tu
 A finished mesh has a few thousand faces: right for a vehicle seen up close, far too many for a vehicle 100 m away that covers a few dozen pixels. For animations with many vehicles, CarMesh3D makes, for each vehicle, a **ladder of lighter versions** of its mesh, each made for a range of sizes on screen, and saves them with the vehicle. The animation chooses among them; CarMesh3D only makes, saves, and checks them.
 
 ```matlab
-detailLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four');   % from Data/<ID>/vehicleLevels_<ID>.mat
+detailLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four');   % from the vehicle's folder, vehicleLevels_<ID>.mat
 [detailLevels.Levels.MaxScreenSize]    % 105  74.2  52.5  37.1  26.2  18.6  13.1  9.3 (pixels)
 [detailLevels.Levels.Faces]            % 1026  512   256   128   64    32    16    5 (a box)
 fcn_CarMesh3D_plotVehicle(detailLevels.Levels(3).Mesh, FigNum=1);         % any level is a normal mesh
@@ -807,7 +898,7 @@ Close up, the decal windows are clean; at each level's true size on screen they 
 
 ### The levels file and functions
 
-- **`Data/<ID>/vehicleLevels_<ID>.mat`**, next to the finished mesh (separate, so the levels can be remade without touching it), holding `detailLevels`, a structure with:
+- **`vehicleLevels_<ID>.mat`** (in the vehicle's folder), next to the finished mesh (separate, so the levels can be remade without touching it), holding `detailLevels`, a structure with:
   - `Levels`: an array, finest first, each with `MaxScreenSize` (pixels: the largest size on screen it is made for), `Faces`, `IsBox`, and `Mesh` (a CarMesh3D mesh structure; empty for the box)
   - `SizeDiagonal` (D, m), `BoxCenter` (the bounding box's center, in the vehicle frame), `BoxSize` (its length, width, and height), `ShadowArea` (A, m^2)
   - `SolidFraction` (the hull's volume over its box's), the settings used (`FacesPerPixel`, `TopScreenSize`, `Step`, `MinFaces`, `VoxelSize`, `GapSize`), `FullFaces`, `Method` (`'closedHull'`), `FormatVersion` (1), `MadeBy`, `MadeOn`, and `MakeSeconds`
@@ -816,6 +907,62 @@ Close up, the decal windows are clean; at each level's true size on screen they 
 - `fcn_CarMesh3D_findVehicleFiles` also returns `LevelsFile` and `HasLevels`.
 
 AnimateCar3D's contract check will check these functions and fields, so a change on either side is caught.
+
+## Top-down (2D) outlines
+
+For plotting and animating vehicles in 2D (top-down), each vehicle also has XY outlines, made from its finished mesh by `fcn_CarMesh3D_makeOutline2D` and saved by its script as `vehicleOutline_<ID>.mat` (Step 6c; picture `checks/check_12_outline2D.png`). `fcn_CarMesh3D_loadOutline2D(vehicleID)` loads them (or makes them, with a warning, for a vehicle finished before outlines existed).
+
+**The format: XY points, not graphics objects.** Every shape is an N x 2 array of `[x y]` points in meters (MATLAB `double`), a closed polygon (the first point repeated at the end), counterclockwise. No patches or other graphics objects are saved; a 2D plotter builds its own (`fill`, `patch`, `polyshape`) from the points when it draws. The `.mat` file holds one variable, `vehicleOutline`, a structure:
+
+| Field | What it holds |
+|---|---|
+| `Body` | N x 2: the whole vehicle seen from above, mirrors included (about 40 points; within `Tolerance`, 1 cm, of the mesh's outline) |
+| `Windows(k)` | `Name` (`'glass 1'`, ... front to rear) and `Polygon` (N x 2): each piece of glass that faces up (windshield, roof glass, rear window) |
+| `Wheels(k)` | `Name` (`'FL'`, `'FR'`, `'RL'`, `'RR'`), `Center` ([x y]), `Length` (the tire's diameter), `Width`, `Steers` (true for the front wheels), and `Rectangle` (5 x 2: the corners around [0 0]) |
+| `Lights(k)` | `Type` (`'headlight'`, `'turnsignal'`, `'running'`, `'tail'`, `'backup'`, or `'other'`), `Side` (`'left'` or `'right'`), and `Polygon` (N x 2): each lamp's convex outline from above |
+| `Name`, `Units` (`'m'`), `Frame`, `Source` | Descriptions |
+| `Length`, `Width`, `PointCount` | The body's size (before thinning) and the number of points in all the polygons (215 for the Prius) |
+| `Symmetry` | How far the traced outlines were from symmetric, and what was done about it (see **Symmetry** below) |
+
+**Symmetry.** Vehicles are (nearly always) mirror images about their centerline, but a downloaded model, or the simplified mesh made from it, often is not quite: a window split into slivers, a lamp labeled on one side only, a wheel arch thinned more on one side. So each outline is made symmetric by joining it with its mirror image (`Symmetric=true`, the default): the body takes the wider side at each slice; each window is joined with its twin's mirror image, and window slivers that then overlap become one window; each lamp is joined with its twin of the same type; a window or lamp with no twin gets a mirrored copy. Nothing is cut away. `vehicleOutline.Symmetry` records how much each outline changed (`Body`, `Windows`, `Lights`, `Added`, `Worst`), and a warning (`CarMesh3D:asymmetricOutline`) names any that changed by more than `SymmetryTolerance` (5 percent): those are worth a look at the labels on both sides. `Symmetric=false` keeps the outlines as traced (the warning still names the asymmetric ones). The steering wheel, when interior outlines are added, will be the one exception.
+
+The points are in the vehicle frame, the same as the 3D mesh's (origin on the ground below the rear axle, X forward, Y left), so a 2D pose `[x y yaw]` places them exactly where the mesh would be: turn by yaw, then add x and y. Each wheel's `Rectangle` is kept around [0 0] so a front wheel can be turned by its steer angle first, then moved to its `Center`:
+
+```matlab
+vehicleOutline = fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four');
+pose = [10 5 pi/6];                                         % x, y, yaw
+turn = @(angle) [cos(angle) sin(angle); -sin(angle) cos(angle)];   % (for row points: points*turn)
+place = @(points) points*turn(pose(3)) + pose(1:2);
+hold on
+for k = 1:4                                                 % wheels first, the body over them
+    wheel = vehicleOutline.Wheels(k);
+    steer = 0.3*wheel.Steers;                               % (front wheels turned 0.3 rad)
+    corners = place(wheel.Rectangle*turn(steer) + wheel.Center);
+    fill(corners(:,1), corners(:,2), 'k');
+end
+body = place(vehicleOutline.Body);
+fill(body(:,1), body(:,2), [0.05 0.2 0.6]);
+for k = 1:numel(vehicleOutline.Windows)
+    glass = place(vehicleOutline.Windows(k).Polygon);
+    fill(glass(:,1), glass(:,2), [0.3 0.33 0.38]);
+end
+axis equal
+```
+
+The outlines alone, read back from each vehicle's file (left: filled, as a 2D plot would draw them; right: the saved points):
+
+![Top-down outlines alone](Images/outline2D_alone.png)
+
+And over each mesh seen from above (faded), to check them against it:
+
+![Top-down outlines over the mesh](Images/outline2D_vehicles.png)
+
+Things to know:
+- **Side windows** are seen edge-on from above, so most are left out; curved side glass (the Prius's) faces up enough to show as thin strips along the sides.
+- **The wheels** reach inside the body outline, as on the real vehicle (under the wheel arches). Draw them first and the body over them, as above, or only their parts outside the body.
+- **A lamp made of several pieces** gives several small, overlapping polygons (the clusters at the Prius's corners).
+- **The pictures above** were made before outlines were made symmetric (2026-11-20); the saved outlines of every vehicle have since been remade.
+- **The sample car's** body outline is a plain rectangle (5 points): its body is a side profile pushed straight across, so it has no curves seen from above.
 
 ## Vehicle specification files
 
@@ -831,8 +978,13 @@ AnimateCar3D's contract check will check these functions and fields, so a change
 | `DistancesFrontTrack`, `DistancesRearTrack` | `TrackFront`, `TrackRear` |
 | `DistancesFrontOverhang` | `FrontOverhang` |
 | `DistancesGroundClearance` | `GroundClearance` |
-| `TireSidewallMarkings` | `TireSize` (and so `TireDiameter`) |
+| `TireSidewallMarkings` | `TireSize` (and so `TireDiameter`); for different front and rear tires, a cell array `{front, rear}`, read to `TireSize` and `TireSizeRear` (and so `TireDiameterRear`) |
+| `TireSidewallMarkingsFront`, `TireSidewallMarkingsRear` (optional) | `TireSize`, `TireSizeRear` (override the above) |
+| `EngineType` | `EngineType`: `'sparkIgnition'` (gasoline), `'diesel'`, `'wankel'` (rotary), `'hybrid'`, or `'electric'` (battery electric, no engine) |
+| `EngineHybridEngineType` | `HybridEngineType`: for a hybrid, its engine's type (`'sparkIgnition'`, `'diesel'`, or `'wankel'`) |
 | `Year`, `Make`, `Model`, `Trim` | `Name` |
+
+**Different front and rear tires** (a staggered fitment, common on sports cars): `TireSize` and `TireDiameter` are the front tires'; `TireSizeRear` and `TireDiameterRear` are the rear's, and equal the front's when only one size is given. Fitting sizes each axle's wheels to its own tires, the dimension check measures each axle (a `TireDiameterRear` row), and wheel spin from speed uses each tire's own radius. `fcn_CarMesh3D_fillVehicleSpec` takes `TireSizeRear=` and `TireDiameterRear=` directly. **The engine type** is carried with the spec for other tools (it does not change the shape); the Prius file says `'hybrid'` (`'sparkIgnition'` engine) and the Transit Connect's `'sparkIgnition'`.
 
 If the file also has `DistancesRearOverhang`, the loader warns when it disagrees with length minus wheelbase minus front overhang.
 
@@ -850,8 +1002,8 @@ Overhangs use the usual definitions: **front overhang** is from the center of th
 
 | Folder | Vehicle | 3D model |
 |---|---|---|
-| `Data/2013_Toyota_Prius_Four` | 2013 Toyota Prius Four | A 2010 Toyota Prius (same generation), from Sketchfab (ActsOfDoge) |
-| `Data/2014_Ford_TransitConnect_XLTCargoLWB` | 2014 Ford Transit Connect XLT Cargo Van, long wheelbase | From Sketchfab (CC-BY, tonielpro520). Sources and estimates for each parameter value: `vehicleParameters_sources.md` in that folder |
+| `Data/BodyStyles/Liftback/2013_Toyota_Prius_Four` | 2013 Toyota Prius Four | A 2010 Toyota Prius (same generation), from Sketchfab (ActsOfDoge) |
+| `Data/BodyStyles/CompactCargoVan/2014_Ford_TransitConnect_XLTCargoLWB` | 2014 Ford Transit Connect XLT Cargo Van, long wheelbase | From Sketchfab (CC-BY, tonielpro520). Sources and estimates for each parameter value: `vehicleParameters_sources.md` in that folder |
 
 ## Finding models
 
@@ -875,7 +1027,12 @@ Three lists: **high priority** (the current focus), **changes wanted by AnimateC
 
 ### High priority
 
-1. **Body-type templates:** a small set of vehicle body types, each with an "exemplar" model, to use as the starting shape for any vehicle of that type when no model of the vehicle itself is found.
+1. **Body-style templates** (started 2026_11_20): the code is done (`Data/bodyStyles.csv`, `fcn_CarMesh3D_loadBodyStyles`, `fcn_CarMesh3D_fillBodyStyleMesh`, and `bodyStyle` in the vehicle template; see [No model of the vehicle? Use its body style](#no-model-of-the-vehicle-use-its-body-style)). Vehicles are filed by style (`Data/BodyStyles/<Style>/<ID>`, 22 style folders); a style's exemplars are its finished vehicles, and the closest in size is used. Exemplars exist for 2 styles (liftback: Prius; compact cargo van: Transit Connect); seven sedans, three hatchbacks, and the NSX are downloaded and to be finished.
+2. ~~**2D (top-down) outlines**~~ (done 2026_11_20): `fcn_CarMesh3D_makeOutline2D` and `fcn_CarMesh3D_loadOutline2D`, saved by each vehicle's script as `vehicleOutline_<ID>.mat` (see [Top-down (2D) outlines](#top-down-2d-outlines)). Next, in the planned 2D repository: plotting and animating them.
+3. **Fixes to the `vehicleParameters` structure** (found 2026_11_20; the first two done 2026_11_20, see [Vehicle specification files](#vehicle-specification-files)): some fields are missing or represented incorrectly.
+   - ~~**Tires, front and rear**~~ (done): `TireSidewallMarkings` holds one tire size, but some vehicles have different front and rear tires (and so different wheel diameters). It should allow a front and a rear value (one value still meaning both). In CarMesh3D this reaches the spec (`TireSize` and `TireDiameter` for each axle), fitting the mesh to the spec (each axle's wheels to its own diameter), the wheel checks, and the motion reader (wheel spin from speed uses each tire's radius).
+   - ~~**Engine type**~~ (done): an engine specification that names the engine type: diesel, spark-ignition, Wankel (rotary), or hybrid (with the engine type of the hybrid). `EngineType` and `EngineHybridEngineType`; `'electric'` was added for battery-electric vehicles.
+   - Other missing or mis-represented fields to be listed as they are found; `fcn_CarMesh3D_loadVehicleSpec` and [Vehicle specification files](#vehicle-specification-files) change with them.
 
 Animating **many vehicles in one scene** (decision branches, surrounding traffic, pedestrians, moving items, live data) has moved to a separate repository, **AnimateCar3D**, which uses CarMesh3D's meshes and functions. CarMesh3D stays focused on making, viewing, and checking one vehicle at a time.
 
@@ -883,10 +1040,14 @@ Animating **many vehicles in one scene** (decision branches, surrounding traffic
 
 AnimateCar3D (which installs CarMesh3D releases) works around each of these for now; its README lists them too, under "Changes wanted in CarMesh3D".
 
-- **The sample car as a vehicle folder:** a `Data` folder for the built-in sample car (scaled to the `genericSedan` preset), with its finished mesh and its levels file, so that `'sample'` loads like any other vehicle. (Work-around: AnimateCar3D makes the sample car and its levels once, about 3 s, and keeps them in a cache file in MATLAB's temporary folder, remade when the CarMesh3D copy changes.)
-- **`fcn_CarMesh3D_plotVehicle` and hidden-handle scenes:** it decides whether an axes is "new" from its visible children only, so it reformats an axes holding only `fcn_CarMesh3D_plotScene`'s hidden-handle objects, and adds lights when the scene's lights are hidden handles. (Work-around: AnimateCar3D's player draws each new vehicle in a hidden scratch axes, then moves it into the scene.)
-- **A fixed color map for `fcn_CarMesh3D_saveGifFrame`:** it picks a new 256-color map for each frame, so small colored details (thin lines, tinted vehicles) can turn gray. An option for one fixed color map would help. (Work-around: AnimateCar3D writes its GIFs with its own fixed color map.)
-- **A version function,** so AnimateCar3D can check that the installed CarMesh3D release is new enough (its contract check now checks functions, options, and fields, but not a version).
+All six were done on 2026_11_20; AnimateCar3D can drop its work-arounds when it installs this release (`fcn_CarMesh3D_version` gives `'2026_11_20'`). Note: the camera now rises with the vehicle by itself, so AnimateCar3D's own raise must go when it takes this release, or the camera rises twice.
+
+- ~~**The sample car as a vehicle folder**~~ (done): `Data/Samples/2026_CarMesh3D_Sample_GenericSedan`, made by its script from `fcn_CarMesh3D_fillSampleMesh` at the `genericSedan` preset's size, with its mesh, detail levels, outlines, and checks.
+- ~~**`fcn_CarMesh3D_plotVehicle` and hidden-handle scenes**~~ (done): an axes holding only hidden-handle objects is not treated as new, and hidden lights count.
+- ~~**A fixed color map for `fcn_CarMesh3D_saveGifFrame`**~~ (done): `ColorMap='fixed'`, `'firstFrame'`, or a map (see [Saving animations as GIFs](#saving-animations-as-gifs)).
+- ~~**A version function**~~ (done): `fcn_CarMesh3D_version` (with `AtLeast=` to compare).
+- ~~**`fcn_CarMesh3D_updateCamera` following the vehicle's height**~~ (done): `FollowHeight` (default on) and `FollowPitch`.
+- ~~**`fcn_CarMesh3D_loadMotionCSV` from a table, or numbers and column names**~~ (done).
 
 ### Low priority
 

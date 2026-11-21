@@ -1,0 +1,23 @@
+BodyStyle,Name,Description,Core,SuggestedVehicles,Exemplars
+sedan,Sedan,Three-box shape: a separate trunk; four doors,1,Toyota Camry; Honda Accord,2025_Toyota_Camry_XV80
+hatchback,Hatchback,Two-box shape: a short rear with a near-vertical hatch; five doors,1,Honda Civic hatchback; VW Golf,
+liftback,Liftback,A long sloped rear window that lifts with the hatch,1,Toyota Prius,2013_Toyota_Prius_Four
+stationWagon,Station wagon,The roof runs long to the rear at car height,1,Subaru Outback; VW Golf SportWagen; Volvo V60,2021_Subaru_Outback_LimitedXT
+coupe,Coupe,Two doors and a sloped roof,1,Ford Mustang; Honda Civic coupe,2006_Ford_Mustang_GT; 2012_Honda_Civic_Si
+convertible,Convertible or roadster,An open top; often two seats,1,Mazda MX-5 Miata,
+sportsCar,Sports car,Very low and wide; often mid-engine,1,Chevrolet Corvette C8; Acura NSX,
+crossover,Crossover or compact SUV,Car-based and taller than a car,1,Toyota RAV4; Honda CR-V,2004_Toyota_RAV4_L; 2014_Honda_CRV_EXL; 2017_Toyota_RAV4_XLE
+fullSizeSUV,Full-size SUV,Body-on-frame: tall and boxy and long,1,Chevrolet Tahoe; Ford Expedition,
+minivan,Minivan,Tall with sliding doors and a short hood,1,Honda Odyssey; Chrysler Pacifica; Toyota Sienna,
+pickupCrewCab,Full-size pickup (crew cab),A four-door cab and an open bed,1,Ford F-150 SuperCrew,2015_Ford_F150_Lariat
+compactCargoVan,Compact cargo van,A small van with no rear side windows,1,Ford Transit Connect,2014_Ford_TransitConnect_XLTCargoLWB
+fullSizeCargoVan,Full-size cargo van,A tall long van (high roof),1,Ford Transit; Mercedes Sprinter; Ram ProMaster,2005_Toyota_HiAce_H200DX
+midsizeSUV,Midsize three-row SUV,A taller and longer crossover with a third row,0,Ford Explorer; Toyota Highlander,
+pickupMidsize,Midsize pickup,A smaller cab and bed than a full-size pickup,0,Toyota Tacoma,
+passengerVan,Passenger van,A full-size van with windows and 12 to 15 seats,0,Ford Transit passenger van,
+microcar,Microcar or city car,Very short; two seats,0,Smart Fortwo,
+boxTruck,Box truck or cutaway,A cab with a separate box body,0,Isuzu NPR; Ford E-350 cutaway,
+stepVan,Step van,A tall walk-in delivery body,0,Freightliner MT45,
+schoolBus,School bus (type C),A hood in front of a long bus body,0,Blue Bird Vision; Thomas C2,
+transitBus,Transit bus (40 ft),A flat-front low-floor city bus,0,New Flyer Xcelsior; Gillig Low Floor,
+semiTractor,Semi tractor,A tractor for a 53 ft trailer,0,Freightliner Cascadia,

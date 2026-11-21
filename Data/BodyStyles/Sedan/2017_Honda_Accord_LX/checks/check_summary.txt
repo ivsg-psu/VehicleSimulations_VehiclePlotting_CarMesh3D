@@ -1,0 +1,8 @@
+Standard checks for 2017 Honda Accord LX
+Written 2026-11-21 06:30 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 26659 faces, 18206 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2017_Honda_Accord_LX\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2017_Honda_Accord_LX\checks\check_03_labels.png

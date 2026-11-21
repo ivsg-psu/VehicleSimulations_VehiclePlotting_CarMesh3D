@@ -89,7 +89,8 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %      fcn_CarMesh3D_fillTestMotion, fcn_CarMesh3D_validateMesh,
 %      fcn_CarMesh3D_plotScene, fcn_CarMesh3D_plotVehicle,
 %      fcn_CarMesh3D_fillCameraSettings, fcn_CarMesh3D_updateCamera,
-%      fcn_CarMesh3D_saveGifFrame, fcn_CarMesh3D_checkGroundContact
+%      fcn_CarMesh3D_saveGifFrame, fcn_CarMesh3D_checkGroundContact,
+%      fcn_CarMesh3D_plotLabels
 %
 % EXAMPLES:
 %
@@ -109,6 +110,11 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_runVehicleChecks
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runVehicleChecks
+%   % * The labels picture takes its colors from fcn_CarMesh3D_plotLabels
+%   %   % (one place for the label colors)
 
 % TO-DO:
 %
@@ -585,29 +591,7 @@ end % Ends fcn_INTERNAL_updateTurnLines
 %% fcn_INTERNAL_labelPicture
 function fileName = fcn_INTERNAL_labelPicture(vehicleMesh, cameras, settings, fileName)
 % Four views with each part and light type in its own color
-partColors = struct('body',[0.80 0.80 0.80], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
-    'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45]);
-lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
-    'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10]);
-labelMesh = vehicleMesh;
-faceColors = zeros(size(vehicleMesh.Faces,1),3);
-for ith_part = 1:length(vehicleMesh.PartNames)
-    thisName = vehicleMesh.PartNames{ith_part};
-    if isfield(partColors, thisName)
-        faceColors(vehicleMesh.FacePartIndex==ith_part,:) = repmat(partColors.(thisName), sum(vehicleMesh.FacePartIndex==ith_part), 1);
-    end
-end
-if isfield(vehicleMesh,'FaceLightType')
-    for ith_type = 1:length(vehicleMesh.LightTypeNames)
-        thisName = vehicleMesh.LightTypeNames{ith_type};
-        flagType = vehicleMesh.FaceLightType==ith_type;
-        faceColors(flagType,:) = repmat(lightColors.(thisName), sum(flagType), 1);
-    end
-end
-labelMesh.FaceColors = faceColors;
-labelMesh.FaceAlpha = ones(size(faceColors,1),1);
-glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
-labelMesh.FaceAlpha(vehicleMesh.FacePartIndex==glassIndex) = 0.6;
+labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, FigNum=-1);   % (the label colors)
 
 viewNames = {'frontLeft','rearRightLow','side','overhead'};
 viewTitles = {'front left','rear right (low)','right side','top'};

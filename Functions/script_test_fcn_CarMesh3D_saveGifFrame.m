@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_saveGifFrame
 %   % * Renamed from script_CarMesh3D_saveGifFrame: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_saveGifFrame
+%   % * Tests ColorMap ('fixed', 'firstFrame', and a given map)
 
 % TO-DO:
 %
@@ -99,6 +103,30 @@ assert(numel(imfinfo(gifFile))==1);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: One color map for every frame: fixed, the first frame's, or given
+figNum = 20002;
+titleString = sprintf('TEST case: One color map for every frame: fixed, the first frame''s, or given');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+gifFile = fullfile(tempdir,'CarMesh3D_testColorMap.gif');
+for mapChoice = {'fixed','firstFrame'}
+    for k = 1:3
+        clf;
+        plot(1:10, 'Color', [0.8 0.1*k 0.1], 'LineWidth', 3);
+        drawnow;
+        fcn_CarMesh3D_saveGifFrame(gcf, gifFile, k, ColorMap=mapChoice{1});
+    end
+    [~, mapFirst] = imread(gifFile, 1);
+    [~, mapLast] = imread(gifFile, 3);
+    assert(isequal(size(mapFirst), size(mapLast)) && max(abs(mapFirst(:) - mapLast(:))) < 1/255 + 1e-9);   % (the same map)
+end
+myMap = [gray(128); hot(128)];
+fcn_CarMesh3D_saveGifFrame(gcf, gifFile, 1, ColorMap=myMap);
+[~, savedMap] = imread(gifFile, 1);
+assert(max(abs(savedMap(:) - myMap(:))) < 1/255 + 1e-9);
+delete(gifFile);
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

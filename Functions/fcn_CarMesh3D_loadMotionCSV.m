@@ -100,13 +100,21 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %
 % INPUTS:
 %
-%      fileName: the CSV file to read.
+%      fileName: the CSV file to read; or the motion already in memory:
+%      a table (its variable names are the column names), or a matrix of
+%      numbers (one column per quantity, named by ColumnNames, or in the
+%      usual column order if ColumnNames is not given). A table or
+%      matrix is read the same way as a file, so a program that reads a
+%      growing file itself (only the new rows) can hand the rows over
+%      without writing a file.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
 %      VehicleSpec: a spec from fcn_CarMesh3D_fillVehicleSpec or
 %      fcn_CarMesh3D_loadVehicleSpec, for the wheelbase, front track, and
 %      tire diameter. Default is the 'genericSedan' preset.
+%      (For a table or matrix, ColumnNames names the columns of a matrix,
+%      and is not used for a table.)
 %
 %      SampleTime: the time step, in seconds, for files with no time
 %      column. Default [] (the file must then have a time column).
@@ -174,6 +182,13 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %   % * Rate columns renamed roll_rate, pitch_rate, yaw_rate; brake and
 %   %   reverse lights are now inputs only (removed AutoLights and
 %   %   BrakeDeceleration)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_loadMotionCSV
+%   % * Wheel spin from speed uses each axle's own tire radius
+%   %   % (VehicleSpec.TireDiameterRear for the rear wheels)
+%   % * Reads a table, or a matrix of numbers (with ColumnNames), as well
+%   %   % as a file (asked for by AnimateCar3D's live watcher)
 
 % TO-DO:
 %
@@ -247,8 +262,16 @@ if 0==flag_max_speed
         % The number of inputs and the option names are checked by the
         % arguments block above
 
-        % Check the fileName input
-        if ~(ischar(fileName) || isstring(fileName)) || ~isfile(fileName)
+        % Check the fileName input: a file, a table, or a matrix of numbers
+        if istable(fileName)
+            if width(fileName) < 3
+                error('A motion table needs at least the X, Y, and yaw columns');
+            end
+        elseif isnumeric(fileName)
+            if ~ismatrix(fileName) || size(fileName,2) < 3
+                error('A motion matrix needs one column per quantity (at least X, Y, and yaw)');
+            end
+        elseif ~(ischar(fileName) || isstring(fileName)) || ~isfile(fileName)
             error('File not found: %s', char(string(fileName)));
         end
 
@@ -294,8 +317,16 @@ end
 
 %%%%
 % Read the numbers and the column names
-fileName = char(fileName);
-[dataMatrix, rawNames] = fcn_INTERNAL_readFile(fileName, options.ColumnNames);
+if istable(fileName)
+    [dataMatrix, rawNames] = fcn_INTERNAL_readTable(fileName);
+    fileName = '(table)';
+elseif isnumeric(fileName)
+    [dataMatrix, rawNames] = fcn_INTERNAL_readMatrix(double(fileName), options.ColumnNames);
+    fileName = '(numbers)';
+else
+    fileName = char(fileName);
+    [dataMatrix, rawNames] = fcn_INTERNAL_readFile(fileName, options.ColumnNames);
+end
 Nrows = size(dataMatrix,1);
 if Nrows < 2
     error('The file %s has fewer than 2 rows of data', fileName);
@@ -349,6 +380,10 @@ if isempty(vehicleSpec)
 end
 wheelbase = vehicleSpec.Wheelbase;
 tireRadius = vehicleSpec.TireDiameter/2;
+tireRadiusRear = tireRadius;                                      % (different front and rear tires?)
+if isfield(vehicleSpec,'TireDiameterRear') && ~isempty(vehicleSpec.TireDiameterRear)
+    tireRadiusRear = vehicleSpec.TireDiameterRear/2;
+end
 frontTrack = vehicleSpec.TrackFront;
 if isempty(frontTrack)
     frontTrack = 0.85*vehicleSpec.OverallWidth;
@@ -386,7 +421,7 @@ if all(cellfun(has, angleColumns))
 elseif all(cellfun(has, speedColumns))
     wheelQuadrant = cumtrapz(timeValues, cell2mat(cellfun(@(name) data.(name), speedColumns, 'UniformOutput', false)));
 else
-    wheelQuadrant = repmat(distanceValues/tireRadius, 1, 4);
+    wheelQuadrant = distanceValues./[tireRadius tireRadiusRear tireRadiusRear tireRadius];   % (quadrant order: FL RL RR FR)
 end
 wheelSpin = wheelQuadrant(:, quadrantToCarMesh);
 liftQuadrant = cell2mat(cellfun(@(name) getColumn(name,0), liftColumns, 'UniformOutput', false));
@@ -532,26 +567,39 @@ end
 flagHeader = any(isletter(regexprep(firstLine,'[eE][+-]?\d','')));
 if flagHeader
     dataTable = readtable(fileName, 'VariableNamingRule','preserve', 'FileType','text', 'Delimiter',',');
-    rawNames = dataTable.Properties.VariableNames;
-    dataMatrix = nan(height(dataTable), length(rawNames));
-    for ith_column = 1:length(rawNames)
-        thisColumn = dataTable.(rawNames{ith_column});
-        if isnumeric(thisColumn) || islogical(thisColumn)
-            dataMatrix(:,ith_column) = double(thisColumn);
-        end
-    end
+    [dataMatrix, rawNames] = fcn_INTERNAL_readTable(dataTable);
 else
     dataMatrix = readmatrix(fileName, 'FileType','text', 'Delimiter',',');
-    if isempty(columnNames)
-        columnNames = fcn_INTERNAL_usualColumns;
-    end
-    columnNames = cellstr(columnNames);
-    if length(columnNames) < size(dataMatrix,2)
-        error('The file has %d columns but only %d ColumnNames', size(dataMatrix,2), length(columnNames));
-    end
-    rawNames = columnNames(1:size(dataMatrix,2));
+    [dataMatrix, rawNames] = fcn_INTERNAL_readMatrix(dataMatrix, columnNames);
 end
 end % Ends fcn_INTERNAL_readFile
+
+%% fcn_INTERNAL_readTable
+function [dataMatrix, rawNames] = fcn_INTERNAL_readTable(dataTable)
+% The numbers and names of a table's columns (columns that are not
+% numbers are left as NaN)
+rawNames = dataTable.Properties.VariableNames;
+dataMatrix = nan(height(dataTable), length(rawNames));
+for ith_column = 1:length(rawNames)
+    thisColumn = dataTable.(rawNames{ith_column});
+    if (isnumeric(thisColumn) || islogical(thisColumn)) && size(thisColumn,2)==1
+        dataMatrix(:,ith_column) = double(thisColumn);
+    end
+end
+end % Ends fcn_INTERNAL_readTable
+
+%% fcn_INTERNAL_readMatrix
+function [dataMatrix, rawNames] = fcn_INTERNAL_readMatrix(dataMatrix, columnNames)
+% Names for a matrix's columns: ColumnNames, or the usual order
+if isempty(columnNames)
+    columnNames = fcn_INTERNAL_usualColumns;
+end
+columnNames = cellstr(columnNames);
+if length(columnNames) < size(dataMatrix,2)
+    error('The data have %d columns but only %d ColumnNames', size(dataMatrix,2), length(columnNames));
+end
+rawNames = columnNames(1:size(dataMatrix,2));
+end % Ends fcn_INTERNAL_readMatrix
 
 %% fcn_INTERNAL_usualColumns
 function usualNames = fcn_INTERNAL_usualColumns

@@ -120,6 +120,11 @@ function trajectory = fcn_CarMesh3D_fillTrajectory(options)
 %   % * Added Ackermann steering: SteerAngle is now K x 2 [FL FR], from
 %   %   fcn_CarMesh3D_calcAckermannSteering. The single centerline angle
 %   %   is kept as BicycleSteerAngle. Added AckermannFraction option.
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fillTrajectory
+%   % * Wheel spin uses each axle's own tire radius
+%   %   % (VehicleSpec.TireDiameterRear for the rear wheels)
 
 % TO-DO:
 %
@@ -271,6 +276,10 @@ if isempty(vehicleSpec)
 end
 wheelbase = vehicleSpec.Wheelbase;
 tireRadius = vehicleSpec.TireDiameter/2;
+tireRadiusRear = tireRadius;                                      % (different front and rear tires?)
+if isfield(vehicleSpec,'TireDiameterRear') && ~isempty(vehicleSpec.TireDiameterRear)
+    tireRadiusRear = vehicleSpec.TireDiameterRear/2;
+end
 frontTrack = vehicleSpec.TrackFront;
 if isempty(frontTrack)
     % No track given: estimate it from the overall width
@@ -351,7 +360,7 @@ elseif size(slipValues,1)==1
 elseif size(slipValues,1)~=Ntimes
     error('A K x 4 WheelSlip must have one row per time step (%d rows)', Ntimes);
 end
-spinRates = (1 + slipValues).*speedValues/tireRadius;
+spinRates = (1 + slipValues).*speedValues./[tireRadius tireRadius tireRadiusRear tireRadiusRear];   % ([FL FR RL RR])
 wheelSpinValues = cumtrapz(timeValues, spinRates);
 
 trajectory = struct;

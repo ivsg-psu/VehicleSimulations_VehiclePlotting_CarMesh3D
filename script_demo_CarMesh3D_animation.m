@@ -468,9 +468,10 @@ end % Ends fcn_INTERNAL_choose
 function [vehicleMesh, vehicleSpec] = fcn_INTERNAL_prepareVehicle
 % Builds the downloaded 2010 Prius with corrected light labels, or the
 % sample car if the model (or Blender) is not available
-vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(fullfile('Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat'), ...
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(priusFiles.ParametersFile, ...
     BodyColor=[0.05 0.20 0.60], FigNum=-1);
-modelFile = fullfile('Data','2013_Toyota_Prius_Four','model','source','2010 Toyota Prius.glb');
+modelFile = fullfile(priusFiles.ModelFolder,'source','2010 Toyota Prius.glb');
 try
     vehicleMesh = fcn_CarMesh3D_importMesh(modelFile, FigNum=-1);
     vehicleMesh.Name = '2010 Toyota Prius';

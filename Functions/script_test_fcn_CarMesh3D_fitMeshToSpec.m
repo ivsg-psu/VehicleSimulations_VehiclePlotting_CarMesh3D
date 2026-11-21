@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_fitMeshToSpec
 %   % * Renamed from script_CarMesh3D_fitMeshToSpec: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fitMeshToSpec
+%   % * Tests different front and rear tires
 
 % TO-DO:
 %
@@ -179,6 +183,81 @@ assert(abs(frontCenter(1) - rearCenter(1) - 2.70)<1e-9);
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
+
+%% TEST case: Different front and rear tires: each axle's wheels to its own size
+figNum = 20005;
+titleString = sprintf('TEST case: Different front and rear tires: each axle''s wheels to its own size');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+staggeredSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', TireSize='225/40R18', TireSizeRear='275/35R19');
+sampleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
+staggeredMesh = fcn_CarMesh3D_fitMeshToSpec(sampleMesh, staggeredSpec, FigNum=figNum);
+validation = fcn_CarMesh3D_validateMesh(staggeredMesh, staggeredSpec);
+assert(any(validation.Quantity=="TireDiameterRear"));
+checked = validation(~ismissing(validation.Pass), :);
+assert(all(checked.Pass));
+frontHeight = max(staggeredMesh.Vertices(unique(staggeredMesh.Faces(staggeredMesh.FaceWheelIndex==1,:)),3));
+rearHeight = max(staggeredMesh.Vertices(unique(staggeredMesh.Faces(staggeredMesh.FaceWheelIndex==3,:)),3));
+assert(abs(frontHeight - staggeredSpec.TireDiameter) < 1e-6 && abs(rearHeight - staggeredSpec.TireDiameterRear) < 1e-6);
+
+%% TEST case: Symmetric: a one-sided spike on the right does not set the height
+figNum = 20006;
+titleString = sprintf('TEST case: Symmetric: a one-sided spike on the right does not set the height');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (a right-side body vertex raised 0.1 m above the roof, like a mast
+% antenna on the right A-pillar)
+vehicleSpec = fcn_INTERNAL_compactSpec;
+spikedMesh = fcn_INTERNAL_preparedSample(16);
+bodyVertexIndices = unique(spikedMesh.Faces(spikedMesh.FacePartIndex==1,:));
+rightBody = bodyVertexIndices(spikedMesh.Vertices(bodyVertexIndices,2) < -0.2);
+[~,highest] = max(spikedMesh.Vertices(rightBody,3));
+roofTop = max(spikedMesh.Vertices(:,3));
+spikedMesh.Vertices(rightBody(highest),3) = roofTop + 0.1;
+
+% Not symmetric (the default): the spike's tip is at the overall height
+plainMesh = fcn_CarMesh3D_fitMeshToSpec(spikedMesh, vehicleSpec);
+assert(abs(max(plainMesh.Vertices(:,3)) - vehicleSpec.OverallHeight) < 1e-9);
+
+% Symmetric: the left half's roof is at the overall height (the spike
+% stands above it, and the mirroring later removes it)
+symmetricMesh = fcn_CarMesh3D_fitMeshToSpec(spikedMesh, vehicleSpec, Symmetric=true, FigNum=figNum);
+leftHalf = symmetricMesh.Vertices(:,2) >= 0;
+assert(abs(max(symmetricMesh.Vertices(leftHalf,3)) - vehicleSpec.OverallHeight) < 1e-9);
+assert(max(symmetricMesh.Vertices(:,3)) > vehicleSpec.OverallHeight);
+assert(abs(symmetricMesh.AxleX(2) - symmetricMesh.AxleX(1) - vehicleSpec.Wheelbase) < 1e-9);
+
+% A bump just right of the center (within the 15 cm the mirroring keeps,
+% like the 1999 F-150's bumper trim) does set the length
+bumpedMesh = fcn_INTERNAL_preparedSample(16);
+% (a vertex 5 cm right of the center, 5 cm ahead of the bumper: the fit
+% measures vertices)
+sourceCenterY = (min(bumpedMesh.Vertices(:,2)) + max(bumpedMesh.Vertices(:,2)))/2;
+bumpedMesh.Vertices(end+1,:) = [max(bumpedMesh.Vertices(:,1)) + 0.05, sourceCenterY - 0.05, mean(bumpedMesh.Vertices(:,3))];
+bumpedFit = fcn_CarMesh3D_fitMeshToSpec(bumpedMesh, vehicleSpec, Symmetric=true);
+assert(abs(max(bumpedFit.Vertices(:,1)) - min(bumpedFit.Vertices(:,1)) - vehicleSpec.OverallLength) < 1e-9);
+
+% A low body point on the right (an exhaust tip, say) does not set the
+% ground clearance of the half that is kept
+loweredMesh = fcn_INTERNAL_preparedSample(16);
+bodyVertexIndices = unique(loweredMesh.Faces(loweredMesh.FacePartIndex==1,:));
+rightBody = bodyVertexIndices(loweredMesh.Vertices(bodyVertexIndices,2) < -0.3);
+[~,lowest] = min(loweredMesh.Vertices(rightBody,3));
+loweredMesh.Vertices(rightBody(lowest),3) = loweredMesh.Vertices(rightBody(lowest),3) - 0.05;
+loweredFit = fcn_CarMesh3D_fitMeshToSpec(loweredMesh, vehicleSpec, Symmetric=true);
+keptBody = bodyVertexIndices(loweredFit.Vertices(bodyVertexIndices,2) >= -0.15);
+assert(abs(min(loweredFit.Vertices(keptBody,3)) - vehicleSpec.GroundClearance) < 1e-9);
+
+% Without a spike, Symmetric changes nothing (the sample is symmetric)
+cleanMesh = fcn_INTERNAL_preparedSample(16);
+assert(max(max(abs(fcn_CarMesh3D_fitMeshToSpec(cleanMesh, vehicleSpec, Symmetric=true).Vertices - ...
+    fcn_CarMesh3D_fitMeshToSpec(cleanMesh, vehicleSpec).Vertices))) < 1e-9);
+
+% Check that the figure is open
+figHandles = get(groot, 'Children');
+assert(any(figHandles==figNum));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

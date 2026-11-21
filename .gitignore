@@ -33,3 +33,5 @@ octave-workspace
 
 # Folders
 Utilities/
+# CarMesh3D: each vehicle's cached stages (remade on demand)
+Data/**/cache/

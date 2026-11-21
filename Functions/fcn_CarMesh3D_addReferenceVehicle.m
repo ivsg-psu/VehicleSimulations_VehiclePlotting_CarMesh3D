@@ -71,6 +71,14 @@ function referenceList = fcn_CarMesh3D_addReferenceVehicle(vehicleID, vehicleMes
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_addReferenceVehicle
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_addReferenceVehicle
+%   % * The README table shows each vehicle's folder as it is filed
+%   %   % (Data/BodyStyles/<Style>/<ID>), found by fcn_CarMesh3D_findVehicleFiles
+%   % * Reads LICENSE.txt in the standard format (License:, License
+%   %   % meaning:, Credits:, Source website:, Author:): the license column
+%   %   % shows the credits, or the license when no credits are required
 
 % TO-DO:
 %
@@ -254,14 +262,23 @@ end % Ends main function
 
 %% fcn_INTERNAL_readLicense
 function licenseText = fcn_INTERNAL_readLicense(modelFolder)
-% The first line of the model's LICENSE.txt, or 'unknown'
+% From the model's LICENSE.txt (the standard format: License:, License
+% meaning:, Credits:, Source website:, Author: lines): the Credits line if
+% it has one, otherwise the License line. An older file without these
+% labels gives its first line. 'unknown' if there is no file.
 licenseText = 'unknown';
 licenseFile = fullfile(modelFolder, 'LICENSE.txt');
 if isfile(licenseFile)
-    fileText = strtrim(fileread(licenseFile));
-    if ~isempty(fileText)
-        lines = splitlines(fileText);
-        licenseText = strtrim(lines{1});
+    lines = strtrim(splitlines(strtrim(fileread(licenseFile))));
+    lines = lines(~cellfun(@isempty, lines));
+    creditsLine = lines(startsWith(lines, 'Credits:', 'IgnoreCase', true));
+    licenseLine = lines(startsWith(lines, 'License:', 'IgnoreCase', true));
+    if ~isempty(creditsLine) && strlength(strtrim(extractAfter(creditsLine{1}, 8))) > 0
+        licenseText = char(strtrim(extractAfter(creditsLine{1}, 8)));
+    elseif ~isempty(licenseLine)
+        licenseText = char(strtrim(extractAfter(licenseLine{1}, 8)));
+    elseif ~isempty(lines)
+        licenseText = lines{1};
     end
 end
 licenseText = strrep(licenseText, ',', ';'); % Keep the CSV simple
@@ -302,8 +319,11 @@ if isscalar(startIndex) && isscalar(endIndex) && endIndex > startIndex
         '|---|---|---|---|---|---|'};
     for ith_vehicle = 1:height(referenceList)
         thisRow = referenceList(ith_vehicle,:);
-        tableLines{end+1} = sprintf('| **%s**<br>`Data/%s` | ![%s](%s) | %.2f x %.2f x %.2f | %.3f | %d | %s |', ...
-            thisRow.Name{1}, thisRow.ID{1}, thisRow.ID{1}, thisRow.GIF{1}, thisRow.Length_m, thisRow.Width_m, ...
+        % (the vehicle's folder, wherever it is filed under Data)
+        thisFiles = fcn_CarMesh3D_findVehicleFiles(thisRow.ID{1}, FigNum=-1);
+        thisFolder = fcn_INTERNAL_relativePath(thisFiles.Folder, fileparts(fileparts(mfilename('fullpath'))));
+        tableLines{end+1} = sprintf('| **%s**<br>`%s` | ![%s](%s) | %.2f x %.2f x %.2f | %.3f | %d | %s |', ...
+            thisRow.Name{1}, thisFolder, thisRow.ID{1}, thisRow.GIF{1}, thisRow.Length_m, thisRow.Width_m, ...
             thisRow.Height_m, thisRow.Wheelbase_m, thisRow.Faces, thisRow.ModelLicense{1}); %#ok<AGROW>
     end
     tableLines = [tableLines, {'', sprintf('(This table is written by fcn_CarMesh3D_addReferenceVehicle from Data/referenceVehicles.csv; %d vehicles.)', height(referenceList)), '', endMarker}];

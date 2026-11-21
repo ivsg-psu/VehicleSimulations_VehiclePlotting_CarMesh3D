@@ -16,6 +16,15 @@
 % - In script_test_fcn_CarMesh3D_plotVehicle
 %   % * Renamed from script_CarMesh3D_plotVehicle: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * Tests a scene drawn with hidden handles
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * 'auto' lighting is smooth (gouraud) for every finish, matte too (the
+%   %   % function changed on 2026-11-20; this test still expected flat)
 
 % TO-DO:
 %
@@ -208,11 +217,7 @@ for ith_finish = 1:4
     plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish=finishNames{ith_finish}, ...
         ShowEdges=(ith_finish==4), EdgeColor=[1 1 1], FigNum=figNum);
     title(finishNames{ith_finish});
-    if ith_finish==1
-        assert(strcmp(plotHandles.Patches{1}.FaceLighting,'flat')); % 'auto' gives flat for matte
-    else
-        assert(strcmp(plotHandles.Patches{1}.FaceLighting,'gouraud')); % and gouraud otherwise
-    end
+    assert(strcmp(plotHandles.Patches{1}.FaceLighting,'gouraud')); % ('auto' is smooth for every finish since 2026-11-20)
 end
 sgtitle(titleString, 'Interpreter','none');
 % The last plot (metallic) has the strongest highlights
@@ -379,6 +384,23 @@ end
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A scene drawn with hidden handles is kept as it is
+figNum = 20099;
+titleString = sprintf('TEST case: A scene drawn with hidden handles is kept as it is');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+sceneAxes = axes;
+patch(sceneAxes, [-20 20 20 -20], [-20 -20 20 20], [0 0 0 0], [0.3 0.5 0.3], 'HandleVisibility','off');
+light('Parent',sceneAxes, 'Style','infinite', 'Position',[0 0 1], 'HandleVisibility','off');
+view(sceneAxes, 37, 25);
+xlim(sceneAxes, [-20 20]);
+viewBefore = get(sceneAxes, 'View');
+limitsBefore = get(sceneAxes, 'XLim');
+fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=figNum);
+assert(isequal(get(sceneAxes, 'View'), viewBefore) && isequal(get(sceneAxes, 'XLim'), limitsBefore));   % (not reformatted)
+assert(numel(findall(sceneAxes, 'Type','light'))==1);                                                  % (no lights added)
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

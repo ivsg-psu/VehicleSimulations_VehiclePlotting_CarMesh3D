@@ -19,7 +19,9 @@ function vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(options)
 %           (WidthWithMirrors=WM),...
 %           (Wheelbase=WB), (TrackFront=TF), (TrackRear=TR),...
 %           (TireSize=tireSizeString), (TireDiameter=D),...
+%           (TireSizeRear=tireSizeString), (TireDiameterRear=D),...
 %           (FrontOverhang=FOH), (GroundClearance=GC),...
+%           (EngineType=engineString), (HybridEngineType=engineString),...
 %           (BodyColor=[r g b]), (Source=sourceString),...
 %           (FigNum=figNum))
 %
@@ -59,11 +61,29 @@ function vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(options)
 %      meters. If empty and TrackFront is given, TrackRear = TrackFront.
 %
 %      TireSize: a standard tire size string, for example '225/45R17' or
-%      'P225/45ZR17'. Used to compute TireDiameter when TireDiameter is not
-%      given directly.
+%      'P225/45ZR17': the FRONT tires' size, and the rear tires' too
+%      unless TireSizeRear is given. Used to compute TireDiameter when
+%      TireDiameter is not given directly.
 %
-%      TireDiameter: overall tire diameter, in meters. If given, this
-%      takes priority over the value computed from TireSize.
+%      TireDiameter: overall tire diameter, in meters: the front tires'
+%      (and the rear's, unless TireDiameterRear or TireSizeRear is given).
+%      If given, this takes priority over the value computed from
+%      TireSize.
+%
+%      TireSizeRear: the rear tires' size, for vehicles with different
+%      front and rear tires (a staggered fitment). Default: TireSize.
+%
+%      TireDiameterRear: the rear tires' overall diameter, in meters. If
+%      given, this takes priority over the value computed from
+%      TireSizeRear. Default: from TireSizeRear, else TireDiameter.
+%
+%      EngineType: what powers the vehicle: 'sparkIgnition' (gasoline),
+%      'diesel', 'wankel' (rotary), 'hybrid', or 'electric' (battery
+%      electric, no engine). Default '' (not given). Not used for the
+%      shape; carried with the spec.
+%
+%      HybridEngineType: for EngineType 'hybrid', the hybrid's engine:
+%      'sparkIgnition', 'diesel', or 'wankel'. Default ''.
 %
 %      FrontOverhang: front bumper to front axle distance, in meters. If
 %      empty, later steps keep the axle placement of the mesh (or assume
@@ -88,7 +108,11 @@ function vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(options)
 %           Name, Units ('m'), OverallLength, OverallWidth,
 %           WidthWithMirrors, OverallHeight,
 %           Wheelbase, TrackFront, TrackRear, TireSize, TireDiameter,
-%           FrontOverhang, RearOverhang, GroundClearance, BodyColor, Source
+%           TireSizeRear, TireDiameterRear, FrontOverhang, RearOverhang,
+%           GroundClearance, EngineType, HybridEngineType, BodyColor,
+%           Source
+%      TireSize and TireDiameter are the front tires'; TireSizeRear and
+%      TireDiameterRear the rear's (the same as the front's unless given).
 %      RearOverhang is computed as OverallLength - Wheelbase -
 %      FrontOverhang when all three are known, and is empty otherwise.
 %
@@ -111,6 +135,13 @@ function vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(options)
 % - In fcn_CarMesh3D_fillVehicleSpec
 %   % * Wrote the code originally (drafted with Claude)
 %   % * Added WidthWithMirrors, to match the IVSG vehicleParameters files
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fillVehicleSpec
+%   % * Front and rear tires can differ: TireSizeRear and
+%   %   % TireDiameterRear (TireSize and TireDiameter are the front's)
+%   % * Added EngineType ('sparkIgnition', 'diesel', 'wankel', 'hybrid',
+%   %   % 'electric') and HybridEngineType
 
 % TO-DO:
 %
@@ -137,7 +168,11 @@ arguments
     options.TrackFront = []      % Front tire center spacing [m]
     options.TrackRear = []       % Rear tire center spacing [m]
     options.TireSize = []        % e.g. '225/45R17'
-    options.TireDiameter = []    % Overall tire diameter [m]
+    options.TireDiameter = []    % Overall tire diameter [m] (front; rear too unless given)
+    options.TireSizeRear = []    % Rear tire size; [] for TireSize
+    options.TireDiameterRear = [] % Rear tire diameter [m]; [] from TireSizeRear or TireDiameter
+    options.EngineType = []      % 'sparkIgnition','diesel','wankel','hybrid','electric'
+    options.HybridEngineType = [] % For a hybrid: 'sparkIgnition','diesel','wankel'
     options.FrontOverhang = []   % Front bumper to front axle [m]
     options.GroundClearance = [] % Ground to lowest body point [m]
     options.BodyColor = []       % 1 x 3 RGB in [0,1]
@@ -189,8 +224,10 @@ end
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 numericFieldNames = {'OverallLength','OverallWidth','WidthWithMirrors','OverallHeight',...
-    'Wheelbase','TrackFront','TrackRear','TireDiameter',...
+    'Wheelbase','TrackFront','TrackRear','TireDiameter','TireDiameterRear',...
     'FrontOverhang','GroundClearance'};
+engineTypeNames = {'sparkIgnition','diesel','wankel','hybrid','electric'};
+hybridEngineTypeNames = {'sparkIgnition','diesel','wankel'};
 
 if 0==flag_max_speed
     if flag_check_inputs
@@ -216,11 +253,24 @@ if 0==flag_max_speed
         end
 
         % Check the string inputs
-        stringFieldNames = {'Name','TireSize','Source'};
+        stringFieldNames = {'Name','TireSize','TireSizeRear','Source','EngineType','HybridEngineType'};
         for ith_field = 1:length(stringFieldNames)
             thisValue = options.(stringFieldNames{ith_field});
             if ~isempty(thisValue) && ~(ischar(thisValue) || isstring(thisValue))
                 error('%s must be empty or a character string',stringFieldNames{ith_field});
+            end
+        end
+
+        % Check the engine types
+        if ~isempty(options.EngineType) && ~any(strcmpi(char(options.EngineType), engineTypeNames))
+            error('EngineType must be one of: %s. Found: %s', strjoin(engineTypeNames, ', '), char(options.EngineType));
+        end
+        if ~isempty(options.HybridEngineType)
+            if ~any(strcmpi(char(options.HybridEngineType), hybridEngineTypeNames))
+                error('HybridEngineType must be one of: %s. Found: %s', strjoin(hybridEngineTypeNames, ', '), char(options.HybridEngineType));
+            end
+            if ~strcmpi(char(options.EngineType), 'hybrid')
+                error('HybridEngineType is given only for EngineType ''hybrid''');
             end
         end
 
@@ -265,7 +315,7 @@ end
 vehicleSpec = fcn_INTERNAL_presetSpec(char(options.Preset));
 
 % Any value given by the user overrides the preset
-fieldsToCopy = [numericFieldNames, {'Name','TireSize','BodyColor','Source'}];
+fieldsToCopy = [numericFieldNames, {'Name','TireSize','TireSizeRear','BodyColor','Source','EngineType','HybridEngineType'}];
 for ith_field = 1:length(fieldsToCopy)
     thisField = fieldsToCopy{ith_field};
     if ~isempty(options.(thisField))
@@ -287,6 +337,30 @@ if isempty(options.TireDiameter) && ~isempty(vehicleSpec.TireSize)
     vehicleSpec.TireDiameter = fcn_INTERNAL_tireDiameterFromSize(vehicleSpec.TireSize);
 end
 
+% The rear tires: their own size or diameter if given, else the front's
+% (presets have the same tires front and rear)
+if isempty(options.TireSizeRear)
+    vehicleSpec.TireSizeRear = vehicleSpec.TireSize;
+    if ~isempty(options.TireDiameterRear)
+        vehicleSpec.TireSizeRear = '';                  % (a rear diameter without a rear size)
+    end
+end
+if ~isempty(options.TireDiameterRear)
+    vehicleSpec.TireDiameterRear = options.TireDiameterRear;
+elseif ~isempty(options.TireSizeRear)
+    vehicleSpec.TireDiameterRear = fcn_INTERNAL_tireDiameterFromSize(vehicleSpec.TireSizeRear);
+else
+    vehicleSpec.TireDiameterRear = vehicleSpec.TireDiameter;
+end
+
+% Engine type names in their standard spelling
+if ~isempty(vehicleSpec.EngineType)
+    vehicleSpec.EngineType = engineTypeNames{strcmpi(vehicleSpec.EngineType, engineTypeNames)};
+end
+if ~isempty(vehicleSpec.HybridEngineType)
+    vehicleSpec.HybridEngineType = hybridEngineTypeNames{strcmpi(vehicleSpec.HybridEngineType, hybridEngineTypeNames)};
+end
+
 % Rear overhang, if it can be computed
 vehicleSpec.RearOverhang = [];
 if ~isempty(vehicleSpec.OverallLength) && ~isempty(vehicleSpec.Wheelbase) && ~isempty(vehicleSpec.FrontOverhang)
@@ -300,7 +374,8 @@ end
 % Keep a consistent field order for easy display
 vehicleSpec = orderfields(vehicleSpec, {'Name','Units','OverallLength','OverallWidth',...
     'WidthWithMirrors','OverallHeight','Wheelbase','TrackFront','TrackRear','TireSize','TireDiameter',...
-    'FrontOverhang','RearOverhang','GroundClearance','BodyColor','Source'});
+    'TireSizeRear','TireDiameterRear','FrontOverhang','RearOverhang','GroundClearance','EngineType','HybridEngineType',...
+    'BodyColor','Source'});
 
 %% Any debugging?
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -351,9 +426,13 @@ vehicleSpec = struct(...
     'TrackRear',[],...
     'TireSize','',...
     'TireDiameter',[],...
+    'TireSizeRear','',...
+    'TireDiameterRear',[],...
     'FrontOverhang',[],...
     'RearOverhang',[],...
     'GroundClearance',[],...
+    'EngineType','',...
+    'HybridEngineType','',...
     'BodyColor',[],...
     'Source','');
 
@@ -392,6 +471,8 @@ end
 if ~isempty(vehicleSpec.TireSize)
     vehicleSpec.TireDiameter = fcn_INTERNAL_tireDiameterFromSize(vehicleSpec.TireSize);
 end
+vehicleSpec.TireSizeRear = vehicleSpec.TireSize;
+vehicleSpec.TireDiameterRear = vehicleSpec.TireDiameter;
 end % Ends fcn_INTERNAL_presetSpec
 
 %% fcn_INTERNAL_tireDiameterFromSize
@@ -453,7 +534,11 @@ nexttile;
 hold on; axis equal; grid on;
 plot([xRearBumper xFrontBumper xFrontBumper xRearBumper xRearBumper],...
     [0 0 H H 0],'k--','DisplayName','Length x height envelope');
-plot(0 + D/2*cos(theta), D/2 + D/2*sin(theta),'k-','LineWidth',1.5,'DisplayName','Rear tire');
+DR = D;
+if isfield(vehicleSpec,'TireDiameterRear') && ~isempty(vehicleSpec.TireDiameterRear)
+    DR = vehicleSpec.TireDiameterRear;
+end
+plot(0 + DR/2*cos(theta), DR/2 + DR/2*sin(theta),'k-','LineWidth',1.5,'DisplayName','Rear tire');
 plot(WB + D/2*cos(theta), D/2 + D/2*sin(theta),'k-','LineWidth',1.5,'DisplayName','Front tire');
 plot([0 WB],[D/2 D/2],'b-o','DisplayName',sprintf('Wheelbase %.3f m',WB));
 xlabel('X [m] (forward)'); ylabel('Z [m] (up)');

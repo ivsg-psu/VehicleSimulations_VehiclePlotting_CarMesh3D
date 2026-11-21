@@ -1,0 +1,15 @@
+Standard checks for 2026 CarMesh3D Sample GenericSedan
+Written 2026-11-20 21:42 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 636 faces, 352 vertices
+Dimensions: 10 of 10 within tolerance
+Ground contact during the test motion: 0 of 505 samples
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_01_inputs.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_03_labels.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_04_lightStates.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\2026_CarMesh3D_Sample_GenericSedan\checks\check_10_groundContact.png

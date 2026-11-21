@@ -1,0 +1,1 @@
+Reducer=2026_11_21e; TargetFaces=24000; WheelPattern=wheel_lf|tire|tyre|wheel|(^|[^a-z])rim|hub|brake; WheelFaces=2000; RemovePattern=^black-transparent |leather|carpet|salon|IntDFS|dash|dials|DASH_PATTERN|int_badges|glass_light|redn

@@ -58,7 +58,7 @@ disp(validationTable);
 assert(istable(validationTable));
 
 % Check variable sizes
-assert(10==height(validationTable));
+assert(12==height(validationTable));
 assert(isequal(validationTable.Properties.VariableNames, {'Quantity','Target_m','Measured_m','Error_m','PercentError','Pass'}));
 
 % Check variable values
@@ -141,6 +141,47 @@ assert(tableLoose.Pass(heightRow));
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
+
+%% TEST case: A tire reduced to a polygon fails the roundness rows
+figNum = 20009;
+titleString = sprintf('TEST case: A tire reduced to a polygon fails the roundness rows');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+vehicleSpec = fcn_INTERNAL_compactSpec;
+vehicleMesh = fcn_INTERNAL_finishedSample;
+roundTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec);
+roundRows = ismember(roundTable.Quantity, ["TireRoundMin","TireRoundMax"]);
+assert(sum(roundRows)==2 && all(roundTable.Pass(roundRows)));
+% (the front-left wheel replaced by a hexagonal prism of the same size)
+wheelFaces = vehicleMesh.FaceWheelIndex==1;
+wheelVertices = vehicleMesh.Vertices(unique(vehicleMesh.Faces(wheelFaces,:)),:);
+center = (min(wheelVertices) + max(wheelVertices))/2;
+radius = (max(wheelVertices(:,3)) - min(wheelVertices(:,3)))/2;
+angles = (0:5)'*pi/3;
+ring = [center(1) + radius*cos(angles), center(3) + radius*sin(angles)];
+hexVertices = [ring(:,1), repmat(min(wheelVertices(:,2)),6,1), ring(:,2); ring(:,1), repmat(max(wheelVertices(:,2)),6,1), ring(:,2)];
+hexFaces = [];
+for k = 1:6
+    kNext = mod(k,6) + 1;
+    hexFaces = [hexFaces; k kNext 6+kNext; k 6+kNext 6+k]; %#ok<AGROW>
+end
+hexFaces = [hexFaces; 1 2 3; 1 3 4; 1 4 5; 1 5 6; 7 9 8; 7 10 9; 7 11 10; 7 12 11];
+polygonMesh = vehicleMesh;
+keep = ~wheelFaces;
+polygonMesh.Faces = [vehicleMesh.Faces(keep,:); hexFaces + size(vehicleMesh.Vertices,1)];
+polygonMesh.Vertices = [vehicleMesh.Vertices; hexVertices];
+for fieldName = {'FacePartIndex','FaceWheelIndex','FaceLightType'}
+    if isfield(polygonMesh, fieldName{1})
+        values = vehicleMesh.(fieldName{1})(keep,:);
+        newValue = values(1,:)*0;
+        if strcmp(fieldName{1},'FacePartIndex'), newValue = find(strcmp(vehicleMesh.PartNames,'wheel')); end
+        if strcmp(fieldName{1},'FaceWheelIndex'), newValue = 1; end
+        polygonMesh.(fieldName{1}) = [values; repmat(newValue, size(hexFaces,1), 1)];
+    end
+end
+polygonTable = fcn_CarMesh3D_validateMesh(polygonMesh, vehicleSpec);
+assert(~polygonTable.Pass(polygonTable.Quantity=="TireRoundMin"));
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

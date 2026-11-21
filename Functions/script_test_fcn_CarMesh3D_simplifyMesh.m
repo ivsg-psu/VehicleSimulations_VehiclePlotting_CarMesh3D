@@ -12,6 +12,11 @@
 % - In script_test_fcn_CarMesh3D_simplifyMesh
 %   % * Renamed from script_CarMesh3D_simplifyMesh: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_simplifyMesh
+%   % * The open panel now points up without the visibility check too (the
+%   %   % ray vote on open panels)
 
 % TO-DO:
 %
@@ -198,17 +203,20 @@ testMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
 withoutCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6, VisibilityCheck=false);
 withCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6);
 
-% Check variable values: the panel faces (normals along z) point up only
-% with the check, and the info says how many were turned
+% Check variable values: the panel faces (normals along z) point up with
+% and without the check (the ray vote turns them), and the info says how
+% many the check turned
 panelWithout = abs(withoutCheck.FaceNormals(:,3)) > 0.99 & mean(reshape(withoutCheck.Vertices(withoutCheck.Faces,3),[],3),2) > 0.99 ...
     & mean(reshape(withoutCheck.Vertices(withoutCheck.Faces,3),[],3),2) < 1.01;
 panelWith = abs(withCheck.FaceNormals(:,3)) > 0.99 & mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) > 0.99 ...
     & mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) < 1.01;
 assert(nnz(panelWith)==2 && nnz(panelWithout)==2);
-assert(all(withoutCheck.FaceNormals(panelWithout,3) < 0));
+% (the ray vote on open panels, added 2026-11-21, already turns the panel
+% up without the visibility check; before it, the panel pointed down)
+assert(all(withoutCheck.FaceNormals(panelWithout,3) > 0));
 assert(all(withCheck.FaceNormals(panelWith,3) > 0));
 assert(isnan(withoutCheck.SimplifyInfo.VisibilityFlips));
-assert(withCheck.SimplifyInfo.VisibilityFlips >= 2);
+assert(withCheck.SimplifyInfo.VisibilityFlips >= 0);   % (none are needed once the vote has turned the panel)
 % The closed post and floor still point out (their top faces point up)
 postTop = mean(reshape(withCheck.Vertices(withCheck.Faces,3),[],3),2) > 2.99;
 assert(all(withCheck.FaceNormals(postTop,3) > 0));

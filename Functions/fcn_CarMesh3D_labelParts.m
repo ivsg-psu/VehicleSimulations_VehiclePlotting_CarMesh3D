@@ -34,6 +34,8 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %           (GlassAlpha=alpha),...
 %           (UseMaterialColors=flag),...
 %           (PartColors=partColors),...
+%           (SeeThroughGlass=flag),...
+%           (TextureColorParts=partList),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -81,6 +83,21 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      These are applied last, so they override material colors and
 %      BodyColor. Default is {} (none).
 %
+%      SeeThroughGlass: true (default) to use the see-through marks of a
+%      mesh read with fcn_CarMesh3D_readGLB (its FaceTextureAlpha, when
+%      SeeThroughReliable): see-through faces not labeled wheel or light
+%      become glass (a lamp lens is see-through but stays a light), and faces labeled glass by name that are opaque in a
+%      material that is see-through elsewhere (the painted black border of
+%      a window) become trim. Meshes without these fields are not changed.
+%
+%      TextureColorParts: a cell array of part names whose faces take
+%      their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB
+%      or fcn_CarMesh3D_transferTextureColors), for example
+%           TextureColorParts = {'light','trim','wheel'}
+%      applied after PartColors. Default is {} (none). Kept in the mesh
+%      (TextureColorParts) so fcn_CarMesh3D_editLabels does the same for
+%      faces it relabels.
+%
 %      FigNum: a figure number to plot the labeled parts. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
 %      and no plot is made (fast mode).
@@ -98,6 +115,7 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %               'running';'tail';'backup'}
 %           FaceLightType (M x 1): index into LightTypeNames for light
 %               faces, 0 for all other faces
+%           TextureColorParts (cell): the TextureColorParts option
 %
 % DEPENDENCIES:
 %
@@ -125,6 +143,14 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   % * Added UseMaterialColors option, for texture-colored models
 %   % * Added PartColors option, to set the color of any part
 %   % * Light faces get a light type (FaceLightType), for switchable lights
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * SeeThroughGlass: glass from the see-through marks of .glb files
+%   %   % (fcn_CarMesh3D_readGLB), and opaque window borders as trim
+%   % * TextureColorParts: parts shown in their texture colors
+%   % * SeeThroughGlass leaves faces labeled light alone (the Transit
+%   %   % Connect's see-through lamp lenses had all become glass)
 
 % TO-DO:
 %
@@ -149,6 +175,8 @@ arguments
     options.GlassAlpha = 0.35 % Transparency of glass faces
     options.UseMaterialColors = true % Use the file's material colors?
     options.PartColors = {}   % N x 2 cell of {partName, [r g b]}
+    options.SeeThroughGlass = true  % Use .glb see-through marks for glass?
+    options.TextureColorParts = {}  % Parts shown in their texture colors
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -253,6 +281,11 @@ if 0==flag_max_speed
             error('UseMaterialColors must be true or false');
         end
 
+        % Check the TextureColorParts input
+        if ~iscell(options.TextureColorParts) || ~all(ismember(lower(options.TextureColorParts), partNames))
+            error('TextureColorParts must be a cell array of part names: body, glass, wheel, light, trim');
+        end
+
         % Check the GlassAlpha input
         if ~isnumeric(options.GlassAlpha) || ~isscalar(options.GlassAlpha) || options.GlassAlpha<0 || options.GlassAlpha>1
             error('GlassAlpha must be a number from 0 to 1');
@@ -306,6 +339,20 @@ for ith_pair = 1:size(uniquePairs,1)
     end
 end
 facePartIndex = pairPart(pairOfFace);
+
+% See-through marks of a .glb file: see-through faces are glass, and the
+% opaque faces of a see-through material that were named glass (a window's
+% painted border) are trim
+flagHasTexture = isfield(vehicleMesh,'FaceTextureAlpha') && size(vehicleMesh.FaceTextureAlpha,1)==Nfaces;
+if options.SeeThroughGlass && flagHasTexture && (~isfield(vehicleMesh,'SeeThroughReliable') || vehicleMesh.SeeThroughReliable)
+    flagSeeThrough = vehicleMesh.FaceTextureAlpha < 0.9;
+    % (not the wheels, 3, nor the lights, 4: a see-through lamp lens stays
+    % a light, as the 2014 Transit Connect's do)
+    facePartIndex(flagSeeThrough & facePartIndex~=3 & facePartIndex~=4) = 2;
+    seeThroughMaterials = unique(materialIndex(flagSeeThrough & materialIndex>0));
+    flagBorder = facePartIndex==2 & ~flagSeeThrough & ismember(materialIndex, seeThroughMaterials) & vehicleMesh.FaceTextureAlpha >= 0.95;
+    facePartIndex(flagBorder) = 5;
+end
 
 % Number the wheels by corner, using the face centers
 faceWheelIndex = zeros(Nfaces,1);
@@ -365,6 +412,13 @@ for ith_row = 1:size(options.PartColors,1)
     faceColors(flagThisPart,:) = repmat(options.PartColors{ith_row,2}, sum(flagThisPart), 1);
 end
 
+% Texture colors, for the parts listed
+textureColorParts = lower(reshape(options.TextureColorParts,1,[]));
+if ~isempty(textureColorParts) && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces
+    flagTextured = ismember(facePartIndex, find(ismember(partNames, textureColorParts)));
+    faceColors(flagTextured,:) = vehicleMesh.FaceTextureColors(flagTextured,:);
+end
+
 % Alpha: glass faces get GlassAlpha, everything else is opaque
 faceAlpha = ones(Nfaces,1);
 faceAlpha(facePartIndex==2) = options.GlassAlpha;
@@ -412,6 +466,7 @@ vehicleMesh.FacePartIndex = facePartIndex;
 vehicleMesh.FaceWheelIndex = faceWheelIndex;
 vehicleMesh.FaceColors = faceColors;
 vehicleMesh.FaceAlpha = faceAlpha;
+vehicleMesh.TextureColorParts = textureColorParts;
 
 if flag_do_debug
     for ith_part = 1:length(partNames)

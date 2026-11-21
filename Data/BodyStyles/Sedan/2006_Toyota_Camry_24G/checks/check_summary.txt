@@ -1,0 +1,8 @@
+Standard checks for 2006 Toyota Camry 24G
+Written 2026-11-21 06:28 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 20483 faces, 13430 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2006_Toyota_Camry_24G\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2006_Toyota_Camry_24G\checks\check_03_labels.png

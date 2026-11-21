@@ -75,8 +75,8 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      FaceLighting: 'auto' (default), 'flat', 'gouraud', or 'none'.
 %      'flat' gives a crisp low-poly look, with one shade per face.
 %      'gouraud' blends shading smoothly across faces, which glossy
-%      highlights need. 'auto' uses 'flat' for a matte finish and
-%      'gouraud' for every other finish.
+%      highlights need, and hides the facets of a reduced mesh. 'auto'
+%      uses 'gouraud' for every finish.
 %
 %      SceneLights: 'auto' (default) adds two lights to the axes if it has
 %      none: a white main light from above, to the front-left of the
@@ -212,6 +212,17 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   % * Added LightEffects: glows around lit lamps and pools of light on
 %   %   the ground (headlight beams, tail, brake, backup), for night scenes
 %   % * Added WheelLift (wheels lifted off the ground, per wheel)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * An axes holding only hidden-handle objects (a scene drawn with
+%   %   % HandleVisibility 'off') is not treated as new, and hidden lights
+%   %   % count as lights (asked for by AnimateCar3D)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * FaceLighting 'auto' is now always 'gouraud' (smooth), also for the
+%   %   % matte finish: flat shading showed every facet of a reduced mesh
 
 % TO-DO:
 %
@@ -441,7 +452,9 @@ else
     if isempty(axesHandle)
         axesHandle = axes('Parent',temp_h);
     end
-    flag_this_is_a_new_axes = isempty(get(axesHandle,'Children'));
+    % (hidden-handle objects count too: a scene drawn with hidden handles,
+    % such as AnimateCar3D's, is not a new axes)
+    flag_this_is_a_new_axes = isempty(allchild(axesHandle));
 
     % Get face colors and alphas
     [faceColors, faceAlpha] = fcn_INTERNAL_faceColorsAndAlpha(vehicleMesh);
@@ -458,11 +471,7 @@ else
     [finishValues, finishName] = fcn_INTERNAL_finishValues(options.Finish);
     faceLighting = lower(char(options.FaceLighting));
     if strcmp(faceLighting,'auto')
-        if strcmp(finishName,'matte')
-            faceLighting = 'flat';
-        else
-            faceLighting = 'gouraud';
-        end
+        faceLighting = 'gouraud';      % (smooth: reduced meshes look faceted with 'flat')
     end
     patchStyle = struct('EdgeColor',{edgeColor},'FaceLighting',faceLighting,'Finish',finishValues);
 
@@ -524,7 +533,7 @@ else
 
     % Add lights if asked and the axes has none: a main light from above
     % and to the side, and a dimmer fill light from the other side
-    if strcmpi(char(options.SceneLights),'auto') && isempty(findobj(axesHandle,'Type','light'))
+    if strcmpi(char(options.SceneLights),'auto') && isempty(findall(axesHandle,'Type','light'))
         light('Parent',axesHandle,'Style','infinite','Position',[-1 -2 3]);
         light('Parent',axesHandle,'Style','infinite','Position',[2 1.5 1],'Color',[0.45 0.45 0.45]);
     end

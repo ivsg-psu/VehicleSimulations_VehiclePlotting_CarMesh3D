@@ -1,0 +1,8 @@
+Standard checks for 2023 Honda Accord SE
+Written 2026-11-21 06:32 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 25868 faces, 44027 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2023_Honda_Accord_SE\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2023_Honda_Accord_SE\checks\check_03_labels.png

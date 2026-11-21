@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_loadVehicleSpec
 %   % * Renamed from script_CarMesh3D_loadVehicleSpec: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_loadVehicleSpec
+%   % * Tests front and rear tire markings, and the engine type
 
 % TO-DO:
 %
@@ -221,6 +225,39 @@ assert(strcmp(vehicleSpecsFromFile(3).Source, sprintf('%s(3)', arrayFile)));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: Front and rear tire markings; the engine type
+figNum = 20007;
+titleString = sprintf('TEST case: Front and rear tire markings; the engine type');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+loadedData = load(fcn_INTERNAL_priusFile);
+dataNames = fieldnames(loadedData);
+staggeredParameters = loadedData.(dataNames{1});
+% (two sizes in TireSidewallMarkings: {front, rear})
+staggeredParameters.TireSidewallMarkings = {'P195/65R15 89S', 'P215/60R16 94V'};
+staggeredParameters.EngineType = 'hybrid';
+staggeredParameters.EngineHybridEngineType = 'sparkIgnition';
+staggeredSpec = fcn_CarMesh3D_loadVehicleSpec(staggeredParameters);
+assert(strcmp(staggeredSpec.TireSize, 'P195/65R15 89S') && strcmp(staggeredSpec.TireSizeRear, 'P215/60R16 94V'));
+assert(staggeredSpec.TireDiameterRear > staggeredSpec.TireDiameter);
+assert(strcmp(staggeredSpec.EngineType, 'hybrid') && strcmp(staggeredSpec.HybridEngineType, 'sparkIgnition'));
+% (the separate fields)
+separateParameters = loadedData.(dataNames{1});
+separateParameters.TireSidewallMarkingsRear = 'P215/60R16 94V';
+separateSpec = fcn_CarMesh3D_loadVehicleSpec(separateParameters);
+assert(strcmp(separateSpec.TireSizeRear, 'P215/60R16 94V') && strcmp(separateSpec.TireSize, 'P195/65R15 89S'));
+% (one marking: the same front and rear, as before)
+priusSpec = fcn_CarMesh3D_loadVehicleSpec(fcn_INTERNAL_priusFile);
+assert(priusSpec.TireDiameterRear==priusSpec.TireDiameter && strcmp(priusSpec.EngineType, 'hybrid') && strcmp(priusSpec.HybridEngineType, 'sparkIgnition'));
+% (a saved spec keeps them)
+savedFile = [tempname '.mat'];
+vehicleSpec = staggeredSpec;
+save(savedFile, 'vehicleSpec');
+reloaded = fcn_CarMesh3D_loadVehicleSpec(savedFile);
+delete(savedFile);
+assert(strcmp(reloaded.TireSizeRear, staggeredSpec.TireSizeRear) && strcmp(reloaded.EngineType, 'hybrid'));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -381,7 +418,7 @@ end
 %% fcn_INTERNAL_priusFile
 function dataFile = fcn_INTERNAL_priusFile
 % Full path to the example vehicleParameters file in the Data folder
-functionsFolder = fileparts(which('fcn_CarMesh3D_loadVehicleSpec'));
-dataFile = fullfile(fileparts(functionsFolder),'Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+dataFile = priusFiles.ParametersFile;
 assert(exist(dataFile,'file')==2, 'Example data file not found: %s', dataFile);
 end % Ends fcn_INTERNAL_priusFile

@@ -35,7 +35,17 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource, options)
 %       DistancesRearTrack         -> TrackRear
 %       DistancesFrontOverhang     -> FrontOverhang
 %       DistancesGroundClearance   -> GroundClearance
-%       TireSidewallMarkings       -> TireSize (and so TireDiameter)
+%       TireSidewallMarkings       -> TireSize (and so TireDiameter), and
+%                                     TireSizeRear: one size for both
+%                                     axles, or two, {front, rear}, for
+%                                     different front and rear tires
+%       TireSidewallMarkingsFront  -> TireSize (overrides the above)
+%       TireSidewallMarkingsRear   -> TireSizeRear (overrides the above)
+%       EngineType                 -> EngineType: 'sparkIgnition',
+%                                     'diesel', 'wankel', 'hybrid', or
+%                                     'electric'
+%       EngineHybridEngineType     -> HybridEngineType (for a hybrid):
+%                                     'sparkIgnition', 'diesel', 'wankel'
 %       Year, Make, Model, Trim    -> Name
 %
 % FORMAT:
@@ -96,6 +106,13 @@ function vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource, options)
 %   % * The Prius file's DistancesFrontOverhang_Text now says "from the
 %   %   center of the front axle" (the old file is kept with an _OLD
 %   %   suffix); removed that TO-DO item
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_loadVehicleSpec
+%   % * Front and rear tires: TireSidewallMarkings may hold {front, rear};
+%   %   % TireSidewallMarkingsFront and TireSidewallMarkingsRear also read
+%   % * EngineType and EngineHybridEngineType read (to EngineType and
+%   %   % HybridEngineType)
 
 % TO-DO:
 %
@@ -327,8 +344,39 @@ if isfield(loadedStruct,'DistancesLength')
             specArguments = [specArguments, {fieldMap{ith_field,2}, value}]; %#ok<AGROW>
         end
     end
+    % Tires: one size for both axles, or {front, rear}; or the
+    % separate front and rear fields
+    frontTire = ''; rearTire = '';
     if isfield(loadedStruct,'TireSidewallMarkings') && ~isempty(loadedStruct.TireSidewallMarkings)
-        specArguments = [specArguments, {'TireSize', char(loadedStruct.TireSidewallMarkings)}];
+        tireMarkings = cellstr(string(loadedStruct.TireSidewallMarkings));
+        tireMarkings = tireMarkings(~cellfun(@isempty, strtrim(tireMarkings)));
+        if ~isempty(tireMarkings)
+            frontTire = strtrim(tireMarkings{1});
+            rearTire = strtrim(tireMarkings{end});
+        end
+    end
+    if isfield(loadedStruct,'TireSidewallMarkingsFront') && ~isempty(loadedStruct.TireSidewallMarkingsFront)
+        frontTire = strtrim(char(loadedStruct.TireSidewallMarkingsFront));
+        if isempty(rearTire)
+            rearTire = frontTire;
+        end
+    end
+    if isfield(loadedStruct,'TireSidewallMarkingsRear') && ~isempty(loadedStruct.TireSidewallMarkingsRear)
+        rearTire = strtrim(char(loadedStruct.TireSidewallMarkingsRear));
+    end
+    if ~isempty(frontTire)
+        specArguments = [specArguments, {'TireSize', frontTire}];
+    end
+    if ~isempty(rearTire) && ~strcmp(rearTire, frontTire)
+        specArguments = [specArguments, {'TireSizeRear', rearTire}];
+    end
+
+    % The engine's type
+    if isfield(loadedStruct,'EngineType') && ~isempty(loadedStruct.EngineType)
+        specArguments = [specArguments, {'EngineType', char(loadedStruct.EngineType)}];
+    end
+    if isfield(loadedStruct,'EngineHybridEngineType') && ~isempty(loadedStruct.EngineHybridEngineType)
+        specArguments = [specArguments, {'HybridEngineType', char(loadedStruct.EngineHybridEngineType)}];
     end
 
     % Name from year, make, model, and trim
@@ -349,8 +397,8 @@ if isfield(loadedStruct,'DistancesLength')
 else
     % A saved CarMesh3D spec: copy the fields fillVehicleSpec knows
     knownFields = {'Name','OverallLength','OverallWidth','WidthWithMirrors','OverallHeight',...
-        'Wheelbase','TrackFront','TrackRear','TireSize','TireDiameter',...
-        'FrontOverhang','GroundClearance','BodyColor'};
+        'Wheelbase','TrackFront','TrackRear','TireSize','TireDiameter','TireSizeRear','TireDiameterRear',...
+        'FrontOverhang','GroundClearance','EngineType','HybridEngineType','BodyColor'};
     specArguments = {};
     for ith_field = 1:length(knownFields)
         if isfield(loadedStruct,knownFields{ith_field}) && ~isempty(loadedStruct.(knownFields{ith_field}))

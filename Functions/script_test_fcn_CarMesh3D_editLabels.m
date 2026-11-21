@@ -78,8 +78,9 @@ titleString = sprintf('DEMO case: Fix the downloaded Prius lights by region');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 functionsFolder = fileparts(which('fcn_CarMesh3D_editLabels'));
 rootFolder = fileparts(functionsFolder);
-modelFile = fullfile(rootFolder,'Data','2013_Toyota_Prius_Four','model','source','2010 Toyota Prius.glb');
-specFile = fullfile(rootFolder,'Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+modelFile = fullfile(priusFiles.ModelFolder,'source','2010 Toyota Prius.glb');
+specFile = priusFiles.ParametersFile;
 try
     vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specFile, FigNum=-1);
     vehicleMesh = fcn_CarMesh3D_importMesh(modelFile, FigNum=-1);

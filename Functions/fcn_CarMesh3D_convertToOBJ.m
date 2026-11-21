@@ -18,12 +18,30 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 % Faces are triangulated, modifiers are applied, and every mesh object
 % is written with its world position.
 %
+% REDUCTION IN BLENDER (TargetFaces): a dense download can be reduced to
+% about TargetFaces faces during the conversion, with Blender's Decimate
+% (collapse) tool, which keeps the outlines of flat pieces (badges, lamp
+% lenses, panel edges) far better than MATLAB's reducepatch. First,
+% corners closer than 0.1 mm are welded (the glTF importer splits
+% surfaces along texture and shading seams), and the faces matching
+% RemovePattern are deleted. Then each mesh object is reduced by one
+% ratio, except the wheel objects (matching WheelPattern), which keep at
+% least WheelFaces faces per wheel so the tires stay round. A piece whose
+% reduced corners stray more than 1 cm outside its own original box (the
+% collapse can throw a corner of a small, oddly shaped piece far away) is
+% reduced again more gently (twice the ratio, up to 4 times), or kept
+% whole. Patterns are regular expressions (case ignored) matched to
+% '<materialName> <objectName>' for each face's material, as the OBJ's
+% '<material> <group>' text is matched later in CarMesh3D.
+%
 % FORMAT:
 %
 %       objFile = fcn_CarMesh3D_convertToOBJ(inputFile,...
 %           (OutputFile=outputFileName),...
 %           (BlenderPath=blenderExecutable),...
 %           (Overwrite=flagOverwrite),...
+%           (TargetFaces=numFaces), (WheelPattern=regexp),...
+%           (WheelFaces=numFaces), (RemovePattern=regexp),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -38,7 +56,8 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
 %      OutputFile: the .obj file to write. Default is the input file name
-%      with '_converted.obj' added, in the same folder.
+%      with '_converted.obj' added (or '_reduced<TargetFaces>.obj' when
+%      reducing), in the same folder.
 %
 %      BlenderPath: the full path to the Blender program. Default is ''
 %      (search for it). The search order is: the environment variable
@@ -48,8 +67,22 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %      'blender' on the system path.
 %
 %      Overwrite: false (default) to reuse an existing output file that
-%      is newer than the input file, which skips the slow conversion;
-%      true to always convert again.
+%      is newer than the input file (and, when reducing, was made with the
+%      same reduction settings), which skips the slow conversion; true to
+%      always convert again.
+%
+%      TargetFaces: about how many faces to reduce the model to, in
+%      Blender (see REDUCTION IN BLENDER above). Default [] (no reduction).
+%
+%      WheelPattern: a regular expression for the wheel objects, which keep
+%      at least WheelFaces faces per wheel. Default '' (no wheels known).
+%
+%      WheelFaces: the fewest faces per wheel (the four wheels together),
+%      at most TargetFaces/8 each. Default 2000.
+%
+%      RemovePattern: a regular expression for faces to delete before the
+%      reduction (a hidden interior, stray pieces), so they take none of
+%      the face budget. Default ''.
 %
 %      FigNum: a figure number to plot the converted mesh. If empty or
 %      omitted, no plot is made. If set to -1, input checking is skipped
@@ -63,6 +96,7 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 % DEPENDENCIES:
 %
 %      Blender (free, blender.org), version 2.8 or newer; written for 4.x
+%      (reduction: tested with Blender 5.3)
 %      fcn_CarMesh3D_importMesh and fcn_CarMesh3D_plotVehicle (only if
 %      plotting)
 %
@@ -83,6 +117,16 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %   % * Fixed brace indexing on a function call (found by Code Analyzer)
 %   % * Removed extra command quoting on Windows (MATLAB's system already
 %   %   % handles it); tested with Blender 5.3
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_convertToOBJ
+%   % * TargetFaces, WheelPattern, WheelFaces, RemovePattern: reduce the
+%   %   % model in Blender during the conversion (Decimate, after welding);
+%   %   % outlines of badges, lamps, and panel edges are kept far better
+%   %   % than by reducepatch (2025 Toyota Camry)
+%   % * Protecting the corners near the wheels from the reduction (so the
+%   %   % arches keep their curve) is written but switched off: the other
+%   %   % pieces then had to be cut too far (2010 Toyota Camry)
 
 % TO-DO:
 %
@@ -91,6 +135,12 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %   % * Old ASCII FBX files (version 6.1 and earlier) are not supported by
 %   %   % Blender; convert those with Autodesk's FBX tools first
 %   % * Consider a native binary FBX reader so Blender is not needed
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_convertToOBJ
+%   % * Wheel-arch protection (protect_wells in the Blender script): protect
+%   %   % only the arch lips (a thin shell around each wheel), not every
+%   %   % corner within 0.65 of the wheel's size
 
 
 
@@ -104,6 +154,10 @@ arguments
     options.OutputFile = ''    % Output .obj; '' for <input>_converted.obj
     options.BlenderPath = ''   % Blender program; '' to search for it
     options.Overwrite = false  % Convert again even if output is up to date?
+    options.TargetFaces = []   % Reduce to about this many faces in Blender; [] for none
+    options.WheelPattern = ''  % Regular expression for wheel objects (keep WheelFaces each)
+    options.WheelFaces = 2000  % Fewest faces per wheel when reducing
+    options.RemovePattern = '' % Regular expression for faces to delete before reducing
     options.FigNum = []        % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -185,6 +239,19 @@ if 0==flag_max_speed
             error('BlenderPath must be a character string');
         end
 
+        % Check the reduction inputs
+        if ~isempty(options.TargetFaces) && ~(isnumeric(options.TargetFaces) && isscalar(options.TargetFaces) && options.TargetFaces >= 100)
+            error('TargetFaces must be a number of faces (100 or more), or empty');
+        end
+        if ~isnumeric(options.WheelFaces) || ~isscalar(options.WheelFaces) || options.WheelFaces < 0
+            error('WheelFaces must be a number of 0 or more');
+        end
+        for fieldName = {'WheelPattern','RemovePattern'}
+            if ~(ischar(options.(fieldName{1})) || isstring(options.(fieldName{1})))
+                error('%s must be text (a regular expression)', fieldName{1});
+            end
+        end
+
         % Check the Overwrite input
         if ~(islogical(options.Overwrite) || isnumeric(options.Overwrite)) || ~isscalar(options.Overwrite)
             error('Overwrite must be true or false');
@@ -216,7 +283,10 @@ end
 % Full paths (Blender runs in its own working folder)
 inputFile = fcn_INTERNAL_fullPath(char(inputFile));
 [inputFolder, inputBaseName, inputExtension] = fileparts(inputFile);
-if isempty(options.OutputFile)
+flag_reduce = ~isempty(options.TargetFaces);
+if isempty(options.OutputFile) && flag_reduce
+    objFile = fullfile(inputFolder, sprintf('%s_reduced%d.obj', inputBaseName, round(options.TargetFaces)));
+elseif isempty(options.OutputFile)
     objFile = fullfile(inputFolder, [inputBaseName '_converted.obj']);
 else
     objFile = fcn_INTERNAL_fullPath(char(options.OutputFile));
@@ -229,6 +299,12 @@ if ~options.Overwrite && exist(objFile,'file')
     outputInfo = dir(objFile);
     if outputInfo.datenum >= inputInfo.datenum
         flag_convert = false;
+    end
+    % (a reduced file is reused only if made with the same settings)
+    if flag_reduce && (~isfile([objFile '.settings.txt']) || ~strcmp(strtrim(fileread([objFile '.settings.txt'])), fcn_INTERNAL_settingsText(options)))
+        flag_convert = true;
+    end
+    if ~flag_convert
         if flag_do_debug
             fprintf(1,'Reusing existing converted file: %s\n',objFile);
         end
@@ -245,17 +321,23 @@ if flag_convert
         error('Unable to write the temporary Blender script: %s',scriptFile);
     end
     scriptLines = fcn_INTERNAL_blenderScriptLines;
+    if flag_reduce
+        reduceArguments = sprintf(' "%d" "%s" "%d" "%s"', round(options.TargetFaces), ...
+            fcn_INTERNAL_quoteArgument(options.WheelPattern), round(options.WheelFaces), fcn_INTERNAL_quoteArgument(options.RemovePattern));
+    else
+        reduceArguments = '';
+    end
     fprintf(fid,'%s\n',scriptLines{:});
     fclose(fid);
     cleanupScript = onCleanup(@() fcn_INTERNAL_deleteIfExists(scriptFile));
 
     % Build the command. A .blend file is opened by Blender directly.
     if strcmpi(inputExtension,'.blend')
-        commandString = sprintf('"%s" --background --factory-startup "%s" --python-exit-code 1 --python "%s" -- "%s" "%s"',...
-            blenderPath, inputFile, scriptFile, inputFile, objFile);
+        commandString = sprintf('"%s" --background --factory-startup "%s" --python-exit-code 1 --python "%s" -- "%s" "%s"%s',...
+            blenderPath, inputFile, scriptFile, inputFile, objFile, reduceArguments);
     else
-        commandString = sprintf('"%s" --background --factory-startup --python-exit-code 1 --python "%s" -- "%s" "%s"',...
-            blenderPath, scriptFile, inputFile, objFile);
+        commandString = sprintf('"%s" --background --factory-startup --python-exit-code 1 --python "%s" -- "%s" "%s"%s',...
+            blenderPath, scriptFile, inputFile, objFile, reduceArguments);
     end
     if flag_do_debug
         fprintf(1,'Running: %s\n',commandString);
@@ -270,6 +352,14 @@ if flag_convert
         numLinesToShow = min(15, length(outputLines));
         error('Blender could not convert %s.\nCommand:\n  %s\nLast lines of Blender output:\n  %s',...
             inputFile, commandString, strjoin(outputLines(end-numLinesToShow+1:end),'\n  '));
+    end
+    if flag_reduce
+        reportLines = splitlines(commandOutput);
+        reportLines = reportLines(startsWith(reportLines,'CARMESH3D_REDUCE'));
+        fprintf(1,'%s\n', reportLines{:});
+        settingsId = fopen([objFile '.settings.txt'],'w');
+        fprintf(settingsId,'%s\n', fcn_INTERNAL_settingsText(options));
+        fclose(settingsId);
     end
 end
 
@@ -415,6 +505,104 @@ scriptLines = {
     'if mesh_count == 0:'
     '    raise RuntimeError("CARMESH3D_CONVERT_FAILED: no mesh objects in " + input_file)'
     ''
+    '# Optional reduction (TargetFaces given): weld, delete, decimate'
+    'if len(argv) >= 6:'
+    '    import re, bmesh'
+    '    target, wheel_faces = int(argv[2]), int(argv[4])'
+    '    wheel_re = re.compile(argv[3], re.I) if argv[3] else None'
+    '    remove_re = re.compile(argv[5], re.I) if argv[5] else None'
+    '    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]'
+    '    counts = {}; is_wheel = {}'
+    '    for obj in meshes:'
+    '        if obj.data.users > 1:'
+    '            obj.data = obj.data.copy()'
+    '        names = [s.material.name if s.material else "" for s in obj.material_slots] or [""]'
+    '        bm = bmesh.new(); bm.from_mesh(obj.data)'
+    '        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)'
+    '        if remove_re:'
+    '            gone = [f for f in bm.faces if remove_re.search(names[min(f.material_index, len(names)-1)] + " " + obj.name)]'
+    '            bmesh.ops.delete(bm, geom=gone, context="FACES")'
+    '        bmesh.ops.triangulate(bm, faces=bm.faces[:])'
+    '        bm.to_mesh(obj.data); bm.free()'
+    '        counts[obj.name] = len(obj.data.polygons)'
+    '        is_wheel[obj.name] = bool(wheel_re) and any(wheel_re.search(n + " " + obj.name) for n in names)'
+    '    total = sum(counts.values())'
+    '    wheel_total = sum(n for k, n in counts.items() if is_wheel[k])'
+    '    wheel_keep = min(wheel_total, 4 * min(wheel_faces, target / 8.0))'
+    '    other_ratio = min(1.0, max(target - wheel_keep, 0.2 * target) / max(total - wheel_total, 1))'
+    '    wheel_ratio = min(1.0, max(other_ratio, wheel_keep / max(wheel_total, 1)))'
+    '    # Wheel wells: corners near a wheel are protected (a vertex group the'
+    '    # decimation leaves alone), so the arches keep their curve. The wheels'
+    '    # are the wheel objects split into four by the box of all of them.'
+    '    wheel_points = [o.matrix_world @ v.co for o in meshes if is_wheel[o.name] for v in o.data.vertices]'
+    '    wells = []'
+    '    if wheel_points:'
+    '        lo = [min(p[i] for p in wheel_points) for i in range(3)]; hi = [max(p[i] for p in wheel_points) for i in range(3)]'
+    '        mid = [(lo[i] + hi[i]) / 2 for i in range(3)]'
+    '        quads = {}'
+    '        long_axis = max(range(3), key=lambda i: hi[i] - lo[i])'
+    '        side_axis = max([i for i in range(3) if i != long_axis], key=lambda i: hi[i] - lo[i])'
+    '        for p in wheel_points:'
+    '            quads.setdefault((p[long_axis] > mid[long_axis], p[side_axis] > mid[side_axis]), []).append(p)'
+    '        for pts in quads.values():'
+    '            qlo = [min(p[i] for p in pts) for i in range(3)]; qhi = [max(p[i] for p in pts) for i in range(3)]'
+    '            center = [(qlo[i] + qhi[i]) / 2 for i in range(3)]'
+    '            size = max(qhi[i] - qlo[i] for i in range(3))'
+    '            wells.append((center, 0.65 * size))'
+    '    protected = 0'
+    '    protect_wells = False   # (off: it kept the arches, but the other pieces had to be cut too far; see the TO-DO list)'
+    '    for obj in meshes:'
+    '        n = counts[obj.name]'
+    '        ratio = wheel_ratio if is_wheel[obj.name] else other_ratio'
+    '        if n > 60 and ratio < 1.0:'
+    '            dec = obj.modifiers.new("CarMesh3D_reduce", "DECIMATE")'
+    '            dec.decimate_type = "COLLAPSE"'
+    '            dec.ratio = max(ratio, 60.0 / n)'
+    '            dec.use_collapse_triangulate = True'
+    '            if protect_wells and wells and not is_wheel[obj.name]:'
+    '                mw = obj.matrix_world'
+    '                near = [v.index for v in obj.data.vertices if any(sum(((mw @ v.co)[i] - c[i]) ** 2 for i in range(3)) < rad ** 2 for c, rad in wells)]'
+    '                if near:'
+    '                    group = obj.vertex_groups.new(name="CarMesh3D_wells")'
+    '                    group.add(near, 1.0, "REPLACE")'
+    '                    dec.vertex_group = group.name'
+    '                    dec.invert_vertex_group = True'
+    '                    dec.vertex_group_factor = 3.0'
+    '                    protected += len(near)'
+    '    def strays(obj):'
+    '        dg = bpy.context.evaluated_depsgraph_get(); mw = obj.matrix_world'
+    '        pts = [mw @ v.co for v in obj.data.vertices]'
+    '        lo = [min(p[i] for p in pts) for i in range(3)]; hi = [max(p[i] for p in pts) for i in range(3)]'
+    '        red = [mw @ v.co for v in obj.evaluated_get(dg).data.vertices]'
+    '        return any(p[i] < lo[i] - 0.01 or p[i] > hi[i] + 0.01 for p in red for i in range(3))'
+    '    retried = kept = 0'
+    '    for obj in meshes:'
+    '        if "CarMesh3D_reduce" not in obj.modifiers:'
+    '            continue'
+    '        tries = 0'
+    '        while strays(obj) and tries < 4:'
+    '            obj.modifiers["CarMesh3D_reduce"].ratio = min(1.0, 2 * obj.modifiers["CarMesh3D_reduce"].ratio)'
+    '            tries += 1'
+    '        if strays(obj):'
+    '            obj.modifiers.remove(obj.modifiers["CarMesh3D_reduce"]); kept += 1'
+    '        elif tries:'
+    '            retried += 1'
+    '    dg = bpy.context.evaluated_depsgraph_get()'
+    '    after = sum(len(o.evaluated_get(dg).data.polygons) for o in meshes)'
+    '    # (the protected wheel wells keep more faces: the other pieces are'
+    '    # reduced further until the total is near the target)'
+    '    for attempt in range(6):'
+    '        if after <= 1.08 * target:'
+    '            break'
+    '        scale = target / float(after)'
+    '        for obj in meshes:'
+    '            if "CarMesh3D_reduce" in obj.modifiers and not is_wheel[obj.name]:'
+    '                dec = obj.modifiers["CarMesh3D_reduce"]'
+    '                dec.ratio = max(dec.ratio * scale, 60.0 / max(counts[obj.name], 1))'
+    '        dg = bpy.context.evaluated_depsgraph_get()'
+    '        after = sum(len(o.evaluated_get(dg).data.polygons) for o in meshes)'
+    '    print("CARMESH3D_REDUCE Blender reduction: %d faces to %d (wheels: %d faces kept of %d; %d corners near the wheels protected; %d pieces reduced more gently, %d kept whole)" % (total, after, int(wheel_keep), wheel_total, protected, retried, kept))'
+    ''
     '# Blender 4.x exporter first, then the older exporter (Blender 2.8 to 3.x)'
     'call_first(['
     '    ("wm.obj_export", dict(filepath=output_file, export_selected_objects=False,'
@@ -429,6 +617,22 @@ scriptLines = {
     'print("CARMESH3D_CONVERT_OK")'
     };
 end % Ends fcn_INTERNAL_blenderScriptLines
+
+%% fcn_INTERNAL_settingsText
+function settingsText = fcn_INTERNAL_settingsText(options)
+% The reduction settings, as one line (to tell when a reduced file can be reused)
+% (Reducer names the version of the reduction steps: a change to them
+% also makes a new file)
+settingsText = sprintf('Reducer=2026_11_21e; TargetFaces=%d; WheelPattern=%s; WheelFaces=%d; RemovePattern=%s', ...
+    round(options.TargetFaces), char(options.WheelPattern), round(options.WheelFaces), char(options.RemovePattern));
+end % Ends fcn_INTERNAL_settingsText
+
+%% fcn_INTERNAL_quoteArgument
+function text = fcn_INTERNAL_quoteArgument(text)
+% A regular expression made safe inside a double-quoted command argument
+text = char(text);
+text = strrep(text, '"', '\x22');
+end % Ends fcn_INTERNAL_quoteArgument
 
 %% fcn_INTERNAL_fullPath
 function fullPath = fcn_INTERNAL_fullPath(fileName)

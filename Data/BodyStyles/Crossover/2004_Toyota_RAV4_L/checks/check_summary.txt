@@ -1,0 +1,20 @@
+Standard checks for 2004 Toyota RAV4 L
+Written 2026-11-21 11:55 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 16752 faces, 22766 vertices
+Dimensions: 12 of 12 within tolerance
+Ground contact during the test motion: 0 of 495 samples
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_01_inputs.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_03_labels.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_04_lightStates.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_05_lights.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_06_body.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_07_steering.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_08_wheels.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_09_drive.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Crossover\2004_Toyota_RAV4_L\checks\check_10_groundContact.png

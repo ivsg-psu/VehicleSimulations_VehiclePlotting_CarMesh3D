@@ -98,6 +98,12 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Faces relabeled to a part shown in texture colors (labelParts
+%   %   % TextureColorParts) keep their texture colors, unless the edit
+%   %   % gives a color
 
 % TO-DO:
 %
@@ -448,10 +454,17 @@ else
 end
 
 % Color and transparency
+flagNoColorGiven = isempty(newColor);
 if isempty(newColor)
     newColor = defaultColor;
 end
 vehicleMesh.FaceColors(selectedFaces,:) = repmat(newColor, length(selectedFaces), 1);
+% (parts shown in texture colors, set by fcn_CarMesh3D_labelParts
+% TextureColorParts, keep them, unless the edit gave a color)
+if flagNoColorGiven && isfield(vehicleMesh,'TextureColorParts') && any(strcmpi(newPart, vehicleMesh.TextureColorParts)) ...
+        && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==size(vehicleMesh.Faces,1)
+    vehicleMesh.FaceColors(selectedFaces,:) = vehicleMesh.FaceTextureColors(selectedFaces,:);
+end
 if strcmp(newPart,'glass')
     vehicleMesh.FaceAlpha(selectedFaces) = glassAlpha;
 else

@@ -12,12 +12,16 @@ function fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber, options
 %
 % Frame 1 starts a new file (replacing any old one); later frames are
 % added to the end. Colors are reduced to 256 (a GIF limit), which suits
-% the flat colors of CarMesh3D plots.
+% the flat colors of CarMesh3D plots. By default each frame gets its own
+% 256 colors; ColorMap='fixed' (or 'firstFrame', or a map of your own)
+% keeps one map for every frame, so small colored details (thin lines,
+% tinted vehicles) do not flicker or turn gray from frame to frame.
 %
 % FORMAT:
 %
 %       fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber,...
 %           (DelayTime=seconds), (LoopCount=count), (Scale=scale),...
+%           (ColorMap=mapChoice),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -41,6 +45,17 @@ function fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber, options
 %
 %      Scale: shrink factor for the image, from 0 to 1, to make smaller
 %      files. Default is 1 (full size).
+%
+%      ColorMap: the 256 colors each frame is reduced to:
+%           'perFrame' (default): chosen for each frame from its own
+%               colors (best for each frame alone; colors may shift from
+%               frame to frame)
+%           'fixed': one standard map for every frame: a 6 x 7 x 6 cube of
+%               colors (252) and 4 grays. The same in every frame and every
+%               file.
+%           'firstFrame': the map chosen for frame 1 of this file, reused
+%               for every later frame of the file
+%           an N x 3 map (N up to 256, values 0 to 1): your own
 %
 %      FigNum: if set to -1, input checking is skipped (fast mode).
 %
@@ -67,6 +82,11 @@ function fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber, options
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_saveGifFrame
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_saveGifFrame
+%   % * ColorMap option: 'perFrame' (as before), 'fixed', 'firstFrame', or
+%   %   % a given map (asked for by AnimateCar3D)
 
 % TO-DO:
 %
@@ -88,6 +108,7 @@ arguments
     options.DelayTime = 0.05   % seconds per frame
     options.LoopCount = Inf    % repeats; Inf for forever
     options.Scale = 1          % image shrink factor, 0 to 1
+    options.ColorMap = 'perFrame' % 'perFrame', 'fixed', 'firstFrame', or an N x 3 map
     options.FigNum = []        % -1 for fast mode (no input checks)
 end
 
@@ -158,6 +179,17 @@ if 0==flag_max_speed
             error('frameNumber must be a whole number, 1 or more');
         end
 
+        % Check the ColorMap input
+        colorChoice = options.ColorMap;
+        if isnumeric(colorChoice)
+            if ~(ismatrix(colorChoice) && size(colorChoice,2)==3 && size(colorChoice,1)>=2 && size(colorChoice,1)<=256 ...
+                    && all(colorChoice(:)>=0 & colorChoice(:)<=1))
+                error('A ColorMap given as numbers must be N x 3 (N from 2 to 256), with values from 0 to 1');
+            end
+        elseif ~((ischar(colorChoice) || isstring(colorChoice)) && any(strcmpi(colorChoice, {'perFrame','fixed','firstFrame'})))
+            error('ColorMap must be ''perFrame'', ''fixed'', ''firstFrame'', or an N x 3 map');
+        end
+
         % Check the DelayTime and Scale inputs
         if ~isnumeric(options.DelayTime) || ~isscalar(options.DelayTime) || options.DelayTime<0
             error('DelayTime must be a non-negative number of seconds');
@@ -187,7 +219,27 @@ image = frame.cdata;
 if options.Scale<1
     image = imresize(image, options.Scale);
 end
-[indexedImage, colorMap] = rgb2ind(image, 256, 'nodither');
+% (the color map: per frame, fixed, the first frame's, or given)
+persistent firstFrameMaps
+if isempty(firstFrameMaps)
+    firstFrameMaps = containers.Map('KeyType','char', 'ValueType','any');
+end
+mapChoice = options.ColorMap;
+if isnumeric(mapChoice)
+    colorMap = mapChoice;
+    indexedImage = rgb2ind(image, colorMap, 'nodither');
+elseif strcmpi(mapChoice, 'fixed')
+    colorMap = fcn_INTERNAL_fixedMap;
+    indexedImage = rgb2ind(image, colorMap, 'nodither');
+elseif strcmpi(mapChoice, 'firstFrame') && frameNumber > 1 && isKey(firstFrameMaps, char(fileName))
+    colorMap = firstFrameMaps(char(fileName));
+    indexedImage = rgb2ind(image, colorMap, 'nodither');
+else
+    [indexedImage, colorMap] = rgb2ind(image, 256, 'nodither');
+    if strcmpi(mapChoice, 'firstFrame')
+        firstFrameMaps(char(fileName)) = colorMap;
+    end
+end
 
 % Write: start a new file on frame 1, otherwise add to it
 if frameNumber==1
@@ -229,4 +281,10 @@ end % Ends main function
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+%% fcn_INTERNAL_fixedMap
+function colorMap = fcn_INTERNAL_fixedMap
+% A standard 256-color map: a 6 x 7 x 6 cube of colors (252: more steps of
+% green, which the eye sees best) and 4 grays between the cube's levels
+[red, green, blue] = ndgrid(linspace(0,1,6), linspace(0,1,7), linspace(0,1,6));
+colorMap = [red(:) green(:) blue(:); [0.1 0.3 0.7 0.9]'*[1 1 1]];
+end % Ends fcn_INTERNAL_fixedMap

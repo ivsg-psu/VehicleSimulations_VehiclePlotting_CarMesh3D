@@ -48,8 +48,8 @@ titleString = sprintf('DEMO case: A 2013 Prius steering 20 degrees to the left')
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
-functionsFolder = fileparts(which('fcn_CarMesh3D_calcAckermannSteering'));
-specFile = fullfile(fileparts(functionsFolder),'Data','2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat');
+priusFiles = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+specFile = priusFiles.ParametersFile;
 vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specFile, FigNum=-1);
 wheelbase = vehicleSpec.Wheelbase;
 track = vehicleSpec.TrackFront;

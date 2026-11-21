@@ -13,7 +13,10 @@ function [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSetti
 %       end
 %
 % Vehicle-frame points are turned into world points with the pose:
-%       worldPoint = [x y 0] + R(yaw) * vehiclePoint
+%       worldPoint = [x y z] + R(yaw) * vehiclePoint
+% (z from a six-value pose, so the camera rides with the vehicle on a
+% hilly road; FollowHeight=false keeps z = 0), or, with FollowPitch, also
+% tilted with the vehicle's pitch: [x y z] + R(yaw) * R(pitch) * vehiclePoint
 % and for an orbit, the camera position is first turned about the
 % vehicle's vertical axis by OrbitRate * Time.
 %
@@ -26,6 +29,7 @@ function [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSetti
 %       [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(...
 %           cameraSettings, vehiclePose,...
 %           (Time=t), (AxesHandle=axesHandle),...
+%           (FollowHeight=flag), (FollowPitch=flag),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -36,8 +40,9 @@ function [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSetti
 %      cameraSettings: from fcn_CarMesh3D_fillCameraSettings.
 %
 %      vehiclePose: [x y yaw] or [x y z roll pitch yaw] of the vehicle
-%      (the same pose given to fcn_CarMesh3D_plotVehicle). Only x, y,
-%      and yaw are used to place the camera.
+%      (the same pose given to fcn_CarMesh3D_plotVehicle). x, y, yaw,
+%      and (from a six-value pose) z place the camera; pitch tilts it
+%      with FollowPitch.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -45,6 +50,15 @@ function [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSetti
 %      Default is 0.
 %
 %      AxesHandle: the axes to point. Default is the current axes.
+%
+%      FollowHeight: true (default) to raise the camera with the pose's z
+%      (a six-value pose), so it stays above the vehicle on hills; false
+%      for the old behavior (z = 0).
+%
+%      FollowPitch: true to tilt the camera with the pose's pitch (a
+%      six-value pose; positive pitch is nose down), so the road ahead
+%      stays level in the picture on a grade. Default false (the camera
+%      stays level).
 %
 %      FigNum: if set to -1, input checking is skipped (fast mode, for
 %      animation loops). Otherwise not used; the camera is always set.
@@ -71,6 +85,12 @@ function [cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(cameraSetti
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_updateCamera
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_updateCamera
+%   % * Follows the vehicle's height (FollowHeight, default true) and,
+%   %   % optionally, its pitch (FollowPitch), for hilly roads (asked for
+%   %   % by AnimateCar3D)
 
 % TO-DO:
 %
@@ -90,6 +110,8 @@ arguments
     vehiclePose
     options.Time = 0          % seconds, for orbiting cameras
     options.AxesHandle = []   % axes to point; [] for the current axes
+    options.FollowHeight = true % raise the camera with the pose's z
+    options.FollowPitch = false % tilt the camera with the pose's pitch
     options.FigNum = []       % -1 for fast mode (no input checks)
 end
 
@@ -177,14 +199,25 @@ end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Vehicle position and heading
+% Vehicle position, height, heading, and pitch
 vehiclePose = vehiclePose(:)';
+vehicleZ = 0;
+vehiclePitch = 0;
 if numel(vehiclePose)==6
+    if options.FollowHeight
+        vehicleZ = vehiclePose(3);
+    end
+    if options.FollowPitch
+        vehiclePitch = vehiclePose(5);
+    end
     vehiclePose = vehiclePose([1 2 6]);
 end
 yaw = vehiclePose(3);
 rotationYaw = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1];
-origin = [vehiclePose(1:2) 0];
+% (pitch: about the vehicle's Y axis, positive nose down)
+rotationPitch = [cos(vehiclePitch) 0 sin(vehiclePitch); 0 1 0; -sin(vehiclePitch) 0 cos(vehiclePitch)];
+rotationYaw = rotationYaw*rotationPitch;
+origin = [vehiclePose(1:2) vehicleZ];
 
 % Camera position, in world coordinates
 cameraPosition = cameraSettings.Position(:);
@@ -209,6 +242,12 @@ else
     cameraTarget = cameraTarget';
 end
 
+% The up direction: tilted with the vehicle's pitch, if following it
+cameraUpVector = cameraSettings.UpVector;
+if vehiclePitch~=0
+    cameraUpVector = (rotationYaw*cameraUpVector(:))';
+end
+
 % Point the axes camera
 axesHandle = options.AxesHandle;
 if isempty(axesHandle)
@@ -218,7 +257,7 @@ set(axesHandle, ...
     'Projection','perspective', ...
     'CameraPosition',cameraPosition, ...
     'CameraTarget',cameraTarget, ...
-    'CameraUpVector',cameraSettings.UpVector, ...
+    'CameraUpVector',cameraUpVector, ...
     'CameraViewAngle',cameraSettings.FieldOfView);
 
 %% Any debugging?

@@ -102,7 +102,7 @@ function overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, op
 %       overlayHandles = fcn_CarMesh3D_plotSideImage('myPriusSide.jpg', vehicleMesh, ...
 %           WheelCentersPixels=[1210 655; 395 652], FigNum=1);
 %
-%       See the script: script_test_fcn_CarMesh3D_plotSideImage.m for a full test
+%       See the script: script_CarMesh3D_plotSideImage.m for a full test
 %       suite.
 %
 % This function was written on 2026_11_19 by S. Brennan (drafted with
@@ -114,6 +114,11 @@ function overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, op
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_plotSideImage
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotSideImage
+%   % * The rear wheel center uses the rear tires' radius
+%   %   % (VehicleSpec.TireDiameterRear), for different front and rear tires
 
 % TO-DO:
 %
@@ -288,7 +293,11 @@ end
 % vehicle points [x z]. A scale and a rotation (a similarity transform):
 %       [x z] = scale * R(angle) * ([col -row] - rearPoint) + rearTarget
 tireRadius = vehicleMesh.VehicleSpec.TireDiameter/2;
-rearTarget = [vehicleMesh.AxleX(1) tireRadius];
+tireRadiusRear = tireRadius;                                      % (different front and rear tires?)
+if isfield(vehicleMesh.VehicleSpec,'TireDiameterRear') && ~isempty(vehicleMesh.VehicleSpec.TireDiameterRear)
+    tireRadiusRear = vehicleMesh.VehicleSpec.TireDiameterRear/2;
+end
+rearTarget = [vehicleMesh.AxleX(1) tireRadiusRear];
 frontTarget = [vehicleMesh.AxleX(2) tireRadius];
 rearPoint = [workingPixels(1,1) -workingPixels(1,2)];
 frontPoint = [workingPixels(2,1) -workingPixels(2,2)];

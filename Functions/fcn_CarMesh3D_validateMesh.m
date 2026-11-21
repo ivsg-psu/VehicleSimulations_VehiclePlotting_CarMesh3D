@@ -14,7 +14,18 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 %                        OverallWidth is not measured)
 %       Wheelbase        (front wheel centers minus rear wheel centers)
 %       TrackFront, TrackRear (left minus right wheel centers)
-%       TireDiameter     (mean height of the four wheels)
+%       TireDiameter     (mean height of the four wheels; for different
+%                        front and rear tires (a spec with its own
+%                        TireDiameterRear), the front wheels' only, and
+%                        a TireDiameterRear row for the rear wheels)
+%       TireRoundMin, TireRoundMax (the smallest and largest outer
+%                        diameter of the tires seen from the side: twice
+%                        the outer radius from each wheel's center, in 36
+%                        directions 10 degrees apart, over all four
+%                        wheels. Both are compared with the tire diameter,
+%                        so a tire reduced to a polygon, or squashed,
+%                        fails. For different front and rear tires, the
+%                        front wheels' only)
 %       FrontOverhang    (front of mesh minus front wheel centers)
 %       GroundClearance  (lowest point of the body faces)
 % Wheel measurements need wheel faces numbered by fcn_CarMesh3D_labelParts.
@@ -79,6 +90,17 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 % - In fcn_CarMesh3D_validateMesh
 %   % * Width follows the fit's WidthReference ('body' leaves out mirrors,
 %   %   % 'mirrors' compares the full width to WidthWithMirrors)
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_validateMesh
+%   % * Different front and rear tires: TireDiameter is the front wheels'
+%   %   % and a TireDiameterRear row is added for the rear wheels
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_validateMesh
+%   % * TireRoundMin and TireRoundMax rows: the smallest and largest outer
+%   %   % tire diameter seen from the side, compared with the tire size,
+%   %   % so a tire reduced to a polygon fails
 
 % TO-DO:
 %
@@ -200,6 +222,8 @@ maxValues = max(usedVertices,[],1);
 % Wheel centers and diameters
 wheelCenters = nan(4,3);
 wheelDiameters = nan(4,1);
+wheelRoundMin = nan(4,1);
+wheelRoundMax = nan(4,1);
 if isfield(vehicleMesh,'FaceWheelIndex') && ~isempty(vehicleMesh.FaceWheelIndex)
     for ith_wheel = 1:4
         theseFaces = vehicleMesh.FaceWheelIndex==ith_wheel;
@@ -209,6 +233,8 @@ if isfield(vehicleMesh,'FaceWheelIndex') && ~isempty(vehicleMesh.FaceWheelIndex)
             wheelMax = max(wheelVertices,[],1);
             wheelCenters(ith_wheel,:) = (wheelMin + wheelMax)/2;
             wheelDiameters(ith_wheel) = wheelMax(3) - wheelMin(3);
+            [wheelRoundMin(ith_wheel), wheelRoundMax(ith_wheel)] = ...
+                fcn_INTERNAL_roundness(vertices, faces(theseFaces,:), wheelCenters(ith_wheel,:));
         end
     end
 end
@@ -242,9 +268,22 @@ switch widthReference
         measuredWidth = NaN; % The body width without mirrors is not known
 end
 
+% Different front and rear tires?
+flagStaggered = isfield(vehicleSpec,'TireDiameterRear') && ~isempty(vehicleSpec.TireDiameterRear) && ...
+    isfield(vehicleSpec,'TireDiameter') && ~isempty(vehicleSpec.TireDiameter) && ...
+    abs(vehicleSpec.TireDiameterRear - vehicleSpec.TireDiameter) > 1e-9;
+
 % Measurements, in the same order as the quantity names
 quantityNames = {'OverallLength';'OverallWidth';'WidthWithMirrors';'OverallHeight';'Wheelbase';...
-    'TrackFront';'TrackRear';'TireDiameter';'FrontOverhang';'GroundClearance'};
+    'TrackFront';'TrackRear';'TireDiameter';'TireRoundMin';'TireRoundMax';'FrontOverhang';'GroundClearance'};
+roundWheels = 1:4;
+if flagStaggered
+    roundWheels = 1:2;                                                    % (the front wheels)
+end
+measuredTireDiameter = mean(wheelDiameters,'omitnan');
+if flagStaggered
+    measuredTireDiameter = mean(wheelDiameters(1:2),'omitnan');          % (the front wheels)
+end
 measuredValues = [...
     maxValues(1) - minValues(1);
     measuredWidth;
@@ -253,15 +292,27 @@ measuredValues = [...
     xFrontAxle - xRearAxle;
     wheelCenters(1,2) - wheelCenters(2,2);
     wheelCenters(3,2) - wheelCenters(4,2);
-    mean(wheelDiameters,'omitnan');
+    measuredTireDiameter;
+    min(wheelRoundMin(roundWheels));
+    max(wheelRoundMax(roundWheels));
     maxValues(1) - xFrontAxle;
     groundClearance];
+if flagStaggered
+    % (a row for the rear wheels, after the front's)
+    quantityNames = [quantityNames(1:8); {'TireDiameterRear'}; quantityNames(9:end)];
+    measuredValues = [measuredValues(1:8); mean(wheelDiameters(3:4),'omitnan'); measuredValues(9:end)];
+end
 
-% Targets from the spec (NaN where not given)
+% Targets from the spec (NaN where not given); the roundness rows are
+% compared with the tire diameter
 targetValues = nan(length(quantityNames),1);
 for ith_quantity = 1:length(quantityNames)
-    if isfield(vehicleSpec, quantityNames{ith_quantity}) && ~isempty(vehicleSpec.(quantityNames{ith_quantity}))
-        targetValues(ith_quantity) = vehicleSpec.(quantityNames{ith_quantity});
+    specName = quantityNames{ith_quantity};
+    if any(strcmp(specName, {'TireRoundMin','TireRoundMax'}))
+        specName = 'TireDiameter';
+    end
+    if isfield(vehicleSpec, specName) && ~isempty(vehicleSpec.(specName))
+        targetValues(ith_quantity) = vehicleSpec.(specName);
     end
 end
 
@@ -374,3 +425,24 @@ else
     value = targetValue;
 end
 end % Ends fcn_INTERNAL_targetOrMeasured
+
+%% fcn_INTERNAL_roundness
+function [roundMin, roundMax] = fcn_INTERNAL_roundness(vertices, wheelFaces, wheelCenter)
+% The smallest and largest outer diameter of a wheel seen from the side
+% (the X-Z plane): twice the largest distance from the center, in each of
+% 36 directions 10 degrees apart. The faces' edges are sampled (5 points
+% per edge), so a long flat face between two far-apart corners shows up
+% as a dip in the radius.
+edgeStarts = vertices(wheelFaces(:),[1 3]);
+edgeEnds = vertices(wheelFaces(:,[2 3 1]),[1 3]);
+samples = [];
+for fraction = 0:0.2:0.8
+    samples = [samples; edgeStarts + fraction*(edgeEnds - edgeStarts)]; %#ok<AGROW>
+end
+relative = samples - wheelCenter([1 3]);
+radius = sqrt(sum(relative.^2, 2));
+angleBin = floor(mod(atan2(relative(:,2), relative(:,1)), 2*pi)/(pi/18)) + 1;
+binRadius = accumarray(min(angleBin,36), radius, [36 1], @max, NaN);
+roundMin = 2*min(binRadius);
+roundMax = 2*max(binRadius);
+end % Ends fcn_INTERNAL_roundness

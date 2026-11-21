@@ -13,6 +13,12 @@
 % - In script_test_fcn_CarMesh3D_findVehicleFiles
 %   % * Renamed from script_CarMesh3D_findVehicleFiles: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_findVehicleFiles
+%   % * Tests for vehicles filed by body style (Data\BodyStyles\<Style>\<ID>)
+%   %   % and samples (Data\Samples\<ID>), model files left in the
+%   %   % vehicle's folder, a new vehicle's BodyStyle, and a repeated ID
 
 % TO-DO:
 %
@@ -64,6 +70,11 @@ assert(strcmp(priusFiles.Name,'2013 Toyota Prius Four') && priusFiles.Year==2013
 assert(endsWith(priusFiles.ParametersFile, fullfile('2013_Toyota_Prius_Four','vehicleParameters_2013_Toyota_Prius_Four.mat')));
 assert(priusFiles.HasParameters);
 assert(any(strcmp({allVehicles.ID},'2014_Ford_TransitConnect_XLTCargoLWB')));
+assert(strcmp(priusFiles.BodyStyle,'liftback') && strcmp(priusFiles.BodyStyleFolder,'Liftback'));
+assert(endsWith(priusFiles.Folder, fullfile('BodyStyles','Liftback','2013_Toyota_Prius_Four')));
+assert(priusFiles.Found && ~priusFiles.IsSample && ~isempty(priusFiles.ModelFiles));
+sampleFiles = allVehicles(strcmp({allVehicles.ID},'2026_CarMesh3D_Sample_GenericSedan'));
+assert(isscalar(sampleFiles) && sampleFiles.IsSample && isempty(sampleFiles.BodyStyle));
 
 % Make sure plot did NOT open up (the list is printed, not plotted)
 figHandles = get(groot, 'Children');
@@ -101,6 +112,46 @@ assert(endsWith(newFiles.ScriptFile, 'script_CarMesh3D_vehicle_2019_Toyota_RAV4_
 assert(endsWith(newFiles.MeshFile, 'vehicleMesh_2019_Toyota_RAV4_XLE.mat'));
 assert(~newFiles.HasParameters && ~newFiles.HasMesh);
 assert(endsWith(newFiles.LevelsFile, 'vehicleLevels_2019_Toyota_RAV4_XLE.mat') && ~newFiles.HasLevels);
+assert(~newFiles.Found && isempty(newFiles.BodyStyle));
+
+% (with its body style, its paths are under Data\BodyStyles)
+newFiles = fcn_CarMesh3D_findVehicleFiles('2019_Toyota_RAV4_XLE', BodyStyle='crossover');
+assert(endsWith(newFiles.Folder, fullfile('BodyStyles','Crossover','2019_Toyota_RAV4_XLE')));
+assert(strcmp(newFiles.BodyStyle,'crossover') && ~newFiles.Found);
+
+%% TEST case: A test Data folder: a download left in the vehicle's folder, and a repeated ID
+figNum = 20002;
+titleString = sprintf('TEST case: A test Data folder: a download left in the vehicle''s folder, and a repeated ID');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+testData = fullfile(tempdir, 'CarMesh3D_findTest');
+if isfolder(testData)
+    rmdir(testData, 's');
+end
+mkdir(fullfile(testData, 'BodyStyles', 'Sedan', '2020_Test_Sedan_Base'));
+fileID = fopen(fullfile(testData, 'BodyStyles', 'Sedan', '2020_Test_Sedan_Base', 'test_sedan.glb'), 'w');
+fclose(fileID);
+testFiles = fcn_CarMesh3D_findVehicleFiles('2020_Test_Sedan_Base', DataFolder=testData);
+assert(strcmp(testFiles.ModelFolder, testFiles.Folder) && isscalar(testFiles.ModelFiles));
+assert(endsWith(testFiles.ModelFiles{1}, 'test_sedan.glb') && strcmp(testFiles.BodyStyle, 'sedan'));
+
+% (the same ID filed twice)
+mkdir(fullfile(testData, 'BodyStyles', 'Coupe', '2020_Test_Sedan_Base'));
+flagFailed = false;
+try
+    fcn_CarMesh3D_findVehicleFiles('2020_Test_Sedan_Base', DataFolder=testData);
+catch
+    flagFailed = true;
+end
+assert(flagFailed);
+warningState = warning('off', 'CarMesh3D:repeatedID');
+lastwarn('');
+fcn_CarMesh3D_findVehicleFiles('', DataFolder=testData);
+[~, warningID] = lastwarn;
+warning(warningState);
+assert(strcmp(warningID, 'CarMesh3D:repeatedID'));
+rmdir(testData, 's');
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

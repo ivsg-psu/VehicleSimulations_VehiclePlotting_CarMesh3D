@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_fillVehicleSpec
 %   % * Renamed from script_CarMesh3D_fillVehicleSpec: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
+%
+% 2026_11_20 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fillVehicleSpec
+%   % * Tests different front and rear tires, and the engine type
 
 % TO-DO:
 %
@@ -195,6 +199,35 @@ assert(vehicleSpec.OverallHeight > 1.6);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: Different front and rear tires; the engine type
+figNum = 20006;
+titleString = sprintf('TEST case: Different front and rear tires; the engine type');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (a staggered fitment: wider, larger rear tires, as on many sports cars)
+staggered = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', TireSize='245/35R19', TireSizeRear='305/30R20', ...
+    EngineType='hybrid', HybridEngineType='sparkIgnition', FigNum=figNum);
+assert(strcmp(staggered.TireSize, '245/35R19') && strcmp(staggered.TireSizeRear, '305/30R20'));
+assert(abs(staggered.TireDiameter - (2*245*0.35/1000 + 19*0.0254)) < 1e-9);
+assert(abs(staggered.TireDiameterRear - (2*305*0.30/1000 + 20*0.0254)) < 1e-9);
+assert(strcmp(staggered.EngineType, 'hybrid') && strcmp(staggered.HybridEngineType, 'sparkIgnition'));
+% (one size: the rear is the front's, even over a preset's)
+same = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', TireSize='205/55R16', EngineType='Diesel');
+assert(strcmp(same.TireSizeRear, '205/55R16') && same.TireDiameterRear==same.TireDiameter);
+assert(strcmp(same.EngineType, 'diesel'));                                        % (standard spelling)
+% (a rear diameter given directly)
+direct = fcn_CarMesh3D_fillVehicleSpec(TireDiameter=0.65, TireDiameterRear=0.70);
+assert(direct.TireDiameterRear==0.70 && isempty(direct.TireSizeRear));
+% (a hybrid's engine only for a hybrid)
+flagFailed = false;
+try
+    fcn_CarMesh3D_fillVehicleSpec(EngineType='diesel', HybridEngineType='wankel');
+catch
+    flagFailed = true;
+end
+assert(flagFailed);
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
