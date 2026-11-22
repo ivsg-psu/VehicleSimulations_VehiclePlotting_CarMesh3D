@@ -1,0 +1,20 @@
+Standard checks for 1994 Mazda MX5 MiataBase
+Written 2026-11-21 21:02 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 26075 faces, 15986 vertices
+Dimensions: 12 of 12 within tolerance
+Ground contact during the test motion: 5 of 489 samples
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_01_inputs.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_03_labels.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_04_lightStates.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_05_lights.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_06_body.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_07_steering.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_08_wheels.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_09_drive.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Convertible\1994_Mazda_MX5_MiataBase\checks\check_10_groundContact.png

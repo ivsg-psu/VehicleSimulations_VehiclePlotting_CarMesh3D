@@ -1,0 +1,6 @@
+License: Free Standard
+License meaning: Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
+Credits: 
+Source website: https://sketchfab.com/3d-models/2008-toyota-corolla-a6783f7b49164729889df0713febd742
+Author: ActsOfDoge
+Year and trim: inferred (not given by the author). The model is titled "2008 Toyota Corolla" but has the tenth-generation (E140) body, which the US market received as the 2009 model year; its trim is taken as LE with the optional 16 in alloy wheels (chrome grille bars, no fog lamps, no rocker moldings or spoilers, which the S and XRS have). See vehicleParameters_sources.md.

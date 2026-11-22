@@ -1,0 +1,8 @@
+Standard checks for 2002 Toyota Camry XV30LE
+Written 2026-11-21 20:32 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 12041 faces, 20114 vertices
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2002_Toyota_Camry_XV30LE\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2002_Toyota_Camry_XV30LE\checks\check_03_labels.png

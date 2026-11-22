@@ -1,0 +1,20 @@
+Standard checks for 2009 Honda Fit Sport
+Written 2026-11-21 20:26 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 23672 faces, 33310 vertices
+Dimensions: 12 of 12 within tolerance
+Ground contact during the test motion: 0 of 495 samples
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_01_inputs.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_03_labels.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_04_lightStates.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_05_lights.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_06_body.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_07_steering.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_08_wheels.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_09_drive.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Hatchback\2009_Honda_Fit_Sport\checks\check_10_groundContact.png

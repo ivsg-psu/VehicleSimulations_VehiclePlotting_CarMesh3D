@@ -1,0 +1,6 @@
+License: Free Standard
+License meaning: Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
+Credits: 
+Source website: https://sketchfab.com/3d-models/2009-honda-fit-808696911a134c2683f012447e7ea8e3
+Author: ActsOfDoge
+Trim: Sport, inferred (not given by the author): the model has the 2009 US Fit Sport's fog lights, front chin spoiler and side sills, rear roofline spoiler, and 16 in alloy wheels (Honda 2009 Fit specifications); see vehicleParameters_sources.md.

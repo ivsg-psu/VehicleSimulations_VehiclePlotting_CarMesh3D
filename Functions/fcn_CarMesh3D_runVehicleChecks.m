@@ -115,6 +115,10 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 % - In fcn_CarMesh3D_runVehicleChecks
 %   % * The labels picture takes its colors from fcn_CarMesh3D_plotLabels
 %   %   % (one place for the label colors)
+%   % * Pictures of a vehicle on a plain background (the labels and the
+%   %   % light states) are captured again, after waiting longer, when the
+%   %   % vehicle has not been drawn yet: in a MATLAB started with -batch,
+%   %   % most labels pictures of the 2026_11_21 remake were blank
 
 % TO-DO:
 %
@@ -609,7 +613,7 @@ for ith_view = 1:4
     fcn_CarMesh3D_updateCamera(thisCamera, [0 0 0], AxesHandle=axesHandle, FigNum=-1);
     title(axesHandle,'');
     fcn_INTERNAL_caption(figureHandle, viewTitles{ith_view});
-    pictures{ith_view} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize);
+    pictures{ith_view} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize, true);
 end
 legendText = 'Labels:  body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | headlight yellow | turn signal orange | running cyan | tail red | backup green';
 fileName = fcn_INTERNAL_montage(pictures, 2, 2, sprintf('%s: part and light labels', settings.VehicleName), legendText, settings, fileName);
@@ -638,7 +642,7 @@ for ith_step = 1:length(stepNames)
     fcn_CarMesh3D_updateCamera(fcn_INTERNAL_cameraSettings(cameras, viewName), testMotion.Pose(row,:), ...
         AxesHandle=axesList(1), FigNum=-1);
     set(captionHandle,'String',strrep(stepNames{ith_step},'Lights: ',''));
-    pictures{ith_step} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize);
+    pictures{ith_step} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize, true);
 end
 fileName = fcn_INTERNAL_montage(pictures, 3, 3, sprintf('%s: each light alone, at night', settings.VehicleName), ...
     'Check that each picture shows only the light named in it. Signals blink, so one frame is shown with them on.', settings, fileName);
@@ -690,26 +694,54 @@ drawnow;
 end % Ends fcn_INTERNAL_freshFigure
 
 %% fcn_INTERNAL_capture
-function picture = fcn_INTERNAL_capture(figureHandle, figureSize)
+function picture = fcn_INTERNAL_capture(figureHandle, figureSize, flagExpectVehicle)
 % Captures the figure at the given size. The size is set again first, and
-% the capture is repeated once if the window had not finished resizing.
-for ith_try = 1:3
-    set(figureHandle,'Units','pixels');
-    position = get(figureHandle,'Position');
-    if ~isequal(position(3:4), figureSize(:)')
-        set(figureHandle,'Position',[position(1:2) figureSize(:)']);
+% the capture is repeated if the window had not finished resizing.
+% flagExpectVehicle (default false): the picture shows a vehicle on a
+% plain background; if the capture is still blank below the caption (the
+% vehicle not drawn yet, as happens in a MATLAB started with -batch), it
+% waits longer and captures again (up to about 6 s in all).
+if nargin<3
+    flagExpectVehicle = false;
+end
+waitTimes = 0.05;
+if flagExpectVehicle
+    waitTimes = [0.05 0.2 0.5 1 2 2.5];
+end
+for ith_wait = 1:numel(waitTimes)
+    for ith_try = 1:3
+        set(figureHandle,'Units','pixels');
+        position = get(figureHandle,'Position');
+        if ~isequal(position(3:4), figureSize(:)')
+            set(figureHandle,'Position',[position(1:2) figureSize(:)']);
+        end
+        drawnow;
+        pause(waitTimes(ith_wait));
+        frame = getframe(figureHandle);
+        picture = frame.cdata;
+        % (On high-resolution screens the capture is larger by a fixed factor)
+        scale = size(picture,2)/figureSize(1);
+        if abs(size(picture,1) - scale*figureSize(2)) <= 2
+            break;
+        end
     end
-    drawnow;
-    pause(0.05);
-    frame = getframe(figureHandle);
-    picture = frame.cdata;
-    % (On high-resolution screens the capture is larger by a fixed factor)
-    scale = size(picture,2)/figureSize(1);
-    if abs(size(picture,1) - scale*figureSize(2)) <= 2
+    if ~flagExpectVehicle || fcn_INTERNAL_hasContent(picture)
         break;
     end
 end
 end % Ends fcn_INTERNAL_capture
+
+%% fcn_INTERNAL_hasContent
+function flagContent = fcn_INTERNAL_hasContent(picture)
+% True if the picture, below a caption band at the top (the upper 15%),
+% has more than 0.5% of its pixels different from its bottom-left corner
+% (the background)
+startRow = max(1, round(0.15*size(picture,1)));
+lowerPart = double(picture(startRow:end,:,:));
+background = double(picture(end,1,:));
+differs = any(abs(lowerPart - background) > 8, 3);
+flagContent = mean(differs(:)) > 0.005;
+end % Ends fcn_INTERNAL_hasContent
 
 %% imresize_nearest
 function resized = imresize_nearest(picture, newSize)
