@@ -1,8 +1,8 @@
 Standard checks for 2025 Toyota Camry XV80
-Written 2026-11-21 11:22 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-21 18:33 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 26117 faces, 24016 vertices
-Dimensions: 11 of 12 within tolerance
+Mesh: 26113 faces, 24016 vertices
+Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 505 samples
 
 Files:

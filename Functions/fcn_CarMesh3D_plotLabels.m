@@ -12,10 +12,14 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %   headlight yellow, turn signal orange, running cyan, tail red, backup
 %   green.
 %
+% With ColorBy='material', each face is colored by its MATERIAL instead
+% (one distinct color per material name, with a legend of the names): the
+% view for writing part rules, which match material and group names.
+%
 % FORMAT:
 %
 %       labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh,...
-%           (Title=text), (FigNum=figNum))
+%           (Title=text), (ColorBy=mode), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -26,6 +30,10 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %
 %      Title: the figure's title (for example, the vehicle's name).
 %      Default: the mesh's Name, if it has one.
+%
+%      ColorBy: 'labels' (default) for the part and light-type colors
+%      above, or 'material' for one color per material name (needs
+%      MaterialNames and FaceMaterialIndex), with a legend.
 %
 %      FigNum: a figure to plot into. The figure is cleared, made visible,
 %      and left open: drag to rotate the view, scroll to zoom. If empty or omitted, no
@@ -62,6 +70,8 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %   % * First write: the label colors (moved here from
 %   %   % fcn_CarMesh3D_runVehicleChecks) and an open, rotatable figure
 %   %   % for reviewing labels (PNG pictures are hard to zoom into)
+%   % * ColorBy='material': one color per material, with a legend, for
+%   %   % writing part rules (Sean, Q6)
 
 % TO-DO:
 %
@@ -80,6 +90,7 @@ arguments
 
     vehicleMesh
     options.Title = ''      % The figure's title; '' for the mesh's Name
+    options.ColorBy = 'labels'   % 'labels' (parts and light types) or 'material'
     options.FigNum = []     % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -137,6 +148,12 @@ if 0==flag_max_speed
         if ~(ischar(options.Title) || isstring(options.Title))
             error('Title must be text');
         end
+        if ~any(strcmpi(char(options.ColorBy), {'labels','material'}))
+            error('ColorBy must be ''labels'' or ''material''');
+        end
+        if strcmpi(char(options.ColorBy),'material') && ~all(isfield(vehicleMesh, {'MaterialNames','FaceMaterialIndex'}))
+            error('ColorBy=''material'' needs a mesh with MaterialNames and FaceMaterialIndex');
+        end
     end
 end
 
@@ -187,6 +204,20 @@ if isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames')
         end
     end
 end
+flagByMaterial = strcmpi(char(options.ColorBy),'material');
+usedMaterials = [];
+materialPalette = [];
+if flagByMaterial
+    % (one distinct color per material used, in the order of the names)
+    materialIndex = vehicleMesh.FaceMaterialIndex(:);
+    usedMaterials = unique(materialIndex(materialIndex>0))';
+    materialPalette = fcn_INTERNAL_distinctColors(numel(usedMaterials));
+    faceColors = repmat([0.5 0.5 0.5], Nfaces, 1);
+    for ith_used = 1:numel(usedMaterials)
+        flagMaterial = materialIndex==usedMaterials(ith_used);
+        faceColors(flagMaterial,:) = repmat(materialPalette(ith_used,:), sum(flagMaterial), 1);
+    end
+end
 labelMesh.FaceColors = faceColors;
 labelMesh.FaceAlpha = ones(Nfaces,1);
 glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
@@ -221,10 +252,27 @@ if flag_do_plots
     axis(axesHandle,'vis3d');
     axis(axesHandle,'off');
     view(axesHandle, -55, 20);
-    title(axesHandle, sprintf('%s: part and light labels', titleText), 'Interpreter','none');
-    annotation(figureHandle, 'textbox', [0 0.01 1 0.06], 'EdgeColor','none', 'HorizontalAlignment','center', ...
-        'FontSize',9, 'String',['body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | ' ...
-        'headlight yellow | turn signal orange | running cyan | tail red | backup green   (drag to rotate; scroll to zoom)']);
+    if flagByMaterial
+        title(axesHandle, sprintf('%s: materials', titleText), 'Interpreter','none');
+        % (the legend: one swatch per material, with its face count)
+        hold(axesHandle, 'on');
+        swatches = gobjects(numel(usedMaterials),1);
+        swatchNames = cell(numel(usedMaterials),1);
+        for ith_used = 1:numel(usedMaterials)
+            swatches(ith_used) = plot3(axesHandle, NaN, NaN, NaN, 's', 'MarkerSize',10, ...
+                'MarkerFaceColor',materialPalette(ith_used,:), 'MarkerEdgeColor',[0.3 0.3 0.3]);
+            swatchNames{ith_used} = sprintf('%s (%d)', vehicleMesh.MaterialNames{usedMaterials(ith_used)}, ...
+                sum(vehicleMesh.FaceMaterialIndex==usedMaterials(ith_used)));
+        end
+        legend(axesHandle, swatches, swatchNames, 'Interpreter','none', 'Location','eastoutside', 'FontSize',8);
+        annotation(figureHandle, 'textbox', [0 0.01 1 0.06], 'EdgeColor','none', 'HorizontalAlignment','center', ...
+            'FontSize',9, 'String','one color per material (face counts in the legend)   (drag to rotate; scroll to zoom)');
+    else
+        title(axesHandle, sprintf('%s: part and light labels', titleText), 'Interpreter','none');
+        annotation(figureHandle, 'textbox', [0 0.01 1 0.06], 'EdgeColor','none', 'HorizontalAlignment','center', ...
+            'FontSize',9, 'String',['body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | ' ...
+            'headlight yellow | turn signal orange | running cyan | tail red | backup green   (drag to rotate; scroll to zoom)']);
+    end
     enableDefaultInteractivity(axesHandle);   % (drag rotates a 3D view; scroll zooms)
 end
 
@@ -233,3 +281,13 @@ if flag_do_debug
 end
 
 end % Ends main function
+
+
+%% fcn_INTERNAL_distinctColors
+function colors = fcn_INTERNAL_distinctColors(numColors)
+% numColors colors that are easy to tell apart: hues spread around the
+% color wheel, alternating in brightness
+hues = mod((0:numColors-1)'*0.618034, 1);
+brightness = 0.95 - 0.30*mod((0:numColors-1)', 2);
+colors = hsv2rgb([hues, 0.75*ones(numColors,1), brightness]);
+end % Ends fcn_INTERNAL_distinctColors

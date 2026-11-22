@@ -285,7 +285,8 @@ stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodySty
     'fcn_CarMesh3D_fillSampleMesh.m', 'fcn_CarMesh3D_readGLB.m', 'fcn_CarMesh3D_convertToOBJ.m', 'fcn_CarMesh3D_importMesh.m', ...
     'fcn_CarMesh3D_transferTextureColors.m', 'fcn_CarMesh3D_normalizeMesh.m', 'fcn_CarMesh3D_labelParts.m', ...
     'fcn_CarMesh3D_editLabels.m', 'fcn_CarMesh3D_fitMeshToSpec.m', 'fcn_CarMesh3D_simplifyMesh.m', ...
-    'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m'};
+    'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
+    'fcn_CarMesh3D_restoreGroundClearance.m'};
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
     'FirstLook',logical(flag_firstLook), 'Compare',logical(flag_compareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
@@ -432,6 +433,13 @@ else
         end
         vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, Symmetric=symmetricMesh, ...
             PartShares=simplifyShares, VisibilityCheck=~flag_firstLook);
+        % (the ground clearance put back where the fit put it: a reduction can
+        % raise the thin bottom edge of the rocker panels, as Blender's did
+        % on the 2025 Camry by 5 mm; the wheels are not moved, and a mesh
+        % that was not changed is left as it is)
+        if isfield(vehicleSpec,'GroundClearance') && ~isempty(vehicleSpec.GroundClearance)
+            vehicleMesh = fcn_CarMesh3D_restoreGroundClearance(vehicleMesh, vehicleSpec.GroundClearance, FigNum=1);
+        end
         % (inside-out panels, found from face-number pictures from 14 directions:
         % a few seconds, so first looks show the panels the right way out)
         [vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(vehicleMesh, FigNum=-1);
@@ -478,7 +486,8 @@ if flag_firstLook
         end
         compareFigure = compareFigure(1);
         compareReport = fcn_CarMesh3D_compareToOriginal(vehicleMesh, originalMesh, Title=labelsTitle, ...
-            OutputFile=fullfile(vehicleFiles.ChecksFolder,'check_04_compare'), FigNum=compareFigure.Number);
+            OutputFile=fullfile(vehicleFiles.ChecksFolder,'check_04_compare'), ...
+            OriginalCache=fullfile(cacheFolder,'stage2_originalRenders.mat'), FigNum=compareFigure.Number);
         fprintf(1,'Compared with the download: holes %.2f%%, label changes %.2f%%, flipped faces %.2f%%, see-through gaps %.2f%% of the car''s pixels\n', ...
             compareReport.Totals.HolePercent, compareReport.Totals.LabelChangePercent, compareReport.Totals.FlippedPercent, compareReport.Totals.SeeThroughPercent);
     end
@@ -505,7 +514,8 @@ if flag_compareToOriginal && ~isempty(originalMesh)
     else
         compareFigure = figure('Visible','off');
         compareReport = fcn_CarMesh3D_compareToOriginal(vehicleMesh, originalMesh, Title=vehicleFiles.Name, ...
-            OutputFile=fullfile(vehicleFiles.ChecksFolder,'check_04_compare'), FigNum=compareFigure.Number);
+            OutputFile=fullfile(vehicleFiles.ChecksFolder,'check_04_compare'), ...
+            OriginalCache=fullfile(cacheFolder,'stage2_originalRenders.mat'), FigNum=compareFigure.Number);
         close(compareFigure);
         compareTotals = compareReport.Totals;
         fcn_CarMesh3D_saveCache(stage2File, stage2Inputs, struct('compareTotals',compareTotals), FigNum=-1);

@@ -14,7 +14,7 @@ The workflow is meant to be simple enough for undergraduate students to make a n
 
 CarMesh3D works with one vehicle at a time. Scenes with many vehicles (decision branches, surrounding traffic, live data) are handled by the companion repository **AnimateCar3D**, which builds on CarMesh3D.
 
-> **Status:** prototype (2026_11_19). All test scripts pass in MATLAB R2025b, and FBX/GLB conversion was tested with Blender 5.3 on downloaded models.
+> **Status:** prototype (2026_11_21). All 47 test scripts pass in MATLAB R2025b, and FBX/GLB conversion was tested with Blender 5.3 on downloaded models.
 
 | Wheels roll, steer, peel out, and lock up | Lights at night: beams, signals, brake, backup | Cameras: chase, driver, orbit, ... |
 |---|---|---|
@@ -88,13 +88,53 @@ Read these before writing a file for CarMesh3D:
 - **Files without a header row** are read with `ColumnNames=` (a list of names in the file's order) and, if there is no time column, `SampleTime=`.
 - **Vehicle dimensions** for steering and wheel spin (wheelbase, front track, tire diameter) come from `VehicleSpec=`.
 
+## How to use this repository: three flows
+
+CarMesh3D is used in three ways. Each block below is an action, done by the functions listed in the table under the chart.
+
+```mermaid
+flowchart TB
+  subgraph F1["1. Make meshes and assess their quality"]
+    A1["Gather the inputs"] --> A2["Label and fit"] --> A3["Reduce and repair"] --> A4["Assess quality"] --> A5["Stamp and save"]
+  end
+  subgraph F2["2. Browse, compare, and adjust meshes"]
+    B1["List the vehicles"] --> B2["View in 3D and 2D"] --> B3["Compare"] --> B4["Small changes"] --> B5["Refit from a body style"]
+  end
+  subgraph F3["3. Use by other repositories (AnimateCar3D)"]
+    C1["Find and check"] --> C2["Load the mesh"] --> C3["Pose and move"] --> C4["Scene and output"]
+  end
+  A5 -- "Data folder" --> B1
+  A5 -- "Data folder" --> C1
+  B4 -. "made again" .-> A4
+  B5 -. "made again" .-> A4
+```
+
+Flow 1 writes each finished vehicle (mesh, detail levels, 2D outline, check pictures, and its build information) into `Data`; flows 2 and 3 only read from there. A small change in flow 2 (a label edit, a body color, a refit) sends the vehicle back through flow 1's last two blocks, so its quality score and version stay current.
+
+| Flow | Block | Functions | Started from |
+|---|---|---|---|
+| 1 | Gather the inputs | `fcn_CarMesh3D_loadVehicleSpec`, `fcn_CarMesh3D_fillVehicleSpec`, `fcn_CarMesh3D_convertToOBJ` (Blender; its reduced OBJ is reused), `fcn_CarMesh3D_readGLB`, `fcn_CarMesh3D_importMesh`, `fcn_CarMesh3D_normalizeMesh` | `Data/script_CarMesh3D_vehicle_TEMPLATE.m` (one per vehicle) |
+| 1 | Label and fit | `fcn_CarMesh3D_labelParts`, `fcn_CarMesh3D_editLabels`, `fcn_CarMesh3D_transferTextureColors`, `fcn_CarMesh3D_fitMeshToSpec` | |
+| 1 | Reduce and repair | `fcn_CarMesh3D_simplifyMesh`, `fcn_CarMesh3D_fixFlippedFaces`, `fcn_CarMesh3D_separateOverlays`, `fcn_CarMesh3D_addFloorPanel` | |
+| 1 | Assess quality | `fcn_CarMesh3D_compareToOriginal` (holes, label changes, flipped faces, see-through gaps), `fcn_CarMesh3D_validateMesh` (dimensions), `fcn_CarMesh3D_runVehicleChecks` (pictures and GIFs) | |
+| 1 | Stamp and save | `fcn_CarMesh3D_makeBuildInfo` (versions and quality score), `fcn_CarMesh3D_makeDetailLevels`, `fcn_CarMesh3D_makeOutline2D`; slow stages cached by `fcn_CarMesh3D_loadCache` / `fcn_CarMesh3D_saveCache` | |
+| 2 | List the vehicles | `fcn_CarMesh3D_browseVehicles` (the vehicle browser: a menu with quality scores), `fcn_CarMesh3D_listVehicles` (scores; up to date or not), `fcn_CarMesh3D_loadBodyStyles` | `fcn_CarMesh3D_browseVehicles` (see [Browsing the vehicles](#browsing-the-vehicles)) |
+| 2 | View in 3D and 2D | `fcn_CarMesh3D_showVehicle` (3D and 2D, or parts by label or material, with a summary), `fcn_CarMesh3D_plotLabels`, `fcn_CarMesh3D_plotVehicle`, the outline in `vehicleOutline_<ID>.mat` | |
+| 2 | Compare | the pictures in each vehicle's `checks` folder; `fcn_CarMesh3D_compareToOriginal`; `fcn_CarMesh3D_validateMesh` | |
+| 2 | Small changes | `fcn_CarMesh3D_editLabels` (also clicked, with the interactive label editor), the vehicle script's settings (body color, part rules) | the vehicle's own script |
+| 2 | Refit from a body style | `fcn_CarMesh3D_fillBodyStyleMesh` (an approved exemplar refit to new dimensions) | `Data/script_CarMesh3D_bodyStyle_TEMPLATE.m`; the generic vehicles in `Data/Samples` |
+| 3 | Find and check | `fcn_CarMesh3D_findVehicleFiles`, `fcn_CarMesh3D_version` (`AtLeast=`, mesh version), `fcn_CarMesh3D_listVehicles` | AnimateCar3D |
+| 3 | Load the mesh | `vehicleMesh_<ID>.mat`, `vehicleLevels_<ID>.mat` (detail levels), `vehicleOutline_<ID>.mat` (2D) | |
+| 3 | Pose and move | `fcn_CarMesh3D_plotVehicle` (`Pose=`, `WheelSpin=`, `SteerAngle=`, `LightStates=`), `fcn_CarMesh3D_fillTrajectory`, `fcn_CarMesh3D_loadMotionCSV`, `fcn_CarMesh3D_calcAckermannSteering`, `fcn_CarMesh3D_checkGroundContact` | `script_demo_CarMesh3D_animation.m` |
+| 3 | Scene and output | `fcn_CarMesh3D_plotScene`, `fcn_CarMesh3D_fillCameraSettings`, `fcn_CarMesh3D_updateCamera`, `fcn_CarMesh3D_saveGifFrame` | |
+
 ## Getting started
 
 1. Put this folder somewhere whose path has **no minus signs** (spaces are fine).
 2. Open MATLAB (R2021a or newer; written for 2025a/2025b) and run `script_demo_CarMesh3D.m` from this folder.
 3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/BodyStyles/Liftback/2013_Toyota_Prius_Four/model/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
 
-There are no MATLAB toolbox dependencies. The demo only adds `Functions` and `Data` to the MATLAB path.
+There are no MATLAB toolbox dependencies. The one repository dependency is [DebugTools](https://github.com/ivsg-psu/Errata_Tutorials_DebugTools) (the vehicle browser uses its menu). The demo installs it with the standard IVSG installer, as AnimateCar3D does: `Installer/fcn_DebugTools_autoInstallRepos.m` puts the latest DebugTools release in `Utilities` (ignored by git) and adds it to the path; offline, it uses the release already there. The demo then adds `Functions` and `Data` to the path.
 
 **For FBX, glTF, GLB, or .blend models**, also install [Blender](https://www.blender.org) (free). CarMesh3D finds it in the usual install folders. If Blender is installed somewhere else, run `setenv('CARMESH3D_BLENDER_PATH','<full path to blender.exe>')` once per MATLAB session, or pass `BlenderPath=...`. The converted `.obj` is saved next to the original as `<name>_converted.obj` and reused on later calls.
 
@@ -120,6 +160,16 @@ Each animation is the vehicle's `check_09_drive.gif`: the standard test drive (s
 (This table is written by fcn_CarMesh3D_addReferenceVehicle from Data/referenceVehicles.csv; 2 vehicles.)
 
 <!-- REFERENCE VEHICLES END -->
+
+### Browsing the vehicles
+
+`fcn_CarMesh3D_browseVehicles` opens a menu, in the command window, of every finished vehicle: its name, body style, quality score (0 to 100), and whether its mesh is up to date. Type a vehicle's number to see it (`fcn_CarMesh3D_showVehicle`: the mesh in 3D in figure 1, its 2D outlines in figure 2); the menu marks it viewed and offers the next one. `v` changes what a number shows (3D and 2D, parts by label, or parts by material), `t` prints the full table, and `q` quits. The menu is DebugTools' `fcn_DebugTools_menuManageSelections`, so run `script_demo_CarMesh3D.m` once first to install DebugTools.
+
+```matlab
+fcn_CarMesh3D_browseVehicles;                    % by body style
+fcn_CarMesh3D_browseVehicles(SortBy='score');    % best first
+fcn_CarMesh3D_showVehicle('2013_Toyota_Prius_Four', View='materials', FigNum=3);   % one vehicle, directly
+```
 
 ## Adding a vehicle
 
@@ -277,6 +327,8 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_test_fcn_CarMesh3D_<name>.m` |
 | `Data` | One folder per vehicle, filed by body style: `Data/BodyStyles/<Style>/YEAR_Make_Model_Trimline`, and made-up vehicles in `Data/Samples` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv`; the body styles, `bodyStyles.csv` |
+| `Installer` | `fcn_DebugTools_autoInstallRepos.m`, the standard IVSG installer used by the demo |
+| `Utilities` | Installed dependencies (DebugTools), made by the installer; ignored by git |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design |
 
 ## The workflow

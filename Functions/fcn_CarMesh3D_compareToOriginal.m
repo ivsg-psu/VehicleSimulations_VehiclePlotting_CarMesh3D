@@ -36,7 +36,7 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %
 %       report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh,...
 %           (Title=text), (ImageWidth=pixels), (NumSpots=count),...
-%           (OutputFile=pngPrefix), (FigNum=figNum))
+%           (OutputFile=pngPrefix), (OriginalCache=matFile), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -57,6 +57,13 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %
 %      OutputFile: a file name prefix: the two sheets are saved as
 %      <prefix>_views.png and <prefix>_spots.png. Default '' (not saved).
+%
+%      OriginalCache: a .mat file in which the download's renders (face
+%      numbers and shaded pictures, 28 of the 56 renders) are kept. They
+%      are reused while the download, its label colors, the views, and
+%      the frame are unchanged (fcn_CarMesh3D_loadCache), which halves
+%      the time of a comparison after the reduced mesh changes. Default
+%      '' (always rendered).
 %
 %      FigNum: a figure for the views sheet (the spots sheet goes in a
 %      figure of its own, named '<Title>: flagged spots'); both are left
@@ -80,7 +87,8 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %
 % DEPENDENCIES:
 %
-%      fcn_CarMesh3D_plotLabels (the label colors); figure, patch, print
+%      fcn_CarMesh3D_plotLabels (the label colors); fcn_CarMesh3D_loadCache
+%      and fcn_CarMesh3D_saveCache (OriginalCache); figure, patch, print
 %      (MATLAB base)
 %
 % EXAMPLES:
@@ -108,6 +116,8 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %   %   % mesh, away from the wheels), and four low views (12 degrees
 %   %   % below the sides, front, and rear): the slits between the floor
 %   %   % panel and the sills, which the download (no underside) has too
+%   % * OriginalCache: the download's renders kept in a .mat file and
+%   %   % reused while unchanged (half of a comparison's time)
 
 % TO-DO:
 %
@@ -131,6 +141,7 @@ arguments
     options.ImageWidth = 900    % Pixels across each view
     options.NumSpots = 9        % How many flagged spots get close-ups
     options.OutputFile = ''     % Prefix for <prefix>_views.png and <prefix>_spots.png
+    options.OriginalCache = ''  % A .mat file to keep the download's renders in; '' for none
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -261,13 +272,32 @@ if ~isempty(wheelPart)
 end
 
 renderSettings = struct('Low',limitsLow, 'High',limitsHigh, 'Width',round(options.ImageWidth));
+flagShaded = flag_do_plots || ~isempty(options.OutputFile);
+
+% The download's renders: reused from OriginalCache while the download,
+% its label colors, the views, and the frame are unchanged
+originalRenders = struct('Ids',{cell(numViews,1)}, 'Shaded',{cell(numViews,1)});
+flagOriginalCached = false;
+if ~isempty(options.OriginalCache)
+    originalCacheInputs = struct('Vertices',originalMesh.Vertices, 'Faces',originalMesh.Faces, ...
+        'Colors',originalLabels.FaceColors, 'Views',viewAngles, 'Render',renderSettings, 'Shaded',flagShaded);
+    [cachedRenders, flagOriginalCached] = fcn_CarMesh3D_loadCache(options.OriginalCache, originalCacheInputs, FigNum=-1);
+    if flagOriginalCached
+        originalRenders = cachedRenders.originalRenders;
+    end
+end
 viewRows = cell(numViews,1);
 images = struct('View',viewNames, 'Original',[], 'Reduced',[], 'Holes',[], 'LabelChanges',[], 'Flipped',[], 'SeeThrough',[]);
 allSpots = struct('View',{}, 'Box',{}, 'Holes',{}, 'LabelChanges',{}, 'Flipped',{}, 'SeeThrough',{}, 'Score',{});
 for ith_view = 1:numViews
     thisAngle = viewAngles(ith_view,:);
     % (which face is seen at each pixel, 0 for the background)
-    originalId = fcn_INTERNAL_faceIds(originalMesh, thisAngle, renderSettings);
+    if flagOriginalCached
+        originalId = double(originalRenders.Ids{ith_view});
+    else
+        originalId = fcn_INTERNAL_faceIds(originalMesh, thisAngle, renderSettings);
+        originalRenders.Ids{ith_view} = uint32(originalId);
+    end
     reducedId = fcn_INTERNAL_faceIds(reducedMesh, thisAngle, renderSettings);
 
     originalPixelKey = zeros(size(originalId));
@@ -306,8 +336,13 @@ for ith_view = 1:numViews
     images(ith_view).Holes = holes;
     images(ith_view).LabelChanges = labelChanges;
     images(ith_view).Flipped = flipped;
-    if flag_do_plots || ~isempty(options.OutputFile)
-        images(ith_view).Original = fcn_INTERNAL_shaded(originalMesh, originalLabels.FaceColors, thisAngle, renderSettings);
+    if flagShaded
+        if flagOriginalCached
+            images(ith_view).Original = originalRenders.Shaded{ith_view};
+        else
+            images(ith_view).Original = fcn_INTERNAL_shaded(originalMesh, originalLabels.FaceColors, thisAngle, renderSettings);
+            originalRenders.Shaded{ith_view} = images(ith_view).Original;
+        end
         images(ith_view).Reduced = fcn_INTERNAL_shaded(reducedMesh, reducedLabels.FaceColors, thisAngle, renderSettings);
     end
 
@@ -327,6 +362,9 @@ for ith_view = 1:numViews
             end
         end
     end
+end
+if ~isempty(options.OriginalCache) && ~flagOriginalCached
+    fcn_CarMesh3D_saveCache(options.OriginalCache, originalCacheInputs, struct('originalRenders',originalRenders), FigNum=-1);
 end
 
 % The worst spots, one per neighborhood (no two within 3 cells in a view)

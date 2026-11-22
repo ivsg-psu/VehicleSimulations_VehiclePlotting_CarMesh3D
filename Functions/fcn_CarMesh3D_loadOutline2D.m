@@ -63,6 +63,11 @@ function vehicleOutline = fcn_CarMesh3D_loadOutline2D(vehicleID, options)
 % 2026_11_20 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadOutline2D
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_loadOutline2D
+%   % * The 'outline made' warning comes after the outlines are made (a
+%   %   % symmetry warning from makeOutline2D had come after it)
 
 % TO-DO:
 %
@@ -183,10 +188,12 @@ if vehicleFiles.HasOutline
         end
     end
 elseif options.MakeIfMissing && vehicleFiles.HasMesh
-    warning('CarMesh3D:outlineMade', ['%s has no outline file; making the outlines from its finished mesh ' ...
-        '(run its script to make and save them).'], vehicleFiles.ID);
     loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
     vehicleOutline = fcn_CarMesh3D_makeOutline2D(loaded.vehicleMesh, FigNum=-1);
+    % (warned after the outlines are made, so it is the last word, after
+    % any warning of makeOutline2D's own)
+    warning('CarMesh3D:outlineMade', ['%s has no outline file; the outlines were made from its finished mesh ' ...
+        '(run its script to make and save them).'], vehicleFiles.ID);
     if options.SaveIfMade
         save(vehicleFiles.OutlineFile, 'vehicleOutline');
     end

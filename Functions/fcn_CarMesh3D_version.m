@@ -16,6 +16,8 @@ function [versionString, flagAtLeast, meshVersion] = fcn_CarMesh3D_version(optio
 % changes are listed below, newest first.
 %
 % MESH VERSIONS:
+%   2026_11_21d  The ground clearance is put back after a reduction
+%                raised it (fcn_CarMesh3D_restoreGroundClearance)
 %   2026_11_21c  Lamp lenses stay lights when see-through (labelParts);
 %                the symmetric fit measures length, height, and ground
 %                clearance on the region the mirroring keeps; body-style
@@ -80,6 +82,7 @@ function [versionString, flagAtLeast, meshVersion] = fcn_CarMesh3D_version(optio
 %   % * meshVersion (third output): the version of the mesh-making
 %   %   % steps, saved with every mesh, so meshes made before a change can
 %   %   % be found and made again
+%   % * Mesh version 2026_11_21d: the ground clearance after reduction
 
 % TO-DO:
 %
@@ -182,7 +185,7 @@ end
 versionString = '2026_11_20';
 % THE MESH VERSION: change this (and the list above) whenever a change
 % would make a different finished mesh
-meshVersion = '2026_11_21c';
+meshVersion = '2026_11_21d';
 
 flagAtLeast = true;
 if ~isempty(options.AtLeast)

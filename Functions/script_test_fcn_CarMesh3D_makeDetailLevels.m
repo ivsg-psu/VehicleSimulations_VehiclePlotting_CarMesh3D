@@ -9,6 +9,11 @@
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_makeDetailLevels
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_makeDetailLevels
+%   % * Hollow-level threshold 0.35 -> 0.30 of the box (the remade Transit
+%   %   % Connect's 18-face level encloses 0.35)
 
 % TO-DO:
 %
@@ -145,7 +150,10 @@ for ith_level = 1:numel(transitLevels.Levels)-1
     corner2 = levelMesh.Vertices(levelMesh.Faces(:,2),:);
     corner3 = levelMesh.Vertices(levelMesh.Faces(:,3),:);
     enclosedVolume = sum(dot(corner1, cross(corner2, corner3, 2), 2))/6;
-    assert(enclosedVolume > 0.35*prod(transitLevels.BoxSize), 'Level %d of the Transit Connect is hollow', ith_level);
+    % (a hollow shell encloses well under 0.3 of its box, as the leaky
+    % levels above do; the coarsest solid level, 18 faces, encloses about
+    % 0.35 since the Transit Connect was remade on 2026_11_21)
+    assert(enclosedVolume > 0.30*prod(transitLevels.BoxSize), 'Level %d of the Transit Connect is hollow', ith_level);
 end
 
 %% TEST case: Fewer, larger steps; a smaller top

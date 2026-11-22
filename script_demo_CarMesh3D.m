@@ -59,6 +59,13 @@
 %   % * The Prius model is loaded again (the Acura NSX model had been put
 %   %   % in its place while the rest of the steps still used the Prius
 %   %   % name, part rules, axes, and spec, so the result looked broken)
+%   % * DebugTools is now a dependency, installed by the standard IVSG
+%   %   % installer (as in AnimateCar3D): fcn_DebugTools_autoInstallRepos
+%   %   % in the Installer folder puts the latest DebugTools release in
+%   %   % Utilities and on the path (the vehicle browser uses its menu)
+%   % * Added Step 14: the vehicle browser (fcn_CarMesh3D_browseVehicles)
+%   % * Step 6 restores the ground clearance after reduction
+%   %   % (fcn_CarMesh3D_restoreGroundClearance), so the check in Step 7 passes
 
 % TO-DO:
 %
@@ -66,7 +73,6 @@
 % - In script_demo_CarMesh3D
 %   % * Add blueprint (side/front/top silhouette) extrusion as a shape source
 %   % * Add a parametric body template as a fallback shape source
-%   % * Decide on DebugTools dependency and the standard IVSG installer
 
 
 %% Make sure we are running out of root directory
@@ -76,9 +82,20 @@ thisFile = which(st(1).file);
 cd(filepath);
 
 %% START OF STANDARD INSTALLER CODE %%%%%%%%%
-% This prototype has no external dependencies, so the "installer" only
-% adds this project's own folders to the path. It does not download or
-% change anything outside this folder.
+% The only dependency is DebugTools (for the vehicle browser's menu). The
+% installer (Installer\fcn_DebugTools_autoInstallRepos.m) puts the latest
+% DebugTools release in the Utilities folder, which git ignores, and adds
+% it to the path; offline, it uses the release already there. Then this
+% project's own folders are added to the path.
+
+%%% Clear paths and folders, if needed
+if 1==1
+	clear flag_CarMesh3D_Folders_Initialized
+end
+
+if 1==0
+	fcn_INTERNAL_clearUtilitiesFromPathAndFolders;
+end
 
 % Do we need to set up the work space?
 if ~exist('flag_CarMesh3D_Folders_Initialized','var') || 0==flag_CarMesh3D_Folders_Initialized
@@ -216,6 +233,11 @@ end
 
 figNum = 7;
 vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, TargetFaces=3000, FigNum=figNum);
+
+% Reducing the faces can lift the lowest edge of the body (the rocker
+% panels) a few millimeters; this puts the body bottom back at the
+% specified ground clearance, as every vehicle's script does
+vehicleMesh = fcn_CarMesh3D_restoreGroundClearance(vehicleMesh, vehicleSpec.GroundClearance, FigNum=-1);
 
 %% Step 7: Validate against the specification
 % This table is a good thing to include in a report.
@@ -357,6 +379,14 @@ else
 end
 title(sprintf('Side picture on the centerline: %.2f mm per pixel', 1000*overlayHandles.MetersPerPixel));
 
+%% Step 14: Browse the finished vehicles
+% A menu, in the command window, of every finished vehicle with its
+% quality score: type a vehicle's number to see it in 3D and 2D. Set
+% flag_openBrowser to 1 to open it (it waits for typed choices); here the
+% list is only printed.
+flag_openBrowser = 0;
+fcn_CarMesh3D_browseVehicles(Interactive=flag_openBrowser, FigNum=14);
+
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
@@ -396,6 +426,59 @@ end % Ends fcn_INTERNAL_renderSideView
 %% fcn_INTERNAL_setupWorkspace
 function fcn_INTERNAL_setupWorkspace
 
+%% Install dependencies
+% Define a universal resource locator (URL) pointing to the repos of
+% dependencies to install. DebugTools is always installed first, and is
+% the only dependency here.
+ith_repo = 0;
+
+ith_repo = ith_repo+1;
+dependencyURLs{ith_repo} = 'https://github.com/ivsg-psu/Errata_Tutorials_DebugTools';
+dependencySubfolders{ith_repo} = {'Functions','Data'};
+dependencyInstallRootName{ith_repo} = 'DebugTools';
+
+% Check if prior installs exist
+[flag_previousDebugFound, func_handle_addSubdirectoriesToPath, func_handle_autoInstallReposDebug, func_handle_isThisComputerOnline] = fcn_INTERNAL_checkForPriorDebugInstall;
+[flag_previousAutoinstallFound, func_handle_autoInstallReposAutoinstall] = fcn_INTERNAL_checkForAutoinstall;
+
+if ~flag_previousDebugFound && ~flag_previousAutoinstallFound
+	error('Installers are missing: no DebugTools in Utilities and no Installer folder. Irrecoverable error!');
+else
+	% Decide which autoInstaller to use, defaulting to the most recent one
+	if flag_previousDebugFound
+		func_handle_autoInstallRepos = func_handle_autoInstallReposDebug;
+	else
+		func_handle_autoInstallRepos = func_handle_autoInstallReposAutoinstall;
+	end
+end
+
+% Check if online?
+if flag_previousDebugFound
+	flag_isOnline = func_handle_isThisComputerOnline();
+else
+	flag_isOnline = true; % Default to assuming online
+end
+
+if ~flag_isOnline
+	% Offline: use the DebugTools release already in Utilities
+	fprintf(1,'This computer appears to be offline. The code will be run with libraries that are already installed. However, any updates to these libraries including bug fixes may be missed. Use code with caution!\n');
+	searchString = fullfile(pwd,'Utilities','DebugTools*');
+	installedReleases = dir(searchString);
+	installedReleases = installedReleases([installedReleases.isdir]);
+	if isempty(installedReleases)
+		error('Computer appears offline and no prior install of DebugTools was found in Utilities. A prior install is needed to proceed. Quitting.');
+	end
+	thisFolderRoot = fullfile(installedReleases(end).folder, installedReleases(end).name);
+	fprintf(1,'\tAdding already installed library to the path: %s\n', installedReleases(end).name);
+	func_handle_addSubdirectoriesToPath(thisFolderRoot, dependencySubfolders{1});
+else
+	% Clear prior global variable flags
+	clear global FLAG_*
+
+	% Call the function to do the install
+	func_handle_autoInstallRepos(dependencyURLs, dependencySubfolders, (0), (-1));
+end
+
 %% Add this project's folders to the path
 this_project_folders = {'Functions','Data'};
 fprintf(1,'\tAdding this project folders to the path: \n');
@@ -432,3 +515,84 @@ if contains(thisPath,'-')
 end
 
 end % Ends fcn_INTERNAL_setupWorkspace
+
+
+%% function fcn_INTERNAL_clearUtilitiesFromPathAndFolders
+function fcn_INTERNAL_clearUtilitiesFromPathAndFolders
+% Clear out the variables
+clear global flag* FLAG*
+clear flag*
+clear path
+
+% Clear out any path directories under Utilities
+path_dirs = regexp(path,'[;]','split');
+utilities_dir = fullfile(pwd,filesep,'Utilities');
+for ith_dir = 1:length(path_dirs)
+	utility_flag = strfind(path_dirs{ith_dir},utilities_dir);
+	if ~isempty(utility_flag)
+		rmpath(path_dirs{ith_dir});
+	end
+end
+
+% Delete the Utilities folder, to be extra clean!
+if  exist(utilities_dir,'dir')
+	[status,message,message_ID] = rmdir(utilities_dir,'s');
+	if 0==status
+		error('Unable remove directory: %s \nReason message: %s \nand message_ID: %s\n',utilities_dir, message,message_ID);
+	end
+end
+
+end % Ends fcn_INTERNAL_clearUtilitiesFromPathAndFolders
+
+
+%% fcn_INTERNAL_checkForPriorDebugInstall
+function [flag_previousInstallFound, func_handle_addSubdirectoriesToPath, func_handle_autoInstallRepos, func_handle_isThisComputerOnline] = fcn_INTERNAL_checkForPriorDebugInstall
+% Looks for a DebugTools release in the Utilities folder; if one is found,
+% returns handles to its installer functions
+
+% Initialize default outputs
+flag_previousInstallFound = false;
+func_handle_addSubdirectoriesToPath = [];
+func_handle_autoInstallRepos  = [];
+func_handle_isThisComputerOnline  = [];
+
+utilitiesFolderSearch = fullfile(pwd,'Utilities');
+if exist(utilitiesFolderSearch,'dir')
+	debugsInstalled = dir(fullfile(utilitiesFolderSearch,'DebugTools*'));
+	debugsInstalled = debugsInstalled([debugsInstalled.isdir]);
+
+	% Were any DebugTools installs found?
+	if ~isempty(debugsInstalled)
+		flag_previousInstallFound = true;
+		mostRecentDebugInstall = fullfile(debugsInstalled(end).folder,debugsInstalled(end).name,'Functions');
+
+		currentFolder = pwd;
+		cd(mostRecentDebugInstall);
+
+		% Create the function handles (bound to this release's files)
+		func_handle_addSubdirectoriesToPath = @fcn_DebugTools_addSubdirectoriesToPath;
+		func_handle_autoInstallRepos = @fcn_DebugTools_autoInstallRepos;
+		func_handle_isThisComputerOnline = @fcn_DebugTools_isThisComputerOnline;
+
+		cd(currentFolder);
+	end
+end
+end % Ends fcn_INTERNAL_checkForPriorDebugInstall
+
+
+%% fcn_INTERNAL_checkForAutoinstall
+function [flag_previousInstallFound, func_handle_autoInstallRepos] = fcn_INTERNAL_checkForAutoinstall
+% Looks for the installer kept in this repository's Installer folder
+
+flag_previousInstallFound = false;
+func_handle_autoInstallRepos = [];
+
+autoinstallFolderSearch = fullfile(pwd,'Installer');
+if exist(autoinstallFolderSearch,'dir')
+	flag_previousInstallFound = true;
+	currentFolder = pwd;
+	cd(autoinstallFolderSearch);
+	func_handle_autoInstallRepos = @fcn_DebugTools_autoInstallRepos;
+	cd(currentFolder);
+end
+end % Ends fcn_INTERNAL_checkForAutoinstall
