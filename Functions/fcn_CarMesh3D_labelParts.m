@@ -12,12 +12,18 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % Users can add their own rules, which are checked first.
 %
 % Light faces are also given a light type, used to switch them on and off
-% in fcn_CarMesh3D_plotVehicle: 'headlight', 'turnsignal', 'running',
-% 'tail', or 'backup'. The type comes from the names (for example
-% 'TurnSignal', 'Reverse', 'TailLight'); a light with no recognized type
-% becomes a headlight if it is in the front half of the vehicle, and a
-% tail light if it is in the rear half. Fix any mistakes with
-% fcn_CarMesh3D_editLabels.
+% in fcn_CarMesh3D_plotVehicle: 'headlight' (the low beams, or both beams
+% when no high beams are found), 'turnsignal', 'running', 'tail',
+% 'backup', or 'highbeam'. The type comes from the names (for example
+% 'TurnSignal', 'Reverse', 'TailLight', 'HighBeam'); a light with no
+% recognized type becomes a headlight if it is in the front half of the
+% vehicle, and a tail light if it is in the rear half. Then, with
+% AutoHighBeams (default true), each side's headlight is split into a low
+% beam and a high beam where its faces fall clearly into two clusters
+% (two lamps side by side, or one above the other): the cluster nearer
+% the middle of the car is the high beam (or the upper one, for lamps one
+% above the other). This is a start: fix any mistakes in the label
+% painter (fcn_CarMesh3D_paintLabels) or with fcn_CarMesh3D_editLabels.
 %
 % Wheel faces are also numbered by corner: 1 = front-left, 2 =
 % front-right, 3 = rear-left, 4 = rear-right. This needs the mesh to be
@@ -123,8 +129,8 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %               (1 FL, 2 FR, 3 RL, 4 RR)
 %           FaceColors (M x 3): RGB display color of each face
 %           FaceAlpha (M x 1): transparency of each face
-%           LightTypeNames (5 x 1 cell): {'headlight';'turnsignal';
-%               'running';'tail';'backup'}
+%           LightTypeNames (6 x 1 cell): {'headlight';'turnsignal';
+%               'running';'tail';'backup';'highbeam'}
 %           FaceLightType (M x 1): index into LightTypeNames for light
 %               faces, 0 for all other faces
 %           TextureColorParts (cell): the TextureColorParts option
@@ -181,6 +187,16 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % always winning (Sean's multi-part faces, 01:57; Sean, 23:04:
 %   %   % option B, drawn as glass while off). A lamp's clear cover is a
 %   %   % light of its lenses' type that is also glass
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * High beams as a lamp type of their own, 'highbeam' (Sean, 03:19
+%   %   % and 03:27: separate bulbs in separate places, as on the Fit);
+%   %   % found by name, or by AutoHighBeams: each side's headlight split
+%   %   % in two by position where its faces clearly form two clusters
+%   %   % (the inner, or upper, one is the high beam), as a start to fix
+%   %   % in the label painter. 'headlight' is the low beam (or both
+%   %   % beams, when a vehicle has no high beams)
 
 % TO-DO:
 %
@@ -207,6 +223,7 @@ arguments
     options.PartColors = {}   % N x 2 cell of {partName, [r g b]}
     options.SeeThroughGlass = true  % Use .glb see-through marks for glass?
     options.LampCovers = true       % Glass pieces lying over a lamp become that lamp?
+    options.AutoHighBeams = true    % Split each headlight into low and high beams by position?
     options.TextureColorParts = {}  % Parts shown in their texture colors
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -461,8 +478,9 @@ if options.LampCovers && any(facePartIndex==2) && any(facePartIndex==4)
 end
 
 % Light types, for switchable lights
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
+lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
 lightTypeRules = {...
+    'high.?beam|hi.?beam|main.?beam',  'highbeam';
     'turn|indicator|blinker|signal',   'turnsignal';
     'reverse|backup|back_up',          'backup';
     'drl|running|daytime',             'running';
@@ -493,6 +511,12 @@ if any(flagLightFace)
         middleX = (min(vehicleMesh.Vertices(:,1)) + max(vehicleMesh.Vertices(:,1)))/2;
         faceLightType(flagUntyped & lightCentersX>=middleX) = 1; % headlight
         faceLightType(flagUntyped & lightCentersX<middleX)  = 4; % tail
+    end
+
+    % High beams: each side's headlight split in two, where its faces
+    % clearly form two clusters (only when no high beams were named)
+    if options.AutoHighBeams && ~any(faceLightType==6) && any(faceLightType==1)
+        faceLightType = fcn_INTERNAL_splitHighBeams(vehicleMesh, faceLightType, flagClearCover);
     end
 
     % A clear cover takes the type of the nearest lens under it
@@ -677,6 +701,64 @@ facePartIndex(glassFaces(ismember(pieceOfFace, [coverPieces clearPieces]))) = 4;
 end % Ends fcn_INTERNAL_lampCovers
 
 %% fcn_INTERNAL_nearestPoint
+function faceLightType = fcn_INTERNAL_splitHighBeams(vehicleMesh, faceLightType, flagClearCover)
+% Each side's headlight faces (lenses, not clear covers) split into two
+% clusters by position (2-means on the face centers): kept as a low beam
+% and a high beam only when the split is clear: each cluster has at
+% least 15% of the side's faces, and the clusters' centers are apart by
+% more than four times the larger cluster's spread (standard deviation)
+% along the direction that separates them, and by at least 3 cm. Lamps side by side: the inner one is the high beam; one
+% above the other: the upper one.
+faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+for sideSign = [1 -1]
+    sideFaces = find(faceLightType==1 & ~flagClearCover & sign(faceCenters(:,2))==sideSign);
+    if numel(sideFaces) < 8
+        continue;
+    end
+    points = [faceCenters(sideFaces,1), abs(faceCenters(sideFaces,2)), faceCenters(sideFaces,3)];
+    % (start from the two ends of the widest direction: across or up)
+    [~, axisIndex] = max([max(points(:,2)) - min(points(:,2)), max(points(:,3)) - min(points(:,3))]);
+    axisIndex = axisIndex + 1;
+    [~, lowEnd] = min(points(:,axisIndex));
+    [~, highEnd] = max(points(:,axisIndex));
+    centers = points([lowEnd highEnd],:);
+    for iteration = 1:20
+        distances = [sum((points - centers(1,:)).^2, 2), sum((points - centers(2,:)).^2, 2)];
+        [~, cluster] = min(distances, [], 2);
+        if any(cluster==1) && any(cluster==2)
+            newCenters = [mean(points(cluster==1,:),1); mean(points(cluster==2,:),1)];
+        else
+            break;
+        end
+        if max(abs(newCenters(:) - centers(:))) < 1e-6
+            break;
+        end
+        centers = newCenters;
+    end
+    shares = [mean(cluster==1), mean(cluster==2)];
+    if min(shares) < 0.15
+        continue;
+    end
+    direction = centers(2,:) - centers(1,:);
+    gap = norm(direction);
+    direction = direction/max(gap, eps);
+    along = points*direction';
+    spread = max(std(along(cluster==1)), std(along(cluster==2)));
+    if gap < 0.03 || gap < 4*spread
+        continue;
+    end
+    % (side by side, the inner one is the high beam; one above the other,
+    % the upper one)
+    if abs(centers(1,2) - centers(2,2)) >= abs(centers(1,3) - centers(2,3))
+        [~, highCluster] = min(centers(:,2));
+    else
+        [~, highCluster] = max(centers(:,3));
+    end
+    faceLightType(sideFaces(cluster==highCluster)) = 6;
+end
+end
+
 function nearest = fcn_INTERNAL_nearestPoint(fromPoints, toPoints)
 % The index of the nearest of fromPoints for each of toPoints (in blocks;
 % no toolbox needed)

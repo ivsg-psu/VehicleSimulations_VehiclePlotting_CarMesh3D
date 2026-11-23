@@ -270,6 +270,63 @@ assert(~any(offMesh.FaceAlsoParts, 'all'));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: AutoHighBeams: a headlight of two lamps side by side is split; the inner lamp is the high beam
+figNum = 20008;
+titleString = sprintf('TEST case: AutoHighBeams: two lamps side by side: the inner one is the high beam');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (the sample, with two small lamps on each side of the front, 25 cm
+% apart, each 10 triangles, in the headlight lenses' material)
+sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
+plainLabels = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
+lensFaces = find(plainLabels.FacePartIndex==4 & plainLabels.FaceLightType==1);
+frontX = max(sampleMesh.Vertices(sampleMesh.Faces(lensFaces,:),1));
+lampMesh = sampleMesh;
+newFaces = zeros(0,3);
+lampCenters = [];
+for sideSign = [1 -1]
+    for lampY = [0.30 0.55]
+        lampCenters(end+1,:) = [frontX, sideSign*lampY, 0.65]; %#ok<SAGROW>
+        for ith_tri = 1:10
+            angle = 2*pi*ith_tri/10;
+            corners = lampCenters(end,:) + [0 0 0; 0 0.03*cos(angle) 0.03*sin(angle); 0 0.03*cos(angle+0.6) 0.03*sin(angle+0.6)];
+            base = size(lampMesh.Vertices,1);
+            lampMesh.Vertices = [lampMesh.Vertices; corners];
+            newFaces(end+1,:) = base + (1:3); %#ok<SAGROW>
+        end
+    end
+end
+numNew = size(newFaces,1);
+lampMesh.Faces = [sampleMesh.Faces; newFaces];
+lampMesh.FaceMaterialIndex = [sampleMesh.FaceMaterialIndex(:); repmat(sampleMesh.FaceMaterialIndex(lensFaces(1)), numNew, 1)];
+if isfield(lampMesh,'FaceGroupIndex')
+    lampMesh.FaceGroupIndex = [sampleMesh.FaceGroupIndex(:); repmat(sampleMesh.FaceGroupIndex(lensFaces(1)), numNew, 1)];
+end
+lampFaces = (size(sampleMesh.Faces,1)+1 : size(lampMesh.Faces,1))';
+newCenters = (lampMesh.Vertices(newFaces(:,1),:) + lampMesh.Vertices(newFaces(:,2),:) + lampMesh.Vertices(newFaces(:,3),:))/3;
+
+vehicleMesh = fcn_CarMesh3D_labelParts(lampMesh, FigNum=-1);
+highType = find(strcmp(vehicleMesh.LightTypeNames, 'highbeam'));
+assert(~isempty(highType));
+flagHigh = vehicleMesh.FaceLightType(lampFaces)==highType;
+assert(all(flagHigh == (abs(newCenters(:,2)) < 0.42)), 'The inner lamps are the high beams');
+% (with AutoHighBeams off, no high beams)
+offMesh = fcn_CarMesh3D_labelParts(lampMesh, AutoHighBeams=false, FigNum=-1);
+assert(~any(offMesh.FaceLightType==highType));
+% (named high beams win: no split)
+namedMesh = lampMesh;
+namedMesh.MaterialNames{end+1} = 'HighBeamLight';
+namedMesh.FaceMaterialIndex(lampFaces(1:10)) = numel(namedMesh.MaterialNames);
+if isfield(namedMesh,'MaterialColors'), namedMesh.MaterialColors(end+1,:) = [1 1 1]; end
+if isfield(namedMesh,'MaterialAlpha'), namedMesh.MaterialAlpha(end+1,:) = 1; end
+namedLabels = fcn_CarMesh3D_labelParts(namedMesh, FigNum=-1);
+assert(isequal(find(namedLabels.FaceLightType==highType), lampFaces(1:10)));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

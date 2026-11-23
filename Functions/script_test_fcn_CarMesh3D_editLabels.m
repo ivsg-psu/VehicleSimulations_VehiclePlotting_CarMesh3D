@@ -307,6 +307,26 @@ catch ME
     assert(contains(ME.message, 'light always wins'), ME.message);
 end
 
+%% TEST case: High beams on a mesh made before the 'highbeam' type
+figNum = 20009;
+titleString = sprintf('TEST case: High beams on a mesh made before the highbeam type');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+oldMesh = fcn_INTERNAL_labeledSample;
+oldMesh.LightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};   % (as made before 2026_11_23)
+oldMesh.FaceLightType(oldMesh.FaceLightType==6) = 1;
+oldMesh.FaceLightFunctions = false(size(oldMesh.Faces,1), 5);
+headFaces = find(oldMesh.FaceLightType==1);
+editedMesh = fcn_CarMesh3D_editLabels(oldMesh, Edits={struct('FaceIndices',headFaces(1),'LightType','highbeam')});
+assert(isequal(editedMesh.LightTypeNames(1:5), oldMesh.LightTypeNames) && strcmp(editedMesh.LightTypeNames{6}, 'highbeam'));
+assert(editedMesh.FaceLightType(headFaces(1))==6 && all(editedMesh.FaceLightType(headFaces(2:end))==1));
+assert(size(editedMesh.FaceLightFunctions,2)==6 && editedMesh.FaceLightFunctions(headFaces(1),6));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% TEST case: Interactive editor, driven from code
 figNum = 20007;
 titleString = sprintf('TEST case: Interactive editor, driven from code');

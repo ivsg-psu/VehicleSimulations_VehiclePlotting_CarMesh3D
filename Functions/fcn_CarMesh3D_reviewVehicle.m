@@ -280,6 +280,11 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 %   % * Multi-part faces (FaceAlsoParts): a part that faces only also
 %   %   % belong to (glass that is a lamp's clear cover) is reviewed too
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * "should be: highbeam light" among the fixes for wrong faces
+%   %   % (Sean, 03:27)
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -2081,7 +2086,7 @@ labelItems(:) = [];
 [labelKeys, labelNames] = fcn_INTERNAL_labelKinds(data.Mesh);
 % (what wrong faces should be: each part, and each type of light)
 fixChoices = strcat({'should be: '}, {'body', 'glass', 'trim', 'interior', 'wheel'});
-lightTypeNames = {'headlight', 'turnsignal', 'running', 'tail', 'backup'};
+lightTypeNames = {'headlight', 'turnsignal', 'running', 'tail', 'backup', 'highbeam'};
 if isfield(data.Mesh, 'LightTypeNames')
     lightTypeNames = union(lightTypeNames, data.Mesh.LightTypeNames(:)', 'stable');
 end

@@ -189,6 +189,11 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * The photo's corner handle (fcn_CarMesh3D_viewLabels GripDown)
 %   %   % works here too
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Paint as "high beam" (the 'highbeam' light type; Sean, 03:27);
+%   %   % the headlight button is named "low beam"
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -418,7 +423,7 @@ uilabel(buttonGrid, 'Text', 'Paint as:', 'FontWeight', 'bold', 'HorizontalAlignm
 paintButtons = gobjects(1, numel(names));
 for ith_name = 1:numel(names)
     [color, ~] = fcn_INTERNAL_paintColor(data, names{ith_name});
-    paintButtons(ith_name) = uibutton(buttonGrid, 'state', 'Text', strrep(names{ith_name}, 'turnsignal', 'turn signal'), ...
+    paintButtons(ith_name) = uibutton(buttonGrid, 'state', 'Text', fcn_INTERNAL_paintText(names{ith_name}), ...
         'BackgroundColor', 0.55*color + 0.45, 'UserData', names{ith_name}, ...
         'ValueChangedFcn', @onPaintTool, 'Tooltip', sprintf('Paint faces as %s (Ctrl+drag over them)', names{ith_name}));
 end
@@ -684,7 +689,7 @@ end
             end
             name = paintButtons(ith_button).UserData;
             [color, ~] = fcn_INTERNAL_paintColor(data, name);
-            label = strrep(name, 'turnsignal', 'turn signal');
+            label = fcn_INTERNAL_paintText(name);
             if strcmp(name, paintTool)
                 set(paintButtons(ith_button), 'Value', true, 'BackgroundColor', color, 'FontWeight', 'bold', ...
                     'Text', [char(9679) ' ' label], 'FontColor', fcn_INTERNAL_textColor(color));
@@ -1284,15 +1289,21 @@ end % Ends fcn_INTERNAL_geometry
 %% fcn_INTERNAL_paintNames
 function names = fcn_INTERNAL_paintNames()
 % The labels faces can be painted as (parts, light types, and delete)
-names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'tail', 'running', 'turnsignal', 'backup', 'delete'};
+names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', 'delete'};
 end % Ends fcn_INTERNAL_paintNames
+
+%% fcn_INTERNAL_paintText
+function textOut = fcn_INTERNAL_paintText(name)
+% A paint label's button text: the headlight is the low beam
+textOut = strrep(strrep(strrep(name, 'turnsignal', 'turn signal'), 'highbeam', 'high beam'), 'headlight', 'low beam');
+end % Ends fcn_INTERNAL_paintText
 
 %% fcn_INTERNAL_paintColor
 function [color, alpha] = fcn_INTERNAL_paintColor(data, name)
 % The color a label is shown in: the color most of the mesh's faces with
 % that label have (in the labels view), else a standard one
 defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], 'interior', [0.85 0.65 0.40], ...
-    'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
+    'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'highbeam', [0.80 0.90 1.00], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
     'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'delete', [1 0 1]);
 color = defaults.(name);
 alpha = 1;

@@ -28,8 +28,9 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    'delete' to take the picked faces out of the mesh
 %                    (a part of the download not wanted, such as a rear
 %                    wiper or an antenna)
-%       LightType:   'headlight', 'turnsignal', 'running', 'tail', or
-%                    'backup' (this also makes Part 'light')
+%       LightType:   'headlight' (the low beam), 'highbeam',
+%                    'turnsignal', 'running', 'tail', or 'backup' (this
+%                    also makes Part 'light')
 %       AlsoLightTypes: more light types the picked faces also are (a
 %                    cell array, such as {'turnsignal'}: a rear lamp that
 %                    is a tail light and flashes as a turn signal; a front
@@ -162,6 +163,12 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % winning (a lamp's clear cover: a light that is also glass), kept
 %   %   % in FaceAlsoParts (Sean's multi-part faces, 01:57; 23:04, B)
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * 'highbeam' light type (Sean, 03:27); a mesh made before it gets it
+%   %   % added to its LightTypeNames (and a column in FaceLightFunctions)
+%   %   % when an edit needs it
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -228,7 +235,7 @@ end
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
+lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
 
 % Edits may be a struct array or a cell array; use a cell array inside
 editList = options.Edits;
@@ -330,6 +337,15 @@ Nfaces = size(vehicleMesh.Faces,1);
 % Make sure the light and wheel fields exist
 if ~isfield(vehicleMesh,'LightTypeNames') || isempty(vehicleMesh.LightTypeNames)
     vehicleMesh.LightTypeNames = lightTypeNames;
+end
+% (a mesh made before a light type was added gets it at the end, so its
+% faces' type numbers stay as they are)
+missingTypes = setdiff(lightTypeNames, vehicleMesh.LightTypeNames, 'stable');
+if ~isempty(missingTypes)
+    vehicleMesh.LightTypeNames = [reshape(cellstr(vehicleMesh.LightTypeNames), [], 1); missingTypes(:)];
+    if isfield(vehicleMesh,'FaceLightFunctions') && ~isempty(vehicleMesh.FaceLightFunctions)
+        vehicleMesh.FaceLightFunctions(:, end+1:numel(vehicleMesh.LightTypeNames)) = false;
+    end
 end
 if ~isfield(vehicleMesh,'FaceLightType') || isempty(vehicleMesh.FaceLightType)
     vehicleMesh.FaceLightType = zeros(Nfaces,1);
@@ -619,7 +635,8 @@ function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleM
 partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
 lightTypeNames = vehicleMesh.LightTypeNames;
 defaultPartColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20; 0.35 0.33 0.32];
-defaultLightColors = [0.90 0.90 0.85; 0.85 0.55 0.15; 0.90 0.90 0.85; 0.55 0.05 0.05; 0.85 0.85 0.85];
+defaultLightColors = struct('headlight', [0.90 0.90 0.85], 'turnsignal', [0.85 0.55 0.15], 'running', [0.90 0.90 0.85], ...
+    'tail', [0.55 0.05 0.05], 'backup', [0.85 0.85 0.85], 'highbeam', [0.92 0.92 0.90]);
 
 if ~isempty(newLightType)
     newPart = 'light';
@@ -653,7 +670,10 @@ if strcmp(newPart,'light') && ~isempty(newLightType)
     if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
         vehicleMesh.FaceLightFunctions(selectedFaces, lightIndex) = true;
     end
-    defaultColor = defaultLightColors(lightIndex,:);
+    defaultColor = [0.90 0.90 0.85];
+    if isfield(defaultLightColors, newLightType)
+        defaultColor = defaultLightColors.(newLightType);
+    end
 else
     vehicleMesh.FaceLightType(selectedFaces) = 0;
     defaultColor = defaultPartColors(strcmp(newPart, partNames),:);
@@ -700,7 +720,9 @@ end % Ends fcn_INTERNAL_applyLabel
 function [displayColors, legendNames, legendColors] = fcn_INTERNAL_labelColors(vehicleMesh)
 % False colors that show each part and light type clearly
 partColors = [0.80 0.80 0.80; 0.45 0.70 1.00; 0.15 0.15 0.15; 1.00 1.00 0.60; 0.80 0.45 0.15; 0.85 0.65 0.40];
-lightColors = [1.00 1.00 0.20; 1.00 0.55 0.00; 0.70 1.00 0.70; 0.90 0.05 0.05; 0.60 0.20 1.00];
+lightColors = [1.00 1.00 0.20; 1.00 0.55 0.00; 0.70 1.00 0.70; 0.90 0.05 0.05; 0.60 0.20 1.00; 0.10 0.85 0.85];
+lightColors = lightColors(1:min(end, numel(vehicleMesh.LightTypeNames)),:);
+lightColors(end+1:numel(vehicleMesh.LightTypeNames),:) = 0.5;   % (any other light type: gray)
 Nfaces = size(vehicleMesh.Faces,1);
 % (by part name, so a mesh whose parts are in another order, or that has
 % 'interior', is colored right)

@@ -439,6 +439,17 @@ assert(glowHeadlight.Parent==plotHandles.BodyTransform && strcmp(glowHeadlight.V
 % The low beam is ahead of the vehicle, the brake pool behind it
 assert(min(pools.lowBeam.Vertices(:,1)) > 0.5*max(vehicleMesh.Vertices(:,1)));
 assert(max(pools.brake.Vertices(:,1)) < 0.5*max(vehicleMesh.Vertices(:,1)));
+% Turn-signal pools: on for the turn signal that is on (left), off for
+% the other; left ones on the left (+y)
+assert(strcmp(pools.turnLeftFront.Visible,'on') && strcmp(pools.turnRightRear.Visible,'off'));
+assert(mean(pools.turnLeftFront.Vertices(:,2)) > 0 && mean(pools.turnRightRear.Vertices(:,2)) < 0);
+assert(min(pools.turnLeftFront.Vertices(:,1)) > 0.5*max(vehicleMesh.Vertices(:,1)));
+assert(max(pools.turnLeftRear.Vertices(:,1)) < 0.5*max(vehicleMesh.Vertices(:,1)));
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('TurnRight',true), FigNum=-1);
+assert(strcmp(pools.turnRightFront.Visible,'on') && strcmp(pools.turnRightRear.Visible,'on'));
+assert(strcmp(pools.turnLeftFront.Visible,'off') && strcmp(pools.turnLeftRear.Visible,'off'));
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, ...
+    LightStates=lightStates, FigNum=-1);
 % Pools fade out at the far end
 assert(max(pools.lowBeam.FaceVertexAlphaData) <= 0.5 && min(pools.lowBeam.FaceVertexAlphaData) == 0);
 % The night scene darkened the axes and added its own lights
@@ -456,6 +467,36 @@ end
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: High beams as lamps of their own: each beam switched alone
+figNum = 20014;
+titleString = sprintf('TEST case: High beams as lamps of their own: each beam switched alone');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), AutoHighBeams=false, FigNum=-1);
+headFaces = find(vehicleMesh.FaceLightType == find(strcmp(vehicleMesh.LightTypeNames,'headlight')));
+assert(numel(headFaces) >= 2);
+vehicleMesh.FaceLightType(headFaces(1:2:end)) = find(strcmp(vehicleMesh.LightTypeNames,'highbeam'));
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightEffects=true, ...
+    LightStates=struct('LowBeam',true,'HighBeam',false), FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(~isempty(plotHandles.LightPatches.highBeam));
+lowColor = plotHandles.LightPatches.headlight(1).FaceVertexCData(1,:);
+highColors = plotHandles.LightPatches.highBeam(1).FaceVertexCData;
+assert(all(abs(lowColor - [1.00 0.96 0.78]) < 1e-12), 'Low beams lit');
+assert(~all(all(highColors == 1)), 'High beams off');
+pools = plotHandles.LightEffects.Pools;
+assert(strcmp(pools.lowBeam.Visible,'on') && strcmp(pools.highBeam.Visible,'off'));
+% High beams alone
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('LowBeam',false,'HighBeam',true), FigNum=-1);
+assert(all(all(plotHandles.LightPatches.highBeam(1).FaceVertexCData == 1)), 'High beams lit white');
+assert(~all(abs(plotHandles.LightPatches.headlight(1).FaceVertexCData(1,:) - [1.00 0.96 0.78]) < 1e-12), 'Low beams off');
+assert(strcmp(pools.lowBeam.Visible,'off') && strcmp(pools.highBeam.Visible,'on'));
+% 'high' in Headlights is still both beams
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','high'), FigNum=-1);
+assert(strcmp(pools.lowBeam.Visible,'on') && strcmp(pools.highBeam.Visible,'on'));
+assert(all(abs(plotHandles.LightPatches.headlight(1).FaceVertexCData(1,:) - [1.00 0.96 0.78]) < 1e-12));
 
 %% TEST case: A scene drawn with hidden handles is kept as it is
 figNum = 20099;

@@ -109,7 +109,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %               front to rear) and Polygon (closed, counterclockwise);
 %               empty if the mesh has no 'interior' part
 %           Lights: a structure array with Type ('headlight', 'turnsignal',
-%               'running', 'tail', 'backup', or 'other'), Side ('left' or
+%               'running', 'tail', 'backup', 'highbeam', or 'other'), Side ('left' or
 %               'right'), and Polygon (closed, counterclockwise)
 %           Length, Width: the body's extent in X and Y (before thinning)
 %           PointCount: the number of points in all the polygons
@@ -168,6 +168,10 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %   %   % outlines each (522 in all), one per few triangles
 %   % * Interior: the outline of each piece of the 'interior' part
 %   %   % (seats, steering wheel, dash), not made symmetric
+
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeOutline2D
+%   % * A color for 'highbeam' lamps in the debug plot (Sean, 03:27)
 
 % TO-DO:
 %
@@ -529,7 +533,7 @@ if flag_do_plots
     clf;
     layout = tiledlayout(2, 1, 'TileSpacing','compact', 'Padding','compact');
     lightColors = struct('headlight',[0.85 0.80 0.55], 'turnsignal',[0.95 0.55 0.05], 'running',[0.85 0.80 0.55], ...
-        'tail',[0.80 0.05 0.05], 'backup',[0.60 0.60 0.60], 'other',[0.50 0.50 0.50]);
+        'tail',[0.80 0.05 0.05], 'backup',[0.60 0.60 0.60], 'highbeam',[0.85 0.85 0.75], 'other',[0.50 0.50 0.50]);
     panelTitles = {'The outlines alone', 'Over the mesh seen from above (faded)'};
     for ith_panel = 1:2
         nexttile(layout);

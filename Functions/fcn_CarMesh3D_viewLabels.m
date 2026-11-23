@@ -105,7 +105,9 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      CameraViewAngle, Projection, XLim, YLim, ZLim), Label, Hidden,
 %      Colors, PhotoAngle (the photo shown, in degrees; NaN for none),
 %      SeeThrough (how see-through the body is drawn: 0 solid, up to 0.9),
-%      MeshBoundaries (true when the faces' edges are drawn), PhotoHeight
+%      MeshBoundaries (true when the faces' edges are drawn), NightView
+%      (true for the nighttime view), NightLights (the lamps switched on
+%      in it: fcn_CarMesh3D_plotVehicle's LightStates), PhotoHeight
 %      (the photo's height in pixels, set with the handle at its bottom
 %      left corner).
 %
@@ -197,6 +199,20 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   % * "Show mesh boundaries": the faces' edges drawn
 %   %   % (MeshBoundaries in the view settings), for every label picked,
 %   %   % not only "All labels" (Sean, 02:19)
+%   % * "Nighttime view" (Sean, 02:59 and 03:05): the night scene of
+%   %   % the animator's lights check (fcn_CarMesh3D_animateChecks): a
+%   %   % dark checkered ground and sky, a faint light from above, and
+%   %   % the vehicle in its own colors (fcn_CarMesh3D_plotVehicle, matte,
+%   %   % LightEffects), each lamp's glow and the light it throws on the
+%   %   % ground. The label list gives way to a list of the lamps to
+%   %   % switch: low beams and high beams (each alone: separate lamps,
+%   %   % Sean 03:19), running lights, each turn signal, hazards, tail
+%   %   % lights (off, on, brake), backup lights;
+%   %   % each can be switched even when no faces are labeled as that
+%   %   % lamp (marked "no faces"): its light on the ground still shows
+%   %   % where it would land (Sean, 03:19). "Show mesh
+%   %   % boundaries" works in it too. (NightView and NightLights in the
+%   %   % view settings.) Switched off, the labels return as they were.
 %   % * The photo resized by a handle at its bottom left corner, its
 %   %   % shape kept, from the dial's size to the window's height; the dial
 %   %   % follows the photo's edge and the model gets the rest (PhotoHeight
@@ -410,6 +426,15 @@ dialWidth = 300;   % (wide enough for the dial's side names)
 flagPhotoResizing = false;
 flagBoundaries = false;   % (the mesh's face edges drawn)
 boundaryBox = [];
+flagNight = false;   % (the nighttime view)
+nightBox = [];
+nightStates = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, 'TurnRight', true, ...
+    'Tail', 'on', 'Backup', true);   % (the lamps switched on in it: all, at first)
+nightHandles = [];      % (fcn_CarMesh3D_plotVehicle's handles in it)
+nightControls = struct();   % (the lamp list's controls)
+listInner = [];         % (the label list over the lamp list: one shown at a time)
+nightObjects = gobjects(0);   % (the night scene's ground, light and vehicle)
+dayLights = gobjects(0);      % (the viewer's own lights, off at night)
 labelSwatches = gobjects(0);
 photoIndex = 0;
 flagDialDragging = false;
@@ -471,7 +496,7 @@ end
 mainGrid = uigridlayout(parent, [4 1], 'RowHeight', {toolHeight, '1x', hintHeight, 0}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
 
 % The tool row: the colors, reset, copy the view call, close
-toolGrid = uigridlayout(mainGrid, [1 9], 'ColumnWidth', {60, 210, 100, 130, 175, 130, 150, '1x', 80}, 'Padding', [4 2 4 2], ...
+toolGrid = uigridlayout(mainGrid, [1 10], 'ColumnWidth', {60, 210, 100, 130, 175, 120, 130, 150, '1x', 80}, 'Padding', [4 2 4 2], ...
     'ColumnSpacing', 6, 'BackgroundColor', [0.93 0.95 1]);
 uilabel(toolGrid, 'Text', 'Colors:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
 colorsGroup = uibuttongroup(toolGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.95 1], ...
@@ -484,6 +509,9 @@ uibutton(toolGrid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) copyViewC
 boundaryBox = uicheckbox(toolGrid, 'Text', 'Show mesh boundaries', 'Value', flagBoundaries, ...
     'Tooltip', 'Draw the edge of every face (the mesh''s triangles)', ...
     'ValueChangedFcn', @(source,~) setBoundaries(source.Value));
+nightBox = uicheckbox(toolGrid, 'Text', 'Nighttime view', 'Value', flagNight, ...
+    'Tooltip', 'A night scene: the vehicle in its own colors, its lamps lit, and the light they throw on the ground. The list at the left switches the lamps.', ...
+    'ValueChangedFcn', @(source,~) setNightView(source.Value));
 uilabel(toolGrid, 'Text', 'See-through body:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold', ...
     'Tooltip', 'Makes the body see-through, to look at (and click) what is inside it');
 seeThroughSlider = uislider(toolGrid, 'Limits', [0 90], 'Value', 100*bodySeeThrough, 'MajorTicks', [0 45 90], ...
@@ -594,12 +622,16 @@ if isempty(listParent) && flagOwnWindow
 end
 if ~isempty(listParent)
     % (in a grid of its own, so it fills the space it is given)
-    labelGroup = uibuttongroup(uigridlayout(listParent, [1 1], 'Padding', [0 0 0 0]), ...
+    % (the label list, and under it the lamp list of the nighttime view:
+    % one shown at a time)
+    listInner = uigridlayout(listParent, [2 1], 'RowHeight', {'1x', 0}, 'Padding', [0 0 0 0], 'RowSpacing', 0);
+    labelGroup = uibuttongroup(listInner, ...
         'Title', 'Labels', 'Scrollable', 'on', ...
         'SelectionChangedFcn', @(~,event) showLabel(event.NewValue.UserData));
     labelGroup.AutoResizeChildren = 'off';   % (else its SizeChangedFcn is never called)
     labelGroup.SizeChangedFcn = @(~,~) placeLabelRows();
     makeLabelRows();
+    makeLampList();
 end
 if flagOwnWindow
     set(figureHandle, 'WindowButtonDownFcn', @(~,~) onOwnDown(), 'WindowButtonMotionFcn', @(~,~) onOwnMove(), ...
@@ -632,6 +664,8 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'SetPhotoAngle', @(angle) setDialAngle(angle, true, true), 'PhotoAngle', @getPhotoAngle, ...
     'DialMove', @dialMove, 'DialUp', @dialUp, 'GripDown', @gripDown, 'SetHistory', @setHistory, ...
     'ResetView', @resetView, 'SetSeeThrough', @setSeeThrough, 'SeeThrough', @getSeeThrough, ...
+    'SetNightView', @setNightView, 'NightView', @getNightView, ...
+    'SetNightLights', @setNightLights, 'NightLights', @getNightLights, ...
     'Stop', @stopTimer, 'Close', @closeViewer);
 if flagOwnWindow
     figureHandle.UserData = viewer;
@@ -715,6 +749,11 @@ end
         makeLabelRows();
         colorLabelRows();
         redraw();
+        if flagNight
+            % (the night scene drawn again, from the new mesh)
+            leaveNight();
+            enterNight();
+        end
     end
 
     function setSeeThrough(fraction)
@@ -832,7 +871,8 @@ end
         % the colors, and the photo
         settings = struct('MeshFile', meshFile, 'Camera', [], 'Label', currentKey, 'Hidden', {hiddenKeys}, ...
             'Colors', colorsMode, 'PhotoAngle', getPhotoAngle(), 'SeeThrough', bodySeeThrough, ...
-            'MeshBoundaries', flagBoundaries, 'PhotoHeight', photoHeight);
+            'MeshBoundaries', flagBoundaries, 'NightView', flagNight, 'NightLights', nightStates, ...
+            'PhotoHeight', photoHeight);
         if ~isempty(axesHandle) && isvalid(axesHandle)
             settings.Camera = fcn_INTERNAL_getView(axesHandle);
         elseif ~isempty(closedSettings)
@@ -846,6 +886,7 @@ end
         if isempty(settings)
             settings = struct();
         end
+        pendingNight = [];   % (the nighttime view set last, after the camera)
         if isfield(settings, 'Colors') && ~isempty(settings.Colors) && isempty(options.Colors)
             colorsMode = char(settings.Colors);
         end
@@ -860,6 +901,12 @@ end
             if ~isempty(boundaryBox) && isvalid(boundaryBox)
                 boundaryBox.Value = flagBoundaries;
             end
+        end
+        if isfield(settings, 'NightLights') && isstruct(settings.NightLights)
+            setNightLights(settings.NightLights);
+        end
+        if isfield(settings, 'NightView') && ~isempty(settings.NightView)
+            pendingNight = logical(settings.NightView);
         end
         if isfield(settings, 'PhotoHeight') && ~isempty(settings.PhotoHeight) && ~isempty(photoColumn)
             setPhotoHeight(max(double(settings.PhotoHeight), dialSize));
@@ -890,6 +937,9 @@ end
             drawnow;
             [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);
             lastLabelView = [azimuth elevation];
+        end
+        if ~isempty(pendingNight)
+            setNightView(pendingNight);
         end
     end
 
@@ -1088,6 +1138,217 @@ end
         photoGrip.Position = [2 2 26 26];
     end
 
+    %% The nighttime view
+    function setNightView(flagOn)
+        flagOn = logical(flagOn);
+        if ~isempty(nightBox) && isvalid(nightBox)
+            nightBox.Value = flagOn;
+        end
+        if flagOn == flagNight
+            return;
+        end
+        flagNight = flagOn;
+        if flagNight
+            enterNight();
+        else
+            leaveNight();
+        end
+    end
+
+    function enterNight()
+        % The night scene of the animator's lights check
+        % (fcn_CarMesh3D_animateChecks): a dark checkered ground and sky,
+        % a faint light from above, and the vehicle drawn by
+        % fcn_CarMesh3D_plotVehicle with its lamps lit as the lamp list
+        % says, their glows, and the light on the ground. The camera stays
+        % where it is (the ground reaches past the axes' box, unclipped).
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        if isempty(startView)
+            fcn_INTERNAL_freezeCamera(axesHandle);
+            startView = fcn_INTERNAL_getView(axesHandle);
+        end
+        cameraNow = fcn_INTERNAL_getView(axesHandle);
+        before = axesHandle.Children;
+        dayLights = findobj(axesHandle, 'Type', 'light');
+        set(dayLights, 'Visible', 'off');
+        fcn_INTERNAL_nightGround(axesHandle, data.Mesh.Vertices);
+        light(axesHandle, 'Style', 'infinite', 'Position', [0.3 -0.5 1], 'Color', [0.22 0.22 0.26]);
+        nightHandles = fcn_CarMesh3D_plotVehicle(data.Mesh, 'Finish', 'matte', 'LightEffects', true, ...
+            'SceneLights', 'none', 'LightStates', nightStates, 'AxesHandle', axesHandle);
+        nightObjects = setdiff(axesHandle.Children, before);
+        set(findobj(nightObjects, '-property', 'HitTest'), 'HitTest', 'off');
+        set(findobj(nightObjects, '-property', 'Clipping'), 'Clipping', 'off');
+        meshPatch.Visible = 'off';
+        nightSky = [0.04 0.05 0.09];
+        axesHandle.Color = nightSky;
+        modelHolder.BackgroundColor = nightSky;
+        nightEdges();
+        fcn_INTERNAL_setView(axesHandle, cameraNow);   % (the camera as it was)
+        if ~isempty(listInner) && isvalid(listInner)
+            listInner.RowHeight = {0, '1x'};
+        end
+        setHint('<b>Nighttime view:</b> switch the lamps in the list at the left. Untick "Nighttime view" to see the labels again.');
+    end
+
+    function leaveNight()
+        delete(nightObjects(isvalid(nightObjects)));
+        nightObjects = gobjects(0);
+        nightHandles = [];
+        set(dayLights(isvalid(dayLights)), 'Visible', 'on');
+        if ~isempty(listInner) && isvalid(listInner)
+            listInner.RowHeight = {'1x', 0};
+        end
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        meshPatch.Visible = 'on';
+        axesHandle.Color = [1 1 1];
+        modelHolder.BackgroundColor = [1 1 1];
+        redraw();
+    end
+
+    function nightEdges()
+        % "Show mesh boundaries" in the nighttime view: the vehicle's
+        % faces' edges (not the ground's, nor the glows')
+        if isempty(nightHandles) || ~isfield(nightHandles, 'Patches')
+            return;
+        end
+        vehiclePatches = [nightHandles.Patches{:}];
+        vehiclePatches = vehiclePatches(isvalid(vehiclePatches));
+        if flagBoundaries
+            set(vehiclePatches, 'EdgeColor', [0.6 0.6 0.65], 'EdgeAlpha', 0.35, 'LineWidth', 0.25);
+        else
+            set(vehiclePatches, 'EdgeColor', 'none');
+        end
+    end
+
+    function flagOn = getNightView()
+        flagOn = flagNight;
+    end
+
+    function statesOut = getNightLights()
+        statesOut = nightStates;
+    end
+
+    function setNightLights(statesIn)
+        % The lamps switched on in the nighttime view (fields missing are
+        % left as they are)
+        for name = fieldnames(statesIn)'
+            if isfield(nightStates, name{1})
+                nightStates.(name{1}) = statesIn.(name{1});
+            end
+        end
+        showNightLights();
+    end
+
+    function showNightLights()
+        % The lamp list set from the states, and the lamps switched
+        if isfield(nightControls, 'LowBeam') && isvalid(nightControls.LowBeam)
+            nightControls.LowBeam.Value = logical(nightStates.LowBeam);
+            nightControls.HighBeam.Value = logical(nightStates.HighBeam);
+            nightControls.Running.Value = logical(nightStates.Running);
+            nightControls.TurnLeft.Value = logical(nightStates.TurnLeft);
+            nightControls.TurnRight.Value = logical(nightStates.TurnRight);
+            nightControls.Hazards.Value = logical(nightStates.TurnLeft) && logical(nightStates.TurnRight);
+            nightControls.Tail.SelectedObject = findobj(nightControls.Tail.Children, ...
+                'UserData', lower(char(nightStates.Tail)));
+            nightControls.Backup.Value = logical(nightStates.Backup);
+        end
+        if ~isempty(nightHandles) && isfield(nightHandles, 'Transform') && isvalid(nightHandles.Transform)
+            fcn_CarMesh3D_plotVehicle(data.Mesh, 'PlotHandles', nightHandles, 'LightStates', nightStates);
+        end
+    end
+
+    function setNightLamp(name, value)
+        % One lamp switched from the list
+        switch name
+            case 'Hazards'
+                nightStates.TurnLeft = logical(value);
+                nightStates.TurnRight = logical(value);
+            case 'All'
+                if value
+                    nightStates = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
+                        'TurnRight', true, 'Tail', 'on', 'Backup', true);
+                else
+                    nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
+                        'TurnRight', false, 'Tail', 'off', 'Backup', false);
+                end
+            otherwise
+                nightStates.(name) = value;
+        end
+        showNightLights();
+    end
+
+    function makeLampList()
+        % The lamp list of the nighttime view, under the label list (shown
+        % in its place): each lamp the animator can switch, even one with
+        % no labeled faces (its light on the ground still shows)
+        if isempty(listInner) || ~isvalid(listInner)
+            return;
+        end
+        lampTypes = fcn_INTERNAL_lampTypes(data.Mesh);
+        lampPanel = uipanel(listInner, 'Title', 'Lamps (nighttime view)', 'Scrollable', 'on');
+        lampPanel.Layout.Row = 2;
+        lampGrid = uigridlayout(lampPanel, [12 1], 'RowHeight', {20, 22, 22, 22, 22, 22, 22, 20, 28, 22, 30, 48}, ...
+            'Padding', [8 6 8 6], 'RowSpacing', 4);
+        uilabel(lampGrid, 'Text', 'Headlights', 'FontWeight', 'bold');
+        nightControls.LowBeam = uicheckbox(lampGrid, 'Text', 'Low beams', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('LowBeam', source.Value));
+        nightControls.HighBeam = uicheckbox(lampGrid, 'Text', 'High beams', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('HighBeam', source.Value));
+        nightControls.Running = uicheckbox(lampGrid, 'Text', 'Running lights', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('Running', source.Value));
+        nightControls.TurnLeft = uicheckbox(lampGrid, 'Text', 'Left turn signal', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('TurnLeft', source.Value));
+        nightControls.TurnRight = uicheckbox(lampGrid, 'Text', 'Right turn signal', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('TurnRight', source.Value));
+        nightControls.Hazards = uicheckbox(lampGrid, 'Text', 'Hazards', 'Tooltip', 'Both turn signals at once', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('Hazards', source.Value));
+        tailLabel = uilabel(lampGrid, 'Text', 'Tail lights', 'FontWeight', 'bold');
+        nightControls.Tail = uibuttongroup(lampGrid, 'BorderType', 'none', ...
+            'SelectionChangedFcn', @(~,event) setNightLamp('Tail', event.NewValue.UserData));
+        uiradiobutton(nightControls.Tail, 'Text', 'Off', 'Position', [2 3 50 22], 'UserData', 'off');
+        uiradiobutton(nightControls.Tail, 'Text', 'On', 'Position', [56 3 50 22], 'UserData', 'on');
+        uiradiobutton(nightControls.Tail, 'Text', 'Brake', 'Position', [110 3 70 22], 'UserData', 'brake');
+        nightControls.Backup = uicheckbox(lampGrid, 'Text', 'Backup lights', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('Backup', source.Value));
+        buttonGrid = uigridlayout(lampGrid, [1 2], 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
+        uibutton(buttonGrid, 'Text', 'All on', 'ButtonPushedFcn', @(~,~) setNightLamp('All', true));
+        uibutton(buttonGrid, 'Text', 'All off', 'ButtonPushedFcn', @(~,~) setNightLamp('All', false));
+        nightControls.Note = uilabel(lampGrid, 'Text', ['"no faces": no faces are labeled as this lamp; ' ...
+            'its light on the ground still shows where it would land.'], ...
+            'WordWrap', 'on', 'VerticalAlignment', 'top', 'FontColor', [0.4 0.4 0.4], 'FontSize', 11);
+        % (every lamp can be switched; those with no labeled faces say so)
+        noFaces = ' (no faces)';
+        if ~any(strcmp(lampTypes, 'headlight'))
+            nightControls.LowBeam.Text = [nightControls.LowBeam.Text noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'highbeam'))
+            % (no high beam lamps: the headlights light white for them)
+            nightControls.HighBeam.Text = [nightControls.HighBeam.Text ' (in the headlights)'];
+            if ~any(strcmp(lampTypes, 'headlight'))
+                nightControls.HighBeam.Text = ['High beams' noFaces];
+            end
+        end
+        if ~any(strcmp(lampTypes, 'running'))
+            nightControls.Running.Text = [nightControls.Running.Text noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'turnsignal'))
+            nightControls.TurnLeft.Text = [nightControls.TurnLeft.Text noFaces];
+            nightControls.TurnRight.Text = [nightControls.TurnRight.Text noFaces];
+            nightControls.Hazards.Text = [nightControls.Hazards.Text noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'tail'))
+            tailLabel.Text = ['Tail lights' noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'backup'))
+            nightControls.Backup.Text = [nightControls.Backup.Text noFaces];
+        end
+        showNightLights();
+    end
+
     %% The mesh's boundaries
     function setBoundaries(flagOn)
         flagBoundaries = logical(flagOn);
@@ -1095,6 +1356,7 @@ end
             boundaryBox.Value = flagBoundaries;
         end
         redraw();
+        nightEdges();
     end
 
     %% Its own window: the label list, the mouse, and closing
@@ -1387,13 +1649,24 @@ boundaryValue = false;
 if isfield(settings, 'MeshBoundaries') && ~isempty(settings.MeshBoundaries)
     boundaryValue = logical(settings.MeshBoundaries);
 end
+nightValue = false;
+if isfield(settings, 'NightView') && ~isempty(settings.NightView)
+    nightValue = logical(settings.NightView);
+end
+nightLightsText = 'struct()';
+if isfield(settings, 'NightLights') && isstruct(settings.NightLights)
+    lamps = settings.NightLights;
+    nightLightsText = sprintf(['struct(''LowBeam'',%s,''HighBeam'',%s,''Running'',%s,''TurnLeft'',%s,''TurnRight'',%s,' ...
+        '''Tail'',''%s'',''Backup'',%s)'], mat2str(logical(lamps.LowBeam)), mat2str(logical(lamps.HighBeam)), mat2str(logical(lamps.Running)), ...
+        mat2str(logical(lamps.TurnLeft)), mat2str(logical(lamps.TurnRight)), char(lamps.Tail), mat2str(logical(lamps.Backup)));
+end
 photoHeightText = '[]';
 if isfield(settings, 'PhotoHeight') && ~isempty(settings.PhotoHeight)
     photoHeightText = mat2str(round(settings.PhotoHeight));
 end
 settingsText = sprintf(['struct(''MeshFile'',''%s'',''Camera'',struct(%s),''Label'',''%s'',''Hidden'',{%s},' ...
-    '''Colors'',''%s'',''PhotoAngle'',%s,''SeeThrough'',%s,''MeshBoundaries'',%s,''PhotoHeight'',%s)'], settings.MeshFile, strjoin(cameraParts, ','), settings.Label, hiddenText, ...
-    settings.Colors, photoText, mat2str(seeThroughValue, 4), mat2str(boundaryValue), photoHeightText);
+    '''Colors'',''%s'',''PhotoAngle'',%s,''SeeThrough'',%s,''MeshBoundaries'',%s,''NightView'',%s,''NightLights'',%s,''PhotoHeight'',%s)'], settings.MeshFile, strjoin(cameraParts, ','), settings.Label, hiddenText, ...
+    settings.Colors, photoText, mat2str(seeThroughValue, 4), mat2str(boundaryValue), mat2str(nightValue), nightLightsText, photoHeightText);
 if isempty(settings.MeshFile)
     vehicleText = 'vehicleMesh';   % (a mesh variable was given: the one who opens it gives it again)
 else
@@ -1403,6 +1676,48 @@ textOut = sprintf('fcn_CarMesh3D_viewLabels(%s, ViewSettings=%s);', vehicleText,
 end % Ends fcn_INTERNAL_viewCall
 
 %% fcn_INTERNAL_labelColor
+function lampTypes = fcn_INTERNAL_lampTypes(vehicleMesh)
+% The lamp types this vehicle has (its own type or, for a lamp with
+% several functions, any of them)
+lampTypes = {};
+if ~isfield(vehicleMesh,'FaceLightType') || isempty(vehicleMesh.FaceLightType) || ~isfield(vehicleMesh,'LightTypeNames')
+    return;
+end
+typeNames = cellstr(vehicleMesh.LightTypeNames);
+flagHas = false(1, numel(typeNames));
+usedTypes = unique(double(vehicleMesh.FaceLightType(vehicleMesh.FaceLightType > 0)));
+flagHas(usedTypes) = true;
+if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,2) == numel(typeNames)
+    flagHas = flagHas | any(logical(vehicleMesh.FaceLightFunctions), 1);
+end
+lampTypes = typeNames(flagHas);
+end
+
+function groundPatch = fcn_INTERNAL_nightGround(axesHandle, vertices)
+% The night ground of the lights check (fcn_CarMesh3D_animateChecks): 2 m
+% squares in two dark shades, unlit, 15 m past the vehicle on every
+% side, just under its lowest point
+extent = [min(vertices(:,1))-15, max(vertices(:,1))+15, min(vertices(:,2))-15, max(vertices(:,2))+15];
+groundZ = min(vertices(:,3)) - 0.01;
+squareSize = 2;
+xEdges = floor(extent(1)/squareSize)*squareSize:squareSize:extent(2);
+yEdges = floor(extent(3)/squareSize)*squareSize:squareSize:extent(4);
+[gridX, gridY] = meshgrid(xEdges, yEdges);
+numSquares = numel(gridX);
+corners = [0 0; squareSize 0; squareSize squareSize; 0 squareSize];
+groundVertices = zeros(4*numSquares, 3);
+groundVertices(:,3) = groundZ;
+groundFaces = reshape(1:4*numSquares, 4, [])';
+for ith_corner = 1:4
+    groundVertices(ith_corner:4:end, 1:2) = [gridX(:) gridY(:)] + corners(ith_corner,:);
+end
+flagDark = mod(round(gridX(:)/squareSize) + round(gridY(:)/squareSize), 2) == 0;
+shades = [0.11 0.11 0.13; 0.14 0.14 0.16];
+groundPatch = patch(axesHandle, 'Faces', groundFaces, 'Vertices', groundVertices, ...
+    'FaceVertexCData', shades(1 + flagDark, :), 'FaceColor', 'flat', 'EdgeColor', 'none', ...
+    'FaceLighting', 'none', 'Clipping', 'off', 'HitTest', 'off');
+end
+
 function thisColor = fcn_INTERNAL_labelColor(data, labelKey)
 % The color most of a label's faces have in the label colors
 thisColor = [0.5 0.5 0.5];
@@ -1445,6 +1760,20 @@ end
 end % Ends fcn_INTERNAL_labelFaces
 
 %% fcn_INTERNAL_labelKinds
+function nameOut = fcn_INTERNAL_lightName(typeName)
+% A light type's name in the label list
+switch typeName
+    case 'headlight'
+        nameOut = 'headlight (low beam)';
+    case 'highbeam'
+        nameOut = 'high beam';
+    case 'turnsignal'
+        nameOut = 'turn signal light';
+    otherwise
+        nameOut = [typeName ' light'];
+end
+end
+
 function [keys, names] = fcn_INTERNAL_labelKinds(vehicleMesh)
 % The labels on this mesh: parts (other than light), each light type, and
 % "light with no type" if there are any
@@ -1462,7 +1791,7 @@ if isfield(vehicleMesh, 'LightTypeNames')
     for ith_type = 1:numel(vehicleMesh.LightTypeNames)
         if any(vehicleMesh.FaceLightType==ith_type)
             keys{end+1} = ['light_' vehicleMesh.LightTypeNames{ith_type}]; %#ok<AGROW>
-            names{end+1} = [vehicleMesh.LightTypeNames{ith_type} ' light']; %#ok<AGROW>
+            names{end+1} = fcn_INTERNAL_lightName(vehicleMesh.LightTypeNames{ith_type}); %#ok<AGROW>
         end
     end
 end

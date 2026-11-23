@@ -161,6 +161,42 @@ viewer.Close();
 assert(abs(viewer.SeeThrough() - 0.5) < 1e-12, 'See-through opened from view settings');
 viewer.Close();
 
+%% TEST case: Nighttime view: the night scene, lamps switched, boundaries; off again: the labels as before
+fprintf(1,'TEST case: nighttime view\n');
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+colorsOff = viewer.Patch.FaceVertexCData;
+numBefore = numel(viewer.Axes.Children);
+cameraBefore = viewer.Axes.CameraPosition;
+viewer.SetNightView(true);
+assert(strcmp(viewer.Patch.Visible, 'off'), 'The label patch hidden at night');
+assert(numel(viewer.Axes.Children) > numBefore, 'The night scene drawn');
+assert(max(viewer.Axes.Color) < 0.1, 'A dark sky');
+assert(max(abs(viewer.Axes.CameraPosition - cameraBefore)) < 1e-9, 'The camera kept');
+% (lamps switched: the low beams off, then the high beams off)
+viewer.SetNightLights(struct('LowBeam', false));
+assert(~viewer.NightLights().LowBeam && viewer.NightLights().HighBeam, 'Each beam switched alone');
+viewer.SetNightLights(struct('LowBeam', true, 'HighBeam', false, 'Tail', 'brake'));
+assert(strcmp(viewer.NightLights().Tail, 'brake'));
+% (mesh boundaries in the nighttime view)
+patchesBefore = findobj(viewer.Axes, 'Type', 'patch', 'EdgeColor', 'none');
+fcn_INTERNAL_tickBoundaries(viewer, true);
+assert(numel(findobj(viewer.Axes, 'Type', 'patch', 'EdgeColor', 'none')) < numel(patchesBefore), 'Boundaries drawn at night');
+fcn_INTERNAL_tickBoundaries(viewer, false);
+settings = viewer.GetView();
+assert(settings.NightView && settings.NightLights.LowBeam && ~settings.NightLights.HighBeam);
+callText = viewer.ViewCall();
+assert(contains(callText, '''NightView'',true') && contains(callText, '''HighBeam'',false'));
+viewer.SetNightView(false);
+assert(strcmp(viewer.Patch.Visible, 'on'));
+assert(numel(viewer.Axes.Children) == numBefore, 'The night scene removed');
+assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Night off again: as before');
+viewer.Close();
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false, ...
+    ViewSettings=struct('NightView', true, 'NightLights', struct('Backup', false)));
+assert(viewer.NightView() && strcmp(viewer.Patch.Visible, 'off'), 'Nighttime view opened from view settings');
+assert(~viewer.NightLights().Backup);
+viewer.Close();
+
 %% TEST case: A file that holds no mesh
 fprintf(1,'TEST case: a file that holds no mesh\n');
 emptyFile = [tempname '.mat'];
@@ -195,3 +231,10 @@ function callText = fcn_INTERNAL_callOf(settings)
 callText = viewer.ViewCall();
 viewer.Close();
 end % Ends fcn_INTERNAL_callOf
+
+function fcn_INTERNAL_tickBoundaries(viewer, flagOn)
+% Ticks (or unticks) "Show mesh boundaries", as a person would
+boundaryBox = findall(viewer.Figure, 'Type', 'uicheckbox', 'Text', 'Show mesh boundaries');
+boundaryBox.Value = flagOn;
+boundaryBox.ValueChangedFcn(boundaryBox, []);
+end % Ends fcn_INTERNAL_tickBoundaries

@@ -85,6 +85,10 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %   % * The body's label color is near-white ([0.97 0.97 0.97], was
 %   %   % [0.80 0.80 0.80]): the labels stand out against it (Sean, 00:05)
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotLabels
+%   % * A label color for the 'highbeam' light type (blue) (Sean, 03:27)
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -197,7 +201,7 @@ end
 partColors = struct('body',[0.97 0.97 0.97], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
     'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45], 'interior',[0.85 0.65 0.40]);
 lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
-    'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10]);
+    'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10], 'highbeam',[0.30 0.55 1.00]);
 
 Nfaces = size(vehicleMesh.Faces,1);
 labelMesh = vehicleMesh;

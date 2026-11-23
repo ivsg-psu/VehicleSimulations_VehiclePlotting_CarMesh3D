@@ -342,7 +342,7 @@ Everything else stays in the repository, including each vehicle's imported mesh,
 - the finished meshes, detail levels and outlines are all there, for plotting and animation;
 - a vehicle's script still runs: when its download is not in `model/`, it rebuilds the vehicle from `rawMesh_<ID>.mat` (it says so when it starts) and skips only the comparison with the download (`check_04_compare_*`).
 
-The large-file area is on OneDrive at: *(location to be added)*. It is mounted at a different place on each computer, so below, `<your large-file Data folder>` is the area's `CarMesh3D\Data` folder as it is found on yours.
+The large-file area is the IVSG OneDrive folder `IVSG:\\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D` (the same path as the repository, inside the IVSG OneDrive). It is mounted at a different place on each computer, so below, `<your large-file Data folder>` is that folder's `Data` folder as it is found on yours.
 
 To get the downloads, copy that folder into the repository's `Data` folder with rclone (it adds the `model/` folders and leaves everything else alone):
 

@@ -120,7 +120,11 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %
 %      LightStates: a structure that switches the vehicle's lights. Any
 %      field may be left out (it then stays off):
-%           Headlights: 'off', 'low', or 'high'
+%           Headlights: 'off', 'low', or 'high' ('high' is both beams)
+%           LowBeam, HighBeam: true or false, to switch each beam on its
+%               own (each overrides what Headlights says for it). The
+%               high beam lamps are the 'highbeam' faces; a vehicle with
+%               none lights its headlights white for the high beams
 %           TurnLeft, TurnRight: true or false (blink them in your loop)
 %           Running: true or false (front running lights)
 %           Tail: 'off', 'on', or 'brake' (rear lights)
@@ -143,7 +147,9 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               the light's color, ahead of the headlights (short and wide
 %               for low beams; long and narrow added for high beams) and
 %               behind the tail lights (dim red when on, brighter red when
-%               braking, white when backing up).
+%               braking, white when backing up), and, while a turn
+%               signal is on, a small pool at that side's front corner
+%               (amber) and rear corner (red).
 %      These are drawn shapes, not MATLAB light objects: MATLAB lights
 %      shine in every direction, do not fade with distance, and cast no
 %      shadows, so they cannot make a beam. The pools do not light up
@@ -262,6 +268,20 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   % * Multi-part faces: a light that is also glass (FaceAlsoParts, a
 %   %   % lamp's clear cover) is drawn as the vehicle's glass while off,
 %   %   % and glows, opaque, while on (Sean, 23:04: option B)
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Turn-signal pools of light (LightEffects): while a turn signal
+%   %   % is on, a small pool on the ground at that side's front corner
+%   %   % (amber) and rear corner (red) (Sean, 03:19); placed from the
+%   %   % lamps, or from the headlights and tail lights, or the mesh's
+%   %   % corners, when the vehicle has no turn-signal lamps
+%   % * High beams as lamps of their own (Sean, 03:19 and 03:27): the
+%   %   % 'highbeam' light type is a light group of its own, 'highBeam';
+%   %   % LowBeam and HighBeam in LightStates switch each beam alone
+%   %   % ('high' in Headlights is still both). A vehicle with no high
+%   %   % beam lamps lights its headlights white for the high beams, as
+%   %   % before
 
 % TO-DO:
 %
@@ -426,7 +446,7 @@ if 0==flag_max_speed
             if ~isstruct(options.LightStates)
                 error('LightStates must be a structure (see help fcn_CarMesh3D_plotVehicle)');
             end
-            allowedFields = {'Headlights','TurnLeft','TurnRight','Running','Tail','Backup'};
+            allowedFields = {'Headlights','LowBeam','HighBeam','TurnLeft','TurnRight','Running','Tail','Backup'};
             givenFields = fieldnames(options.LightStates);
             unknownFields = setdiff(givenFields, allowedFields);
             if ~isempty(unknownFields)
@@ -742,7 +762,7 @@ end % Ends fcn_INTERNAL_patchesByAlpha
 %% fcn_INTERNAL_lightGroupNames
 function lightGroupNames = fcn_INTERNAL_lightGroupNames
 % The switchable light groups, in a fixed order
-lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup'};
+lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup','highBeam'};
 end % Ends fcn_INTERNAL_lightGroupNames
 
 %% fcn_INTERNAL_faceLightGroups
@@ -775,6 +795,7 @@ faceLightGroup(strcmp(faceTypeName,'turnsignal') & faceCentersY<=0) = 3;
 faceLightGroup(strcmp(faceTypeName,'running')) = 4;
 faceLightGroup(strcmp(faceTypeName,'tail'))    = 5;
 faceLightGroup(strcmp(faceTypeName,'backup'))  = 6;
+faceLightGroup(strcmp(faceTypeName,'highbeam')) = 7;
 
 % Faces with several light functions: a group for each combination
 if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == Nfaces ...
@@ -793,6 +814,8 @@ if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFuncti
                     else
                         members{end+1} = 'turnRight'; %#ok<AGROW>
                     end
+                case 'highbeam'
+                    members{end+1} = 'highBeam'; %#ok<AGROW>
                 otherwise
                     members{end+1} = typeName{1}; %#ok<AGROW>
             end
@@ -888,15 +911,17 @@ end
 if isfield(plotHandles,'LightGroupNames')
     lightGroupNames = plotHandles.LightGroupNames;
 else
-    lightGroupNames = fcn_INTERNAL_lightGroupNames;   % (handles made before multi-function lights)
+    lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup'};   % (handles made before multi-function lights)
 end
+% (no high beam lamps: the headlights light white for the high beams)
+flagHighFaces = isfield(plotHandles.LightPatches,'highBeam') && ~isempty(plotHandles.LightPatches.highBeam);
 for ith_group = 1:length(lightGroupNames)
     thisName = lightGroupNames{ith_group};
     thisPatch = plotHandles.LightPatches.(thisName);
     if isempty(thisPatch)
         continue;
     end
-    onColor = fcn_INTERNAL_lightColor(thisName, lightStates);
+    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
     offColors = plotHandles.LightOffColors.(thisName);
     if ~iscell(offColors)
         offColors = {offColors};   % (handles made before 2026_11_22: one patch)
@@ -937,7 +962,7 @@ for ith_group = 1:length(lightGroupNames)
     if isempty(thisGlow)
         continue;
     end
-    onColor = fcn_INTERNAL_lightColor(thisName, lightStates);
+    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
     if isempty(onColor)
         fcn_INTERNAL_setVisible(thisGlow, false);
     else
@@ -945,7 +970,7 @@ for ith_group = 1:length(lightGroupNames)
         fcn_INTERNAL_setVisible(thisGlow, true);
     end
 end
-headlightState = lower(char(string(fcn_INTERNAL_stateValue(lightStates,'Headlights','off'))));
+[flagLowBeam, flagHighBeam] = fcn_INTERNAL_beams(lightStates);
 tailState = fcn_INTERNAL_stateValue(lightStates,'Tail','off');
 if islogical(tailState) || isnumeric(tailState)
     if tailState
@@ -955,11 +980,19 @@ if islogical(tailState) || isnumeric(tailState)
     end
 end
 tailState = lower(char(tailState));
-fcn_INTERNAL_setVisible(lightEffects.Pools.lowBeam, any(strcmp(headlightState,{'low','high'})));
-fcn_INTERNAL_setVisible(lightEffects.Pools.highBeam, strcmp(headlightState,'high'));
+fcn_INTERNAL_setVisible(lightEffects.Pools.lowBeam, flagLowBeam);
+fcn_INTERNAL_setVisible(lightEffects.Pools.highBeam, flagHighBeam);
 fcn_INTERNAL_setVisible(lightEffects.Pools.tail, strcmp(tailState,'on'));
 fcn_INTERNAL_setVisible(lightEffects.Pools.brake, strcmp(tailState,'brake'));
 fcn_INTERNAL_setVisible(lightEffects.Pools.backup, fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'Backup',false)));
+if isfield(lightEffects.Pools, 'turnLeftFront')   % (handles made before 2026_11_23 have no turn pools)
+    flagLeft = fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnLeft',false));
+    flagRight = fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnRight',false));
+    fcn_INTERNAL_setVisible(lightEffects.Pools.turnLeftFront, flagLeft);
+    fcn_INTERNAL_setVisible(lightEffects.Pools.turnLeftRear, flagLeft);
+    fcn_INTERNAL_setVisible(lightEffects.Pools.turnRightFront, flagRight);
+    fcn_INTERNAL_setVisible(lightEffects.Pools.turnRightRear, flagRight);
+end
 end % Ends fcn_INTERNAL_updateLights
 
 %% fcn_INTERNAL_setVisible
@@ -1010,7 +1043,7 @@ end
 % labeled lamps, use the front and back of the mesh.
 meshLow = min(vehicleMesh.Vertices,[],1);
 meshHigh = max(vehicleMesh.Vertices,[],1);
-frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'headlight'})));
+frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'headlight','highBeam'})));
 rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'tail','backup'})));
 if isempty(frontVertices)
     frontX = meshHigh(1);
@@ -1027,22 +1060,46 @@ else
     rearHalfSpacing = mean(abs(rearVertices(:,2)));
 end
 
+% The turn signals' corners: from their lamps, else the headlights and
+% tail lights (or the mesh's corners) found above
+turnFrontX = frontX;
+turnRearX = rearX;
+turnFrontY = max(frontHalfSpacing, 0.35*(meshHigh(2) - meshLow(2)));
+turnRearY = max(rearHalfSpacing, 0.35*(meshHigh(2) - meshLow(2)));
+turnVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'turnLeft','turnRight'})));
+middleX = 0.5*(meshLow(1) + meshHigh(1));
+if any(turnVertices(:,1) > middleX)
+    frontTurn = turnVertices(turnVertices(:,1) > middleX,:);
+    turnFrontX = max(frontTurn(:,1));
+    turnFrontY = mean(abs(frontTurn(:,2)));
+end
+if any(turnVertices(:,1) <= middleX)
+    rearTurn = turnVertices(turnVertices(:,1) <= middleX,:);
+    turnRearX = min(rearTurn(:,1));
+    turnRearY = mean(abs(rearTurn(:,2)));
+end
+
 % The pools: start x, direction (+1 ahead, -1 behind), half spacing [m],
 % length [m], spread half angle [deg], peak alpha, height above the
-% ground [m], color. Change these numbers to change the look of the
-% beams. Pools that can be on together get different heights, so the
-% graphics card does not flicker between them ("z-fighting").
+% ground [m], center y [m] (+ left), color. Change these numbers to
+% change the look of the beams. Pools that can be on together get
+% different heights, so the graphics card does not flicker between them
+% ("z-fighting").
 poolList = {
-    'lowBeam',  frontX, +1, frontHalfSpacing,     15,  16, 0.50, 0.010, [1.00 0.95 0.78];
-    'highBeam', frontX, +1, 0.8*frontHalfSpacing, 40,   6, 0.40, 0.025, [1.00 1.00 0.95];
-    'tail',     rearX,  -1, rearHalfSpacing,      2.0, 45, 0.15, 0.010, [1.00 0.08 0.05];
-    'brake',    rearX,  -1, rearHalfSpacing,      3.0, 45, 0.40, 0.010, [1.00 0.10 0.06];
-    'backup',   rearX,  -1, rearHalfSpacing,      6.0, 30, 0.45, 0.025, [1.00 1.00 1.00]};
+    'lowBeam',        frontX,     +1, frontHalfSpacing,     15,  16, 0.50, 0.010, 0,           [1.00 0.95 0.78];
+    'highBeam',       frontX,     +1, 0.8*frontHalfSpacing, 40,   6, 0.40, 0.025, 0,           [1.00 1.00 0.95];
+    'tail',           rearX,      -1, rearHalfSpacing,      2.0, 45, 0.15, 0.010, 0,           [1.00 0.08 0.05];
+    'brake',          rearX,      -1, rearHalfSpacing,      3.0, 45, 0.40, 0.010, 0,           [1.00 0.10 0.06];
+    'backup',         rearX,      -1, rearHalfSpacing,      6.0, 30, 0.45, 0.025, 0,           [1.00 1.00 1.00];
+    'turnLeftFront',  turnFrontX, +1, 0.05,                 1.6, 50, 0.45, 0.018, +turnFrontY, [1.00 0.55 0.00];
+    'turnRightFront', turnFrontX, +1, 0.05,                 1.6, 50, 0.45, 0.018, -turnFrontY, [1.00 0.55 0.00];
+    'turnLeftRear',   turnRearX,  -1, 0.05,                 1.6, 50, 0.45, 0.018, +turnRearY,  [1.00 0.10 0.06];
+    'turnRightRear',  turnRearX,  -1, 0.05,                 1.6, 50, 0.45, 0.018, -turnRearY,  [1.00 0.10 0.06]};
 for ith_pool = 1:size(poolList,1)
-    [poolVertices, poolFaces, poolAlpha] = fcn_INTERNAL_poolMesh(poolList{ith_pool,2:8});
+    [poolVertices, poolFaces, poolAlpha] = fcn_INTERNAL_poolMesh(poolList{ith_pool,2:9});
     lightEffects.Pools.(poolList{ith_pool,1}) = patch('Parent',groundParent, ...
         'Faces',poolFaces,'Vertices',poolVertices, ...
-        'FaceColor',poolList{ith_pool,9},'EdgeColor','none','FaceLighting','none', ...
+        'FaceColor',poolList{ith_pool,10},'EdgeColor','none','FaceLighting','none', ...
         'FaceVertexAlphaData',poolAlpha,'FaceAlpha','interp','AlphaDataMapping','none', ...
         'Visible','off','HitTest','off','DisplayName',sprintf('Light pool: %s',poolList{ith_pool,1}));
 end
@@ -1063,7 +1120,7 @@ groupVertices = vehicleMesh.Vertices(unique(theseFaces(:)),:);
 end % Ends fcn_INTERNAL_groupVertices
 
 %% fcn_INTERNAL_poolMesh
-function [vertices, faces, vertexAlpha] = fcn_INTERNAL_poolMesh(startX, direction, halfSpacing, poolLength, spreadDegrees, peakAlpha, poolZ)
+function [vertices, faces, vertexAlpha] = fcn_INTERNAL_poolMesh(startX, direction, halfSpacing, poolLength, spreadDegrees, peakAlpha, poolZ, centerY)
 % A fan-shaped grid on the ground, starting at the lamps and widening
 % with distance. Its alpha (see-through-ness) rises quickly near the
 % lamps, fades to zero at the far end, and fades to zero at the sides.
@@ -1075,7 +1132,7 @@ halfWidth = halfSpacing + 0.3 + along*tand(spreadDegrees);
 [acrossGrid, alongGrid] = meshgrid(across, along);
 halfWidthGrid = repmat(halfWidth, 1, Nacross);
 x = startX + direction*alongGrid;
-y = acrossGrid.*halfWidthGrid;
+y = centerY + acrossGrid.*halfWidthGrid;
 rise = min(1, (alongGrid + 0.3)/(0.15*poolLength + 0.3));
 fade = (1 - alongGrid/poolLength).^1.5;
 edge = 1 - acrossGrid.^2;
@@ -1090,7 +1147,22 @@ faces = [first, first+1, first+1+Nalong, first+Nalong];
 end % Ends fcn_INTERNAL_poolMesh
 
 %% fcn_INTERNAL_lightColor
-function onColor = fcn_INTERNAL_lightColor(groupName, lightStates)
+function [flagLowBeam, flagHighBeam] = fcn_INTERNAL_beams(lightStates)
+% Which headlight beams are on: Headlights ('low' the low beams, 'high'
+% both), each overridden by LowBeam or HighBeam when given
+headlightState = lower(char(string(fcn_INTERNAL_stateValue(lightStates,'Headlights','off'))));
+flagLowBeam = any(strcmp(headlightState, {'low','high'}));
+flagHighBeam = strcmp(headlightState, 'high');
+if isfield(lightStates, 'LowBeam') && ~isempty(lightStates.LowBeam)
+    flagLowBeam = fcn_INTERNAL_isOn(lightStates.LowBeam);
+end
+if isfield(lightStates, 'HighBeam') && ~isempty(lightStates.HighBeam)
+    flagHighBeam = fcn_INTERNAL_isOn(lightStates.HighBeam);
+end
+end % Ends fcn_INTERNAL_beams
+
+%% fcn_INTERNAL_lightColor
+function onColor = fcn_INTERNAL_lightColor(groupName, lightStates, flagHighFaces)
 % The glowing color of a light group in the given states, or [] if off.
 % A combined group ('turnLeft_tail') glows when any of its functions is
 % on: a turn signal flashing wins (in red when the lamp is also a tail
@@ -1099,10 +1171,10 @@ function onColor = fcn_INTERNAL_lightColor(groupName, lightStates)
 onColor = [];
 if contains(groupName, '_')
     members = split(groupName, '_');
-    priority = {'turnLeft','turnRight','tail','headlight','running','backup'};
+    priority = {'turnLeft','turnRight','tail','highBeam','headlight','running','backup'};
     for thisMember = priority
         if any(strcmp(members, thisMember{1}))
-            onColor = fcn_INTERNAL_lightColor(thisMember{1}, lightStates);
+            onColor = fcn_INTERNAL_lightColor(thisMember{1}, lightStates, flagHighFaces);
             if ~isempty(onColor)
                 if startsWith(thisMember{1}, 'turn') && any(strcmp(members, 'tail'))
                     onColor = [1.00 0.12 0.08];   % (a red turn signal)
@@ -1115,12 +1187,17 @@ if contains(groupName, '_')
 end
 switch groupName
     case 'headlight'
-        state = fcn_INTERNAL_stateValue(lightStates,'Headlights','off');
-        switch lower(char(state))
-            case 'low'
-                onColor = [1.00 0.96 0.78];
-            case 'high'
-                onColor = [1.00 1.00 1.00];
+        % (the low beams; with no high beam lamps, the high beams too)
+        [flagLowBeam, flagHighBeam] = fcn_INTERNAL_beams(lightStates);
+        if flagHighBeam && ~flagHighFaces
+            onColor = [1.00 1.00 1.00];
+        elseif flagLowBeam
+            onColor = [1.00 0.96 0.78];
+        end
+    case 'highBeam'
+        [~, flagHighBeam] = fcn_INTERNAL_beams(lightStates);
+        if flagHighBeam
+            onColor = [1.00 1.00 1.00];
         end
     case 'turnLeft'
         if fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnLeft',false))
