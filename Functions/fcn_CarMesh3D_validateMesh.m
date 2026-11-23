@@ -109,6 +109,11 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 %   %   % other thin part sticking up (as fcn_CarMesh3D_fitMeshToSpec now
 %   %   % fits it): published heights exclude antennas
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_validateMesh
+%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -218,6 +223,10 @@ end
 %  |_|  |_|\__,_|_|_| |_|
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% (the vehicle as it is shown: hidden faces never count here;
+% fcn_CarMesh3D_visibleMesh)
+vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
+
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 

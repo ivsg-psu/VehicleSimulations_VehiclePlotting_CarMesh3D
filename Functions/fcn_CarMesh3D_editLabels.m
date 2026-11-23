@@ -24,10 +24,20 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    Reviewer (fcn_CarMesh3D_reviewVehicle), are given so
 % and say what they become with:
 %       Part:        'body', 'glass', 'wheel', 'light', 'trim', or
-%                    'interior' (added to PartNames if needed); or
-%                    'delete' to take the picked faces out of the mesh
-%                    (a part of the download not wanted, such as a rear
-%                    wiper or an antenna)
+%                    'interior' (added to PartNames if needed). ('delete',
+%                    from edits written before 2026_11_23, now hides the
+%                    faces, in the set 'hidden': see Hide)
+%       Hide:        a hidden set's name (such as 'hard top' or 'rear
+%                    wiper'), or true for the set 'hidden': the picked
+%                    faces are hidden, not deleted. They keep their part,
+%                    light type and colors, and stay in the mesh
+%                    (FaceHiddenSet: 0 for shown faces, else the set's
+%                    number in HiddenSetNames), so nothing downstream has
+%                    a hole; fcn_CarMesh3D_plotVehicle does not draw them
+%                    unless its ShowHidden names the set (a hard top put
+%                    up in the rain), and the checks and outlines measure
+%                    the shown faces (fcn_CarMesh3D_visibleMesh)
+%       Unhide:      true to show the picked faces again
 %       LightType:   'headlight' (the low beam), 'highbeam',
 %                    'turnsignal', 'running', 'tail', or 'backup' (this
 %                    also makes Part 'light')
@@ -145,6 +155,13 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % Model Reviewer for the vehicle's script
 %   % * Points (with PointTolerance): faces picked by their centers, for
 %   %   % the faces painted in the Model Reviewer on a finished mesh
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Hide and Unhide: faces hidden in named sets, not deleted (Sean,
+%   %   % 04:07 to 04:21: a mesh with holes cannot be fixed downstream;
+%   %   % a hidden hard top can be put back up by the animator). Part
+%   %   % 'delete' (older edits files) now hides, in the set 'hidden'
 
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
@@ -263,7 +280,7 @@ if 0==flag_max_speed
         if ~iscell(editList)
             error('Edits must be a cell array of structures (or a structure array)');
         end
-        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Points','PointTolerance','Part','LightType','AlsoLightTypes','AlsoParts','Color'};
+        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Points','PointTolerance','Part','LightType','AlsoLightTypes','AlsoParts','Color','Hide','Unhide'};
         for ith_edit = 1:length(editList)
             thisEdit = editList{ith_edit};
             if ~isstruct(thisEdit) || ~isscalar(thisEdit)
@@ -274,8 +291,12 @@ if 0==flag_max_speed
                 error('Edit %d has unknown field(s): %s. Allowed: %s',ith_edit,strjoin(unknownFields,', '),strjoin(allowedFields,', '));
             end
             if ~fcn_INTERNAL_hasValue(thisEdit,'Part') && ~fcn_INTERNAL_hasValue(thisEdit,'LightType') ...
-                    && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
-                error('Edit %d must say what to label the faces, with Part, LightType, AlsoLightTypes or AlsoParts',ith_edit);
+                    && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoParts') ...
+                    && ~fcn_INTERNAL_hasValue(thisEdit,'Hide') && ~fcn_INTERNAL_hasValue(thisEdit,'Unhide')
+                error('Edit %d must say what to do with the faces, with Part, LightType, AlsoLightTypes, AlsoParts, Hide or Unhide',ith_edit);
+            end
+            if fcn_INTERNAL_hasValue(thisEdit,'Hide') && ~(ischar(thisEdit.Hide) || isstring(thisEdit.Hide) || isequal(thisEdit.Hide, true))
+                error('Edit %d: Hide must be a hidden set''s name (such as ''hard top''), or true for the set ''hidden''',ith_edit);
             end
             if fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
                 alsoParts = lower(cellstr(thisEdit.AlsoParts));
@@ -360,11 +381,22 @@ appliedEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 for ith_edit = 1:length(editList)
     thisEdit = editList{ith_edit};
     selectedFaces = fcn_INTERNAL_selectFaces(vehicleMesh, thisEdit);
+    hideName = fcn_INTERNAL_getValue(thisEdit,'Hide','');
     if strcmpi(fcn_INTERNAL_getValue(thisEdit,'Part',''), 'delete')
-        % (faces taken out of the mesh; the face numbers of later edits
-        % are the new ones)
-        vehicleMesh = fcn_INTERNAL_deleteFaces(vehicleMesh, selectedFaces);
-        newPart = 'delete';
+        hideName = 'hidden';   % (older edits files: delete now hides)
+    end
+    if isequal(hideName, true)
+        hideName = 'hidden';
+    end
+    if ~isempty(hideName) || isequal(fcn_INTERNAL_getValue(thisEdit,'Unhide',false), true)
+        % (faces hidden in a named set, or shown again: they stay in the
+        % mesh, with their labels)
+        vehicleMesh = fcn_INTERNAL_hideFaces(vehicleMesh, selectedFaces, char(hideName));
+        if isempty(hideName)
+            newPart = 'unhide';
+        else
+            newPart = ['hide: ' char(hideName)];
+        end
         newLightType = '';
     else
         newPart = '';
@@ -475,37 +507,28 @@ else
 end
 end % Ends fcn_INTERNAL_addLightFunctions
 
-function vehicleMesh = fcn_INTERNAL_deleteFaces(vehicleMesh, deletedFaces)
-% Takes faces out of the mesh, with every per-face field (any field with
-% one row per face), and the vertices no face uses any more
+function vehicleMesh = fcn_INTERNAL_hideFaces(vehicleMesh, selectedFaces, setName)
+% Hides faces in a named set (FaceHiddenSet: the set's number in
+% HiddenSetNames), or shows them again (setName ''). The faces stay in
+% the mesh, with their labels.
 Nfaces = size(vehicleMesh.Faces,1);
-keep = true(Nfaces,1);
-keep(deletedFaces) = false;
-fieldList = fieldnames(vehicleMesh);
-for ith_field = 1:numel(fieldList)
-    name = fieldList{ith_field};
-    value = vehicleMesh.(name);
-    if strcmp(name, 'Vertices') || ~(isnumeric(value) || islogical(value) || iscell(value) || isstring(value))
-        continue;
-    end
-    if size(value,1) == Nfaces && Nfaces > 1
-        vehicleMesh.(name) = value(keep,:);
-    end
+if ~isfield(vehicleMesh,'FaceHiddenSet') || numel(vehicleMesh.FaceHiddenSet) ~= Nfaces
+    vehicleMesh.FaceHiddenSet = zeros(Nfaces,1);
 end
-% (vertices no longer used: dropped, and the faces renumbered)
-used = unique(vehicleMesh.Faces(:));
-newNumber = zeros(size(vehicleMesh.Vertices,1),1);
-newNumber(used) = 1:numel(used);
-Nvertices = size(vehicleMesh.Vertices,1);
-for ith_field = 1:numel(fieldList)
-    name = fieldList{ith_field};
-    value = vehicleMesh.(name);
-    if ~strcmp(name, 'Faces') && (isnumeric(value) || islogical(value)) && size(value,1) == Nvertices && Nvertices > 1
-        vehicleMesh.(name) = value(used,:);   % (per-vertex fields, such as normals)
-    end
+if ~isfield(vehicleMesh,'HiddenSetNames')
+    vehicleMesh.HiddenSetNames = cell(0,1);
 end
-vehicleMesh.Faces = newNumber(vehicleMesh.Faces);
-end % Ends fcn_INTERNAL_deleteFaces
+if isempty(setName)
+    vehicleMesh.FaceHiddenSet(selectedFaces) = 0;
+    return;
+end
+setIndex = find(strcmp(cellstr(vehicleMesh.HiddenSetNames), setName), 1);
+if isempty(setIndex)
+    vehicleMesh.HiddenSetNames{end+1,1} = setName;
+    setIndex = numel(vehicleMesh.HiddenSetNames);
+end
+vehicleMesh.FaceHiddenSet(selectedFaces) = setIndex;
+end % Ends fcn_INTERNAL_hideFaces
 
 function flag = fcn_INTERNAL_hasValue(thisStruct, fieldName)
 flag = isfield(thisStruct, fieldName) && ~isempty(thisStruct.(fieldName));

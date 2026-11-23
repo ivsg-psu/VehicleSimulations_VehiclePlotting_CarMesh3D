@@ -150,6 +150,11 @@ function detailLevels = fcn_CarMesh3D_makeDetailLevels(vehicleMesh, options)
 %   %   % were hollow shells with holes where the windows are.
 %   % * Added SolidFraction to the output
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeDetailLevels
+%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -266,6 +271,10 @@ end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+% (the vehicle as it is shown: hidden faces never count here;
+% fcn_CarMesh3D_visibleMesh)
+vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
 
 makeTimer = tic;
 vertices = double(vehicleMesh.Vertices);

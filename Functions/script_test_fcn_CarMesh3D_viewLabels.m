@@ -39,7 +39,8 @@ fprintf(1,'DEMO case: the Fit''s mesh file, labels and photos (hidden)\n');
 [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Outline=vehicleFiles.OutlineFile, Visible=false);
 assert(isgraphics(viewer.Figure) && isgraphics(viewer.Axes));
 assert(strcmp(viewSettings.MeshFile, meshFile));
-assert(strcmp(viewSettings.Label, 'all') && strcmp(viewSettings.Colors, 'labels') && isempty(viewSettings.Hidden));
+assert(strcmp(viewSettings.Label, 'all') && strcmp(viewSettings.Colors, 'labels'));
+assert(isempty(viewSettings.Hidden) || isequal(cellstr(viewSettings.Hidden), {'hidden'}));   % (hidden faces start out of view)
 assert(all(isfield(viewSettings.Camera, {'CameraPosition','CameraTarget','CameraUpVector','CameraViewAngle','Projection'})));
 if flagPhotos
     assert(~isnan(viewSettings.PhotoAngle));
@@ -167,13 +168,23 @@ fprintf(1,'TEST case: nighttime view\n');
 colorsOff = viewer.Patch.FaceVertexCData;
 numBefore = numel(viewer.Axes.Children);
 cameraBefore = viewer.Axes.CameraPosition;
+% (by day: the lamps start off; switched on, they are drawn lit on the model)
+loaded = load(meshFile, 'vehicleMesh');
+flagLamp = loaded.vehicleMesh.FaceLightType(:) > 0;
+assert(~any(viewer.NightLights().LowBeam));
+viewer.SetNightLights(struct('Tail', 'brake'));
+flagTail = loaded.vehicleMesh.FaceLightType(:) == find(strcmp(loaded.vehicleMesh.LightTypeNames, 'tail'));
+assert(all(max(abs(viewer.Patch.FaceVertexCData(flagTail,:) - [1.00 0.12 0.08]), [], 2) < 1e-9), 'Brake lights lit by day');
+assert(isequal(viewer.Patch.FaceVertexCData(~flagLamp,:), colorsOff(~flagLamp,:)), 'Only the lamps change');
+viewer.SetNightLights(struct('Tail', 'off'));
+assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Lamps off: as before');
 viewer.SetNightView(true);
 assert(strcmp(viewer.Patch.Visible, 'off'), 'The label patch hidden at night');
 assert(numel(viewer.Axes.Children) > numBefore, 'The night scene drawn');
 assert(max(viewer.Axes.Color) < 0.1, 'A dark sky');
 assert(max(abs(viewer.Axes.CameraPosition - cameraBefore)) < 1e-9, 'The camera kept');
 % (lamps switched: the low beams off, then the high beams off)
-viewer.SetNightLights(struct('LowBeam', false));
+viewer.SetNightLights(struct('LowBeam', false, 'HighBeam', true));
 assert(~viewer.NightLights().LowBeam && viewer.NightLights().HighBeam, 'Each beam switched alone');
 viewer.SetNightLights(struct('LowBeam', true, 'HighBeam', false, 'Tail', 'brake'));
 assert(strcmp(viewer.NightLights().Tail, 'brake'));
@@ -186,15 +197,37 @@ settings = viewer.GetView();
 assert(settings.NightView && settings.NightLights.LowBeam && ~settings.NightLights.HighBeam);
 callText = viewer.ViewCall();
 assert(contains(callText, '''NightView'',true') && contains(callText, '''HighBeam'',false'));
+% (the Show boxes work at night: glass taken off, the scene drawn again)
+childrenBefore = numel(findobj(viewer.Axes, 'Type', 'patch'));
+viewer.SetHidden({'part_glass'});
+assert(viewer.NightView() && numel(findobj(viewer.Axes, 'Type', 'patch')) > 0);
+viewer.SetHidden({});
+assert(numel(findobj(viewer.Axes, 'Type', 'patch')) == childrenBefore);
 viewer.SetNightView(false);
 assert(strcmp(viewer.Patch.Visible, 'on'));
 assert(numel(viewer.Axes.Children) == numBefore, 'The night scene removed');
-assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Night off again: as before');
+viewer.SetNightLights(struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
+    'TurnRight', false, 'Tail', 'off', 'Backup', false));
+assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Night off, lamps off: as before');
 viewer.Close();
 [~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false, ...
     ViewSettings=struct('NightView', true, 'NightLights', struct('Backup', false)));
 assert(viewer.NightView() && strcmp(viewer.Patch.Visible, 'off'), 'Nighttime view opened from view settings');
 assert(~viewer.NightLights().Backup);
+viewer.Close();
+
+%% TEST case: Hidden faces start out of view; ticking "hidden" shows them
+fprintf(1,'TEST case: hidden faces\n');
+loaded = load(meshFile, 'vehicleMesh');
+someFaces = (1:50)';
+hiddenMesh = fcn_CarMesh3D_editLabels(loaded.vehicleMesh, Edits={struct('FaceIndices',someFaces,'Hide','test set')}, FigNum=-1);
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(hiddenMesh, Visible=false, Wait=false);
+assert(any(strcmp(viewSettings.Hidden, 'hidden')));
+alphaData = viewer.Patch.FaceVertexAlphaData;
+assert(all(alphaData(someFaces) == 0), 'Hidden faces out of view');
+viewer.SetHidden({});
+alphaData = viewer.Patch.FaceVertexAlphaData;
+assert(all(alphaData(someFaces) > 0), 'Shown when "hidden" is ticked');
 viewer.Close();
 
 %% TEST case: A file that holds no mesh

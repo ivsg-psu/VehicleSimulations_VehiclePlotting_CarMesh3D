@@ -157,6 +157,15 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      ground frame, so they stay flat on the ground when the body rolls
 %      or pitches.
 %
+%      ShowHidden: the hidden sets to show (hidden faces: FaceHiddenSet,
+%      named in HiddenSetNames, from fcn_CarMesh3D_editLabels's Hide), by
+%      name, such as {'hard top'}, or true for all, or false for none.
+%      Hidden faces are drawn in patches of their own, switched off, so
+%      they cost nothing to draw; a set is switched on by name, also on
+%      the fast path (put the hard top up in the rain). Default [] (none
+%      at first; on the fast path, as they are). Hidden lamps do not
+%      light.
+%
 %      AxesHandle: an axes to plot into, in any figure (a uifigure's
 %      uiaxes too, which FigNum cannot reach). If given, FigNum only
 %      chooses fast mode (-1) or not.
@@ -194,6 +203,8 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               no change). A light that is also glass (FaceAlsoParts, a
 %               lamp's clear cover) is drawn as the vehicle's glass while
 %               off, so the lenses under it show, and opaque while on
+%           HiddenSetNames, HiddenPatches: each hidden set's name, and
+%               (a cell per set) its patches, switched on by ShowHidden
 %           LightEffects: [] or, with LightEffects=true, a structure with
 %               Glow (one patch or [] per light group) and Pools (patches
 %               lowBeam, highBeam, tail, brake, backup, each or [])
@@ -282,6 +293,10 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % ('high' in Headlights is still both). A vehicle with no high
 %   %   % beam lamps lights its headlights white for the high beams, as
 %   %   % before
+%   % * Hidden faces (FaceHiddenSet, in named sets; Sean, 04:07 to 04:21):
+%   %   % not drawn; each set in patches of its own, switched off, shown
+%   %   % by name with ShowHidden (also on the fast path: a hard top put
+%   %   % up in the rain); a hidden lamp does not light
 
 % TO-DO:
 %
@@ -315,6 +330,7 @@ arguments
     options.BodyPivot = []          % [x y z] point the body rolls and pitches about
     options.LightStates = []        % Struct of light states (see help)
     options.LightEffects = false    % Glows and ground light pools, for night scenes
+    options.ShowHidden = []         % Hidden sets to show: names, true (all), false (none); [] as they are
     options.AxesHandle = []         % Axes to plot into (any figure, a uifigure too); overrides FigNum's figure
     options.FigNum = []             % Figure to plot into; [] for current figure, -1 for fast mode
 end
@@ -441,6 +457,12 @@ if 0==flag_max_speed
             error('SteerAngle must be a finite scalar or a 1 x 2 vector [FL FR], in radians');
         end
 
+        % Check the ShowHidden input
+        if ~isempty(options.ShowHidden) && ~(iscell(options.ShowHidden) || ischar(options.ShowHidden) ...
+                || isstring(options.ShowHidden) || (islogical(options.ShowHidden) && isscalar(options.ShowHidden)))
+            error('ShowHidden must be hidden set names (a cell array), true for all, or false for none');
+        end
+
         % Check the LightStates input
         if ~isempty(options.LightStates)
             if ~isstruct(options.LightStates)
@@ -501,6 +523,9 @@ if flag_update_only
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
     end
+    if ~isempty(options.ShowHidden)
+        fcn_INTERNAL_showHidden(plotHandles, options.ShowHidden);
+    end
 else
     % Select the axes (given), or the figure, without clearing it
     if ~isempty(options.AxesHandle)
@@ -546,6 +571,18 @@ else
         faceWheel = vehicleMesh.FaceWheelIndex(:);
     end
     [faceLightGroup, lightGroupNames] = fcn_INTERNAL_faceLightGroups(vehicleMesh);
+    % (hidden faces: in patches of their own, switched off; a hidden lamp
+    % does not light)
+    faceHiddenSet = zeros(Nfaces,1);
+    hiddenSetNames = cell(0,1);
+    if isfield(vehicleMesh,'FaceHiddenSet') && numel(vehicleMesh.FaceHiddenSet) == Nfaces
+        faceHiddenSet = double(vehicleMesh.FaceHiddenSet(:));
+        if isfield(vehicleMesh,'HiddenSetNames')
+            hiddenSetNames = reshape(cellstr(vehicleMesh.HiddenSetNames), [], 1);
+        end
+    end
+    flagHidden = faceHiddenSet > 0;
+    faceLightGroup(flagHidden) = 0;
 
     % Two rigid frames under one transform for the whole vehicle:
     %   transformHandle      ground frame, moved by Pose
@@ -557,7 +594,7 @@ else
 
     % Body (everything that is not a wheel or a switchable light), one
     % patch per alpha level: opaque first, then each transparent level
-    flagBody = faceWheel==0 & faceLightGroup==0;
+    flagBody = faceWheel==0 & faceLightGroup==0 & ~flagHidden;
     newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody), faceColors, faceAlpha, patchStyle, bodyTransform);
     patchHandles = [patchHandles; newPatches];
 
@@ -569,9 +606,11 @@ else
         if isempty(theseFaces)
             continue;
         end
+        % (the center from all the wheel's faces, hidden ones too)
         wheelVertices = vehicleMesh.Vertices(unique(vehicleMesh.Faces(theseFaces,:)),:);
         wheelCenters(ith_wheel,:) = (min(wheelVertices,[],1) + max(wheelVertices,[],1))/2;
         wheelTransforms{ith_wheel} = hgtransform('Parent',transformHandle);
+        theseFaces = theseFaces(~flagHidden(theseFaces));
         newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, wheelTransforms{ith_wheel});
         patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
     end
@@ -614,6 +653,30 @@ else
         lightOffColors.(thisName) = cellfun(@(h) h.FaceVertexCData, newPatches, 'UniformOutput', false);
         set(lightPatches.(thisName),'DisplayName',sprintf('Light: %s',thisName));
         patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
+    end
+
+    % Hidden sets: patches of their own, switched off (shown by
+    % ShowHidden); a hidden wheel's faces ride with its wheel
+    hiddenPatches = cell(numel(hiddenSetNames),1);
+    for ith_set = 1:numel(hiddenSetNames)
+        setPatches = {};
+        for ith_wheel = 0:4
+            theseFaces = find(faceHiddenSet==ith_set & faceWheel==ith_wheel);
+            if isempty(theseFaces)
+                continue;
+            end
+            parentHandle = bodyTransform;
+            if ith_wheel > 0 && ~isempty(wheelTransforms{ith_wheel})
+                parentHandle = wheelTransforms{ith_wheel};
+            end
+            newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, parentHandle);
+            setPatches = [setPatches; newPatches(:)]; %#ok<AGROW>
+        end
+        if ~isempty(setPatches)
+            hiddenPatches{ith_set} = vertcat(setPatches{:});
+            set(hiddenPatches{ith_set}, 'Visible', 'off', 'DisplayName', sprintf('Hidden: %s', hiddenSetNames{ith_set}));
+            patchHandles = [patchHandles; setPatches]; %#ok<AGROW>
+        end
     end
 
     % Add lights if asked and the axes has none: a main light from above
@@ -663,6 +726,8 @@ else
     plotHandles.LightGroupNames = lightGroupNames;
     plotHandles.FaceLighting = faceLighting;
     plotHandles.LightEffects = lightEffects;
+    plotHandles.HiddenSetNames = hiddenSetNames;
+    plotHandles.HiddenPatches = hiddenPatches;
 
     % Set the pose, wheels, and lights
     transformHandle.Matrix = poseMatrix;
@@ -670,6 +735,9 @@ else
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
     if ~isempty(options.LightStates)
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
+    end
+    if ~isempty(options.ShowHidden)
+        fcn_INTERNAL_showHidden(plotHandles, options.ShowHidden);
     end
 end
 
@@ -994,6 +1062,27 @@ if isfield(lightEffects.Pools, 'turnLeftFront')   % (handles made before 2026_11
     fcn_INTERNAL_setVisible(lightEffects.Pools.turnRightRear, flagRight);
 end
 end % Ends fcn_INTERNAL_updateLights
+
+%% fcn_INTERNAL_showHidden
+function fcn_INTERNAL_showHidden(plotHandles, showHidden)
+% Switches the hidden sets on (those named, or all for true) and the
+% others off (all off for false)
+if ~isfield(plotHandles,'HiddenPatches')
+    return;
+end
+setNames = plotHandles.HiddenSetNames;
+if islogical(showHidden) && isscalar(showHidden)
+    flagShow = repmat(showHidden, numel(setNames), 1);
+else
+    flagShow = ismember(setNames, cellstr(showHidden));
+end
+for ith_set = 1:numel(setNames)
+    if ~isempty(plotHandles.HiddenPatches{ith_set})
+        onOff = {'off','on'};
+        set(plotHandles.HiddenPatches{ith_set}, 'Visible', onOff{1 + flagShow(ith_set)});
+    end
+end
+end % Ends fcn_INTERNAL_showHidden
 
 %% fcn_INTERNAL_setVisible
 function fcn_INTERNAL_setVisible(graphicsHandle, flagVisible)

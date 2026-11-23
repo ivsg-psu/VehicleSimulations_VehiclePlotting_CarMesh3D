@@ -99,6 +99,11 @@ function [flagContact, clearance, lowestPoint] = fcn_CarMesh3D_checkGroundContac
 % - In fcn_CarMesh3D_checkGroundContact
 %   % * Wrote the code originally (drafted with Claude)
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_checkGroundContact
+%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -221,6 +226,10 @@ end
 %  |_|  |_|\__,_|_|_| |_|
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% (the vehicle as it is shown: hidden faces never count here;
+% fcn_CarMesh3D_visibleMesh)
+vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
 
 rollValues = bodyRoll(:);
 pitchValues = bodyPitch(:);

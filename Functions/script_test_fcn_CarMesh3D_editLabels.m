@@ -202,23 +202,32 @@ assert(isequal(editedMesh.FacePartIndex, vehicleMesh.FacePartIndex));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Part 'delete' takes the picked faces out of the mesh
+%% TEST case: Hide keeps the faces, in a named set; Unhide shows them again; old 'delete' edits hide
 figNum = 20005;
-titleString = sprintf('TEST case: Part delete takes the picked faces out of the mesh');
+titleString = sprintf('TEST case: Hide keeps the faces, in a named set; Unhide shows them again');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
 tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail')));
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','no tail lights', ...
-    'FaceIndices',tailFaces,'Part','delete')});
-assert(strcmp(appliedEdits(1).Part,'delete'));
-assert(size(editedMesh.Faces,1) == size(vehicleMesh.Faces,1) - numel(tailFaces));
-assert(numel(editedMesh.FacePartIndex) == size(editedMesh.Faces,1));
-assert(size(editedMesh.FaceColors,1) == size(editedMesh.Faces,1));
-assert(0==fcn_INTERNAL_countLightType(editedMesh,'tail'));
-assert(max(editedMesh.Faces(:)) <= size(editedMesh.Vertices,1));
-assert(isequal(unique(editedMesh.Faces(:))', 1:size(editedMesh.Vertices,1)));   % (no unused vertices)
+    'FaceIndices',tailFaces,'Hide','tail lamps')});
+assert(strcmp(appliedEdits(1).Part,'hide: tail lamps'));
+assert(size(editedMesh.Faces,1) == size(vehicleMesh.Faces,1));                  % (nothing deleted)
+assert(isequal(editedMesh.FacePartIndex, vehicleMesh.FacePartIndex));            % (labels kept)
+assert(isequal(editedMesh.HiddenSetNames, {'tail lamps'}));
+assert(all(editedMesh.FaceHiddenSet(tailFaces)==1) && nnz(editedMesh.FaceHiddenSet)==numel(tailFaces));
+% (a second set, then the first shown again)
+wheelFaces = find(editedMesh.FaceWheelIndex==1);
+editedMesh = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',wheelFaces,'Hide','front left wheel'), ...
+    struct('FaceIndices',tailFaces,'Unhide',true)});
+assert(isequal(editedMesh.HiddenSetNames, {'tail lamps';'front left wheel'}));
+assert(all(editedMesh.FaceHiddenSet(tailFaces)==0) && all(editedMesh.FaceHiddenSet(wheelFaces)==2));
+% (an older edits file's 'delete' hides, in the set 'hidden')
+[oldMesh, oldEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',tailFaces,'Part','delete')});
+assert(strcmp(oldEdits(1).Part,'hide: hidden') && size(oldMesh.Faces,1)==size(vehicleMesh.Faces,1));
+assert(isequal(oldMesh.HiddenSetNames, {'hidden'}) && all(oldMesh.FaceHiddenSet(tailFaces)==1));
+assert(all(oldMesh.FacePartIndex(tailFaces)==vehicleMesh.FacePartIndex(tailFaces)));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

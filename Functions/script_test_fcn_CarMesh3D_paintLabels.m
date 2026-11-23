@@ -177,16 +177,30 @@ versionFile = painter.SaveVersion();
 assert(strcmp(fileparts(versionFile), otherFolder) && isfile(versionFile));
 painter.SetVersionFolder(versionFolder);
 
-%% TEST case: Deleted faces leave the edited mesh, and pending paint is not in it until Apply
-fprintf(1,'TEST case: deletions, and pending paint until Apply\n');
-painter.SetTool('delete');
-deleteFaces = bodyFaces(800:805);
+%% TEST case: Hidden faces stay in the edited mesh, in a named set, out of view; unhide shows them again
+fprintf(1,'TEST case: hiding, and unhiding\n');
+hideFaces = bodyFaces(800:805);
 statusBefore = painter.Status();
-painter.Paint('delete', centers(deleteFaces,:), false);   % (Paint saves)
+hideField = findall(painter.Figure, 'Type', 'uieditfield', 'Value', 'hidden');
+hideField.Value = 'rear wiper';
+painter.Paint('hide', centers(hideFaces,:), false);   % (Paint saves)
 meshAfter = painter.EditedMesh();
-assert(size(meshAfter.Faces,1) < size(baseMesh.Faces,1));
-assert(painter.Status().Deleted >= numel(deleteFaces));
+assert(size(meshAfter.Faces,1) == size(baseMesh.Faces,1));                       % (nothing deleted)
+assert(any(strcmp(meshAfter.HiddenSetNames, 'rear wiper')));
+setIndex = find(strcmp(meshAfter.HiddenSetNames, 'rear wiper'));
+assert(all(meshAfter.FaceHiddenSet(hideFaces) == setIndex));
+assert(isequal(meshAfter.FacePartIndex(hideFaces), baseMesh.FacePartIndex(hideFaces)));   % (labels kept)
+assert(painter.Status().Hidden >= numel(hideFaces));
 assert(painter.Status().Applied > statusBefore.Applied);
+alphaNow = painter.Patch.FaceVertexAlphaData;
+assert(all(alphaNow(hideFaces) == 0), 'Hidden faces out of view');
+loaded = load(editsFile, 'labelEditsAfterSimplify');
+assert(any(cellfun(@(e) isfield(e,'Hide') && strcmp(e.Hide,'rear wiper'), loaded.labelEditsAfterSimplify)));
+% (unhide: shown again)
+painter.Paint('unhide', centers(hideFaces,:), false);
+meshAfter = painter.EditedMesh();
+assert(all(meshAfter.FaceHiddenSet(hideFaces) == 0));
+hideField.Value = 'hidden';
 
 %% TEST case: Show boxes hide a label's faces (they cannot be painted)
 fprintf(1,'TEST case: Show boxes hide a label''s faces\n');

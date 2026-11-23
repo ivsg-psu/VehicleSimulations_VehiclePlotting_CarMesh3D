@@ -2,7 +2,8 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % fcn_CarMesh3D_paintLabels
 
 % A window for fixing a vehicle's labels by painting its faces: pick a
-% label (body, glass, trim, interior, wheel, a light type, or delete), then
+% label (body, glass, trim, interior, wheel, a light type), or hide or
+% unhide, then
 % paint the faces that should have it. It works on its own (its own
 % window), or inside another window, such as the Model Reviewer
 % (fcn_CarMesh3D_reviewVehicle), which gives it a panel to build into.
@@ -23,9 +24,12 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % them (such as a lamp under its lens).
 %
 % THREE LAYERS. New paint is pending (outlined in yellow) until Apply,
-% which makes it part of a temporary modified mesh: applied deletions go
-% out of view and out of reach, so a part can be deleted a little at a
-% time. Save applies, and writes the edits to the vehicle's labelEdits
+% which makes it part of a temporary modified mesh: applied hiding takes
+% faces out of view and out of reach, so a part can be hidden a little at
+% a time. Hiding never deletes: hidden faces stay in the mesh, with their
+% labels, in a named set ("Hide as", default 'hidden': a hard top taken
+% off, say), which the animator can show again by name; "Show hidden
+% faces" brings them back into view to unhide them. Save applies, and writes the edits to the vehicle's labelEdits
 % file, which the vehicle's script applies after simplifying. Undo takes
 % back the last click or stroke (press again to go further back). Revert
 % to save goes back to the last save; Revert to start, to the mesh as it
@@ -193,6 +197,14 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % - In fcn_CarMesh3D_paintLabels
 %   % * Paint as "high beam" (the 'highbeam' light type; Sean, 03:27);
 %   %   % the headlight button is named "low beam"
+
+% 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Hide and unhide in place of delete (Sean, 04:07 to 04:21): hidden
+%   %   % faces stay in the mesh, with their labels, in a named set ("Hide
+%   %   % as"); "Show hidden faces" brings them into view to unhide them.
+%   %   % Saved as Hide and Unhide edits; an older edits file's deletions
+%   %   % come in as hidden
 
 % TO-DO:
 %
@@ -425,23 +437,28 @@ for ith_name = 1:numel(names)
     [color, ~] = fcn_INTERNAL_paintColor(data, names{ith_name});
     paintButtons(ith_name) = uibutton(buttonGrid, 'state', 'Text', fcn_INTERNAL_paintText(names{ith_name}), ...
         'BackgroundColor', 0.55*color + 0.45, 'UserData', names{ith_name}, ...
-        'ValueChangedFcn', @onPaintTool, 'Tooltip', sprintf('Paint faces as %s (Ctrl+drag over them)', names{ith_name}));
+        'ValueChangedFcn', @onPaintTool, 'Tooltip', fcn_INTERNAL_paintTooltip(names{ith_name}));
 end
 hintGrid = uigridlayout(toolsGrid, [1 2], 'ColumnWidth', {'1x', 190}, 'Padding', [0 0 0 0], ...
     'ColumnSpacing', 6, 'BackgroundColor', [1 0.96 0.85]);
 uilabel(hintGrid, 'Text', ['Pick a label, then Ctrl+drag over faces to paint them (Ctrl+Shift+drag erases); a click paints one face ' ...
-    '(click again to take it off), a double-click a whole piece. Paint is pending (yellow edges) until Apply; applied deletions ' ...
-    'go out of view. Save writes the edits for the script. To reach faces under others, untick their label''s Show box.'], ...
+    '(click again to take it off), a double-click a whole piece. Paint is pending (yellow edges) until Apply; applied hiding ' ...
+    'takes faces out of view (never deleted). Save writes the edits for the script. To reach faces under others, untick their label''s Show box.'], ...
     'FontColor', [0.45 0.3 0], 'WordWrap', 'on', 'FontSize', 11);
 mirrorCheckbox = uicheckbox(hintGrid, 'Text', 'Mirror to the other side', 'Value', true, ...
     'Tooltip', 'Paint the mirror-image faces on the other side too. Turn off for one-sided parts (a fuel door).');
 editGrid = uigridlayout(toolsGrid, [1 10], 'Padding', [0 0 0 0], 'ColumnSpacing', 4, 'BackgroundColor', [1 0.96 0.85], ...
-    'ColumnWidth', {140, 10, 62, 62, 62, 112, 108, 108, 195, '1x'});
-showDeletedCheck = uicheckbox(editGrid, 'Text', 'Show deleted faces', 'Value', false, 'ValueChangedFcn', @(~,~) showPaint(), ...
-    'Tooltip', 'Show the faces deleted and applied (in magenta); they cannot be painted while hidden');
-uilabel(editGrid, 'Text', '');
+    'ColumnWidth', {140, 170, 62, 62, 62, 112, 108, 108, 195, '1x'});
+showDeletedCheck = uicheckbox(editGrid, 'Text', 'Show hidden faces', 'Value', false, 'ValueChangedFcn', @(~,~) showPaint(), ...
+    'Tooltip', 'Show the hidden faces (hidden and applied: magenta), to unhide them; they cannot be painted while out of view');
+hideNameGrid = uigridlayout(editGrid, [1 2], 'ColumnWidth', {58, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 3, ...
+    'BackgroundColor', [1 0.96 0.85]);
+uilabel(hideNameGrid, 'Text', 'Hide as:', 'HorizontalAlignment', 'right');
+hideNameField = uieditfield(hideNameGrid, 'text', 'Value', 'hidden', ...
+    'Tooltip', ['The hidden set the "hide" tool puts faces in (such as ''hard top''): the animator can show a set ' ...
+    'again by name']);
 uibutton(editGrid, 'Text', 'Apply', 'ButtonPushedFcn', @(~,~) applyEdits(), 'FontWeight', 'bold', ...
-    'Tooltip', 'Make the pending paint part of the modified mesh (deleted faces go out of view and reach)');
+    'Tooltip', 'Make the pending paint part of the modified mesh (hidden faces go out of view and reach)');
 uibutton(editGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoEdit(), ...
     'Tooltip', 'Take back the last click or stroke (press again to go further back, newest first)');
 uibutton(editGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], ...
@@ -624,7 +641,8 @@ end
 
     function flagHidden = hiddenFaces(hiddenKeys)
         % The faces of hidden labels (by their applied labels), and the
-        % faces deleted and applied unless "Show deleted faces" is ticked
+        % hidden faces (hidden in the mesh, or hidden and applied, and not
+        % unhidden) unless "Show hidden faces" is ticked
         % (the viewer calls this with its hidden label keys)
         if nargin < 1
             hiddenKeys = {};
@@ -643,7 +661,8 @@ end
             flagHidden = flagHidden | flagLabel(:);
         end
         if ~(isvalid(showDeletedCheck) && showDeletedCheck.Value)
-            flagHidden = flagHidden | appliedTarget == "delete";
+            flagHidden = flagHidden | startsWith(appliedTarget, "hide:") | ...
+                (fcn_INTERNAL_meshHidden(data.BaseMesh) & strlength(appliedTarget) == 0);
         end
     end
 
@@ -701,6 +720,19 @@ end
     end
 
     %% Painting
+    function value = paintValue()
+        % What the tool paints: its label, or "hide:<set>" (the "Hide as"
+        % set)
+        value = string(paintTool);
+        if strcmp(paintTool, 'hide')
+            setName = strtrim(char(hideNameField.Value));
+            if isempty(setName)
+                setName = 'hidden';
+            end
+            value = "hide:" + string(setName);
+        end
+    end
+
     function paintFaces(faces, flagErase)
         % Paints these faces (and their mirror images) with the tool's
         % label, or erases their paint; remembered for Undo
@@ -725,7 +757,7 @@ end
         if flagErase
             paintTarget(faces) = "";
         else
-            paintTarget(faces) = string(paintTool);
+            paintTarget(faces) = paintValue();
         end
         showPaint();
     end
@@ -807,7 +839,7 @@ end
             end
             face = find(meshPieces == meshPieces(face));
         end
-        flagAlreadyPainted = all(paintTarget(face) == string(paintTool));
+        flagAlreadyPainted = all(paintTarget(face) == paintValue());
         paintFaces(face, flagAlreadyPainted);
         notifyPaint();
     end
@@ -835,7 +867,7 @@ end
     %% Apply, Undo, Save, Revert
     function applyEdits()
         % The pending paint becomes part of the temporary modified mesh
-        % (deleted faces go out of view, and out of reach)
+        % (hidden faces go out of view, and out of reach)
         appliedTarget = paintTarget;
         for ith_entry = 1:numel(undoStack)
             undoStack(ith_entry).Applied = true;
@@ -896,8 +928,8 @@ end
             % viewer's fine print again)
             try
                 meshHistory = fcn_CarMesh3D_meshHistory(historyID, Action='label edits saved', Who=options.Who, ...
-                    Details=sprintf('%d faces changed from the download (%d deleted)', nnz(strlength(savedTarget) > 0), ...
-                    nnz(savedTarget == "delete")), FigNum=-1);
+                    Details=sprintf('%d faces changed from the download (%d hidden)', nnz(strlength(savedTarget) > 0), ...
+                    nnz(startsWith(savedTarget, "hide:"))), FigNum=-1);
                 labelViewer.SetHistory(meshHistory);
             catch
             end
@@ -965,7 +997,7 @@ end
 
     function absorbSaved()
         % The saved edits taken into the working mesh: each face's label
-        % and label color are the edited mesh's (deleted faces keep their
+        % and label color are the edited mesh's (hidden faces keep their
         % place, hidden). Same faces as the base, so the paint layers and
         % Undo carry on.
         data.Mesh = data.BaseMesh;
@@ -1093,7 +1125,7 @@ end
 
     function statusOut = getStatus()
         statusOut = struct('Pending', nnz(paintTarget ~= appliedTarget), 'Applied', nnz(strlength(appliedTarget) > 0), ...
-            'Deleted', nnz(appliedTarget == "delete"), 'Saved', isequal(appliedTarget, savedTarget) && isequal(paintTarget, savedTarget), ...
+            'Hidden', nnz(startsWith(appliedTarget, "hide:")), 'Deleted', 0, 'Saved', isequal(appliedTarget, savedTarget) && isequal(paintTarget, savedTarget), ...
             'UndoSteps', numel(undoStack), 'Tool', paintTool);
     end
 
@@ -1110,8 +1142,8 @@ end
         else
             savedText = '<font color="#b03000"><b>not saved</b></font>';
         end
-        editStatusLabel.Text = sprintf('%d faces painted, not applied  |  %d changed (%d deleted) in the modified mesh  |  %s  |  %d undo steps', ...
-            statusNow.Pending, statusNow.Applied, statusNow.Deleted, savedText, statusNow.UndoSteps);
+        editStatusLabel.Text = sprintf('%d faces painted, not applied  |  %d changed (%d hidden) in the modified mesh  |  %s  |  %d undo steps', ...
+            statusNow.Pending, statusNow.Applied, statusNow.Hidden, savedText, statusNow.UndoSteps);
     end
 
     function setHint(textIn)
@@ -1288,8 +1320,9 @@ end % Ends fcn_INTERNAL_geometry
 
 %% fcn_INTERNAL_paintNames
 function names = fcn_INTERNAL_paintNames()
-% The labels faces can be painted as (parts, light types, and delete)
-names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', 'delete'};
+% The labels faces can be painted as (parts, light types), and hide and
+% unhide (never delete: Sean, 04:07)
+names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', 'hide', 'unhide'};
 end % Ends fcn_INTERNAL_paintNames
 
 %% fcn_INTERNAL_paintText
@@ -1304,13 +1337,16 @@ function [color, alpha] = fcn_INTERNAL_paintColor(data, name)
 % that label have (in the labels view), else a standard one
 defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], 'interior', [0.85 0.65 0.40], ...
     'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'highbeam', [0.80 0.90 1.00], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
-    'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'delete', [1 0 1]);
+    'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30]);
+if startsWith(name, 'hide:')
+    name = 'hide';   % (a hidden set: "hide:<set>")
+end
 color = defaults.(name);
 alpha = 1;
 if strcmp(name, 'glass')
     alpha = 0.45;
 end
-if strcmp(name, 'delete')
+if any(strcmp(name, {'hide', 'unhide'}))
     return;
 end
 if any(strcmp(name, {'body', 'glass', 'trim', 'interior', 'wheel'}))
@@ -1400,25 +1436,29 @@ end % Ends fcn_INTERNAL_mirrorFaces
 %% fcn_INTERNAL_paintEdits
 function edits = fcn_INTERNAL_paintEdits(vehicleMesh, paintTarget)
 % The painted faces as fcn_CarMesh3D_editLabels edits: one per label, the
-% faces given by their centers (Points); deletions last
+% faces given by their centers (Points); then unhide, then each hidden
+% set (Hide)
 edits = {};
 centers = fcn_INTERNAL_faceCenters(vehicleMesh);
-names = fcn_INTERNAL_paintNames();
-names = [setdiff(names, {'delete'}, 'stable'), {'delete'}];
-for ith_name = 1:numel(names)
-    name = names{ith_name};
-    flagPainted = paintTarget == string(name);
+names = setdiff(fcn_INTERNAL_paintNames(), {'hide', 'unhide'}, 'stable');
+hideTargets = unique(paintTarget(startsWith(paintTarget, "hide:")));
+targets = [string(names(:)); "unhide"; hideTargets(:)];
+for ith_target = 1:numel(targets)
+    target = targets(ith_target);
+    flagPainted = paintTarget == target;
     if ~any(flagPainted)
         continue;
     end
-    thisEdit = struct('Name', sprintf('review: painted %s (%d faces)', name, sum(flagPainted)), ...
+    thisEdit = struct('Name', sprintf('review: painted %s (%d faces)', target, sum(flagPainted)), ...
         'Points', round(centers(flagPainted,:), 5), 'PointTolerance', 0.005);
-    if any(strcmp(name, {'body', 'glass', 'trim', 'interior', 'wheel'}))
-        thisEdit.Part = name;
-    elseif strcmp(name, 'delete')
-        thisEdit.Part = 'delete';
+    if any(strcmp(target, {'body', 'glass', 'trim', 'interior', 'wheel'}))
+        thisEdit.Part = char(target);
+    elseif target == "unhide"
+        thisEdit.Unhide = true;
+    elseif startsWith(target, "hide:")
+        thisEdit.Hide = char(extractAfter(target, "hide:"));
     else
-        thisEdit.LightType = name;
+        thisEdit.LightType = char(target);
     end
     edits{end+1} = thisEdit; %#ok<AGROW>
 end
@@ -1426,13 +1466,47 @@ end % Ends fcn_INTERNAL_paintEdits
 
 %% fcn_INTERNAL_editTarget
 function target = fcn_INTERNAL_editTarget(thisEdit)
-% The paint name of an edit (its light type, else its part)
-if isfield(thisEdit, 'LightType') && ~isempty(thisEdit.LightType)
+% The paint name of an edit: its light type, else its part; "hide:<set>"
+% for a hidden set (and an older edits file's 'delete'), "unhide"
+if isfield(thisEdit, 'Hide') && ~isempty(thisEdit.Hide)
+    setName = thisEdit.Hide;
+    if isequal(setName, true)
+        setName = 'hidden';
+    end
+    target = ['hide:' char(setName)];
+elseif isfield(thisEdit, 'Unhide') && isequal(thisEdit.Unhide, true)
+    target = 'unhide';
+elseif isfield(thisEdit, 'LightType') && ~isempty(thisEdit.LightType)
     target = char(thisEdit.LightType);
+elseif isfield(thisEdit, 'Part') && strcmpi(thisEdit.Part, 'delete')
+    target = 'hide:hidden';
 else
     target = char(thisEdit.Part);
 end
 end % Ends fcn_INTERNAL_editTarget
+
+%% fcn_INTERNAL_meshHidden
+function flagHidden = fcn_INTERNAL_meshHidden(vehicleMesh)
+% The faces hidden in the mesh itself (FaceHiddenSet)
+flagHidden = false(size(vehicleMesh.Faces,1),1);
+if isfield(vehicleMesh,'FaceHiddenSet') && numel(vehicleMesh.FaceHiddenSet)==numel(flagHidden)
+    flagHidden = vehicleMesh.FaceHiddenSet(:) > 0;
+end
+end % Ends fcn_INTERNAL_meshHidden
+
+%% fcn_INTERNAL_paintTooltip
+function textOut = fcn_INTERNAL_paintTooltip(name)
+% A paint button's tooltip
+switch name
+    case 'hide'
+        textOut = ['Hide faces (Ctrl+drag over them): they stay in the mesh, with their labels, in the set named in ' ...
+            '"Hide as", and are not drawn or measured. Never deleted: the animator can show the set again.'];
+    case 'unhide'
+        textOut = 'Show hidden faces again (tick "Show hidden faces" to see them, then Ctrl+drag over them)';
+    otherwise
+        textOut = sprintf('Paint faces as %s (Ctrl+drag over them)', fcn_INTERNAL_paintText(name));
+end
+end % Ends fcn_INTERNAL_paintTooltip
 
 %% fcn_INTERNAL_meshPieces
 function pieceIndex = fcn_INTERNAL_meshPieces(vehicleMesh)

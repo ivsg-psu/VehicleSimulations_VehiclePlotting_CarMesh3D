@@ -498,6 +498,43 @@ fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=stru
 assert(strcmp(pools.lowBeam.Visible,'on') && strcmp(pools.highBeam.Visible,'on'));
 assert(all(abs(plotHandles.LightPatches.headlight(1).FaceVertexCData(1,:) - [1.00 0.96 0.78]) < 1e-12));
 
+%% TEST case: Hidden sets are not drawn, and are switched on by name
+figNum = 20015;
+titleString = sprintf('TEST case: Hidden sets are not drawn, and are switched on by name');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail')));
+wheelFaces = find(vehicleMesh.FaceWheelIndex==1);
+hiddenMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',tailFaces,'Hide','tail lamps'), ...
+    struct('FaceIndices',wheelFaces,'Hide','front left wheel')}, FigNum=-1);
+plotHandles = fcn_CarMesh3D_plotVehicle(hiddenMesh, LightStates=struct('Tail','brake'), FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(isequal(plotHandles.HiddenSetNames, {'tail lamps';'front left wheel'}));
+assert(all(strcmp(get(plotHandles.HiddenPatches{1},'Visible'),'off')) && all(strcmp(get(plotHandles.HiddenPatches{2},'Visible'),'off')));
+% (the shown patches hold every face but the hidden ones)
+shownFaces = 0;
+for ith_patch = 1:numel(plotHandles.Patches)
+    if strcmp(plotHandles.Patches{ith_patch}.Visible,'on')
+        shownFaces = shownFaces + size(plotHandles.Patches{ith_patch}.Faces,1);
+    end
+end
+assert(shownFaces == size(hiddenMesh.Faces,1) - numel(tailFaces) - numel(wheelFaces));
+% (a hidden lamp does not light: no tail light patch)
+assert(isempty(plotHandles.LightPatches.tail));
+% (the hidden wheel rides with its wheel)
+assert(plotHandles.HiddenPatches{2}(1).Parent == plotHandles.WheelTransforms{1});
+% Switched on by name, on the fast path; then all off
+fcn_CarMesh3D_plotVehicle(hiddenMesh, PlotHandles=plotHandles, ShowHidden={'front left wheel'}, FigNum=-1);
+assert(all(strcmp(get(plotHandles.HiddenPatches{2},'Visible'),'on')) && all(strcmp(get(plotHandles.HiddenPatches{1},'Visible'),'off')));
+fcn_CarMesh3D_plotVehicle(hiddenMesh, PlotHandles=plotHandles, ShowHidden=false, FigNum=-1);
+assert(all(strcmp(get(plotHandles.HiddenPatches{2},'Visible'),'off')));
+% (a pose update alone leaves them as they are)
+fcn_CarMesh3D_plotVehicle(hiddenMesh, PlotHandles=plotHandles, ShowHidden=true, FigNum=-1);
+fcn_CarMesh3D_plotVehicle(hiddenMesh, PlotHandles=plotHandles, Pose=[1 0 0], FigNum=-1);
+assert(all(strcmp(get(plotHandles.HiddenPatches{1},'Visible'),'on')));
+
 %% TEST case: A scene drawn with hidden handles is kept as it is
 figNum = 20099;
 titleString = sprintf('TEST case: A scene drawn with hidden handles is kept as it is');

@@ -138,6 +138,11 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %   % * Parts: faces and area per label in the download and the reduced
 %   %   % mesh; MissingLabels: labels that lost more than half their area
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_compareToOriginal
+%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -252,6 +257,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % The views: [azimuth elevation] (vehicle frame: X forward, Y left)
+% (the vehicle as it is shown: hidden faces never count here;
+% fcn_CarMesh3D_visibleMesh)
+reducedMesh = fcn_CarMesh3D_visibleMesh(reducedMesh, FigNum=-1);
+
 viewNames = {'right side','left side','front','rear','top','bottom', ...
     'front right','front left','rear left','rear right', ...
     'right side, low','left side, low','front, low','rear, low'};

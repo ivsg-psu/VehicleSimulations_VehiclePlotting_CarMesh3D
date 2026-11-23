@@ -35,7 +35,9 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %   with openfig and zoom, pan, or rotate. check_03_labels.fig is one 3D view of the
 %   labels (fcn_CarMesh3D_plotLabels), not the four pictures.
 %   check_summary.txt            The list of files, the dimension check,
-%                                and the ground-contact result.
+%                                the ground-contact result, and any
+%                                warnings about hidden faces
+%                                (fcn_CarMesh3D_checkHiddenFaces).
 %   testMotion.csv               The standard test motion, as a CSV file.
 %
 % THE STANDARD SCENE is a ground grid with colored cubes, kept at least
@@ -87,8 +89,8 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 % OUTPUTS:
 %
 %      checkResults: a structure with fields Files (cell array of the
-%      files written), ValidationTable, ContactFlags (N x 1), and
-%      TestMotion.
+%      files written), ValidationTable, ContactFlags (N x 1),
+%      TestMotion, and Hidden (fcn_CarMesh3D_checkHiddenFaces's report).
 %
 % DEPENDENCIES:
 %
@@ -96,7 +98,7 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %      fcn_CarMesh3D_plotScene, fcn_CarMesh3D_plotVehicle,
 %      fcn_CarMesh3D_fillCameraSettings, fcn_CarMesh3D_updateCamera,
 %      fcn_CarMesh3D_saveGifFrame, fcn_CarMesh3D_checkGroundContact,
-%      fcn_CarMesh3D_plotLabels
+%      fcn_CarMesh3D_plotLabels, fcn_CarMesh3D_checkHiddenFaces
 %
 % EXAMPLES:
 %
@@ -134,6 +136,13 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %   %   % asked (Sean: the checks wrote 1.1 GB of .fig and .gif files,
 %   %   % unused in review); the labels legend says the body is white
 %   %   % (fcn_CarMesh3D_plotLabels)
+
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runVehicleChecks
+%   % * Hidden faces: the checks measure the vehicle as it is shown; the
+%   %   % warnings of fcn_CarMesh3D_checkHiddenFaces (many hidden faces,
+%   %   % dimensions they change, faces outside the shown vehicle's box)
+%   %   % are printed and written to the summary (Sean, 04:17)
 
 % TO-DO:
 %
@@ -277,6 +286,11 @@ validationTable = [];
 contactFlags = [];
 
 %%%%
+% Hidden faces: the checks measure the vehicle as it is shown; warnings
+% where hidden faces could mislead (fcn_CarMesh3D_checkHiddenFaces)
+hiddenReport = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec, FigNum=-1);
+
+%%%%
 % The standard test motion, written next to the checks
 testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, CSVFile=fullfile(outputFolder,'testMotion.csv'), ...
     FigNum=fcn_INTERNAL_figNumIf(doCheck('inputs'), figNum));
@@ -355,6 +369,13 @@ fileID = fopen(summaryFile,'w');
 fprintf(fileID,'Standard checks for %s\n', vehicleName);
 fprintf(fileID,'Written %s by fcn_CarMesh3D_runVehicleChecks\n\n', char(datetime('now','Format','yyyy-MM-dd HH:mm')));
 fprintf(fileID,'Mesh: %d faces, %d vertices\n', size(vehicleMesh.Faces,1), size(vehicleMesh.Vertices,1));
+if hiddenReport.NumHidden > 0
+    fprintf(fileID,'Hidden: %d faces, not drawn and not measured (sets: %s)\n', hiddenReport.NumHidden, ...
+        strjoin(cellstr(hiddenReport.Sets.Name), ', '));
+    for ith_message = 1:numel(hiddenReport.Messages)
+        fprintf(fileID,'WARNING: %s\n', hiddenReport.Messages{ith_message});
+    end
+end
 if ~isempty(validationTable)
     fprintf(fileID,'Dimensions: %d of %d within tolerance\n', sum(validationTable.Pass), height(validationTable));
 end
@@ -370,6 +391,7 @@ checkResults = struct;
 checkResults.Files = writtenFiles(:);
 checkResults.ValidationTable = validationTable;
 checkResults.ContactFlags = contactFlags;
+checkResults.Hidden = hiddenReport;
 checkResults.TestMotion = testMotion;
 
 %% Any debugging?

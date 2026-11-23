@@ -173,6 +173,11 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 % - In fcn_CarMesh3D_makeOutline2D
 %   % * A color for 'highbeam' lamps in the debug plot (Sean, 03:27)
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeOutline2D
+%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+
 % TO-DO:
 %
 % 2026_11_20 by Sean Brennan, sbrennan@psu.edu
@@ -284,6 +289,10 @@ end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+% (the vehicle as it is shown: hidden faces never count here;
+% fcn_CarMesh3D_visibleMesh)
+vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
 
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
