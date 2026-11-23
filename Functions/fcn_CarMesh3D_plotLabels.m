@@ -78,6 +78,13 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %   % * The 'interior' part (fcn_CarMesh3D_labelInterior) has its own
 %   %   % color, tan (it was drawn black)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotLabels
+%   % * A light that is also glass (FaceAlsoParts, a lamp's clear cover)
+%   %   % is drawn see-through, like the glass
+%   % * The body's label color is near-white ([0.97 0.97 0.97], was
+%   %   % [0.80 0.80 0.80]): the labels stand out against it (Sean, 00:05)
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -185,7 +192,9 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % The label colors: one per part, then one per light type (over the part)
-partColors = struct('body',[0.80 0.80 0.80], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
+% (the body near-white, so the labels stand out and the body is not taken
+% for the gray seen through the windows; Sean, 00:05)
+partColors = struct('body',[0.97 0.97 0.97], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
     'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45], 'interior',[0.85 0.65 0.40]);
 lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
     'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10]);
@@ -227,6 +236,12 @@ labelMesh.FaceColors = faceColors;
 labelMesh.FaceAlpha = ones(Nfaces,1);
 glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
 labelMesh.FaceAlpha(vehicleMesh.FacePartIndex==glassIndex) = 0.6;
+% (a light that is also glass, a lamp's clear cover, is see-through too,
+% so the lenses under it show)
+if ~isempty(glassIndex) && isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==Nfaces ...
+        && glassIndex <= size(vehicleMesh.FaceAlsoParts,2)
+    labelMesh.FaceAlpha(vehicleMesh.FaceAlsoParts(:,glassIndex)) = 0.6;
+end
 
 %% Plot the results (for debugging)?
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

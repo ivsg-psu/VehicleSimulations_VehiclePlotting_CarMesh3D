@@ -96,6 +96,10 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %      MinCovered: square meters; closed patches smaller than this are
 %      ignored. Default 0.01.
 %
+%      MinOpenFraction: no panel is added unless more than this share
+%      of the outline is open from below (with OnlyWhereOpen). Default 0
+%      (any opening gets a panel); the vehicle scripts use 0.10.
+%
 %      FigNum: a figure to plot the panel (and the mesh, faded) from
 %      below. If empty or omitted, no plot is made. If set to -1, input
 %      checking is skipped and no plot is made (fast mode).
@@ -110,6 +114,8 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %      share of the full outline that was open from below, so got the
 %      panel; 1 with OnlyWhereOpen=false). With OnlyWhereOpen=true, a
 %      model closed everywhere gets no faces: FloorPanel.Faces is empty.
+%      So does a model open over MinOpenFraction or less of its outline
+%      (FloorPanel.OpenFraction still says how much was open).
 %
 % DEPENDENCIES:
 %
@@ -166,6 +172,13 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %   %   % muffler on one side), each half is built by itself, the right
 %   %   % half as a mirror image, so the sides still meet the panel the
 %   %   % same way where they match
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_addFloorPanel
+%   % * MinOpenFraction (default 0): no panel unless more than this share
+%   %   % of the outline is open from below; the vehicle scripts use 0.10
+%   %   % (Sean: low-poly downloads already have an underside, and the
+%   %   % panel changes the download)
 
 % TO-DO:
 %
@@ -197,6 +210,7 @@ arguments
     options.GridSpacing = 0.03       % meters between the rays cast up
     options.Overlap = 0.03           % meters the open area is grown by
     options.MinCovered = 0.01        % square meters: smaller closed patches are ignored
+    options.MinOpenFraction = 0      % No panel unless more than this share of the outline is open from below
     options.FigNum = []              % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -378,6 +392,12 @@ if options.OnlyWhereOpen && panelShape.NumRegions > 0
     panelShape = intersect(panelShape, openShape);
     panelShape = fcn_INTERNAL_dropSmall(panelShape, options.MinCovered);
     openFraction = area(panelShape)/max(fullArea, eps);
+    % (a model that is closed enough is left as it is: no panel, so the
+    % mesh stays the download's own; Sean, 2026-11-23: only above 10% open)
+    if openFraction <= options.MinOpenFraction
+        vehicleMesh.FloorPanel = struct('Height',panelHeight, 'Polygon',polyshape(), 'Faces',zeros(0,1), 'OpenFraction',openFraction);
+        return;
+    end
 end
 % (a mirrored car: the left half, mirrored after it is built)
 fullShape = panelShape;

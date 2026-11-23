@@ -183,6 +183,11 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           LightOffColors, FaceLighting: used to switch lights back off
 %               (LightOffColors: for each group, a cell array of each
 %               patch's own colors)
+%           LightOffAlpha, LightOnAlpha: for each group, a cell array of
+%               each patch's transparency while off and while on ([] for
+%               no change). A light that is also glass (FaceAlsoParts, a
+%               lamp's clear cover) is drawn as the vehicle's glass while
+%               off, so the lenses under it show, and opaque while on
 %           LightEffects: [] or, with LightEffects=true, a structure with
 %               Glow (one patch or [] per light group) and Pools (patches
 %               lowBeam, highBeam, tail, brake, backup, each or [])
@@ -254,6 +259,9 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % AlsoLightTypes) is in a combined group ('turnLeft_tail') that
 %   %   % glows when any of them is on; a flashing turn signal wins, in red
 %   %   % on a tail light (Sean's design, 01:57)
+%   % * Multi-part faces: a light that is also glass (FaceAlsoParts, a
+%   %   % lamp's clear cover) is drawn as the vehicle's glass while off,
+%   %   % and glows, opaque, while on (Sean, 23:04: option B)
 
 % TO-DO:
 %
@@ -548,18 +556,36 @@ else
         patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
     end
 
-    % Lights: one patch per light group, so each can be switched
+    % Lights: one patch per light group, so each can be switched. A
+    % light that is also glass (a lamp's clear cover) has patches of its
+    % own: drawn as the vehicle's glass while off, opaque while on
+    flagAlsoGlass = fcn_INTERNAL_alsoGlass(vehicleMesh);
+    coverColors = faceColors;
+    coverAlpha = faceAlpha;
+    if any(flagAlsoGlass)
+        [glassColor, glassAlpha] = fcn_INTERNAL_glassLook(vehicleMesh, faceColors, faceAlpha);
+        coverColors(flagAlsoGlass,:) = repmat(glassColor, sum(flagAlsoGlass), 1);
+        coverAlpha(flagAlsoGlass) = glassAlpha;
+    end
     lightPatches = struct;
     lightOffColors = struct;
+    lightOffAlpha = struct;
+    lightOnAlpha = struct;
     for ith_group = 1:length(lightGroupNames)
         thisName = lightGroupNames{ith_group};
         lightPatches.(thisName) = [];
         lightOffColors.(thisName) = [];
+        lightOffAlpha.(thisName) = {};
+        lightOnAlpha.(thisName) = {};
         theseFaces = find(faceLightGroup==ith_group);
         if isempty(theseFaces)
             continue;
         end
-        newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, bodyTransform);
+        lampPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces(~flagAlsoGlass(theseFaces)), faceColors, faceAlpha, patchStyle, bodyTransform);
+        coverPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces(flagAlsoGlass(theseFaces)), coverColors, coverAlpha, patchStyle, bodyTransform);
+        newPatches = [lampPatches(:); coverPatches(:)];
+        lightOffAlpha.(thisName) = cellfun(@(h) h.FaceAlpha, newPatches, 'UniformOutput', false);
+        lightOnAlpha.(thisName) = [repmat({[]}, numel(lampPatches), 1); repmat({1}, numel(coverPatches), 1)];
         % (a group with faces of several opacities, such as a clear lens
         % over an opaque lamp, is several patches: all are kept, each with
         % its own off colors; keeping only the first set the wrong number
@@ -612,6 +638,8 @@ else
     plotHandles.WheelCenters = wheelCenters;
     plotHandles.LightPatches = lightPatches;
     plotHandles.LightOffColors = lightOffColors;
+    plotHandles.LightOffAlpha = lightOffAlpha;
+    plotHandles.LightOnAlpha = lightOnAlpha;
     plotHandles.LightGroupNames = lightGroupNames;
     plotHandles.FaceLighting = faceLighting;
     plotHandles.LightEffects = lightEffects;
@@ -873,13 +901,27 @@ for ith_group = 1:length(lightGroupNames)
     if ~iscell(offColors)
         offColors = {offColors};   % (handles made before 2026_11_22: one patch)
     end
+    % (each patch's transparency off and on: a lamp's clear cover is
+    % see-through glass while off and opaque while on)
+    offAlpha = {};
+    onAlpha = {};
+    if isfield(plotHandles,'LightOffAlpha') && isfield(plotHandles.LightOffAlpha, thisName)
+        offAlpha = plotHandles.LightOffAlpha.(thisName);
+        onAlpha = plotHandles.LightOnAlpha.(thisName);
+    end
     for ith_patch = 1:numel(thisPatch)
         if isempty(onColor)
             set(thisPatch(ith_patch),'FaceVertexCData',offColors{ith_patch},...
                 'FaceLighting',plotHandles.FaceLighting);
+            if numel(offAlpha) >= ith_patch && ~isempty(onAlpha{ith_patch})
+                set(thisPatch(ith_patch),'FaceAlpha',offAlpha{ith_patch});
+            end
         else
             set(thisPatch(ith_patch),'FaceVertexCData',repmat(onColor,size(offColors{ith_patch},1),1),...
                 'FaceLighting','none');
+            if numel(onAlpha) >= ith_patch && ~isempty(onAlpha{ith_patch})
+                set(thisPatch(ith_patch),'FaceAlpha',onAlpha{ith_patch});
+            end
         end
     end
 end
@@ -1176,6 +1218,37 @@ switch finishName
         finishValues = [0.55 0.65 0.25 10 1.00];
 end
 end % Ends fcn_INTERNAL_finishValues
+
+%% fcn_INTERNAL_alsoGlass
+function flagAlsoGlass = fcn_INTERNAL_alsoGlass(vehicleMesh)
+% The light faces that are also glass (FaceAlsoParts): lamps' clear covers
+Nfaces = size(vehicleMesh.Faces,1);
+flagAlsoGlass = false(Nfaces,1);
+if ~isfield(vehicleMesh,'FaceAlsoParts') || size(vehicleMesh.FaceAlsoParts,1) ~= Nfaces ...
+        || ~isfield(vehicleMesh,'PartNames') || ~isfield(vehicleMesh,'FacePartIndex')
+    return;
+end
+glassIndex = find(strcmp(vehicleMesh.PartNames, 'glass'), 1);
+lightIndex = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
+if isempty(glassIndex) || isempty(lightIndex) || glassIndex > size(vehicleMesh.FaceAlsoParts,2)
+    return;
+end
+flagAlsoGlass = vehicleMesh.FaceAlsoParts(:,glassIndex) & vehicleMesh.FacePartIndex(:)==lightIndex;
+end % Ends fcn_INTERNAL_alsoGlass
+
+%% fcn_INTERNAL_glassLook
+function [glassColor, glassAlpha] = fcn_INTERNAL_glassLook(vehicleMesh, faceColors, faceAlpha)
+% The vehicle's glass color and transparency: the median of its glass
+% faces (else a dark see-through gray)
+glassColor = [0.15 0.20 0.25];
+glassAlpha = 0.35;
+glassIndex = find(strcmp(vehicleMesh.PartNames, 'glass'), 1);
+flagGlass = vehicleMesh.FacePartIndex(:)==glassIndex;
+if ~isempty(glassIndex) && any(flagGlass)
+    glassColor = median(faceColors(flagGlass,:), 1);
+    glassAlpha = median(faceAlpha(flagGlass));
+end
+end % Ends fcn_INTERNAL_glassLook
 
 %% fcn_INTERNAL_faceColorsAndAlpha
 function [faceColors, faceAlpha] = fcn_INTERNAL_faceColorsAndAlpha(vehicleMesh)

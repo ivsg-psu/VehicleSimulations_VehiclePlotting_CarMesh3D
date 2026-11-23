@@ -31,8 +31,8 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %                                behind and above (every second frame).
 %   check_10_groundContact.png   Body clearance over the whole motion
 %                                (fcn_CarMesh3D_checkGroundContact).
-%   Each .png also has a .fig of the same name, to open with openfig and
-%   zoom, pan, or rotate. check_03_labels.fig is one 3D view of the
+%   With SaveFigs=true, each .png also has a .fig of the same name, to open
+%   with openfig and zoom, pan, or rotate. check_03_labels.fig is one 3D view of the
 %   labels (fcn_CarMesh3D_plotLabels), not the four pictures.
 %   check_summary.txt            The list of files, the dimension check,
 %                                and the ground-contact result.
@@ -50,7 +50,7 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 % FORMAT:
 %
 %       checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh,...
-%           vehicleSpec, outputFolder, (Checks=names), (SaveGifs=flag),...
+%           vehicleSpec, outputFolder, (Checks=names), (SaveGifs=flag), (SaveFigs=flag),...
 %           (VehicleName=name), (PanelSize=[w h]), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -73,6 +73,9 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %
 %      SaveGifs: true (default) to save the GIFs; false to only play the
 %      animations (faster, for a first look).
+%
+%      SaveFigs: true to save a .fig beside each picture (to open with
+%      openfig and zoom or rotate); false (default) for the pictures only.
 %
 %      VehicleName: a name for the captions. Default is vehicleSpec.Name.
 %
@@ -124,6 +127,13 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %   %   % most labels pictures of the 2026_11_21 remake were blank
 %   % * Each picture is also saved as a .fig file (Sean: PNGs cannot be
 %   %   % zoomed or rotated); check_03_labels.fig is one rotatable 3D view
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runVehicleChecks
+%   % * SaveFigs (default false): the .fig beside each picture only when
+%   %   % asked (Sean: the checks wrote 1.1 GB of .fig and .gif files,
+%   %   % unused in review); the labels legend says the body is white
+%   %   % (fcn_CarMesh3D_plotLabels)
 
 % TO-DO:
 %
@@ -144,6 +154,7 @@ arguments
     outputFolder
     options.Checks = 'all'          % 'all' or a cell array of check names
     options.SaveGifs = true         % Save the GIFs?
+    options.SaveFigs = false        % Save a .fig beside each picture?
     options.VehicleName = ''        % Name for captions; '' for vehicleSpec.Name
     options.PanelSize = [480 300]   % [width height] of each view, in pixels
     options.FigNum = []             % Figure to draw in; [] for 900, -1 for fast mode
@@ -258,6 +269,9 @@ if isempty(vehicleName)
 end
 settings = struct('PanelSize',options.PanelSize(:)', 'SaveGifs',logical(options.SaveGifs), ...
     'FigNum',figNum, 'VehicleName',vehicleName);
+% (whether a .fig is saved beside each picture: read by fcn_INTERNAL_saveFig)
+setappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs', logical(options.SaveFigs));
+cleanupSaveFigs = onCleanup(@() fcn_INTERNAL_clearSaveFigs()); %#ok<NASGU>
 writtenFiles = {};
 validationTable = [];
 contactFlags = [];
@@ -410,11 +424,22 @@ imwrite(fcn_INTERNAL_capture(figureHandle, position(3:4)), fileName);
 fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_savePicture
 
+%% fcn_INTERNAL_clearSaveFigs
+function fcn_INTERNAL_clearSaveFigs()
+if isappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs')
+    rmappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs');
+end
+end % Ends fcn_INTERNAL_clearSaveFigs
+
 %% fcn_INTERNAL_saveFig
 function fcn_INTERNAL_saveFig(figureHandle, pictureFile)
 % Saves the figure as a .fig file next to its picture (same name), to
-% open later with openfig and zoom, pan, or rotate. The saved copy opens
-% visible, even when it was made in a MATLAB with no display (-batch).
+% open later with openfig and zoom, pan, or rotate, when SaveFigs is
+% true. The saved copy opens visible, even when it was made in a MATLAB
+% with no display (-batch).
+if ~isappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs') || ~getappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs')
+    return;
+end
 [folder, name] = fileparts(pictureFile);
 oldCreateFcn = get(figureHandle,'CreateFcn');
 set(figureHandle,'CreateFcn','set(gcbo,''Visible'',''on'')');
@@ -633,7 +658,7 @@ for ith_view = 1:4
     fcn_INTERNAL_caption(figureHandle, viewTitles{ith_view});
     pictures{ith_view} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize, true);
 end
-legendText = 'Labels:  body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | headlight yellow | turn signal orange | running cyan | tail red | backup green';
+legendText = 'Labels:  body white | glass light blue | wheels black | trim dark gray | light with no type magenta | headlight yellow | turn signal orange | running cyan | tail red | backup green';
 fileName = fcn_INTERNAL_montage(pictures, 2, 2, sprintf('%s: part and light labels', settings.VehicleName), legendText, settings, fileName);
 
 % The .fig is one 3D view that can be rotated and zoomed (in place of the

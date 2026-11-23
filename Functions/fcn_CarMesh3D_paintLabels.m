@@ -182,6 +182,13 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Multi-part faces (FaceAlsoParts): a face is in each label it
+%   %   % belongs to (a lamp's clear cover: its light's label and glass)
+%   % * The photo's corner handle (fcn_CarMesh3D_viewLabels GripDown)
+%   %   % works here too
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -1146,6 +1153,10 @@ end
         % (Ctrl+Shift+drag erases); a click with no drag paints a face, a
         % double-click a piece
         mouseMode = '';
+        % (the photo's corner pressed: the viewer resizes the photo)
+        if isfield(labelViewer, 'GripDown') && labelViewer.GripDown()
+            return;
+        end
         clicked = figureHandle.CurrentObject;
         if isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), labelAxes)
             return;
@@ -1312,6 +1323,12 @@ flagFaces = false(size(vehicleMesh.Faces,1),1);
 if startsWith(labelKey, 'part_')
     partIndex = find(strcmp(vehicleMesh.PartNames, labelKey(6:end)), 1);
     flagFaces = vehicleMesh.FacePartIndex==partIndex;
+    % (and the faces that also belong to it: a lamp's clear cover is a
+    % light that is also glass)
+    if ~isempty(partIndex) && isfield(vehicleMesh,'FaceAlsoParts') ...
+            && size(vehicleMesh.FaceAlsoParts,1)==numel(flagFaces) && partIndex <= size(vehicleMesh.FaceAlsoParts,2)
+        flagFaces = flagFaces(:) | vehicleMesh.FaceAlsoParts(:,partIndex);
+    end
 elseif strcmp(labelKey, 'light_none')
     lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
     flagFaces = vehicleMesh.FacePartIndex==lightPart & vehicleMesh.FaceLightType==0;

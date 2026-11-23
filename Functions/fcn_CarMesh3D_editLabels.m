@@ -38,6 +38,15 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    type); fcn_CarMesh3D_plotVehicle lights the face for
 %                    any of them. Faces that are not lights yet become
 %                    lights of the first type given
+%       AlsoParts:   other parts the picked faces also belong to (a cell
+%                    array, such as {'glass'}: a lamp's clear cover, which
+%                    is a light and also glass). They are kept in
+%                    FaceAlsoParts (one column per part); the face is
+%                    still drawn as its own part (light always wins), and
+%                    fcn_CarMesh3D_plotVehicle draws a light that is also
+%                    glass as glass while the light is off. 'light' is not
+%                    allowed here: give LightType, and the faces' other
+%                    parts as AlsoParts
 %       Color:       optional [r g b] for the picked faces
 %       Name:        optional description, printed in the summary
 % Example: make both taillight housings into tail lights:
@@ -94,7 +103,10 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %      FaceWheelIndex, FaceColors, and FaceAlpha updated (and
 %      FaceLightFunctions, an Nfaces x numel(LightTypeNames) logical
 %      matrix, when an edit gives AlsoLightTypes: each light face's
-%      functions, its FaceLightType among them).
+%      functions, its FaceLightType among them; and FaceAlsoParts, an
+%      Nfaces x numel(PartNames) logical matrix, when an edit gives
+%      AlsoParts or the mesh has it: the other parts of each face. A new
+%      Part or LightType clears the faces' other parts and functions).
 %
 %      appliedEdits: a structure array with one element per edit made
 %      (scripted and interactive), with the fields Name, Part,
@@ -146,6 +158,9 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % light that is also a turn signal), kept in FaceLightFunctions;
 %   %   % fcn_CarMesh3D_plotVehicle lights it for any of them (Sean's
 %   %   % multi-function lights, 01:57)
+%   % * AlsoParts: a face can belong to more than one part, light always
+%   %   % winning (a lamp's clear cover: a light that is also glass), kept
+%   %   % in FaceAlsoParts (Sean's multi-part faces, 01:57; 23:04, B)
 
 % TO-DO:
 %
@@ -241,7 +256,7 @@ if 0==flag_max_speed
         if ~iscell(editList)
             error('Edits must be a cell array of structures (or a structure array)');
         end
-        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Points','PointTolerance','Part','LightType','AlsoLightTypes','Color'};
+        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Points','PointTolerance','Part','LightType','AlsoLightTypes','AlsoParts','Color'};
         for ith_edit = 1:length(editList)
             thisEdit = editList{ith_edit};
             if ~isstruct(thisEdit) || ~isscalar(thisEdit)
@@ -251,8 +266,18 @@ if 0==flag_max_speed
             if ~isempty(unknownFields)
                 error('Edit %d has unknown field(s): %s. Allowed: %s',ith_edit,strjoin(unknownFields,', '),strjoin(allowedFields,', '));
             end
-            if ~fcn_INTERNAL_hasValue(thisEdit,'Part') && ~fcn_INTERNAL_hasValue(thisEdit,'LightType') && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes')
-                error('Edit %d must say what to label the faces, with Part, LightType or AlsoLightTypes',ith_edit);
+            if ~fcn_INTERNAL_hasValue(thisEdit,'Part') && ~fcn_INTERNAL_hasValue(thisEdit,'LightType') ...
+                    && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
+                error('Edit %d must say what to label the faces, with Part, LightType, AlsoLightTypes or AlsoParts',ith_edit);
+            end
+            if fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
+                alsoParts = lower(cellstr(thisEdit.AlsoParts));
+                if any(strcmp(alsoParts,'light'))
+                    error('Edit %d: AlsoParts cannot be ''light'' (light always wins): give LightType, and the other parts as AlsoParts',ith_edit);
+                end
+                if ~all(ismember(alsoParts, setdiff(partNames, {'light'})))
+                    error('Edit %d has an unknown AlsoParts entry. Allowed: %s',ith_edit,strjoin(setdiff(partNames, {'light'}, 'stable')',', '));
+                end
             end
             if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lightTypeNames))
                 error('Edit %d has an unknown AlsoLightTypes entry. Allowed: %s',ith_edit,strjoin(lightTypeNames',', '));
@@ -336,6 +361,12 @@ for ith_edit = 1:length(editList)
         if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes')
             [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_addLightFunctions(vehicleMesh, selectedFaces, ...
                 lower(cellstr(thisEdit.AlsoLightTypes)), newPart, newLightType, options.GlassAlpha);
+        end
+        if fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
+            alsoParts = lower(cellstr(thisEdit.AlsoParts));
+            vehicleMesh = fcn_INTERNAL_addAlsoParts(vehicleMesh, selectedFaces, alsoParts);
+            % (recorded as 'light+glass': the part, then its other parts)
+            newPart = [char(newPart) '+' strjoin(alsoParts, '+')];
         end
     end
     appliedEdits(end+1) = struct('Name', fcn_INTERNAL_getValue(thisEdit,'Name',sprintf('Edit %d',ith_edit)), ...
@@ -551,6 +582,36 @@ end
 selectedFaces = find(flagSelected);
 end % Ends fcn_INTERNAL_selectFaces
 
+%% fcn_INTERNAL_addAlsoParts
+function vehicleMesh = fcn_INTERNAL_addAlsoParts(vehicleMesh, selectedFaces, alsoParts)
+% Marks the selected faces as also belonging to other parts
+% (FaceAlsoParts: one column per part in PartNames). A face's own part
+% is not marked again
+for ith_part = 1:numel(alsoParts)
+    if ~any(strcmp(alsoParts{ith_part}, vehicleMesh.PartNames))
+        vehicleMesh.PartNames{end+1} = alsoParts{ith_part};
+    end
+end
+vehicleMesh = fcn_INTERNAL_sizeAlsoParts(vehicleMesh);
+partColumns = find(ismember(vehicleMesh.PartNames, alsoParts));
+for ith_column = partColumns(:)'
+    theseFaces = selectedFaces(vehicleMesh.FacePartIndex(selectedFaces) ~= ith_column);
+    vehicleMesh.FaceAlsoParts(theseFaces, ith_column) = true;
+end
+end % Ends fcn_INTERNAL_addAlsoParts
+
+%% fcn_INTERNAL_sizeAlsoParts
+function vehicleMesh = fcn_INTERNAL_sizeAlsoParts(vehicleMesh)
+% FaceAlsoParts, made (all false) or widened to one column per part
+Nfaces = size(vehicleMesh.Faces,1);
+Nparts = numel(vehicleMesh.PartNames);
+if ~isfield(vehicleMesh,'FaceAlsoParts') || size(vehicleMesh.FaceAlsoParts,1) ~= Nfaces
+    vehicleMesh.FaceAlsoParts = false(Nfaces, Nparts);
+elseif size(vehicleMesh.FaceAlsoParts,2) < Nparts
+    vehicleMesh.FaceAlsoParts(:, end+1:Nparts) = false;
+end
+end % Ends fcn_INTERNAL_sizeAlsoParts
+
 %% fcn_INTERNAL_applyLabel
 function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces, newPart, newLightType, newColor, glassAlpha)
 % Gives the selected faces a new part (and light type), with matching
@@ -576,6 +637,11 @@ if isempty(partIndex)
     partIndex = numel(vehicleMesh.PartNames);
 end
 vehicleMesh.FacePartIndex(selectedFaces) = partIndex;
+
+% (a new label replaces the faces' other parts)
+if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1) == size(vehicleMesh.Faces,1)
+    vehicleMesh.FaceAlsoParts(selectedFaces,:) = false;
+end
 
 % Light type (a new label replaces the faces' light functions)
 if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
@@ -764,7 +830,17 @@ for ith_edit = 1:length(appliedEdits)
             materialText = sprintf(', ''Material'',''^%s$''', regexptranslate('escape', vehicleMesh.MaterialNames{materials}));
         end
     end
-    if isempty(thisEdit.LightType)
+    % (other parts, recorded as 'light+glass': the part, then its others)
+    partParts = split(string(thisEdit.Part), '+');
+    alsoPartsText = '';
+    if numel(partParts) > 1
+        alsoPartsText = sprintf(', ''AlsoParts'',{%s}', strjoin(strcat('''', partParts(2:end), ''''), ','));
+    end
+    thisEdit.Part = char(partParts(1));
+    if isempty(thisEdit.LightType) && isempty(thisEdit.Part)
+        labelText = alsoPartsText(3:end);
+        alsoPartsText = '';
+    elseif isempty(thisEdit.LightType)
         labelText = sprintf('''Part'',''%s''', thisEdit.Part);
     elseif contains(thisEdit.LightType, '+')
         % (light functions added: 'tail+turnsignal', or '+turnsignal')
@@ -778,8 +854,8 @@ for ith_edit = 1:length(appliedEdits)
     else
         labelText = sprintf('''LightType'',''%s''', thisEdit.LightType);
     end
-    fprintf(1,'edits{end+1} = struct(''Name'',''%s'', ''Region'',[%.3f %.3f %.3f %.3f %.3f %.3f]%s, %s);\n', ...
-        thisEdit.Name, region, materialText, labelText);
+    fprintf(1,'edits{end+1} = struct(''Name'',''%s'', ''Region'',[%.3f %.3f %.3f %.3f %.3f %.3f]%s, %s%s);\n', ...
+        thisEdit.Name, region, materialText, labelText, alsoPartsText);
 end
 fprintf(1,'\n');
 end % Ends fcn_INTERNAL_printSummary

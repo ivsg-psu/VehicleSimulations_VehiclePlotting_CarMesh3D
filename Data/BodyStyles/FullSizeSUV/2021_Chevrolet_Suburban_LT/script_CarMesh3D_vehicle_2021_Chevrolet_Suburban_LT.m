@@ -149,6 +149,15 @@
 %   %   % download now sits in model\ (not tracked by git); the raw
 %   %   % mesh is saved as rawMesh_<ID>.mat, so the script runs
 %   %   % without the download (see README.md, "Large files")
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2021_Chevrolet_Suburban_LT
+%   % * Regenerated from the template (drafted by Claude): the
+%   %   % verification simplified (Sean, 2026-11-23): only the
+%   %   % dimension and labels checks are written (no GIFs, no .fig
+%   %   % files), and the download is used as it is: targetFaces
+%   %   % = [] (no reduction, no mirroring), the floor panel only
+%   %   % above 10% open (see README.md, "Mesh families")
 
 % TO-DO:
 %
@@ -238,8 +247,12 @@ labelEditsAfterFit{end+1} = struct('Name','tail lamps (in the parts texture: by 
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
 %     'BothSides',true, 'LightType','tail');
 
-% Face budget for the finished mesh ([] keeps every face)
-targetFaces = 24000;   % (more than the download's 17,794: nothing is reduced)
+% Face budget for the finished mesh: [] (usual) keeps every face of the
+% download, as it is; a number reduces the mesh to about that many faces
+% (in Blender, below), mirrored left to right (symmetricMesh), and compared
+% with the download. There is no face budget for now: see the README,
+% "Mesh size and drawing speed".
+targetFaces = [];
 
 % Reduce the model in Blender (during its conversion to OBJ) instead of
 % in MATLAB: Blender's Decimate keeps the outlines of badges, lamps, and
@@ -249,8 +262,10 @@ targetFaces = 24000;   % (more than the download's 17,794: nothing is reduced)
 % .blend, or .obj model; needs Blender (as .glb files do anyway).
 reduceWithBlender = true;
 
-% Reduce the left half and mirror it, so the mesh is exactly symmetric and
-% each side gets the whole budget's detail (see fcn_CarMesh3D_simplifyMesh)
+% When the mesh is reduced (targetFaces given): reduce the left half and
+% mirror it, so the mesh is exactly symmetric and each side gets the whole
+% budget's detail (see fcn_CarMesh3D_simplifyMesh). A mesh that is not
+% reduced is never mirrored: it stays as downloaded
 symmetricMesh = true;
 
 % Shares of the face budget by part, after the wheels: {} for every part in
@@ -263,19 +278,22 @@ partShares = {};
 % mesh can be seen through from below and through its windows
 addFloorPanel = true;
 
+floorPanelMinOpen = 0.10;   % Only when more than this share of the floor is open (most downloads have their own underside)
+
 % Label the interior (seats, dash, steering wheel, door panels: the body and
 % trim faces seen only through the glass) as the part 'interior'
 labelInterior = true;
 
 % What to run
 flag_firstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
-flag_compareToOriginal = 1;               % 1: compare the reduced mesh with the download (flagged spots; adds about a minute)
+flag_compareToOriginal = 1;               % 1: compare the mesh with the download when it was reduced (flagged spots; adds about a minute)
 flag_useCache = 1;                        % 1: reuse each stage (mesh, comparison, checks) when nothing it depends on changed; 0: do every step again
 firstLookNote = '';                       % A note added to the labels figure's title (for example, whether the .glb reader would help)
 flag_useInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
-flag_runChecks = 1;                       % 1: run the standard checks (images and GIFs in checks\)
-checksToRun = 'all';                      % 'all', or a list such as {'labels'} for a first look (fast)
-flag_saveGifs = 1;                        % 1: save the check GIFs (0 is faster, for a first look)
+flag_runChecks = 1;                       % 1: run the standard checks (pictures in checks\)
+checksToRun = {'dimensions','labels'};    % The checks that find problems; 'all' adds the motion checks (lights, body, steering, wheels, drive, ground contact: slow, and never failed)
+flag_saveGifs = 0;                        % 1: save the motion checks' GIFs (with checksToRun = 'all'; slow, about 30 MB each vehicle)
+flag_saveFigs = 0;                        % 1: save a .fig beside each check picture, to rotate and zoom later
 flag_addThisVehicleToReferenceList = 0;   % 1: add to Data\referenceVehicles.csv and the README
 
 %% Set up the workspace
@@ -286,6 +304,7 @@ while ~isfolder(fullfile(rootFolder,'Functions')) && ~strcmp(rootFolder, filepar
     rootFolder = fileparts(rootFolder);
 end
 addpath(fullfile(rootFolder,'Functions'));
+setappdata(groot, 'CarMesh3D_saveFigs', logical(flag_saveFigs));   % (read by fcn_INTERNAL_saveFig)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID);
 if ~strcmpi(vehicleFiles.Folder, thisFolder)
     error(['vehicleID (%s) does not match this script''s folder (%s). Was the script copied ' ...
@@ -315,6 +334,8 @@ vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(vehicleFiles.ParametersFile, BodyCol
 cacheFolder = fullfile(vehicleFiles.Folder, 'cache');
 [~, ~, meshVersion] = fcn_CarMesh3D_version(FigNum=-1);
 flag_fromBodyStyle = isempty(modelFile);
+flag_reduce = ~isempty(targetFaces);                 % (reduced only when a face budget is given)
+flag_mirror = logical(symmetricMesh) && flag_reduce; % (mirrored only when reduced: else kept as downloaded)
 flag_haveDownload = false;
 stage1Files = {vehicleFiles.ParametersFile};
 if flag_fromBodyStyle
@@ -331,8 +352,14 @@ if flag_fromBodyStyle
 else
     % (the download; or, when the download is not here, the imported mesh
     % kept beside the script, rawMesh_<ID>.mat)
+    % (a raw mesh over 5 MB is kept in the model folder, the large-file
+    % area, rather than in the repository)
     rawMeshFile = fullfile(vehicleFiles.Folder, sprintf('rawMesh_%s.mat', vehicleID));
+    rawMeshLargeFile = fullfile(vehicleFiles.Folder, 'model', sprintf('rawMesh_%s.mat', vehicleID));
     flag_haveDownload = isfile(fullfile(thisFolder, modelFile));
+    if ~flag_haveDownload && ~isfile(rawMeshFile) && isfile(rawMeshLargeFile)
+        rawMeshFile = rawMeshLargeFile;
+    end
     if flag_haveDownload
         stage1Files{end+1} = fullfile(thisFolder, modelFile);
     elseif isfile(rawMeshFile)
@@ -426,6 +453,18 @@ else
             rawMesh.DownloadFaces = downloadFaces;
         end
         save(rawMeshFile, 'rawMesh');
+        rawMeshInfo = dir(rawMeshFile);
+        if rawMeshInfo.bytes > 5e6
+            % (large: kept in the model folder, which git leaves out)
+            if ~isfolder(fileparts(rawMeshLargeFile))
+                mkdir(fileparts(rawMeshLargeFile));
+            end
+            movefile(rawMeshFile, rawMeshLargeFile, 'f');
+            fprintf(1,'The raw mesh is %.1f MB: kept in the model folder (the large-file area), %s\n', rawMeshInfo.bytes/1e6, rawMeshLargeFile);
+            rawMeshFile = rawMeshLargeFile;
+        elseif isfile(rawMeshLargeFile)
+            delete(rawMeshLargeFile);   % (an older, larger one)
+        end
         vehicleMesh = fcn_INTERNAL_removeFaces(vehicleMesh, removeFaces);
         vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, Yaw=importYaw, FigNum=1);
         fcn_INTERNAL_savePicture(1, fullfile(vehicleFiles.ChecksFolder,'check_00_orientation.png'));
@@ -447,7 +486,7 @@ else
 
     %% Step 4: Fit to the specification
     if ~flag_fromBodyStyle
-        vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference=widthReference, Symmetric=symmetricMesh);
+        vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference=widthReference, Symmetric=flag_mirror);
     end
     if ~isempty(labelEditsAfterFit)
         vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=labelEditsAfterFit);
@@ -457,8 +496,12 @@ else
     end
 
     %% Step 4b: The download itself (not reduced), labeled and fit the same way, for the comparison
+    % (only for a mesh that is reduced: one used as downloaded has nothing
+    % to compare)
     originalMesh = [];
-    if flag_compareToOriginal && ~flag_fromBodyStyle && ~flag_haveDownload
+    if flag_compareToOriginal && ~flag_fromBodyStyle && ~flag_reduce
+        % (not reduced: no comparison)
+    elseif flag_compareToOriginal && ~flag_fromBodyStyle && ~flag_haveDownload
         fprintf(1,'(no download here: the comparison with the download is skipped)\n');
     elseif flag_compareToOriginal && ~flag_fromBodyStyle
         if reduceWithBlender && ~isempty(targetFaces)
@@ -479,7 +522,7 @@ else
             if wheelInnerParts
                 originalMesh = fcn_INTERNAL_wheelInnerParts(originalMesh);
             end
-            originalMesh = fcn_CarMesh3D_fitMeshToSpec(originalMesh, vehicleSpec, WidthReference=widthReference, Symmetric=symmetricMesh);
+            originalMesh = fcn_CarMesh3D_fitMeshToSpec(originalMesh, vehicleSpec, WidthReference=widthReference, Symmetric=flag_mirror);
             if ~isempty(labelEditsAfterFit)
                 originalMesh = fcn_CarMesh3D_editLabels(originalMesh, Edits=labelEditsAfterFit);
             end
@@ -524,7 +567,7 @@ else
             repairSettings = {'StitchTolerance',0, 'EdgeSmoothing',0};
             fprintf(1,'Not reduced (%d of %d faces kept): no stitching or edge smoothing\n', size(vehicleMesh.Faces,1), downloadFaces);
         end
-        vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, Symmetric=symmetricMesh, ...
+        vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, Symmetric=flag_mirror, ...
             PartShares=simplifyShares, VisibilityCheck=~flag_firstLook);
         % (the ground clearance put back where the fit put it: a reduction can
         % raise the thin bottom edge of the rocker panels, as Blender's did
@@ -546,7 +589,11 @@ else
         end
         fprintf(1,'Lifted %d overlay faces off the surfaces they lie on\n', numLifted);
         if addFloorPanel
-            vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FigNum=-1);
+            vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, MinOpenFraction=floorPanelMinOpen, FigNum=-1);
+            if isempty(vehicleMesh.FloorPanel.Faces)
+                fprintf(1,'No floor panel: %.1f%% of the floor is open (a panel only above %.0f%%)\n', ...
+                    100*vehicleMesh.FloorPanel.OpenFraction, 100*floorPanelMinOpen);
+            end
         end
     end
     if labelInterior
@@ -562,6 +609,13 @@ else
     fcn_CarMesh3D_saveCache(stage1File, stage1Inputs, struct('vehicleMesh',vehicleMesh, 'originalMesh',originalMesh), FigNum=-1);
 end
 fprintf(1,'Finished mesh: %d faces\n', size(vehicleMesh.Faces,1));
+if size(vehicleMesh.Faces,1) > 50000
+    % (a note, not a limit: there is no face budget for now)
+    fprintf(1,['Note: this mesh has %d faces. Drawing time grows with the faces in view: on one test computer, about\n' ...
+        '1 million faces in view gave 25 frames per second (see README.md, "Mesh size and drawing speed"). If rotating it\n' ...
+        'in fcn_CarMesh3D_viewLabels is not smooth, it is almost certainly too large for real-time animation on this computer.\n'], ...
+        size(vehicleMesh.Faces,1));
+end
 
 % Label fixes from the Model Reviewer (fcn_CarMesh3D_reviewVehicle): the
 % faces painted there, saved in this vehicle's labelEdits file, applied
@@ -639,8 +693,8 @@ if flag_compareToOriginal && ~isempty(originalMesh)
 end
 exemplarBuildInfo = [];
 buildSettings = struct('VehicleID',vehicleID, 'ModelFile',char(modelFile), 'BodyStyle',char(bodyStyle), ...
-    'TargetFaces',targetFaces, 'ReduceWithBlender',reduceWithBlender, 'Symmetric',symmetricMesh, ...
-    'WidthReference',char(widthReference), 'AddFloorPanel',addFloorPanel);
+    'TargetFaces',targetFaces, 'ReduceWithBlender',reduceWithBlender, 'Symmetric',flag_mirror, ...
+    'WidthReference',char(widthReference), 'AddFloorPanel',addFloorPanel, 'FloorPanelMinOpen',floorPanelMinOpen);
 if flag_fromBodyStyle
     buildSettings.ExemplarID = vehicleMesh.BodyStyleInfo.ExemplarID;
     exemplarFiles = fcn_CarMesh3D_findVehicleFiles(vehicleMesh.BodyStyleInfo.ExemplarID, FigNum=-1);
@@ -691,7 +745,7 @@ stage3Functions = {'fcn_CarMesh3D_makeDetailLevels.m', 'fcn_CarMesh3D_makeOutlin
     'fcn_CarMesh3D_plotScene.m', 'fcn_CarMesh3D_saveGifFrame.m', 'fcn_CarMesh3D_checkGroundContact.m', ...
     'fcn_CarMesh3D_fillCameraSettings.m', 'fcn_CarMesh3D_updateCamera.m'};
 stage3Inputs = struct('Stage1',stage1Inputs, 'Functions',fcn_CarMesh3D_fileStamps(stage3Functions, FigNum=-1), ...
-    'RunChecks',logical(flag_runChecks), 'ChecksToRun',{checksToRun}, 'SaveGifs',logical(flag_saveGifs), ...
+    'RunChecks',logical(flag_runChecks), 'ChecksToRun',{checksToRun}, 'SaveGifs',logical(flag_saveGifs), 'SaveFigs',logical(flag_saveFigs), ...
     'ReviewEdits',{reviewEditsStamp});
 stage3File = fullfile(cacheFolder, 'stage3_checks.mat');
 stage3Products = {vehicleFiles.LevelsFile, vehicleFiles.OutlineFile};
@@ -734,7 +788,7 @@ else
     %% Step 7: The standard checks
     if flag_runChecks
         checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, vehicleFiles.ChecksFolder, ...
-            Checks=checksToRun, SaveGifs=logical(flag_saveGifs), VehicleName=vehicleFiles.Name);
+            Checks=checksToRun, SaveGifs=logical(flag_saveGifs), SaveFigs=logical(flag_saveFigs), VehicleName=vehicleFiles.Name);
         fprintf(1,'Checks written to %s\n', vehicleFiles.ChecksFolder);
         disp(checkResults.ValidationTable);
     end
@@ -745,7 +799,10 @@ end
 if flag_addThisVehicleToReferenceList
     referenceGif = fullfile(vehicleFiles.ChecksFolder,'check_09_drive.gif');
     if ~isfile(referenceGif)
-        error('Run the checks with flag_saveGifs = 1 first: %s is needed', referenceGif);
+        % (the drive animation, for the README's table: made here, as the
+        % build no longer makes GIFs)
+        fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, vehicleFiles.ChecksFolder, ...
+            Checks={'drive'}, SaveGifs=true, VehicleName=vehicleFiles.Name);
     end
     fcn_CarMesh3D_addReferenceVehicle(vehicleID, vehicleMesh, referenceGif);
     fprintf(1,'Added %s to the reference vehicle list\n', vehicleID);
@@ -875,8 +932,12 @@ end % Ends fcn_INTERNAL_savePicture
 %% fcn_INTERNAL_saveFig
 function fcn_INTERNAL_saveFig(figureHandle, pictureFile)
 % Saves the figure as a .fig file next to its picture (same name), to
-% open later with openfig and zoom, pan, or rotate. The saved copy opens
-% visible, even when it was made in a MATLAB with no display (-batch).
+% open later with openfig and zoom, pan, or rotate, when flag_saveFigs is
+% 1. The saved copy opens visible, even when it was made in a MATLAB with
+% no display (-batch).
+if ~isappdata(groot, 'CarMesh3D_saveFigs') || ~getappdata(groot, 'CarMesh3D_saveFigs')
+    return;
+end
 [folder, name] = fileparts(pictureFile);
 oldCreateFcn = get(figureHandle,'CreateFcn');
 set(figureHandle,'CreateFcn','set(gcbo,''Visible'',''on'')');

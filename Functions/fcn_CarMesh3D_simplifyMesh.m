@@ -158,7 +158,10 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %
 %      vehicleMesh: the same structure with new Vertices, Faces, and
 %      per-face fields (FacePartIndex, FaceWheelIndex, FaceColors,
-%      FaceAlpha, FaceMaterialIndex, FaceGroupIndex), plus:
+%      FaceAlpha, FaceMaterialIndex, FaceGroupIndex, and any other
+%      per-face field named Face..., such as FaceAlsoParts and
+%      FaceLightFunctions: each rebuilt face takes the values of the
+%      faces it was made from), plus:
 %           FaceNormals (M x 3): unit outward normal of each face
 %           SimplifyInfo: a structure with OriginalFaces, FinalFaces,
 %               OriginalVertices, FinalVertices, and VisibilityFlips (the
@@ -248,6 +251,13 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %   %   % side only are kept where they are, not mirrored (the steering
 %   %   % wheel of the 2009 Honda Fit came out on both sides; a piece on
 %   %   % the right only was lost)
+
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_simplifyMesh
+%   % * Every other per-face field named Face... (FaceAlsoParts,
+%   %   % FaceLightFunctions) is kept: faces are grouped by it too, and
+%   %   % each rebuilt face takes its group's values (these fields were
+%   %   % left at the old face count; Sean's multi-part faces, 23:04)
 
 % TO-DO:
 %
@@ -447,12 +457,36 @@ faceMaterial = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceMaterialIndex',Nfaces)
 faceGroup    = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceGroupIndex',Nfaces);
 faceLightType = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceLightType',Nfaces);
 
+% Any other per-face fields (named Face..., such as FaceAlsoParts and
+% FaceLightFunctions): kept, and faces are grouped by them too
+handledFields = {'Faces','FacePartIndex','FaceWheelIndex','FaceColors','FaceAlpha', ...
+    'FaceMaterialIndex','FaceGroupIndex','FaceLightType','FaceNormals'};
+extraFields = {};
+allFields = fieldnames(vehicleMesh);
+for ith_field = 1:numel(allFields)
+    thisValue = vehicleMesh.(allFields{ith_field});
+    % (texture fields, a color per face, are left out: grouping by them
+    % would keep every face; the vehicle scripts drop them first)
+    if startsWith(allFields{ith_field},'Face') && ~startsWith(allFields{ith_field},'FaceTexture') && ~any(strcmp(allFields{ith_field}, handledFields)) ...
+            && (isnumeric(thisValue) || islogical(thisValue)) && size(thisValue,1)==Nfaces && ismatrix(thisValue)
+        extraFields{end+1} = allFields{ith_field}; %#ok<AGROW>
+    end
+end
+extraIndex = zeros(Nfaces,1);
+if ~isempty(extraFields)
+    extraValues = zeros(Nfaces,0);
+    for ith_field = 1:numel(extraFields)
+        extraValues = [extraValues double(vehicleMesh.(extraFields{ith_field}))]; %#ok<AGROW>
+    end
+    [~,~,extraIndex] = unique(extraValues, 'rows');
+end
+
 % Group faces by part, wheel, light type, color/alpha, and material (each
 % rebuilt face takes its group's first face's values, so a group must not
 % mix materials: without the material, the 2005 HiAce's grille, glass2,
 % and chrome faces were renamed to the first material of their group)
 [~,~,colorIndex] = unique(round([faceColors faceAlpha]*1e4)/1e4, 'rows');
-[groupKeys,~,groupOfFace] = unique([facePart faceWheel faceLightType colorIndex faceMaterial], 'rows');
+[groupKeys,~,groupOfFace] = unique([facePart faceWheel faceLightType colorIndex faceMaterial extraIndex], 'rows');
 numGroups = size(groupKeys,1);
 
 % Vehicle center, used to point open surfaces outward
@@ -551,6 +585,7 @@ newMaterial = zeros(0,1);
 newGroup = zeros(0,1);
 newLightType = zeros(0,1);
 newGroupOfFace = zeros(0,1);   % (which reduced group each face came from)
+newFirstFace = zeros(0,1);     % (the first original face of that group: the source of the other fields)
 for ith_group = 1:numGroups
     theseFaces = groupFaces{ith_group};
     if isempty(theseFaces)
@@ -568,6 +603,7 @@ for ith_group = 1:numGroups
     newGroup = [newGroup; repmat(faceGroup(firstFace), numThese, 1)]; %#ok<AGROW>
     newLightType = [newLightType; repmat(faceLightType(firstFace), numThese, 1)]; %#ok<AGROW>
     newGroupOfFace = [newGroupOfFace; repmat(ith_group, numThese, 1)]; %#ok<AGROW>
+    newFirstFace = [newFirstFace; repmat(firstFace, numThese, 1)]; %#ok<AGROW>
 end
 
 % 3a. Restore and stitch: each group was reduced on its own, and a reduced
@@ -635,6 +671,7 @@ if options.ClearWheels && any(newWheel>0)
         newGroup = newGroup(keepRows);
         newLightType = newLightType(keepRows);
         newGroupOfFace = newGroupOfFace(keepRows); %#ok<NASGU>
+        newFirstFace = newFirstFace(keepRows);
     end
 end
 
@@ -732,6 +769,9 @@ vehicleMesh.FaceMaterialIndex = newMaterial;
 vehicleMesh.FaceGroupIndex = newGroup;
 if isfield(vehicleMesh,'FaceLightType')
     vehicleMesh.FaceLightType = newLightType;
+end
+for ith_field = 1:numel(extraFields)
+    vehicleMesh.(extraFields{ith_field}) = vehicleMesh.(extraFields{ith_field})(newFirstFace,:);
 end
 vehicleMesh.FaceNormals = faceNormals;
 vehicleMesh.SimplifyInfo = struct(...

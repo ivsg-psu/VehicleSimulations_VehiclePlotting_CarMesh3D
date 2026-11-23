@@ -26,6 +26,11 @@
 %   % * 'auto' lighting is smooth (gouraud) for every finish, matte too (the
 %   %   % function changed on 2026-11-20; this test still expected flat)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * Test: a light that is also glass (a lamp's clear cover) is drawn
+%   %   % as glass while off and opaque while on
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -363,6 +368,46 @@ assert(isequal(leftCombo(1).FaceVertexCData, plotHandles.LightOffColors.turnLeft
 % (with the light effects, the combined groups glow too)
 plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=struct('TurnRight',true), LightEffects=true, FigNum=figNum);
 assert(strcmp(plotHandles.LightEffects.Glow.turnRight_tail.Visible,'on') && strcmp(plotHandles.LightEffects.Glow.turnLeft_tail.Visible,'off'));
+
+%% TEST case: A headlight that is also glass (a clear cover): glass while off, opaque while on
+figNum = 20013;
+titleString = sprintf('TEST case: A headlight that is also glass: glass while off, opaque while on');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+headIndex = find(strcmp(vehicleMesh.LightTypeNames,'headlight'));
+headFaces = find(vehicleMesh.FaceLightType==headIndex);
+glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
+coverFaces = headFaces(1:2:end);       % (half the headlight faces: a clear cover)
+vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','clear covers', ...
+    'FaceIndices',coverFaces, 'AlsoParts',{{'glass'}})}, FigNum=-1);
+glassFaces = vehicleMesh.FacePartIndex==glassIndex;
+glassAlpha = median(vehicleMesh.FaceAlpha(glassFaces));
+glassColor = median(vehicleMesh.FaceColors(glassFaces,:), 1);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+headPatches = plotHandles.LightPatches.headlight;
+onAlpha = plotHandles.LightOnAlpha.headlight;
+flagCover = ~cellfun(@isempty, onAlpha);
+assert(numel(headPatches) == numel(onAlpha) && any(flagCover) && any(~flagCover));
+coverPatch = headPatches(find(flagCover,1));
+lampPatch = headPatches(find(~flagCover,1));
+assert(size(coverPatch.Faces,1) + size(lampPatch.Faces,1) == numel(headFaces));
+% (off: the cover drawn as the vehicle's glass)
+assert(abs(coverPatch.FaceAlpha - glassAlpha) < 1e-9);
+assert(all(abs(coverPatch.FaceVertexCData(1,:) - glassColor) < 1e-9));
+% (on: glowing and opaque; the plain lamp keeps its own transparency)
+lampAlpha = lampPatch.FaceAlpha;
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','high'), FigNum=-1);
+assert(coverPatch.FaceAlpha == 1 && all(coverPatch.FaceVertexCData(:)==1));
+assert(lampPatch.FaceAlpha == lampAlpha);
+% (off again: glass again)
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','off'), FigNum=-1); %#ok<NASGU>
+assert(abs(coverPatch.FaceAlpha - glassAlpha) < 1e-9);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
 
 %% TEST case: Night light effects (glows and ground pools) follow the lights
 figNum = 20011;

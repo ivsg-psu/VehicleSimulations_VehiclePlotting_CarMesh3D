@@ -1,20 +1,11 @@
 Standard checks for 1999 Ford F150 XLTSuperCabFlareside
-Written 2026-11-22 19:39 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-23 02:34 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 3816 faces, 4272 vertices
+Mesh: 3574 faces, 4045 vertices
 Dimensions: 12 of 12 within tolerance
-Ground contact during the test motion: 0 of 525 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\testMotion.csv
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_01_inputs.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_02_dimensions.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_02_dimensions.txt
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_03_labels.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_04_lightStates.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_05_lights.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_06_body.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_07_steering.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_08_wheels.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_09_drive.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\PickupCrewCab\1999_Ford_F150_XLTSuperCabFlareside\checks\check_10_groundContact.png

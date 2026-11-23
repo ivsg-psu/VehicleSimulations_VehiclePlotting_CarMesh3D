@@ -13,6 +13,10 @@
 %   % * Renamed from script_CarMesh3D_editLabels: test scripts are named
 %   %   % script_test_fcn_<Repo>_<name>
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_editLabels
+%   % * Test: AlsoParts (FaceAlsoParts), faces in more than one part
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -264,6 +268,44 @@ bodyFace = find(vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames,'bo
 editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoLightTypes',{{'running','turnsignal'}})}, FigNum=-1);
 assert(editedMesh.FaceLightType(bodyFace)==find(strcmp(editedMesh.LightTypeNames,'running')));
 assert(editedMesh.FaceLightFunctions(bodyFace, turnIndex));
+
+%% TEST case: AlsoParts: faces that belong to more than one part
+vehicleMesh = fcn_INTERNAL_labeledSample;
+lightIndex = find(strcmp(vehicleMesh.PartNames,'light'));
+glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
+headFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight')));
+[editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','clear covers', ...
+    'FaceIndices',headFaces, 'AlsoParts',{{'glass'}})}, FigNum=-1);
+assert(isequal(size(editedMesh.FaceAlsoParts,1), size(editedMesh.Faces,1)));
+assert(size(editedMesh.FaceAlsoParts,2) >= numel(editedMesh.PartNames));
+assert(all(editedMesh.FaceAlsoParts(headFaces, glassIndex)));
+assert(all(editedMesh.FacePartIndex(headFaces)==lightIndex), 'Light always wins: the faces stay lights');
+assert(nnz(editedMesh.FaceAlsoParts) == numel(headFaces));
+assert(strcmp(appliedEdits(1).Part, '+glass'));
+% (a face's own part is not marked again)
+glassFaces = find(vehicleMesh.FacePartIndex==glassIndex);
+editedMesh2 = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',glassFaces(1), 'AlsoParts',{{'glass','trim'}})}, FigNum=-1);
+assert(~editedMesh2.FaceAlsoParts(glassFaces(1), glassIndex) && editedMesh2.FaceAlsoParts(glassFaces(1), strcmp(editedMesh2.PartNames,'trim')));
+% (a new label clears the faces' other parts)
+editedMesh2 = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',headFaces(1), 'Part','trim')}, FigNum=-1);
+assert(~any(editedMesh2.FaceAlsoParts(headFaces(1),:)));
+assert(all(editedMesh2.FaceAlsoParts(headFaces(2:end), glassIndex)));
+% (with a label in the same edit: the label first, then the other parts)
+bodyFace = find(vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames,'body')), 1);
+[editedMesh2, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'LightType','tail', 'AlsoParts',{{'glass'}})}, FigNum=-1);
+assert(editedMesh2.FacePartIndex(bodyFace)==lightIndex && editedMesh2.FaceAlsoParts(bodyFace, glassIndex));
+assert(strcmp(appliedEdits(1).Part, 'light+glass'));
+% (an interior part is added to PartNames, and FaceAlsoParts widened)
+editedMesh2 = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoParts',{{'interior'}})}, FigNum=-1);
+interiorIndex = find(strcmp(editedMesh2.PartNames,'interior'));
+assert(~isempty(interiorIndex) && size(editedMesh2.FaceAlsoParts,2)==numel(editedMesh2.PartNames) && editedMesh2.FaceAlsoParts(bodyFace, interiorIndex));
+% ('light' as an other part is refused: light always wins)
+try
+    fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoParts',{{'light'}})});
+    error('should have failed');
+catch ME
+    assert(contains(ME.message, 'light always wins'), ME.message);
+end
 
 %% TEST case: Interactive editor, driven from code
 figNum = 20007;

@@ -17,6 +17,11 @@
 % - In script_test_fcn_CarMesh3D_simplifyMesh
 %   % * The open panel now points up without the visibility check too (the
 %   %   % ray vote on open panels)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_simplifyMesh
+%   % * Test: other per-face fields (FaceAlsoParts, FaceLightFunctions)
+%   %   % are kept through the reduction
 
 % TO-DO:
 %
@@ -166,6 +171,35 @@ figure(figNum); close(figNum);
 fittedMesh = fcn_INTERNAL_fittedSample(16);
 vehicleMesh = fcn_CarMesh3D_simplifyMesh(fittedMesh, TargetFaces=1e6);
 assert(vehicleMesh.SimplifyInfo.FinalFaces >= 0.95*vehicleMesh.SimplifyInfo.OriginalFaces);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: Other per-face fields (FaceAlsoParts, FaceLightFunctions) are kept
+figNum = 20005;
+titleString = sprintf('TEST case: Other per-face fields (FaceAlsoParts, FaceLightFunctions) are kept');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+fittedMesh = fcn_INTERNAL_fittedSample(32);
+Nfaces = size(fittedMesh.Faces,1);
+glassFaces = find(fittedMesh.FacePartIndex==2);
+markedFaces = glassFaces(1:2:end);             % (half the glass marked: groups must not mix)
+fittedMesh.FaceAlsoParts = false(Nfaces, numel(fittedMesh.PartNames));
+fittedMesh.FaceAlsoParts(markedFaces, 5) = true;
+fittedMesh.FaceLightFunctions = false(Nfaces, numel(fittedMesh.LightTypeNames));
+fittedMesh.FaceLightFunctions(markedFaces, [2 4]) = true;
+vehicleMesh = fcn_CarMesh3D_simplifyMesh(fittedMesh, TargetFaces=round(0.6*Nfaces));
+newFaces = size(vehicleMesh.Faces,1);
+assert(isequal(size(vehicleMesh.FaceAlsoParts), [newFaces numel(fittedMesh.PartNames)]));
+assert(isequal(size(vehicleMesh.FaceLightFunctions), [newFaces numel(fittedMesh.LightTypeNames)]));
+assert(islogical(vehicleMesh.FaceAlsoParts));
+% marked faces are still glass, and both fields stay together
+assert(any(vehicleMesh.FaceAlsoParts(:,5)));
+assert(all(vehicleMesh.FacePartIndex(vehicleMesh.FaceAlsoParts(:,5))==2));
+assert(isequal(vehicleMesh.FaceAlsoParts(:,5), vehicleMesh.FaceLightFunctions(:,2)));
+assert(~any(vehicleMesh.FaceAlsoParts(vehicleMesh.FacePartIndex~=2,5)));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

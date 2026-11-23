@@ -1,20 +1,11 @@
 Standard checks for 2010 Toyota Camry XV40
-Written 2026-11-22 19:44 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-23 02:27 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 25876 faces, 21108 vertices
+Mesh: 25874 faces, 21102 vertices
 Dimensions: 12 of 12 within tolerance
-Ground contact during the test motion: 3 of 503 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\testMotion.csv
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_01_inputs.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_02_dimensions.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_02_dimensions.txt
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_03_labels.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_04_lightStates.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_05_lights.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_06_body.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_07_steering.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_08_wheels.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_09_drive.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\Sedan\2010_Toyota_Camry_XV40\checks\check_10_groundContact.png

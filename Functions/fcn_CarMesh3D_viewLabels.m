@@ -104,7 +104,10 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      Camera (CameraPosition, CameraTarget, CameraUpVector,
 %      CameraViewAngle, Projection, XLim, YLim, ZLim), Label, Hidden,
 %      Colors, PhotoAngle (the photo shown, in degrees; NaN for none),
-%      SeeThrough (how see-through the body is drawn: 0 solid, up to 0.9).
+%      SeeThrough (how see-through the body is drawn: 0 solid, up to 0.9),
+%      MeshBoundaries (true when the faces' edges are drawn), PhotoHeight
+%      (the photo's height in pixels, set with the handle at its bottom
+%      left corner).
 %
 %      viewer: a structure of the viewer's handles and functions:
 %           Figure, Axes, Patch
@@ -116,9 +119,10 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           SetMesh(mesh, labelColors, labelAlpha): a mesh with the same
 %               faces and new labels (the painter, after a save)
 %           SetPhotoAngle(angle), PhotoAngle()
-%           DialMove(), DialUp(): for a window that handles the mouse
-%               itself (each says whether it used the event: the dial's
-%               arrow is being dragged)
+%           DialMove(), DialUp(), GripDown(): for a window that handles
+%               the mouse itself (each says whether it used the event: the
+%               dial's arrow, or the photo's corner, is being dragged; call
+%               GripDown first in the window's mouse-down)
 %           SetHistory(history): new fine print (after a change)
 %           ResetView(), SetSeeThrough(fraction), SeeThrough(): how
 %               see-through the body is drawn (0 solid, up to 0.9)
@@ -181,6 +185,25 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   % * Its own window's title is this function's name, with the
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
+%   % * Multi-part faces (FaceAlsoParts): a face is in each label it
+%   %   % belongs to (a lamp's clear cover is in its light's label and in
+%   %   % glass), and stays shown while any of them is shown
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * The list of labels at the left, beside the model it labels (it
+%   %   % was by the photo); each label's name in its color, with a swatch
+%   %   % of the color beside its Show box (Sean, 00:05)
+%   % * "Show mesh boundaries": the faces' edges drawn
+%   %   % (MeshBoundaries in the view settings), for every label picked,
+%   %   % not only "All labels" (Sean, 02:19)
+%   % * The photo resized by a handle at its bottom left corner, its
+%   %   % shape kept, from the dial's size to the window's height; the dial
+%   %   % follows the photo's edge and the model gets the rest (PhotoHeight
+%   %   % in the view settings); the photo's name on the photo, top right,
+%   %   % on white (it was in a box above the photo)
+%   % * Lit more evenly (ambient 0.85, diffuse 0.3), so the near-white
+%   %   % body reads as white and the label colors stand out
 
 % TO-DO:
 %
@@ -374,7 +397,20 @@ dialAxes = [];
 dialArrow = [];
 dialDots = [];
 photoImage = [];
-photoLabel = [];
+photoLabel = [];   % (the photo's name, in a white box on the photo's top right corner)
+photoPanel = [];
+photoColumn = [];
+photoGrip = [];    % (the photo's resize handle, at its bottom left corner)
+dialGrid = [];
+layout = [];
+photoAspect = 4/3;
+photoHeight = 300;
+dialSize = 220;    % (the dial's ring: the photo is never made shorter than it)
+dialWidth = 300;   % (wide enough for the dial's side names)
+flagPhotoResizing = false;
+flagBoundaries = false;   % (the mesh's face edges drawn)
+boundaryBox = [];
+labelSwatches = gobjects(0);
 photoIndex = 0;
 flagDialDragging = false;
 flagSyncingView = false;
@@ -403,8 +439,12 @@ if flagOwnWindow
         'Visible', visibleText);
     % (the title bar: this function's name and version; the rest under it)
     contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_viewLabels', Subtitle=vehicleName, FigNum=-1);
-    rootGrid = uigridlayout(contentPanel, [1 2], 'ColumnWidth', {'1x', 230}, 'Padding', [6 6 6 6], 'ColumnSpacing', 6);
+    % (the list of labels at the left, beside the model it labels; the
+    % photo at the right: Sean, 00:05)
+    rootGrid = uigridlayout(contentPanel, [1 2], 'ColumnWidth', {235, '1x'}, 'Padding', [6 6 6 6], 'ColumnSpacing', 6);
     parent = uipanel(rootGrid, 'BorderType', 'none');
+    parent.Layout.Row = 1;
+    parent.Layout.Column = 2;
 else
     parent = options.Parent;
     figureHandle = ancestor(parent, 'figure');
@@ -431,7 +471,7 @@ end
 mainGrid = uigridlayout(parent, [4 1], 'RowHeight', {toolHeight, '1x', hintHeight, 0}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
 
 % The tool row: the colors, reset, copy the view call, close
-toolGrid = uigridlayout(mainGrid, [1 8], 'ColumnWidth', {60, 210, 100, 130, 130, 150, '1x', 80}, 'Padding', [4 2 4 2], ...
+toolGrid = uigridlayout(mainGrid, [1 9], 'ColumnWidth', {60, 210, 100, 130, 175, 130, 150, '1x', 80}, 'Padding', [4 2 4 2], ...
     'ColumnSpacing', 6, 'BackgroundColor', [0.93 0.95 1]);
 uilabel(toolGrid, 'Text', 'Colors:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
 colorsGroup = uibuttongroup(toolGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.95 1], ...
@@ -441,6 +481,9 @@ vehicleRadio = uiradiobutton(colorsGroup, 'Text', 'Vehicle colors', 'Position', 
 uibutton(toolGrid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) resetView());
 uibutton(toolGrid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) copyViewCall(), ...
     'Tooltip', 'Put the MATLAB call that opens exactly this view on the clipboard, to send to someone');
+boundaryBox = uicheckbox(toolGrid, 'Text', 'Show mesh boundaries', 'Value', flagBoundaries, ...
+    'Tooltip', 'Draw the edge of every face (the mesh''s triangles)', ...
+    'ValueChangedFcn', @(source,~) setBoundaries(source.Value));
 uilabel(toolGrid, 'Text', 'See-through body:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold', ...
     'Tooltip', 'Makes the body see-through, to look at (and click) what is inside it');
 seeThroughSlider = uislider(toolGrid, 'Limits', [0 90], 'Value', 100*bodySeeThrough, 'MajorTicks', [0 45 90], ...
@@ -464,8 +507,17 @@ photoSet = fcn_INTERNAL_photoAngles(photoFiles);
 if isempty(photoSet)
     layout = uigridlayout(mainGrid, [1 1], 'Padding', [0 0 0 0]);
 else
-    layout = uigridlayout(mainGrid, [2 3], 'RowHeight', {34, '1x'}, 'ColumnWidth', {'1x', 400, '1x'}, ...
-        'Padding', [0 0 0 0], 'ColumnSpacing', 4);
+    % (the model, the dial, and the photo; the photo is resized by the
+    % handle at its bottom left corner, its shape kept, and the model gets
+    % the rest of the width: Sean, 00:05)
+    try
+        photoInfo = imfinfo(photoSet(1).File);
+        photoAspect = photoInfo(1).Width/photoInfo(1).Height;
+    catch
+        photoAspect = 4/3;
+    end
+    layout = uigridlayout(mainGrid, [1 3], 'RowHeight', {'1x'}, 'ColumnWidth', {'1x', dialWidth, photoHeight*photoAspect}, ...
+        'Padding', [0 0 0 0], 'ColumnSpacing', 4, 'BackgroundColor', [1 1 1]);
 end
 layout.Layout.Row = 2;
 % (the model in a panel of its own: drawn unclipped, zoomed in it would
@@ -473,9 +525,6 @@ layout.Layout.Row = 2;
 modelHolder = uipanel(layout, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
 modelHolder.Layout.Row = 1;
 modelHolder.Layout.Column = 1;
-if ~isempty(photoSet)
-    modelHolder.Layout.Row = [1 2];
-end
 axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]));
 hold(axesHandle, 'on');
 axis(axesHandle, 'off');
@@ -490,21 +539,35 @@ fcn_INTERNAL_quietAxes(axesHandle);
 drawnow;
 startView = [];   % (taken when first needed: the window lays itself out first)
 if ~isempty(photoSet)
-    photoImage = uiimage(layout, 'ImageSource', photoSet(1).File, 'ScaleMethod', 'fit');
-    photoImage.Layout.Row = 2;
-    photoImage.Layout.Column = 3;
-    dialGrid = uigridlayout(layout, [3 1], 'RowHeight', {'1x', 300, '1x'}, 'Padding', [0 0 0 0]);
-    dialGrid.Layout.Row = [1 2];
+    % The photo, at the top of its column, with its name on it (top
+    % right, on white) and its resize handle (bottom left)
+    photoColumn = uigridlayout(layout, [2 1], 'RowHeight', {photoHeight, '1x'}, 'Padding', [0 0 0 0], ...
+        'RowSpacing', 0, 'BackgroundColor', [1 1 1]);
+    photoColumn.Layout.Row = 1;
+    photoColumn.Layout.Column = 3;
+    photoPanel = uipanel(photoColumn, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
+    photoPanel.Layout.Row = 1;
+    photoPanel.AutoResizeChildren = 'off';
+    photoImage = uiimage(photoPanel, 'ImageSource', photoSet(1).File, 'ScaleMethod', 'fit', ...
+        'Position', [1 1 photoHeight*photoAspect photoHeight]);
+    photoLabel = uilabel(photoPanel, 'Text', '', 'FontSize', 13, 'FontWeight', 'bold', 'HorizontalAlignment', 'center', ...
+        'BackgroundColor', [1 1 1], 'FontColor', [0.15 0.15 0.15]);
+    % (a corner mark: pressing on it is found from the mouse's position,
+    % in the window's mouse-down, so it works in a host window too)
+    photoGrip = uilabel(photoPanel, 'Text', char(9699), 'FontSize', 22, 'FontColor', [0.15 0.15 0.15], ...
+        'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'Position', [2 2 26 26], ...
+        'Tooltip', 'Drag this corner to resize the photo');
+    photoPanel.SizeChangedFcn = @(~,~) placePhoto();
+    % The dial, beside the photo, level with its middle
+    dialGrid = uigridlayout(layout, [3 1], 'RowHeight', {max(0,(photoHeight - dialSize)/2), dialSize, '1x'}, ...
+        'Padding', [0 0 0 0], 'RowSpacing', 0, 'BackgroundColor', [1 1 1]);
+    dialGrid.Layout.Row = 1;
     dialGrid.Layout.Column = 2;
-    uilabel(dialGrid, 'Text', '');
     dialAxes = uiaxes(dialGrid);
     dialAxes.Layout.Row = 2;
     [dialArrow, dialDots] = fcn_INTERNAL_drawDial(dialAxes, data, [photoSet.Angle]);
     dialAxes.ButtonDownFcn = @onDialDown;
-    photoLabel = uilabel(layout, 'Text', '', 'FontSize', 16, 'FontWeight', 'bold', 'HorizontalAlignment', 'center', ...
-        'BackgroundColor', [0.92 0.92 0.92]);
-    photoLabel.Layout.Row = 1;
-    photoLabel.Layout.Column = 3;
+    placePhoto();
 end
 hintLabel = [];
 if flagHasHint
@@ -526,6 +589,8 @@ labelGroup = [];
 listParent = options.LabelListParent;
 if isempty(listParent) && flagOwnWindow
     listParent = uigridlayout(rootGrid, [1 1], 'Padding', [0 0 0 0]);
+    listParent.Layout.Row = 1;
+    listParent.Layout.Column = 1;
 end
 if ~isempty(listParent)
     % (in a grid of its own, so it fills the space it is given)
@@ -545,8 +610,14 @@ end
 % The view to open at, and the view timer (rotating the model sends no
 % event, so its view is checked four times a second, to move the dial)
 setView(given);
-setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. Pick a label at the right to see it alone; ' ...
-    'untick it to hide it. Photos: drag the red arrow around the vehicle. "Copy view call" puts this exact view on the clipboard.']);
+% (the label rows and the photo placed again once the window has laid
+% itself out: before that, their boxes have no size yet)
+drawnow;
+placeLabelRows();
+placePhoto();
+setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. Pick a label at the left to see it alone; ' ...
+    'untick it to hide it. Photos: drag the red arrow around the vehicle; drag the photo''s bottom left corner to resize it. ' ...
+    '"Copy view call" puts this exact view on the clipboard.']);
 if ~isempty(photoSet)
     viewTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.25, ...
         'TimerFcn', @(~,~) onModelViewChanged(), 'BusyMode', 'drop');
@@ -559,7 +630,7 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'ShowLabel', @showLabel, 'Label', @getLabel, 'SetHidden', @setHidden, 'Hidden', @getHidden, ...
     'SetColors', @setColors, 'Redraw', @redraw, 'SetMesh', @setMesh, ...
     'SetPhotoAngle', @(angle) setDialAngle(angle, true, true), 'PhotoAngle', @getPhotoAngle, ...
-    'DialMove', @dialMove, 'DialUp', @dialUp, 'SetHistory', @setHistory, ...
+    'DialMove', @dialMove, 'DialUp', @dialUp, 'GripDown', @gripDown, 'SetHistory', @setHistory, ...
     'ResetView', @resetView, 'SetSeeThrough', @setSeeThrough, 'SeeThrough', @getSeeThrough, ...
     'Stop', @stopTimer, 'Close', @closeViewer);
 if flagOwnWindow
@@ -642,6 +713,7 @@ end
         data.LabelAlpha = labelAlphaIn(:);
         [labelKeys, labelNames] = fcn_INTERNAL_labelKinds(data.Mesh);
         makeLabelRows();
+        colorLabelRows();
         redraw();
     end
 
@@ -699,14 +771,12 @@ end
         if strcmp(currentKey, 'all')
             faceColors = baseColors;
             faceAlpha = baseAlpha;
-            edgeArguments = {'EdgeColor', 'none'};
         else
             flagLabel = fcn_INTERNAL_labelFaces(data.Mesh, currentKey);
             faceColors = repmat([0.88 0.88 0.88], numFaces, 1);
             faceColors(flagLabel,:) = baseColors(flagLabel,:);
             faceAlpha = ones(numFaces,1);
             faceAlpha(flagLabel) = baseAlpha(flagLabel);
-            edgeArguments = {'EdgeColor', [0 0 0], 'EdgeAlpha', 0.35, 'LineWidth', 0.25};
             if strcmp(currentKey, 'part_interior')
                 % The interior, seen through the windows: the glass nearly
                 % clear (as when glass is picked), and the interior in a
@@ -731,12 +801,27 @@ end
             for ith_key = 1:numel(hiddenKeys)
                 flagHidden = flagHidden | fcn_INTERNAL_labelFaces(data.Mesh, hiddenKeys{ith_key});
             end
+            % (a face with several labels, such as a lamp's clear cover,
+            % a light that is also glass, stays while any of them is shown)
+            if any(flagHidden) && isfield(data.Mesh,'FaceAlsoParts')
+                shownKeys = setdiff(fcn_INTERNAL_labelKinds(data.Mesh), hiddenKeys);
+                for ith_key = 1:numel(shownKeys)
+                    flagHidden = flagHidden & ~fcn_INTERNAL_labelFaces(data.Mesh, shownKeys{ith_key});
+                end
+            end
         else
             flagHidden = options.HiddenFaces(hiddenKeys);
         end
         faceAlpha(flagHidden(:)) = 0;
-        if any(flagHidden) && ~strcmp(currentKey, 'all')
+        % The faces' edges: drawn only when "Show mesh boundaries" is on,
+        % whichever label is picked (Sean, 02:19); with labels hidden, the
+        % edges fade with their faces, so hidden faces leave no edges
+        if ~flagBoundaries
+            edgeArguments = {'EdgeColor', 'none'};
+        elseif any(flagHidden)
             edgeArguments = {'EdgeColor', [0.45 0.45 0.45], 'EdgeAlpha', 'flat', 'LineWidth', 0.25};
+        else
+            edgeArguments = {'EdgeColor', [0.15 0.15 0.15], 'EdgeAlpha', 0.35, 'LineWidth', 0.25};
         end
         set(meshPatch, 'FaceVertexCData', faceColors, 'FaceVertexAlphaData', faceAlpha, edgeArguments{:});
     end
@@ -746,7 +831,8 @@ end
         % The view now: the camera, the label shown, the labels hidden,
         % the colors, and the photo
         settings = struct('MeshFile', meshFile, 'Camera', [], 'Label', currentKey, 'Hidden', {hiddenKeys}, ...
-            'Colors', colorsMode, 'PhotoAngle', getPhotoAngle(), 'SeeThrough', bodySeeThrough);
+            'Colors', colorsMode, 'PhotoAngle', getPhotoAngle(), 'SeeThrough', bodySeeThrough, ...
+            'MeshBoundaries', flagBoundaries, 'PhotoHeight', photoHeight);
         if ~isempty(axesHandle) && isvalid(axesHandle)
             settings.Camera = fcn_INTERNAL_getView(axesHandle);
         elseif ~isempty(closedSettings)
@@ -768,6 +854,15 @@ end
             if ~isempty(seeThroughSlider) && isvalid(seeThroughSlider)
                 seeThroughSlider.Value = 100*bodySeeThrough;
             end
+        end
+        if isfield(settings, 'MeshBoundaries') && ~isempty(settings.MeshBoundaries)
+            flagBoundaries = logical(settings.MeshBoundaries);
+            if ~isempty(boundaryBox) && isvalid(boundaryBox)
+                boundaryBox.Value = flagBoundaries;
+            end
+        end
+        if isfield(settings, 'PhotoHeight') && ~isempty(settings.PhotoHeight) && ~isempty(photoColumn)
+            setPhotoHeight(max(double(settings.PhotoHeight), dialSize));
         end
         if isfield(settings, 'Hidden') && isempty(options.Hidden)
             hiddenKeys = reshape(cellstr(settings.Hidden), 1, []);
@@ -877,6 +972,7 @@ end
             set(dialDots(nearestPhoto), 'MarkerFaceColor', [0.85 0 0], 'MarkerSize', 13);
             [~, photoName, photoExtension] = fileparts(photoSet(nearestPhoto).File);
             photoLabel.Text = [photoName photoExtension];
+            placePhoto();
         end
         if flagTurnModel && isvalid(axesHandle)
             % (the camera moved around its target to that side, at the same
@@ -933,6 +1029,74 @@ end
         viewTimer = [];
     end
 
+    %% The photo: its size, its name, its resize handle
+    function flagUsed = gripDown()
+        % (the mouse pressed on the photo's corner mark: the photo is
+        % resized while it moves; for a host window's mouse-down too)
+        flagUsed = false;
+        if isempty(photoGrip) || ~isvalid(photoGrip)
+            return;
+        end
+        point = figureHandle.CurrentPoint;
+        box = getpixelposition(photoGrip, true);
+        flagUsed = point(1) >= box(1) - 4 && point(1) <= box(1) + box(3) + 4 && ...
+            point(2) >= box(2) - 4 && point(2) <= box(2) + box(4) + 4;
+        flagPhotoResizing = flagUsed;
+    end
+
+    function resizePhoto()
+        % The photo's top right corner stays; its bottom left corner
+        % follows the mouse, the photo's shape kept, from the dial's size
+        % up to the full height (the model keeps at least 220 pixels)
+        if isempty(photoColumn) || ~isvalid(photoColumn)
+            return;
+        end
+        point = figureHandle.CurrentPoint;
+        columnBox = getpixelposition(photoColumn, true);
+        layoutBox = getpixelposition(layout, true);
+        rightEdge = columnBox(1) + columnBox(3);
+        topEdge = columnBox(2) + columnBox(4);
+        newWidth = max(rightEdge - point(1), (topEdge - point(2))*photoAspect);
+        newWidth = min(newWidth, min(layoutBox(3) - dialWidth - 220, layoutBox(4)*photoAspect));
+        newWidth = max(newWidth, dialSize*photoAspect);
+        setPhotoHeight(newWidth/photoAspect);
+        drawnow limitrate;
+    end
+
+    function setPhotoHeight(newHeight)
+        % The photo this tall (and as wide as its shape needs); the dial
+        % kept level with its middle
+        if isempty(photoColumn) || ~isvalid(photoColumn)
+            return;
+        end
+        photoHeight = newHeight;
+        layout.ColumnWidth{3} = photoHeight*photoAspect;
+        photoColumn.RowHeight{1} = photoHeight;
+        dialGrid.RowHeight{1} = max(0, (photoHeight - dialSize)/2);
+    end
+
+    function placePhoto()
+        % The photo filling its box, its name at the top right, the
+        % handle at the bottom left
+        if isempty(photoPanel) || ~isvalid(photoPanel)
+            return;
+        end
+        box = photoPanel.InnerPosition;
+        photoImage.Position = [1 1 max(box(3),1) max(box(4),1)];
+        nameWidth = min(max(box(3) - 8, 40), 8*numel(photoLabel.Text) + 18);
+        photoLabel.Position = [max(box(3) - nameWidth - 4, 1), max(box(4) - 26, 1), nameWidth, 22];
+        photoGrip.Position = [2 2 26 26];
+    end
+
+    %% The mesh's boundaries
+    function setBoundaries(flagOn)
+        flagBoundaries = logical(flagOn);
+        if ~isempty(boundaryBox) && isvalid(boundaryBox)
+            boundaryBox.Value = flagBoundaries;
+        end
+        redraw();
+    end
+
     %% Its own window: the label list, the mouse, and closing
     function makeLabelRows()
         % One row per label (made again when the labels change)
@@ -948,13 +1112,17 @@ end
         delete(labelGroup.Children);
         labelRadios = gobjects(0);
         labelShowBoxes = gobjects(0);
+        labelSwatches = gobjects(0);
         for ith_label = 1:numel(allKeys)
             labelRadios(ith_label) = uiradiobutton(labelGroup, 'Text', allNames{ith_label}, ...
                 'Position', [8 8 160 22], 'UserData', allKeys{ith_label});
             if ith_label > 1
                 labelShowBoxes(end+1) = uicheckbox(labelGroup, 'Text', '', 'Value', ~any(strcmp(hiddenKeys, allKeys{ith_label})), ...
-                    'UserData', allKeys{ith_label}, 'Position', [185 8 22 22], 'ValueChangedFcn', @(~,~) onShowBox(), ...
+                    'UserData', allKeys{ith_label}, 'Position', [180 8 22 22], 'ValueChangedFcn', @(~,~) onShowBox(), ...
                     'Tooltip', 'Show these faces (untick to hide them, to see the faces under them)'); %#ok<AGROW>
+                % (the label's color, as on the model, beside its box)
+                labelSwatches(end+1) = uipanel(labelGroup, 'Position', [202 11 16 16], 'BorderType', 'line', ...
+                    'BackgroundColor', [1 1 1], 'Tooltip', 'This label''s color on the model'); %#ok<AGROW>
             end
         end
         selected = find(strcmp(allKeys, currentKey), 1);
@@ -962,6 +1130,27 @@ end
             labelGroup.SelectedObject = labelRadios(selected);
         end
         placeLabelRows();
+        colorLabelRows();
+    end
+
+    function colorLabelRows()
+        % Each label's name and swatch in its color on the model (a name
+        % too pale to read on white is drawn dark; its swatch keeps the color)
+        for ith_row = 2:numel(labelRadios)
+            if ~isvalid(labelRadios(ith_row))
+                continue;
+            end
+            thisColor = fcn_INTERNAL_labelColor(data, labelRadios(ith_row).UserData);
+            if ith_row-1 <= numel(labelSwatches) && isvalid(labelSwatches(ith_row-1))
+                labelSwatches(ith_row-1).BackgroundColor = thisColor;
+            end
+            textColor = thisColor;
+            if [0.299 0.587 0.114]*thisColor(:) > 0.62
+                textColor = 0.45*thisColor;
+            end
+            labelRadios(ith_row).FontColor = textColor;
+            labelRadios(ith_row).FontWeight = 'bold';
+        end
     end
 
     function placeLabelRows()
@@ -976,6 +1165,9 @@ end
             if ith_row > 1
                 boxIndex = boxIndex + 1;
                 labelShowBoxes(boxIndex).Position(2) = rowBottom;
+                if boxIndex <= numel(labelSwatches)
+                    labelSwatches(boxIndex).Position(2) = rowBottom + 3;
+                end
             end
         end
     end
@@ -994,6 +1186,9 @@ end
         % CAD-style: left-drag rotates, right-drag pans (the model);
         % the dial's arrow is dragged around the dial
         mouseMode = '';
+        if gripDown()
+            return;
+        end
         clicked = figureHandle.CurrentObject;
         if isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), axesHandle)
             return;
@@ -1009,7 +1204,12 @@ end
 
     function flagUsed = dialMove()
         % (the dial's arrow dragged: it follows the mouse, and the model
-        % turns with it)
+        % turns with it; or the photo's handle dragged: the photo resized)
+        if flagPhotoResizing
+            resizePhoto();
+            flagUsed = true;
+            return;
+        end
         flagUsed = flagDialDragging && ~isempty(dialAxes) && isvalid(dialAxes);
         if flagUsed
             setDialAngle(pointerAngle(), true, false);
@@ -1018,6 +1218,11 @@ end
 
     function flagUsed = dialUp()
         % (the arrow let go: to the photo's own angle)
+        if flagPhotoResizing
+            flagPhotoResizing = false;
+            flagUsed = true;
+            return;
+        end
         flagUsed = flagDialDragging;
         if flagUsed
             flagDialDragging = false;
@@ -1178,9 +1383,17 @@ seeThroughValue = 0;
 if isfield(settings, 'SeeThrough') && ~isempty(settings.SeeThrough)
     seeThroughValue = settings.SeeThrough;
 end
+boundaryValue = false;
+if isfield(settings, 'MeshBoundaries') && ~isempty(settings.MeshBoundaries)
+    boundaryValue = logical(settings.MeshBoundaries);
+end
+photoHeightText = '[]';
+if isfield(settings, 'PhotoHeight') && ~isempty(settings.PhotoHeight)
+    photoHeightText = mat2str(round(settings.PhotoHeight));
+end
 settingsText = sprintf(['struct(''MeshFile'',''%s'',''Camera'',struct(%s),''Label'',''%s'',''Hidden'',{%s},' ...
-    '''Colors'',''%s'',''PhotoAngle'',%s,''SeeThrough'',%s)'], settings.MeshFile, strjoin(cameraParts, ','), settings.Label, hiddenText, ...
-    settings.Colors, photoText, mat2str(seeThroughValue, 4));
+    '''Colors'',''%s'',''PhotoAngle'',%s,''SeeThrough'',%s,''MeshBoundaries'',%s,''PhotoHeight'',%s)'], settings.MeshFile, strjoin(cameraParts, ','), settings.Label, hiddenText, ...
+    settings.Colors, photoText, mat2str(seeThroughValue, 4), mat2str(boundaryValue), photoHeightText);
 if isempty(settings.MeshFile)
     vehicleText = 'vehicleMesh';   % (a mesh variable was given: the one who opens it gives it again)
 else
@@ -1189,6 +1402,26 @@ end
 textOut = sprintf('fcn_CarMesh3D_viewLabels(%s, ViewSettings=%s);', vehicleText, settingsText);
 end % Ends fcn_INTERNAL_viewCall
 
+%% fcn_INTERNAL_labelColor
+function thisColor = fcn_INTERNAL_labelColor(data, labelKey)
+% The color most of a label's faces have in the label colors
+thisColor = [0.5 0.5 0.5];
+flagFaces = fcn_INTERNAL_labelFaces(data.Mesh, labelKey);
+% (a face also in another label, such as a lamp's clear cover, is left
+% out when the label has faces of its own)
+if isfield(data.Mesh,'FacePartIndex') && startsWith(labelKey, 'part_')
+    partIndex = find(strcmp(data.Mesh.PartNames, labelKey(6:end)), 1);
+    flagOwn = flagFaces(:) & data.Mesh.FacePartIndex(:)==partIndex;
+    if any(flagOwn)
+        flagFaces = flagOwn;
+    end
+end
+if any(flagFaces) && size(data.LabelColors,1) == numel(flagFaces)
+    [uniqueColors, ~, colorIndex] = unique(round(data.LabelColors(flagFaces,:)*50)/50, 'rows');
+    thisColor = uniqueColors(mode(colorIndex),:);
+end
+end % Ends fcn_INTERNAL_labelColor
+
 %% fcn_INTERNAL_labelFaces
 function flagFaces = fcn_INTERNAL_labelFaces(vehicleMesh, labelKey)
 % The faces with this label
@@ -1196,6 +1429,12 @@ flagFaces = false(size(vehicleMesh.Faces,1),1);
 if startsWith(labelKey, 'part_')
     partIndex = find(strcmp(vehicleMesh.PartNames, labelKey(6:end)), 1);
     flagFaces = vehicleMesh.FacePartIndex==partIndex;
+    % (and the faces that also belong to it: a lamp's clear cover is a
+    % light that is also glass)
+    if ~isempty(partIndex) && isfield(vehicleMesh,'FaceAlsoParts') ...
+            && size(vehicleMesh.FaceAlsoParts,1)==numel(flagFaces) && partIndex <= size(vehicleMesh.FaceAlsoParts,2)
+        flagFaces = flagFaces(:) | vehicleMesh.FaceAlsoParts(:,partIndex);
+    end
 elseif strcmp(labelKey, 'light_none')
     lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
     flagFaces = vehicleMesh.FacePartIndex==lightPart & vehicleMesh.FaceLightType==0;
@@ -1213,7 +1452,7 @@ keys = {};
 names = {};
 lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
 for ith_part = 1:numel(vehicleMesh.PartNames)
-    if ith_part == lightPart || ~any(vehicleMesh.FacePartIndex==ith_part)
+    if ith_part == lightPart || ~any(fcn_INTERNAL_labelFaces(vehicleMesh, ['part_' vehicleMesh.PartNames{ith_part}]))
         continue;
     end
     keys{end+1} = ['part_' vehicleMesh.PartNames{ith_part}]; %#ok<AGROW>
@@ -1249,7 +1488,7 @@ end
 patchHandle = patch(axesHandle, 'Faces', vehicleMesh.Faces, 'Vertices', vehicleMesh.Vertices, ...
     'FaceVertexCData', faceColors, 'FaceColor', 'flat', 'EdgeColor', 'none', ...
     'FaceVertexAlphaData', faceAlpha, 'FaceAlpha', 'flat', 'AlphaDataMapping', 'none', ...
-    'FaceLighting', 'flat', 'AmbientStrength', 0.7, 'DiffuseStrength', 0.45, 'SpecularStrength', 0.05, ...
+    'FaceLighting', 'flat', 'AmbientStrength', 0.85, 'DiffuseStrength', 0.3, 'SpecularStrength', 0.05, ...
     'BackFaceLighting', 'lit', 'Clipping', 'off');
 end % Ends fcn_INTERNAL_drawMesh
 

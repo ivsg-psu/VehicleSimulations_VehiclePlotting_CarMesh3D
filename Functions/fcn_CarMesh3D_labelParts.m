@@ -95,9 +95,12 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      joined by shared corners) at least half of whose faces are within
 %      2% of the vehicle's length of a light face. Many downloads give
 %      the lamp covers the window glass material. Windows that only touch
-%      a lamp stay glass, and so does a cover over a lamp with lenses of
-%      its own (light faces near the cover with at least a quarter of its
-%      area): it is the lamp's clear cover, and the lenses show through.
+%      a lamp stay glass. A cover over a lamp with lenses of its own
+%      (light faces near the cover with at least a quarter of its area)
+%      is the lamp's clear cover: it is both, a light (of its lenses'
+%      type) that is also glass (FaceAlsoParts), so that
+%      fcn_CarMesh3D_plotVehicle draws it as glass while the lamp is off,
+%      the lenses showing through, and lit while the lamp is on.
 %
 %      TextureColorParts: a cell array of part names whose faces take
 %      their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB
@@ -125,6 +128,10 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %           FaceLightType (M x 1): index into LightTypeNames for light
 %               faces, 0 for all other faces
 %           TextureColorParts (cell): the TextureColorParts option
+%           FaceAlsoParts (M x numel(PartNames) logical): the other parts
+%               each face also belongs to (one column per part). A face is
+%               drawn as its own part (FacePartIndex: light always wins);
+%               a lamp's clear cover is a light that is also glass
 %
 % DEPENDENCIES:
 %
@@ -170,6 +177,10 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % (light faces near it with at least a quarter of its area) stays
 %   %   % glass, so the lenses show through (Sean, 14:35: the Fit's
 %   %   % headlight covers were labeled headlight and hid its lenses)
+%   % * FaceAlsoParts: a face can belong to more than one part, light
+%   %   % always winning (Sean's multi-part faces, 01:57; Sean, 23:04:
+%   %   % option B, drawn as glass while off). A lamp's clear cover is a
+%   %   % light of its lenses' type that is also glass
 
 % TO-DO:
 %
@@ -444,8 +455,9 @@ faceAlpha = ones(Nfaces,1);
 faceAlpha(facePartIndex==2) = options.GlassAlpha;
 
 % Lamp covers: separate glass pieces lying over a lamp become that lamp
+flagClearCover = false(Nfaces,1);
 if options.LampCovers && any(facePartIndex==2) && any(facePartIndex==4)
-    facePartIndex = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex);
+    [facePartIndex, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex);
 end
 
 % Light types, for switchable lights
@@ -482,7 +494,23 @@ if any(flagLightFace)
         faceLightType(flagUntyped & lightCentersX>=middleX) = 1; % headlight
         faceLightType(flagUntyped & lightCentersX<middleX)  = 4; % tail
     end
+
+    % A clear cover takes the type of the nearest lens under it
+    if any(flagClearCover)
+        lensFaces = find(flagLightFace & ~flagClearCover & faceLightType>0);
+        if ~isempty(lensFaces)
+            faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
+                vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+            coverFaces = find(flagClearCover);
+            nearestLens = fcn_INTERNAL_nearestPoint(faceCenters(lensFaces,:), faceCenters(coverFaces,:));
+            faceLightType(coverFaces) = faceLightType(lensFaces(nearestLens));
+        end
+    end
 end
+
+% The other parts each face also belongs to: a clear cover is also glass
+faceAlsoParts = false(Nfaces, numel(partNames));
+faceAlsoParts(flagClearCover, 2) = true;
 
 vehicleMesh.PartNames = partNames;
 vehicleMesh.LightTypeNames = lightTypeNames;
@@ -492,6 +520,7 @@ vehicleMesh.FaceWheelIndex = faceWheelIndex;
 vehicleMesh.FaceColors = faceColors;
 vehicleMesh.FaceAlpha = faceAlpha;
 vehicleMesh.TextureColorParts = textureColorParts;
+vehicleMesh.FaceAlsoParts = faceAlsoParts;
 
 if flag_do_debug
     for ith_part = 1:length(partNames)
@@ -568,11 +597,12 @@ end
 end % Ends fcn_INTERNAL_nameOrEmpty
 
 %% fcn_INTERNAL_lampCovers
-function facePartIndex = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex)
+function [facePartIndex, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex)
 % Each separate piece of glass (glass faces joined by shared corners)
 % that lies mostly over a lamp becomes part of the lamp: a piece at least
 % half of whose faces are within 2% of the vehicle's length of a light
-% face's center
+% face's center. A piece over a lamp with lenses of its own is the lamp's
+% clear cover (flagClearCover): a light that is also glass
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
@@ -610,11 +640,12 @@ for first = 1:blockSize:numel(glassFaces)
 end
 flagNear = nearestDistance <= nearDistance;
 
-% Pieces mostly over a lamp become light, unless the lamp has lenses of
-% its own under the piece (light faces near it with at least a quarter of
-% its area): then the piece is the lamp's clear cover, and stays glass, so
-% the lenses show through it (Sean, 14:35: the Fit's headlight covers
-% hid its lenses)
+% Pieces mostly over a lamp become light. When the lamp has lenses of its
+% own under the piece (light faces near it with at least a quarter of its
+% area), the piece is the lamp's clear cover: a light that is also glass,
+% drawn as glass while the lamp is off so the lenses show through it
+% (Sean, 14:35: the Fit's headlight covers hid its lenses; Sean, 23:04:
+% lit while the lamp is on)
 [pieces, ~, pieceIndex] = unique(pieceOfFace);
 nearShare = accumarray(pieceIndex, double(flagNear))./accumarray(pieceIndex, 1);
 candidatePieces = find(nearShare >= 0.5);
@@ -622,6 +653,7 @@ faceAreas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), .
     vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
 lightFaces = find(facePartIndex==4);
 coverPieces = [];
+clearPieces = [];
 for ith_candidate = candidatePieces(:)'
     pieceFaces = glassFaces(pieceIndex==ith_candidate);
     pieceArea = sum(faceAreas(pieceFaces));
@@ -635,10 +667,27 @@ for ith_candidate = candidatePieces(:)'
     lensArea = sum(faceAreas(lightFaces(flagLens)));
     if lensArea < 0.25*pieceArea
         coverPieces(end+1) = pieces(ith_candidate); %#ok<AGROW>
+    else
+        clearPieces(end+1) = pieces(ith_candidate); %#ok<AGROW>
     end
 end
-facePartIndex(glassFaces(ismember(pieceOfFace, coverPieces))) = 4;
+flagClearCover = false(size(facePartIndex));
+flagClearCover(glassFaces(ismember(pieceOfFace, clearPieces))) = true;
+facePartIndex(glassFaces(ismember(pieceOfFace, [coverPieces clearPieces]))) = 4;
 end % Ends fcn_INTERNAL_lampCovers
+
+%% fcn_INTERNAL_nearestPoint
+function nearest = fcn_INTERNAL_nearestPoint(fromPoints, toPoints)
+% The index of the nearest of fromPoints for each of toPoints (in blocks;
+% no toolbox needed)
+nearest = zeros(size(toPoints,1),1);
+blockSize = 400;
+for first = 1:blockSize:size(toPoints,1)
+    rows = first:min(size(toPoints,1), first+blockSize-1);
+    squaredDistance = sum(toPoints(rows,:).^2,2) + sum(fromPoints.^2,2)' - 2*toPoints(rows,:)*fromPoints';
+    [~, nearest(rows)] = min(squaredDistance, [], 2);
+end
+end % Ends fcn_INTERNAL_nearestPoint
 
 %% fcn_INTERNAL_findRoot
 function root = fcn_INTERNAL_findRoot(parent, index)

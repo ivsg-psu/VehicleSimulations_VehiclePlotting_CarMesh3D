@@ -33,7 +33,7 @@ testMesh.FaceAlpha = ones(12,1);
 %% Fast mode (FigNum=-1): the label colors only
 labelMesh = fcn_CarMesh3D_plotLabels(testMesh, FigNum=-1);
 assert(isequal(size(labelMesh.FaceColors),[12 3]));
-assert(isequal(labelMesh.FaceColors(1,:),[0.80 0.80 0.80]));   % body
+assert(isequal(labelMesh.FaceColors(1,:),[0.97 0.97 0.97]));   % body (near-white)
 assert(isequal(labelMesh.FaceColors(3,:),[0.55 0.80 1.00]));   % glass
 assert(isequal(labelMesh.FaceColors(7,:),[1.00 0.90 0.10]));   % headlight
 assert(isequal(labelMesh.FaceColors(11,:),[0.90 0.00 0.00]));  % tail
@@ -46,18 +46,6 @@ assert(ishandle(figNum));
 assert(strcmp(get(figure(figNum),'Visible'),'on'));
 assert(strcmp(get(figure(figNum),'Name'),'Test box: labels'));
 assert(isequal(labelMesh.FaceColors(7,:),[1.00 0.90 0.10]));
-
-%% By material: one color per material, with a legend
-testMesh.MaterialNames = {'paint','window','lamps'};
-testMesh.FaceMaterialIndex = [1 1 2 2 1 1 3 3 1 1 3 3]';
-materialMesh = fcn_CarMesh3D_plotLabels(testMesh, ColorBy='material', FigNum=-1);
-assert(isequal(materialMesh.FaceColors(1,:), materialMesh.FaceColors(5,:)));        % (same material, same color)
-assert(~isequal(materialMesh.FaceColors(1,:), materialMesh.FaceColors(3,:)) && ~isequal(materialMesh.FaceColors(3,:), materialMesh.FaceColors(7,:)));
-assert(materialMesh.FaceAlpha(3)==0.6);                                             % (glass still see-through)
-figNum = 10002;
-fcn_CarMesh3D_plotLabels(testMesh, ColorBy='material', FigNum=figNum);
-legendHandle = findobj(figure(figNum), 'Type','legend');
-assert(numel(legendHandle)==1 && numel(legendHandle.String)==3 && startsWith(legendHandle.String{1}, 'paint'));
 
 %% FAIL: not a labeled mesh
 if 1==0

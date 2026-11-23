@@ -275,6 +275,11 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * Multi-part faces (FaceAlsoParts): a part that faces only also
+%   %   % belong to (glass that is a lamp's clear cover) is reviewed too
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -2244,7 +2249,11 @@ keys = {};
 names = {};
 lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
 for ith_part = 1:numel(vehicleMesh.PartNames)
-    if ith_part == lightPart || ~any(vehicleMesh.FacePartIndex==ith_part)
+    flagHasPart = any(vehicleMesh.FacePartIndex==ith_part);
+    if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==size(vehicleMesh.Faces,1) && ith_part <= size(vehicleMesh.FaceAlsoParts,2)
+        flagHasPart = flagHasPart || any(vehicleMesh.FaceAlsoParts(:,ith_part));   % (a part only some faces also belong to)
+    end
+    if ith_part == lightPart || ~flagHasPart
         continue;
     end
     keys{end+1} = ['part_' vehicleMesh.PartNames{ith_part}]; %#ok<AGROW>

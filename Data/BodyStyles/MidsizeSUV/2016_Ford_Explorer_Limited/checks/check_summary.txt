@@ -1,20 +1,11 @@
 Standard checks for 2016 Ford Explorer Limited
-Written 2026-11-22 19:38 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-23 02:32 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 9343 faces, 17686 vertices
+Mesh: 8896 faces, 17321 vertices
 Dimensions: 12 of 12 within tolerance
-Ground contact during the test motion: 3 of 507 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\testMotion.csv
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_01_inputs.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_02_dimensions.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_02_dimensions.txt
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_03_labels.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_04_lightStates.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_05_lights.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_06_body.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_07_steering.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_08_wheels.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_09_drive.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\MidsizeSUV\2016_Ford_Explorer_Limited\checks\check_10_groundContact.png

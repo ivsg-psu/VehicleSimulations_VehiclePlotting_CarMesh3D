@@ -1,20 +1,11 @@
 Standard checks for 2026 CarMesh3D Generic Crossover
-Written 2026-11-22 17:14 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-23 02:37 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 11912 faces, 11224 vertices
+Mesh: 11313 faces, 10747 vertices
 Dimensions: 12 of 12 within tolerance
-Ground contact during the test motion: 3 of 499 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\testMotion.csv
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_01_inputs.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_02_dimensions.png
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_02_dimensions.txt
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_03_labels.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_04_lightStates.png
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_05_lights.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_06_body.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_07_steering.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_08_wheels.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_09_drive.gif
-  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_Crossover\checks\check_10_groundContact.png

@@ -161,6 +161,15 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %   % * The pictures are drawn once and kept in the temporary folder
 %   %   % (CarMesh3D_thumbnails), made again when the mesh or outline
 %   %   % file changes
+%
+% 2026_11_22 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * The controls in three boxes, in the order they are used, left
+%   %   % to right: 1. Group by, 2. Sort within each group by, 3. Filter
+%   %   % (Sean, 23:33: the sort box, read first, was taken for the main
+%   %   % order)
+%   % * The selection is shown as text, not in a text box (it read as a
+%   %   % place to type; Sean, 23:35), with a Copy names button
 
 % TO-DO:
 %
@@ -283,7 +292,7 @@ if ~isempty(options.Vehicles)
         numel(cellstr(options.Vehicles)));
 end
 contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, functionName, FigNum=-1, Subtitle=librarySubtitle);
-mainGrid = uigridlayout(contentPanel, [3 1], 'RowHeight', {34, 64, '1x'}, ...
+mainGrid = uigridlayout(contentPanel, [3 1], 'RowHeight', {66, 44, '1x'}, ...
     'Padding', [10 8 10 8], 'RowSpacing', 6);
 
 % Gather the vehicles' details (and draw their pictures, the first time)
@@ -306,35 +315,54 @@ currentOrder = 1:numVehicles;   % (indices into vehicles, as shown)
 result = {};
 flagResultFixed = false;
 
-% Row 2: sort, group, filter
-controlGrid = uigridlayout(mainGrid, [1 11], 'ColumnWidth', {50, 150, 95, 65, 150, 40, 170, 90, 90, '1x', 160}, ...
-    'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-uilabel(controlGrid, 'Text', 'Sort by', 'HorizontalAlignment', 'right');
-sortLabels = {'Name','Year','Make','Class (body style)','Length','Score','Review (% approved)','Date built','Date reviewed'};
-sortDropdown = uidropdown(controlGrid, 'Items', sortLabels, 'ItemsData', sortKeys, 'Value', sortKey, ...
-    'ValueChangedFcn', @(source,~) setSort(source.Value, flagDescending));
+% Row 2: the three ways to arrange the list, each in a box of its own,
+% in the order they are used, left to right: group, then sort within the
+% groups, then filter what is shown (Sean, 23:33: the sort box was left of
+% the group box, read first, and mistaken for the main order). Then the
+% count and the Done button, at the right
+controlGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {220, 290, '1x', 175}, ...
+    'Padding', [0 0 0 0], 'ColumnSpacing', 8);
+
+groupPanel = uipanel(controlGrid, 'Title', '1. Group by', 'FontWeight', 'bold');
+groupGrid = uigridlayout(groupPanel, [1 1], 'Padding', [6 4 6 4]);
+groupLabels = {'Class (body style)','Make','Year','Review status','Exemplars first','License','(no groups)'};
 % (callbacks take the control's value from the control itself: an
 % anonymous function made before a control exists cannot name it)
-descendingBox = uicheckbox(controlGrid, 'Text', 'Descending', 'Value', flagDescending, ...
-    'ValueChangedFcn', @(source,~) setSort(sortKey, source.Value));
-uilabel(controlGrid, 'Text', 'Group by', 'HorizontalAlignment', 'right');
-groupLabels = {'Class (body style)','Make','Year','Review status','Exemplars first','License','(no groups)'};
-groupDropdown = uidropdown(controlGrid, 'Items', groupLabels, 'ItemsData', groupKeys, 'Value', groupKey, ...
+groupDropdown = uidropdown(groupGrid, 'Items', groupLabels, 'ItemsData', groupKeys, 'Value', groupKey, ...
+    'Tooltip', 'The headings the list is divided under', ...
     'ValueChangedFcn', @(source,~) setGroup(source.Value));
-uilabel(controlGrid, 'Text', 'Filter', 'HorizontalAlignment', 'right');
-filterField = uieditfield(controlGrid, 'text', 'Placeholder', 'part of a name, year, make, class', ...
-    'Tooltip', 'Type, then press Apply filter: keeps the vehicles now shown whose name, MATLAB name, or class holds it');
-uibutton(controlGrid, 'Text', 'Apply filter', 'ButtonPushedFcn', @(~,~) applyFilter(filterField.Value));
-uibutton(controlGrid, 'Text', 'Clear filters', 'ButtonPushedFcn', @(~,~) clearFilters());
-countLabel = uilabel(controlGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'WordWrap', 'on');
-uibutton(controlGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', ...
+
+sortPanel = uipanel(controlGrid, 'Title', '2. Sort within each group by', 'FontWeight', 'bold');
+sortGrid = uigridlayout(sortPanel, [1 2], 'ColumnWidth', {'1x', 95}, 'Padding', [6 4 6 4]);
+sortLabels = {'Name','Year','Make','Class (body style)','Length','Score','Review (% approved)','Date built','Date reviewed'};
+sortDropdown = uidropdown(sortGrid, 'Items', sortLabels, 'ItemsData', sortKeys, 'Value', sortKey, ...
+    'Tooltip', 'The order of the vehicles under each heading', ...
+    'ValueChangedFcn', @(source,~) setSort(source.Value, flagDescending));
+descendingBox = uicheckbox(sortGrid, 'Text', 'Descending', 'Value', flagDescending, ...
+    'ValueChangedFcn', @(source,~) setSort(sortKey, source.Value));
+
+filterPanel = uipanel(controlGrid, 'Title', '3. Filter: keep the vehicles shown whose name, MATLAB name or class holds', 'FontWeight', 'bold');
+filterGrid = uigridlayout(filterPanel, [1 3], 'ColumnWidth', {'1x', 90, 90}, 'Padding', [6 4 6 4]);
+filterField = uieditfield(filterGrid, 'text', 'Placeholder', 'part of a name, year, make, class', ...
+    'Tooltip', 'Type, then press Apply filter: each filter narrows what is shown; Clear filters shows them all again');
+uibutton(filterGrid, 'Text', 'Apply filter', 'ButtonPushedFcn', @(~,~) applyFilter(filterField.Value));
+uibutton(filterGrid, 'Text', 'Clear filters', 'ButtonPushedFcn', @(~,~) clearFilters());
+
+doneGrid = uigridlayout(controlGrid, [2 1], 'RowHeight', {'1x', 30}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
+countLabel = uilabel(doneGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'WordWrap', 'on', 'VerticalAlignment', 'bottom');
+uibutton(doneGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', ...
     'ButtonPushedFcn', @(~,~) closeWindow());
 
 % Row 3: the selection, as a cell array to copy
-selectionGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {150, '1x', 120, 80}, ...
+% (shown as text, not in a text box: a box reads as a place to type, and
+% this is only what will be returned; Sean, 23:35)
+selectionGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {215, '1x', 110, 120, 80}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-uilabel(selectionGrid, 'Text', {'Selected MATLAB names', '(in the order shown):'}, 'FontWeight', 'bold');
-selectionArea = uitextarea(selectionGrid, 'Editable', 'off', 'FontName', 'Courier New', 'FontSize', 12);
+uilabel(selectionGrid, 'Text', {'Returned when closed:', 'the selected, in the order shown'}, 'FontWeight', 'bold');
+selectionArea = uilabel(selectionGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 12, 'WordWrap', 'on', ...
+    'VerticalAlignment', 'center', 'FontColor', [0.10 0.25 0.55]);
+uibutton(selectionGrid, 'Text', 'Copy names', 'Tooltip', 'Copy the line shown, a MATLAB cell array, to the clipboard', ...
+    'ButtonPushedFcn', @(~,~) clipboard('copy', selectionArea.Text));
 uibutton(selectionGrid, 'Text', 'Select all shown', 'ButtonPushedFcn', @(~,~) selectShown(true));
 uibutton(selectionGrid, 'Text', 'Clear', 'ButtonPushedFcn', @(~,~) selectShown(false));
 
@@ -576,10 +604,10 @@ end
     function showSelection()
         names = getSelected();
         if isempty(names)
-            selectionArea.Value = {sprintf('(none: closing returns a fresh copy of %s)', char(options.DefaultVehicle))};
+            selectionArea.Text = sprintf('(none selected: closing returns a fresh copy of %s)', char(options.DefaultVehicle));
         else
-            selectionArea.Value = {sprintf('selectedNames = {%s};   %% %d vehicle(s)', ...
-                strjoin(strcat('''', names, ''''), ', '), numel(names))};
+            selectionArea.Text = sprintf('selectedNames = {%s};   %% %d vehicle(s)', ...
+                strjoin(strcat('''', names, ''''), ', '), numel(names));
         end
     end
 
@@ -957,7 +985,7 @@ else
         reviewText = [reviewText ', ' char(string(vehicle.ReviewDate, 'yyyy-MM-dd HH:mm'))];
     end
 end
-lines{end+1} = ['<b>Review:</b>&nbsp;' reviewText];
+lines{end+1} = ['<b>Review: </b>' reviewText];   % (the space inside the bold: outside, before a colored part, it was dropped)
 licenseText = vehicle.License;
 if ~isempty(vehicle.LicenseAuthor)
     licenseText = sprintf('%s, model by %s', licenseText, vehicle.LicenseAuthor);
