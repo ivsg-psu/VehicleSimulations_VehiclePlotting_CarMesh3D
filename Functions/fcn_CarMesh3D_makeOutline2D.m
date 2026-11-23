@@ -19,8 +19,18 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %       (the tire's diameter), and width; a rectangle around the center
 %       that the front wheels turn by the steer angle.
 %   Lights: each lamp (headlights, turn signals, running, tail, backup;
-%       and the unswitched ones as 'other'), by type, side, and connected
-%       piece: the convex outline of its faces seen from above.
+%       and the unswitched ones as 'other'), by type, side, and lamp:
+%       the convex outline of its faces seen from above. A lamp is the
+%       faces of one type and side that touch (corners at the same place)
+%       or come within LampGap of each other, so a lamp made of many
+%       separate pieces (a lens, a reflector, a bulb) is one outline, while
+%       a turn signal's front, rear, and mirror lamps stay separate.
+%
+%   Interior: each connected piece of the 'interior' part (seats, steering
+%       wheel, dash; fcn_CarMesh3D_labelInterior) seen from above, as
+%       authored in the download (faces join where their corners touch),
+%       front to rear. Interior outlines are NOT made symmetric: the
+%       steering wheel is on one side.
 %
 % SYMMETRY. Vehicles are (nearly always) mirror images about their
 % centerline (the XZ plane), but downloaded models are not always: a
@@ -44,7 +54,8 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %       vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh,...
 %           (SliceSpacing=meters), (Tolerance=meters),...
 %           (MinWindowArea=squareMeters), (Symmetric=flag),...
-%           (SymmetryTolerance=fraction), (FigNum=figNum))
+%           (SymmetryTolerance=fraction), (LampGap=meters),...
+%           (MinInteriorArea=squareMeters), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -71,6 +82,12 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %      way, so with Symmetric=false the warning still names the outlines
 %      that are not symmetric.
 %
+%      LampGap: meters; pieces of lamps of one type and side closer than
+%      this are one lamp. Default 0.02.
+%
+%      MinInteriorArea: square meters; smaller interior pieces (seen from
+%      above) are dropped. Default 0.01.
+%
 %      FigNum: a figure to plot the outlines, in two panels: alone (as a
 %      2D plot would draw them) and over the mesh seen from above
 %      (faded). If empty or omitted, no plot is made. If set to -1, input
@@ -88,6 +105,9 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %               Center [x y], Length (diameter), Width, Steers (true for
 %               the front wheels), and Rectangle (5 x 2, closed, around
 %               [0 0]: add the center after turning it by the steer angle)
+%           Interior: a structure array with Name ('interior 1', ...
+%               front to rear) and Polygon (closed, counterclockwise);
+%               empty if the mesh has no 'interior' part
 %           Lights: a structure array with Type ('headlight', 'turnsignal',
 %               'running', 'tail', 'backup', or 'other'), Side ('left' or
 %               'right'), and Polygon (closed, counterclockwise)
@@ -140,6 +160,15 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %   % * The symmetry warning lists each lamp once per side and type
 %   %   % (pieces counted), not every traced piece
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeOutline2D
+%   % * Lamps are grouped by corner position and by LampGap (default
+%   %   % 0.02 m), not by shared corner indices: the 2009 Honda Fit's
+%   %   % lamps, whose faces share no corners, came out as 120 to 140
+%   %   % outlines each (522 in all), one per few triangles
+%   % * Interior: the outline of each piece of the 'interior' part
+%   %   % (seats, steering wheel, dash), not made symmetric
+
 % TO-DO:
 %
 % 2026_11_20 by Sean Brennan, sbrennan@psu.edu
@@ -159,6 +188,8 @@ arguments
     options.SliceSpacing = 0.01    % meters between slices along X (body outline)
     options.Tolerance = 0.01       % meters: how far a thinned outline may stray
     options.MinWindowArea = 0.05   % square meters: smaller upward glass is dropped
+    options.LampGap = 0.02         % meters: lamp pieces closer than this are one lamp
+    options.MinInteriorArea = 0.01 % square meters: smaller interior pieces are dropped
     options.Symmetric = true       % true: make every outline symmetric about the centerline
     options.SymmetryTolerance = 0.05   % fraction: warn about outlines changed more than this
     options.FigNum = []            % Figure to plot into; [] for no plot, -1 for fast mode
@@ -219,7 +250,7 @@ if 0==flag_max_speed
         if ~((islogical(options.Symmetric) || isnumeric(options.Symmetric)) && isscalar(options.Symmetric))
             error('Symmetric must be true or false');
         end
-        for fieldName = {'SliceSpacing','Tolerance','MinWindowArea','SymmetryTolerance'}
+        for fieldName = {'SliceSpacing','Tolerance','MinWindowArea','SymmetryTolerance','LampGap','MinInteriorArea'}
             thisValue = options.(fieldName{1});
             if ~(isnumeric(thisValue) && isscalar(thisValue) && thisValue > 0)
                 error('%s must be a positive number', fieldName{1});
@@ -370,7 +401,7 @@ if any(strcmp(vehicleMesh.PartNames, 'light'))
             end
             % (each separate lamp: a turn signal type has front, rear, and
             % mirror lamps; tiny pieces are dropped)
-            lampPieces = fcn_INTERNAL_connectedPieces(faces(theseFaces,:));
+            lampPieces = fcn_INTERNAL_lampGroups(vertices, faces(theseFaces,:), options.LampGap);
             for ith_lamp = 1:max(lampPieces)
                 lightPoints = vertices(unique(faces(theseFaces(lampPieces==ith_lamp),:)), 1:2);
                 lightPoints = unique(round(lightPoints, 6), 'rows');
@@ -439,11 +470,42 @@ meshFrame = '';
 if isfield(vehicleMesh, 'Frame')
     meshFrame = vehicleMesh.Frame;
 end
+%%%% Interior: each piece, seen from above, not mirrored (the steering
+% wheel is on one side)
+interior = struct('Name',{}, 'Polygon',{});
+interiorPart = find(strcmp(vehicleMesh.PartNames, 'interior'), 1);
+if ~isempty(interiorPart) && any(vehicleMesh.FacePartIndex==interiorPart)
+    interiorFaces = find(vehicleMesh.FacePartIndex==interiorPart);
+    [~, ~, positionIDs] = unique(round(vertices(faces(interiorFaces,:),:)/1e-5), 'rows');
+    interiorPieces = fcn_INTERNAL_connectedPieces(reshape(positionIDs, [], 3));
+    interiorPolygons = {};
+    interiorCenters = [];
+    for ith_piece = 1:max(interiorPieces)
+        pieceShape = fcn_INTERNAL_union(vertices, faces(interiorFaces(interiorPieces==ith_piece),:));
+        if pieceShape.NumRegions == 0 || area(pieceShape) < options.MinInteriorArea
+            continue;
+        end
+        regionsOfPiece = regions(pieceShape);
+        [~, largest] = max(area(regionsOfPiece));
+        outline = rmholes(regionsOfPiece(largest)).Vertices;
+        outline = outline(~any(isnan(outline),2), :);
+        if fcn_INTERNAL_signedArea(outline) < 0
+            outline = flipud(outline);
+        end
+        interiorPolygons{end+1} = fcn_INTERNAL_thin([outline; outline(1,:)], options.Tolerance); %#ok<AGROW>
+        interiorCenters(end+1) = mean(outline(:,1)); %#ok<AGROW>
+    end
+    [~, frontToRear] = sort(interiorCenters, 'descend');
+    for ith_piece = 1:numel(frontToRear)
+        interior(ith_piece) = struct('Name',sprintf('interior %d', ith_piece), 'Polygon',interiorPolygons{frontToRear(ith_piece)});
+    end
+end
+
 pointCount = size(bodyPolygon,1) + sum(arrayfun(@(w) size(w.Polygon,1), windows)) + 5*numel(wheels) + ...
-    sum(arrayfun(@(l) size(l.Polygon,1), lights));
+    sum(arrayfun(@(l) size(l.Polygon,1), lights)) + sum(arrayfun(@(p) size(p.Polygon,1), interior));
 vehicleOutline = struct('Name',meshName, 'Units','m', 'Frame',meshFrame, ...
     'Source','Top-down outlines of the finished mesh (fcn_CarMesh3D_makeOutline2D)', ...
-    'Body',bodyPolygon, 'Windows',windows, 'Wheels',wheels, 'Lights',lights, ...
+    'Body',bodyPolygon, 'Windows',windows, 'Wheels',wheels, 'Lights',lights, 'Interior',interior, ...
     'Length',bodyLength, 'Width',bodyWidth, ...
     'PointCount',pointCount, 'Symmetry',symmetry);
 
@@ -494,6 +556,10 @@ if flag_do_plots
         for ith_window = 1:numel(vehicleOutline.Windows)
             thisPolygon = vehicleOutline.Windows(ith_window).Polygon;
             fill(thisPolygon(:,1), thisPolygon(:,2), [0.55 0.65 0.75], 'FaceAlpha',0.8, 'EdgeColor',[0.25 0.30 0.40], 'LineWidth',1);
+        end
+        for ith_piece = 1:numel(vehicleOutline.Interior)
+            thisPolygon = vehicleOutline.Interior(ith_piece).Polygon;
+            fill(thisPolygon(:,1), thisPolygon(:,2), [0.85 0.65 0.40], 'FaceAlpha',0.6, 'EdgeColor',[0.45 0.30 0.15], 'LineWidth',0.5);
         end
         for ith_light = 1:numel(vehicleOutline.Lights)
             thisLight = vehicleOutline.Lights(ith_light);
@@ -790,6 +856,36 @@ graphEdges = sparse(faceIDs(:), vertexIDs(:), 1, Nfaces, max(vertexIDs(:)));
 adjacency = graphEdges*graphEdges' > 0;
 pieceIndex = conncomp(graph(adjacency, 'omitselfloops'))';
 end % Ends fcn_INTERNAL_connectedPieces
+
+%% fcn_INTERNAL_lampGroups
+function groupIndex = fcn_INTERNAL_lampGroups(vertices, faces, gap)
+% Which lamp each face is in: faces join when they share a corner
+% position (not only a corner index: split corners are common in
+% downloads), and pieces join when their bounding boxes, grown by gap,
+% overlap (a lamp is often several separate pieces)
+Nfaces = size(faces,1);
+groupIndex = zeros(Nfaces,1);
+if Nfaces==0
+    return;
+end
+[~, ~, positionIDs] = unique(round(vertices(faces(:),:)/1e-5), 'rows');
+positionFaces = reshape(positionIDs, size(faces));
+pieceIndex = fcn_INTERNAL_connectedPieces(positionFaces);
+Npieces = max(pieceIndex);
+% (each piece's box, grown by half the gap on every side)
+cornerPoints = vertices(faces(:),:);
+cornerPiece = repmat(pieceIndex, 3, 1);
+boxMin = zeros(Npieces,3);
+boxMax = zeros(Npieces,3);
+for ith_axis = 1:3
+    boxMin(:,ith_axis) = accumarray(cornerPiece, cornerPoints(:,ith_axis), [Npieces 1], @min) - gap/2;
+    boxMax(:,ith_axis) = accumarray(cornerPiece, cornerPoints(:,ith_axis), [Npieces 1], @max) + gap/2;
+end
+overlapping = all(boxMin <= permute(boxMax,[3 2 1]) & permute(boxMin,[3 2 1]) <= boxMax, 2);
+overlapping = reshape(overlapping, Npieces, Npieces);
+pieceGroup = conncomp(graph(overlapping, 'omitselfloops'))';
+groupIndex = pieceGroup(pieceIndex);
+end % Ends fcn_INTERNAL_lampGroups
 
 %% fcn_INTERNAL_union
 function shapeUnion = fcn_INTERNAL_union(vertices, faces)

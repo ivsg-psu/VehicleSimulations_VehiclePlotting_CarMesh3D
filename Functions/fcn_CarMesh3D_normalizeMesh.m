@@ -42,6 +42,10 @@ function vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, options)
 %      axis than UpAxis. Tip: plot the imported mesh, find the front
 %      bumper, and read off which axis points toward it.
 %
+%      Yaw: degrees to turn the model about its up axis, after the axes
+%      above (counterclockwise seen from above), for a download whose
+%      front is not along one of its axes. Default 0.
+%
 %      Units: the length units of the file: 'm', 'cm', 'mm', 'in', or
 %      'auto' (the default). A positive number may also be given, as
 %      the number of meters per file unit. With 'auto', the units are
@@ -83,6 +87,19 @@ function vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, options)
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_normalizeMesh
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_normalizeMesh
+%   % * The plot's frame arrows start above the roof, and the red (X
+%   %   % forward) arrow runs from behind the vehicle to well past its
+%   %   % front, marked FRONT: the 1 m arrows at the origin were hidden
+%   %   % inside the vehicle (Sean)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_normalizeMesh
+%   % * Yaw option: a turn about the up axis after the axes, for a
+%   %   % download whose front is not along one of its axes (the template's
+%   %   % importYaw)
 
 % TO-DO:
 %
@@ -102,6 +119,7 @@ arguments
     options.UpAxis = '+z'        % File axis that points up
     options.ForwardAxis = '+x'   % File axis that points to the vehicle front
     options.Units = 'auto'       % 'm','cm','mm','in','auto', or meters per unit
+    options.Yaw = 0              % Degrees to turn about the up axis after the axes (counterclockwise from above)
     options.FigNum = []          % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -166,6 +184,9 @@ if 0==flag_max_speed
         end
 
         % Check the Units input
+        if ~(isnumeric(options.Yaw) && isscalar(options.Yaw) && isfinite(options.Yaw))
+            error('Yaw must be a number of degrees');
+        end
         if isnumeric(options.Units)
             if ~isscalar(options.Units) || options.Units<=0
                 error('A numeric Units value must be a positive scalar (meters per file unit)');
@@ -204,6 +225,12 @@ leftUnitVector = cross(upUnitVector, forwardUnitVector); % Y = Z x X, right-hand
 
 % Rows of the rotation matrix are the new axes written in file coordinates
 rotationMatrix = [forwardUnitVector; leftUnitVector; upUnitVector];
+
+% Then the turn about the up axis (Yaw), if any
+if options.Yaw ~= 0
+    yawMatrix = [cosd(options.Yaw) -sind(options.Yaw) 0; sind(options.Yaw) cosd(options.Yaw) 0; 0 0 1];
+    rotationMatrix = yawMatrix*rotationMatrix;
+end
 
 % Rotate (row vectors: v_new = v_old * R')
 rotatedVertices = vehicleMesh.Vertices * rotationMatrix';
@@ -275,12 +302,23 @@ if flag_do_plots
     clf;
     fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
     hold on;
-    % Draw the frame axes: red = X forward, green = Y left, blue = Z up
-    arrowLength = 1.0;
-    quiver3(0,0,0,arrowLength,0,0,0,'r','LineWidth',2,'DisplayName','X forward');
-    quiver3(0,0,0,0,arrowLength,0,0,'g','LineWidth',2,'DisplayName','Y left');
-    quiver3(0,0,0,0,0,arrowLength,0,'b','LineWidth',2,'DisplayName','Z up');
-    title(sprintf('Normalized: %s (red X should point to the front)',vehicleMesh.Name),'Interpreter','none');
+    % Draw the frame axes: red = X forward, green = Y left, blue = Z up.
+    % They start above the roof (so the vehicle cannot hide them), and the
+    % red arrow runs from behind the vehicle to well past its front.
+    vertexMin = min(vehicleMesh.Vertices,[],1);
+    vertexMax = max(vehicleMesh.Vertices,[],1);
+    vehicleLength = vertexMax(1) - vertexMin(1);
+    arrowHeight = vertexMax(3) + 0.15*vehicleLength;
+    arrowStart = vertexMin(1) - 0.25*vehicleLength;
+    arrowLength = (vertexMax(1) + 0.6*vehicleLength) - arrowStart;
+    sideLength = 0.3*vehicleLength;
+    quiver3(arrowStart,0,arrowHeight,arrowLength,0,0,0,'r','LineWidth',5,'MaxHeadSize',0.25,'DisplayName','X forward');
+    quiver3(0,0,arrowHeight,0,sideLength,0,0,'g','LineWidth',3,'MaxHeadSize',0.5,'DisplayName','Y left');
+    quiver3(0,0,arrowHeight,0,0,sideLength,0,'b','LineWidth',3,'MaxHeadSize',0.5,'DisplayName','Z up');
+    text(arrowStart+arrowLength, 0, arrowHeight+0.05*vehicleLength, 'FRONT', 'Color','r', ...
+        'FontWeight','bold', 'FontSize',14, 'HorizontalAlignment','center', 'VerticalAlignment','bottom');
+    axis equal;
+    title(sprintf('Normalized: %s (the red arrow should point to the front)',vehicleMesh.Name),'Interpreter','none');
 end
 
 if flag_do_debug

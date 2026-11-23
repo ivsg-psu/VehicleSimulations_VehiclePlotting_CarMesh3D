@@ -225,6 +225,69 @@ assert(all(withCheck.FaceNormals(postTop,3) > 0));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: Symmetric keeps one-sided pieces where they are
+figNum = 20005;
+titleString = sprintf('TEST case: Symmetric keeps one-sided pieces where they are');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% A body box across the centerline, a pair of mirror boxes (one each
+% side), a "steering wheel" box on the left only (inside the body), and a
+% "fuel door" box on the right only
+boxLimits = [0 4 -0.9 0.9 0.2 1.2;            % body
+    0.8 0.9 0.95 1.05 1.0 1.1;                % left mirror
+    0.8 0.9 -1.05 -0.95 1.0 1.1;              % right mirror
+    1.0 1.2 0.3 0.5 0.8 1.0;                  % steering wheel (left)
+    3.0 3.2 -0.96 -0.92 0.5 0.6];             % fuel door (right)
+testMesh = struct;
+testMesh.Name = 'one-sided pieces';
+testMesh.Vertices = zeros(0,3);
+testMesh.Faces = zeros(0,3);
+for ith_box = 1:size(boxLimits,1)
+    [boxVertices, boxFaces] = fcn_INTERNAL_box(boxLimits(ith_box,:));
+    testMesh.Faces = [testMesh.Faces; boxFaces + size(testMesh.Vertices,1)];
+    testMesh.Vertices = [testMesh.Vertices; boxVertices];
+end
+Ntest = size(testMesh.Faces,1);
+testMesh.FacePartIndex = ones(Ntest,1);
+testMesh.FaceWheelIndex = zeros(Ntest,1);
+testMesh.FaceColors = repmat([0.05 0.2 0.6], Ntest, 1);
+testMesh.FaceAlpha = ones(Ntest,1);
+testMesh.FaceMaterialIndex = ones(Ntest,1);
+testMesh.FaceGroupIndex = ones(Ntest,1);
+testMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
+
+withKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, Symmetric=true, VisibilityCheck=false);
+withoutKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, Symmetric=true, KeepOneSided=false, VisibilityCheck=false);
+
+% Check variable values: the steering wheel and fuel door are one-sided
+% (two pieces, 24 faces), the mirrors are not
+assert(withKeep.SimplifyInfo.OneSidedPieces==2);
+assert(withKeep.SimplifyInfo.OneSidedFaces==24);
+assert(withoutKeep.SimplifyInfo.OneSidedPieces==0);
+% (their boxes: the steering wheel and the fuel door, in either order)
+assert(isequal(sortrows(round(withKeep.SimplifyInfo.OneSidedBoxes,6)), sortrows(boxLimits(4:5,:))));
+inBox = @(m, b) all(reshape(m.Vertices(m.Faces(:),1),[],3) >= b(1)-1e-6 & reshape(m.Vertices(m.Faces(:),1),[],3) <= b(2)+1e-6 ...
+    & reshape(m.Vertices(m.Faces(:),2),[],3) >= b(3)-1e-6 & reshape(m.Vertices(m.Faces(:),2),[],3) <= b(4)+1e-6 ...
+    & reshape(m.Vertices(m.Faces(:),3),[],3) >= b(5)-1e-6 & reshape(m.Vertices(m.Faces(:),3),[],3) <= b(6)+1e-6, 2);
+mirrorBox = @(b) [b(1:2) -b([4 3]) b(5:6)];
+% Kept: the steering wheel on the left only, the fuel door on the right only
+assert(nnz(inBox(withKeep, boxLimits(4,:)))==12);
+assert(nnz(inBox(withKeep, mirrorBox(boxLimits(4,:))))==0);
+assert(nnz(inBox(withKeep, boxLimits(5,:)))==12);
+assert(nnz(inBox(withKeep, mirrorBox(boxLimits(5,:))))==0);
+% Both mirrors are there
+assert(nnz(inBox(withKeep, boxLimits(2,:)))==12);
+assert(nnz(inBox(withKeep, boxLimits(3,:)))==12);
+% Without KeepOneSided: the steering wheel is on both sides, and the
+% fuel door (right only) is lost
+assert(nnz(inBox(withoutKeep, mirrorBox(boxLimits(4,:))))==12);
+assert(nnz(inBox(withoutKeep, boxLimits(5,:)))==0);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -369,6 +432,11 @@ end
 %% FAIL case: VisibilityCheck is not true or false
 if 1==0
     fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_fittedSample(16), VisibilityCheck='yes');
+end
+
+%% FAIL case: KeepOneSided is not true or false
+if 1==0
+    vehicleMesh = fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_preparedSample(24), Symmetric=true, KeepOneSided='yes');
 end
 
 %% Functions follow

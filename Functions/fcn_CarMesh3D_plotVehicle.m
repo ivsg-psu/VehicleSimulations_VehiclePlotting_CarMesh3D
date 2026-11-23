@@ -31,6 +31,7 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           (WheelSpin=spinAngles),...
 %           (SteerAngle=steerAngles),...
 %           (LightStates=lightStates),...
+%           (AxesHandle=axesHandle),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -150,6 +151,10 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      ground frame, so they stay flat on the ground when the body rolls
 %      or pitches.
 %
+%      AxesHandle: an axes to plot into, in any figure (a uifigure's
+%      uiaxes too, which FigNum cannot reach). If given, FigNum only
+%      chooses fast mode (-1) or not.
+%
 %      FigNum: a figure number to plot into. If empty or omitted, plots
 %      into the current figure (creating one if none exists). If set to
 %      -1, input checking is skipped and the plot also goes into the
@@ -169,10 +174,15 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               ([] for wheels not found)
 %           WheelCenters: 4 x 3 wheel centers in the vehicle frame
 %           BodyPivot: 1 x 3 point the body rolls and pitches about
-%           LightPatches: a structure with one patch handle (or []) per
-%               light group: headlight, turnLeft, turnRight, running,
-%               tail, backup
+%           LightPatches: a structure with the patch handles (or []) of
+%               each light group: headlight, turnLeft, turnRight, running,
+%               tail, backup (usually one; one per opacity when a group's
+%               faces differ, such as a clear lens over a lamp)
+%           LightGroupNames: the light groups: the six single ones, then
+%               one per combination of functions (FaceLightFunctions)
 %           LightOffColors, FaceLighting: used to switch lights back off
+%               (LightOffColors: for each group, a cell array of each
+%               patch's own colors)
 %           LightEffects: [] or, with LightEffects=true, a structure with
 %               Glow (one patch or [] per light group) and Pools (patches
 %               lowBeam, highBeam, tail, brake, backup, each or [])
@@ -223,6 +233,27 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 % - In fcn_CarMesh3D_plotVehicle
 %   % * FaceLighting 'auto' is now always 'gouraud' (smooth), also for the
 %   %   % matte finish: flat shading showed every facet of a reduced mesh
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Added AxesHandle: plot into a given axes (the Model Reviewer's
+%   %   % uiaxes draws the animation checks live)
+
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Light groups with faces of several opacities (a clear lens over a
+%   %   % lamp) keep all their patches, each with its own off colors
+%   %   % (LightOffColors is now a cell per group): only the first was kept,
+%   %   % and switching the light set the wrong number of colors on it
+%   %   % (warnings in the Model Reviewer's animations of the 2009 Fit)
+%
+% 2026_11_22 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Multi-function lights: a face with several light functions
+%   %   % (FaceLightFunctions, from fcn_CarMesh3D_editLabels's
+%   %   % AlsoLightTypes) is in a combined group ('turnLeft_tail') that
+%   %   % glows when any of them is on; a flashing turn signal wins, in red
+%   %   % on a tail light (Sean's design, 01:57)
 
 % TO-DO:
 %
@@ -256,6 +287,7 @@ arguments
     options.BodyPivot = []          % [x y z] point the body rolls and pitches about
     options.LightStates = []        % Struct of light states (see help)
     options.LightEffects = false    % Glows and ground light pools, for night scenes
+    options.AxesHandle = []         % Axes to plot into (any figure, a uifigure too); overrides FigNum's figure
     options.FigNum = []             % Figure to plot into; [] for current figure, -1 for fast mode
 end
 
@@ -442,15 +474,19 @@ if flag_update_only
         fcn_INTERNAL_updateLights(plotHandles, options.LightStates);
     end
 else
-    % Select the figure, without clearing it
-    if isempty(figNum)
-        temp_h = gcf;
+    % Select the axes (given), or the figure, without clearing it
+    if ~isempty(options.AxesHandle)
+        axesHandle = options.AxesHandle;
     else
-        temp_h = figure(figNum);
-    end
-    axesHandle = get(temp_h,'CurrentAxes');
-    if isempty(axesHandle)
-        axesHandle = axes('Parent',temp_h);
+        if isempty(figNum)
+            temp_h = gcf;
+        else
+            temp_h = figure(figNum);
+        end
+        axesHandle = get(temp_h,'CurrentAxes');
+        if isempty(axesHandle)
+            axesHandle = axes('Parent',temp_h);
+        end
     end
     % (hidden-handle objects count too: a scene drawn with hidden handles,
     % such as AnimateCar3D's, is not a new axes)
@@ -481,8 +517,7 @@ else
     if isfield(vehicleMesh,'FaceWheelIndex') && ~isempty(vehicleMesh.FaceWheelIndex)
         faceWheel = vehicleMesh.FaceWheelIndex(:);
     end
-    faceLightGroup = fcn_INTERNAL_faceLightGroups(vehicleMesh);
-    lightGroupNames = fcn_INTERNAL_lightGroupNames;
+    [faceLightGroup, lightGroupNames] = fcn_INTERNAL_faceLightGroups(vehicleMesh);
 
     % Two rigid frames under one transform for the whole vehicle:
     %   transformHandle      ground frame, moved by Pose
@@ -525,9 +560,13 @@ else
             continue;
         end
         newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, bodyTransform);
-        lightPatches.(thisName) = newPatches{1};
-        lightOffColors.(thisName) = faceColors(theseFaces,:);
-        set(newPatches{1},'DisplayName',sprintf('Light: %s',thisName));
+        % (a group with faces of several opacities, such as a clear lens
+        % over an opaque lamp, is several patches: all are kept, each with
+        % its own off colors; keeping only the first set the wrong number
+        % of colors on it, the 2009 Honda Fit's lamps)
+        lightPatches.(thisName) = vertcat(newPatches{:});
+        lightOffColors.(thisName) = cellfun(@(h) h.FaceVertexCData, newPatches, 'UniformOutput', false);
+        set(lightPatches.(thisName),'DisplayName',sprintf('Light: %s',thisName));
         patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
     end
 
@@ -573,6 +612,7 @@ else
     plotHandles.WheelCenters = wheelCenters;
     plotHandles.LightPatches = lightPatches;
     plotHandles.LightOffColors = lightOffColors;
+    plotHandles.LightGroupNames = lightGroupNames;
     plotHandles.FaceLighting = faceLighting;
     plotHandles.LightEffects = lightEffects;
 
@@ -678,11 +718,16 @@ lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup'}
 end % Ends fcn_INTERNAL_lightGroupNames
 
 %% fcn_INTERNAL_faceLightGroups
-function faceLightGroup = fcn_INTERNAL_faceLightGroups(vehicleMesh)
+function [faceLightGroup, lightGroupNames] = fcn_INTERNAL_faceLightGroups(vehicleMesh)
 % Returns, for each face, its light group index (0 = not a switchable
-% light). Turn signals are split into left and right by position.
+% light), and the groups' names. Turn signals are split into left and
+% right by position. A face with several light functions
+% (FaceLightFunctions: a tail light that is also a turn signal) is in a
+% group of its own, named by its functions joined with '_' (such as
+% 'turnLeft_tail'), after the six single groups.
 Nfaces = size(vehicleMesh.Faces,1);
 faceLightGroup = zeros(Nfaces,1);
+lightGroupNames = fcn_INTERNAL_lightGroupNames;
 if ~isfield(vehicleMesh,'FaceLightType') || isempty(vehicleMesh.FaceLightType) || ~isfield(vehicleMesh,'LightTypeNames')
     return;
 end
@@ -702,6 +747,42 @@ faceLightGroup(strcmp(faceTypeName,'turnsignal') & faceCentersY<=0) = 3;
 faceLightGroup(strcmp(faceTypeName,'running')) = 4;
 faceLightGroup(strcmp(faceTypeName,'tail'))    = 5;
 faceLightGroup(strcmp(faceTypeName,'backup'))  = 6;
+
+% Faces with several light functions: a group for each combination
+if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == Nfaces ...
+        && size(vehicleMesh.FaceLightFunctions,2) == numel(lightTypeNames)
+    functions = logical(vehicleMesh.FaceLightFunctions);
+    functions(sub2ind(size(functions), find(flagLight), faceLightType(flagLight))) = true;   % (its own type too)
+    multiFaces = find(sum(functions,2) > 1);
+    baseNames = fcn_INTERNAL_lightGroupNames;
+    for ith_face = multiFaces(:)'
+        members = {};
+        for typeName = lightTypeNames(functions(ith_face,:))'
+            switch typeName{1}
+                case 'turnsignal'
+                    if faceCentersY(ith_face) > 0
+                        members{end+1} = 'turnLeft'; %#ok<AGROW>
+                    else
+                        members{end+1} = 'turnRight'; %#ok<AGROW>
+                    end
+                otherwise
+                    members{end+1} = typeName{1}; %#ok<AGROW>
+            end
+        end
+        [~, order] = ismember(members, baseNames);
+        members = baseNames(sort(order(order>0)));
+        if numel(members) < 2
+            continue;
+        end
+        comboName = strjoin(members, '_');
+        comboIndex = find(strcmp(lightGroupNames, comboName), 1);
+        if isempty(comboIndex)
+            lightGroupNames{end+1} = comboName; %#ok<AGROW>
+            comboIndex = numel(lightGroupNames);
+        end
+        faceLightGroup(ith_face) = comboIndex;
+    end
+end
 end % Ends fcn_INTERNAL_faceLightGroups
 
 %% fcn_INTERNAL_updateBody
@@ -776,7 +857,11 @@ function fcn_INTERNAL_updateLights(plotHandles, lightStates)
 if ~isfield(plotHandles,'LightPatches')
     return;
 end
-lightGroupNames = fcn_INTERNAL_lightGroupNames;
+if isfield(plotHandles,'LightGroupNames')
+    lightGroupNames = plotHandles.LightGroupNames;
+else
+    lightGroupNames = fcn_INTERNAL_lightGroupNames;   % (handles made before multi-function lights)
+end
 for ith_group = 1:length(lightGroupNames)
     thisName = lightGroupNames{ith_group};
     thisPatch = plotHandles.LightPatches.(thisName);
@@ -784,12 +869,18 @@ for ith_group = 1:length(lightGroupNames)
         continue;
     end
     onColor = fcn_INTERNAL_lightColor(thisName, lightStates);
-    if isempty(onColor)
-        set(thisPatch,'FaceVertexCData',plotHandles.LightOffColors.(thisName),...
-            'FaceLighting',plotHandles.FaceLighting);
-    else
-        set(thisPatch,'FaceVertexCData',repmat(onColor,size(plotHandles.LightOffColors.(thisName),1),1),...
-            'FaceLighting','none');
+    offColors = plotHandles.LightOffColors.(thisName);
+    if ~iscell(offColors)
+        offColors = {offColors};   % (handles made before 2026_11_22: one patch)
+    end
+    for ith_patch = 1:numel(thisPatch)
+        if isempty(onColor)
+            set(thisPatch(ith_patch),'FaceVertexCData',offColors{ith_patch},...
+                'FaceLighting',plotHandles.FaceLighting);
+        else
+            set(thisPatch(ith_patch),'FaceVertexCData',repmat(onColor,size(offColors{ith_patch},1),1),...
+                'FaceLighting','none');
+        end
     end
 end
 
@@ -877,8 +968,8 @@ end
 % labeled lamps, use the front and back of the mesh.
 meshLow = min(vehicleMesh.Vertices,[],1);
 meshHigh = max(vehicleMesh.Vertices,[],1);
-frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(strcmp(lightGroupNames,'headlight')));
-rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(ismember(lightGroupNames,{'tail','backup'})));
+frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'headlight'})));
+rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(lightGroupNames, {'tail','backup'})));
 if isempty(frontVertices)
     frontX = meshHigh(1);
     frontHalfSpacing = 0.3*(meshHigh(2) - meshLow(2));
@@ -914,6 +1005,13 @@ for ith_pool = 1:size(poolList,1)
         'Visible','off','HitTest','off','DisplayName',sprintf('Light pool: %s',poolList{ith_pool,1}));
 end
 end % Ends fcn_INTERNAL_makeLightEffects
+
+%% fcn_INTERNAL_groupHas
+function flagHas = fcn_INTERNAL_groupHas(lightGroupNames, members)
+% Which groups have any of these members (a combined group, such as
+% 'turnLeft_tail', has each of its parts)
+flagHas = cellfun(@(name) any(ismember(split(name, '_'), members)), lightGroupNames);
+end % Ends fcn_INTERNAL_groupHas
 
 %% fcn_INTERNAL_groupVertices
 function groupVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, groupIndices)
@@ -951,8 +1049,28 @@ end % Ends fcn_INTERNAL_poolMesh
 
 %% fcn_INTERNAL_lightColor
 function onColor = fcn_INTERNAL_lightColor(groupName, lightStates)
-% The glowing color of a light group in the given states, or [] if off
+% The glowing color of a light group in the given states, or [] if off.
+% A combined group ('turnLeft_tail') glows when any of its functions is
+% on: a turn signal flashing wins (in red when the lamp is also a tail
+% light, as on many US cars), then the brake and tail, the headlights,
+% the running lights, and backing up
 onColor = [];
+if contains(groupName, '_')
+    members = split(groupName, '_');
+    priority = {'turnLeft','turnRight','tail','headlight','running','backup'};
+    for thisMember = priority
+        if any(strcmp(members, thisMember{1}))
+            onColor = fcn_INTERNAL_lightColor(thisMember{1}, lightStates);
+            if ~isempty(onColor)
+                if startsWith(thisMember{1}, 'turn') && any(strcmp(members, 'tail'))
+                    onColor = [1.00 0.12 0.08];   % (a red turn signal)
+                end
+                return;
+            end
+        end
+    end
+    return;
+end
 switch groupName
     case 'headlight'
         state = fcn_INTERNAL_stateValue(lightStates,'Headlights','off');

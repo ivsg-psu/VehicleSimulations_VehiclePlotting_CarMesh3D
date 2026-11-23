@@ -52,7 +52,10 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 % INPUTS:
 %
 %      vehicleID: the vehicle ID, such as '2013_Toyota_Prius_Four', or ''
-%      (empty) to list every vehicle folder below the Data folder.
+%      (empty) to list every vehicle folder below the Data folder. It may
+%      also be the full path of a vehicle's folder kept anywhere (such as
+%      a copy made by fcn_CarMesh3D_makeDemoCopy); the folder's name is
+%      then the ID.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -137,6 +140,12 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %   % * Added BodyStyle, BodyStyleFolder, IsSample, Found, and ModelFiles;
 %   %   % a download left directly in the vehicle's folder is found
 %   % * Added the BodyStyle option, for a new vehicle's paths
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * vehicleID may be the full path of a vehicle's folder kept anywhere
+%   %   % (the demo's copy of a vehicle, so the demo saves nothing to the
+%   %   % real vehicle)
 
 % TO-DO:
 %
@@ -210,7 +219,7 @@ if 0==flag_max_speed
         if ~(ischar(vehicleID) || isstring(vehicleID))
             error("vehicleID must be text, such as '2013_Toyota_Prius_Four', or empty to list all vehicles");
         end
-        if ~isempty(char(vehicleID)) && ~fcn_INTERNAL_isValidID(char(vehicleID))
+        if ~isempty(char(vehicleID)) && ~fcn_INTERNAL_isValidID(char(vehicleID)) && ~fcn_INTERNAL_isFolderPath(vehicleID)
             error(['vehicleID %s does not follow YEAR_Make_Model_Trimline: four parts separated by ' ...
                 'underscores, each made of letters and digits only, with a four-digit year ' ...
                 '(for example 2014_Ford_TransitConnect_XLTCargoLWB)'], char(vehicleID));
@@ -269,6 +278,14 @@ if isempty(vehicleID)
     if ~isempty(repeatedIDs)
         warning('CarMesh3D:repeatedID', 'These vehicle IDs are used by more than one folder: %s', strjoin(repeatedIDs, ', '));
     end
+elseif fcn_INTERNAL_isFolderPath(vehicleID)
+    % The full path of a vehicle's folder, kept anywhere
+    vehicleFolder = char(java.io.File(vehicleID).getCanonicalPath());
+    [~, folderID] = fileparts(vehicleFolder);
+    if ~fcn_INTERNAL_isValidID(folderID)
+        error('The folder %s is not named as a vehicle ID (YEAR_Make_Model_Trimline).', vehicleFolder);
+    end
+    vehicleFiles = fcn_INTERNAL_filesForID(folderID, vehicleFolder, dataFolder);
 else
     matches = find(strcmp(folderIDs, vehicleID));
     if numel(matches) > 1
@@ -336,6 +353,13 @@ function flagValid = fcn_INTERNAL_isValidID(vehicleID)
 % letters and digits, separated by single underscores
 flagValid = ~isempty(regexp(char(vehicleID), '^\d{4}_[A-Za-z0-9]+_[A-Za-z0-9]+_[A-Za-z0-9]+$', 'once'));
 end % Ends fcn_INTERNAL_isValidID
+
+%% fcn_INTERNAL_isFolderPath
+function flagFolder = fcn_INTERNAL_isFolderPath(vehicleInput)
+% A path (it has a folder separator) to a folder that exists
+vehicleInput = char(vehicleInput);
+flagFolder = any(vehicleInput == '\' | vehicleInput == '/') && isfolder(vehicleInput);
+end % Ends fcn_INTERNAL_isFolderPath
 
 %% fcn_INTERNAL_findFolders
 function [folderPaths, folderIDs] = fcn_INTERNAL_findFolders(dataFolder)

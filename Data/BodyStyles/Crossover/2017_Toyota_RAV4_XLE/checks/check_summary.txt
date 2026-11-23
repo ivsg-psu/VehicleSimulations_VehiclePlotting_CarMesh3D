@@ -1,7 +1,7 @@
 Standard checks for 2017 Toyota RAV4 XLE
-Written 2026-11-21 20:40 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:33 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 19050 faces, 18630 vertices
+Mesh: 18103 faces, 17722 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 501 samples
 

@@ -35,3 +35,18 @@ octave-workspace
 Utilities/
 # CarMesh3D: each vehicle's cached stages (remade on demand)
 Data/**/cache/
+
+# CarMesh3D: check figures and animations (remade by each vehicle's script;
+# the check pictures, .png, stay in the repository)
+Data/**/checks/*.fig
+Data/**/checks/*.gif
+
+# CarMesh3D: each vehicle's downloaded model (the .glb/.zip/.usdz files,
+# textures and Blender's reduced copies). Kept in the IVSG large-file
+# storage area and copied in with rclone (see README.md, "Large files").
+# Each vehicle's raw mesh, rawMesh_<ID>.mat, stays in the repository, so the
+# scripts still run without the downloads.
+Data/**/model/
+
+# CarMesh3D: the demo menu's saved answers (written by the DebugTools menu)
+Data/answersSoFar_*.mat

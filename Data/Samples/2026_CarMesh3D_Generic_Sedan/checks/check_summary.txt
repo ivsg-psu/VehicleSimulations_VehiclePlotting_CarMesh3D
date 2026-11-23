@@ -1,7 +1,7 @@
 Standard checks for 2026 CarMesh3D Generic Sedan
-Written 2026-11-21 20:52 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 17:16 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 25801 faces, 23208 vertices
+Mesh: 24603 faces, 22646 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 503 samples
 

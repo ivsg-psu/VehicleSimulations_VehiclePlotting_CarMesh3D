@@ -139,6 +139,13 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %   %   % (the kept region includes the 15 cm margin past the center that
 %   %   % the mirroring keeps)
 %   %   % and the ground clearance from the body in that region too
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_fitMeshToSpec
+%   % * The height is measured to the roof, leaving out an antenna or
+%   %   % other thin part sticking up (fcn_INTERNAL_roofTop): a centered
+%   %   % antenna set the height, and the bodies of the 2011 Fusion (12%),
+%   %   % 2009 Fit (8%), 2014 CR-V, and 2013 Prius (5 to 6%) came out short
 
 % TO-DO:
 %
@@ -308,6 +315,7 @@ extents = maxValues - minValues;
 centerY = (minValues(2)+maxValues(2))/2;
 % (a mesh to be mirrored: length and height from the half that is kept,
 % so a one-sided part removed by the mirroring does not set the scale)
+keptHalf = true(Nvertices,1);
 if logical(options.Symmetric)
     % (the region fcn_CarMesh3D_simplifyMesh keeps and mirrors: Y at or
     % above 0.15 m right of the center, in this mesh's units before
@@ -322,9 +330,16 @@ if logical(options.Symmetric)
     if any(keptHalf)
         minValues([1 3]) = min(originalVertices(keptHalf,[1 3]),[],1);
         maxValues([1 3]) = max(originalVertices(keptHalf,[1 3]),[],1);
-        extents = maxValues - minValues;
     end
 end
+% (the height to the roof, leaving out an antenna or other thin part
+% sticking up: published heights exclude antennas)
+if logical(options.Symmetric) && any(keptHalf)
+    maxValues(3) = fcn_INTERNAL_roofTop(originalVertices(keptHalf,:));
+else
+    maxValues(3) = fcn_INTERNAL_roofTop(originalVertices);
+end
+extents = maxValues - minValues;
 centerX = (minValues(1)+maxValues(1))/2;
 boxScale = [L W H]./extents;
 
@@ -604,3 +619,32 @@ if ~isempty(tireSize)
     end
 end
 end % Ends fcn_INTERNAL_tireWidthFromSize
+
+%% fcn_INTERNAL_roofTop
+function roofTop = fcn_INTERNAL_roofTop(vertices)
+% The top of the roof, leaving out thin parts that stick up above it (a
+% mast or whip antenna, a single stray point). Scanning down from the
+% highest point in steps of 0.5% of the height, the roof is the first
+% height whose band (the 2% of the height below it) is at least 15% of
+% the vehicle's length and width across. Published heights exclude
+% antennas; the 2011 Fusion's antenna made its body 12% too short.
+zValues = vertices(:,3);
+zMin = min(zValues);
+zMax = max(zValues);
+heightRange = zMax - zMin;
+roofTop = zMax;
+if heightRange <= 0
+    return;
+end
+minimumSpan = 0.15*(max(vertices(:,1:2),[],1) - min(vertices(:,1:2),[],1));
+for zTop = zMax:-0.005*heightRange:zMin + 0.5*heightRange
+    inBand = zValues <= zTop & zValues >= zTop - 0.02*heightRange;
+    if any(inBand)
+        bandSpan = max(vertices(inBand,1:2),[],1) - min(vertices(inBand,1:2),[],1);
+        if all(bandSpan >= minimumSpan)
+            roofTop = max(zValues(inBand));
+            return;
+        end
+    end
+end
+end % Ends fcn_INTERNAL_roofTop

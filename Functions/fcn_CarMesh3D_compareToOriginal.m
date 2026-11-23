@@ -17,7 +17,10 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %       (glass showing where trim was, a thinned pillar, a lamp lost).
 %       Marked orange.
 %   Flipped faces: the face seen in the reduced mesh points away from
-%       the camera (a dark, inside-out panel). Marked red.
+%       the camera (a dark, inside-out panel) where the download's face
+%       does not (the back of a one-sided surface that the download shows
+%       too, such as the inside of a wheel's spokes, is not a flip made
+%       by the reduction). Marked red.
 %   See-through gaps: the background shows through the reduced mesh
 %       where it is closed all around by the car (a slit between the
 %       floor panel and the sills or bumpers, a gap between panels),
@@ -84,6 +87,12 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %           Images: per view, the shaded pictures (Original, Reduced)
 %               and the flagged masks (Holes, LabelChanges, Flipped,
 %               SeeThrough)
+%           Parts: a table, one row per label (part, or light type):
+%               Label, OriginalFaces, ReducedFaces, OriginalArea and
+%               ReducedArea (m^2), AreaChangePercent, and Missing (true
+%               when a label with at least 0.01 m^2 in the download kept
+%               less than half of its area: faces lost in the reduction)
+%           MissingLabels: the labels flagged Missing
 %
 % DEPENDENCIES:
 %
@@ -118,6 +127,16 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 %   %   % panel and the sills, which the download (no underside) has too
 %   % * OriginalCache: the download's renders kept in a .mat file and
 %   %   % reused while unchanged (half of a comparison's time)
+%   % * The two pictures are also saved as .fig files, to zoom into (Sean)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_compareToOriginal
+%   % * Flipped faces only where the download's face does not face away
+%   %   % too: the backs of one-sided surfaces the download shows as well
+%   %   % (the inside of the wheels' spokes, seen from low down) were the
+%   %   % Fit's worst spots, and are not flips made by the reduction
+%   % * Parts: faces and area per label in the download and the reduced
+%   %   % mesh; MissingLabels: labels that lost more than half their area
 
 % TO-DO:
 %
@@ -251,11 +270,10 @@ reducedLabels = fcn_CarMesh3D_plotLabels(reducedMesh, FigNum=-1);
 originalKey = round(originalLabels.FaceColors*255)*[65536; 256; 1];
 reducedKey = round(reducedLabels.FaceColors*255)*[65536; 256; 1];
 
-% Face normals of the reduced mesh (for flipped faces)
-corner1 = reducedMesh.Vertices(reducedMesh.Faces(:,1),:);
-reducedNormals = cross(reducedMesh.Vertices(reducedMesh.Faces(:,2),:) - corner1, ...
-    reducedMesh.Vertices(reducedMesh.Faces(:,3),:) - corner1, 2);
-reducedNormals = reducedNormals./max(vecnorm(reducedNormals,2,2), eps);
+% Face normals of both meshes (for flipped faces: the reduced mesh's face
+% faces away where the download's does not)
+reducedNormals = fcn_INTERNAL_normals(reducedMesh);
+originalNormals = fcn_INTERNAL_normals(originalMesh);
 
 % Floor-panel faces are not counted
 flagFloor = false(size(reducedMesh.Faces,1),1);
@@ -311,6 +329,9 @@ for ith_view = 1:numViews
     towardCamera = [cosd(thisAngle(2))*sind(thisAngle(1)), -cosd(thisAngle(2))*cosd(thisAngle(1)), sind(thisAngle(2))];
     facingAway = zeros(size(reducedId));
     facingAway(reducedId>0) = reducedNormals(reducedId(reducedId>0),:)*towardCamera(:) < -0.05;
+    originalFacingAway = false(size(originalId));
+    originalFacingAway(originalId>0) = originalNormals(originalId(originalId>0),:)*towardCamera(:) < -0.05;
+    facingAway(originalFacingAway) = 0;   % (the download shows the back of that surface too)
 
     % Holes, label changes, flipped faces (only inside regions)
     flagOriginalInside = fcn_INTERNAL_allNeighbors(originalId>0);
@@ -400,6 +421,8 @@ report.Totals = struct( ...
     'SeeThroughPercent', sum(viewTable.SeeThroughPercent.*viewTable.CarPixels)/max(totalPixels,1));
 report.Spots = rmfield(spots, 'Score');
 report.Images = images;
+report.Parts = fcn_INTERNAL_partTable(originalMesh, reducedMesh);
+report.MissingLabels = report.Parts.Label(report.Parts.Missing)';
 
 %% Plot the results (for debugging)?
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -480,6 +503,8 @@ if flag_do_plots || ~isempty(options.OutputFile)
         set([viewsFigure spotsFigure], 'Position', [20 20 1600 1100]);
         exportgraphics(viewsFigure, [char(options.OutputFile) '_views.png'], 'Resolution',110);
         exportgraphics(spotsFigure, [char(options.OutputFile) '_spots.png'], 'Resolution',110);
+        fcn_INTERNAL_saveFig(viewsFigure, [char(options.OutputFile) '_views.png']);
+        fcn_INTERNAL_saveFig(spotsFigure, [char(options.OutputFile) '_spots.png']);
     end
     if ~flag_do_plots
         close([viewsFigure spotsFigure]);
@@ -634,3 +659,69 @@ for ith_mark = 1:size(markColors,1)
     end
 end
 end % Ends fcn_INTERNAL_overlay
+
+%% fcn_INTERNAL_saveFig
+function fcn_INTERNAL_saveFig(figureHandle, pictureFile)
+% Saves the figure as a .fig file next to its picture (same name), to
+% open later with openfig and zoom, pan, or rotate. The saved copy opens
+% visible, even when it was made in a MATLAB with no display (-batch).
+[folder, name] = fileparts(pictureFile);
+oldCreateFcn = get(figureHandle,'CreateFcn');
+set(figureHandle,'CreateFcn','set(gcbo,''Visible'',''on'')');
+savefig(figureHandle, fullfile(folder,[name '.fig']), 'compact');
+set(figureHandle,'CreateFcn',oldCreateFcn);
+end % Ends fcn_INTERNAL_saveFig
+
+%% fcn_INTERNAL_normals
+function normals = fcn_INTERNAL_normals(vehicleMesh)
+% Unit face normals
+corner1 = vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:);
+normals = cross(vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) - corner1, ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:) - corner1, 2);
+normals = normals./max(vecnorm(normals,2,2), eps);
+end % Ends fcn_INTERNAL_normals
+
+%% fcn_INTERNAL_partTable
+function partTable = fcn_INTERNAL_partTable(originalMesh, reducedMesh)
+% Faces and area per label in the download and in the reduced mesh; a
+% label that kept less than half of its area (and had at least 0.01 m^2)
+% is flagged Missing
+[originalKeys, originalAreas] = fcn_INTERNAL_labelAreas(originalMesh);
+[reducedKeys, reducedAreas] = fcn_INTERNAL_labelAreas(reducedMesh);
+labels = unique([originalKeys; reducedKeys], 'stable');
+numLabels = numel(labels);
+OriginalFaces = zeros(numLabels,1); ReducedFaces = zeros(numLabels,1);
+OriginalArea = zeros(numLabels,1); ReducedArea = zeros(numLabels,1);
+for ith_label = 1:numLabels
+    flagOriginal = strcmp(originalKeys, labels{ith_label});
+    flagReduced = strcmp(reducedKeys, labels{ith_label});
+    OriginalFaces(ith_label) = sum(flagOriginal);
+    ReducedFaces(ith_label) = sum(flagReduced);
+    OriginalArea(ith_label) = sum(originalAreas(flagOriginal));
+    ReducedArea(ith_label) = sum(reducedAreas(flagReduced));
+end
+AreaChangePercent = 100*(ReducedArea - OriginalArea)./max(OriginalArea, eps);
+Missing = OriginalArea >= 0.01 & ReducedArea < 0.5*OriginalArea;
+Label = labels(:);
+partTable = table(Label, OriginalFaces, ReducedFaces, OriginalArea, ReducedArea, AreaChangePercent, Missing);
+end % Ends fcn_INTERNAL_partTable
+
+%% fcn_INTERNAL_labelAreas
+function [keys, areas] = fcn_INTERNAL_labelAreas(vehicleMesh)
+% Each face's label (the part's name; a light's type, as 'light: tail')
+% and area
+vertices = vehicleMesh.Vertices;
+faces = vehicleMesh.Faces;
+areas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
+    vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
+keys = repmat({'(none)'}, size(faces,1), 1);
+if isfield(vehicleMesh, 'PartNames') && isfield(vehicleMesh, 'FacePartIndex')
+    flagPart = vehicleMesh.FacePartIndex(:) > 0;
+    keys(flagPart) = vehicleMesh.PartNames(vehicleMesh.FacePartIndex(flagPart));
+end
+if isfield(vehicleMesh, 'FaceLightType') && isfield(vehicleMesh, 'LightTypeNames')
+    flagLight = vehicleMesh.FaceLightType(:) > 0;
+    keys(flagLight) = strcat('light: ', vehicleMesh.LightTypeNames(vehicleMesh.FaceLightType(flagLight)));
+end
+keys = keys(:);
+end % Ends fcn_INTERNAL_labelAreas

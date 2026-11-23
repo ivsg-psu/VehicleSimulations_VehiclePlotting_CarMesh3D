@@ -159,6 +159,83 @@ assert(all(strcmp({tracedTails.Side}, 'left')));
 assert(any(strcmp({mirroredTails.Side}, 'right')) && ~isempty(mirroredOutline.Symmetry.Added));
 assert(strcmp(warningID, 'CarMesh3D:asymmetricOutline'));                    % (warned even when kept as traced)
 
+%% TEST case: A lamp whose faces share no corners is still one lamp
+figNum = 20004;
+titleString = sprintf('TEST case: A lamp whose faces share no corners is still one lamp');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (every light face given its own three corners, as in some downloads: the
+% 2009 Honda Fit's lamps came out as 120 to 140 outlines each)
+splitMesh = priusMesh;
+lightPart = find(strcmp(splitMesh.PartNames, 'light'));
+lightRows = find(splitMesh.FacePartIndex==lightPart);
+newCorners = splitMesh.Faces(lightRows,:)';
+splitMesh.Faces(lightRows,:) = size(splitMesh.Vertices,1) + reshape(1:numel(newCorners), 3, [])';
+splitMesh.Vertices = [splitMesh.Vertices; splitMesh.Vertices(newCorners(:),:)];
+warningState = warning('off', 'CarMesh3D:asymmetricOutline');
+wholeOutline = fcn_CarMesh3D_makeOutline2D(priusMesh);
+splitOutline = fcn_CarMesh3D_makeOutline2D(splitMesh);
+warning(warningState);
+
+% Check variable values: the same lamps, by type and side
+assert(numel(splitOutline.Lights) == numel(wholeOutline.Lights));
+lampNames = @(o) sort(arrayfun(@(l) sprintf('%s %s', l.Side, l.Type), o.Lights, 'UniformOutput', false));
+assert(isequal(lampNames(splitOutline), lampNames(wholeOutline)));
+% (and no more than a few lamps per type and side: front, rear, mirror)
+[~, ~, groupOf] = unique(lampNames(splitOutline));
+assert(max(accumarray(groupOf(:), 1)) <= 3);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: Interior pieces are outlined, inside the body, and not mirrored
+figNum = 20005;
+titleString = sprintf('TEST case: Interior pieces are outlined, inside the body, and not mirrored');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+warningState = warning('off', 'CarMesh3D:asymmetricOutline');
+plainOutline = fcn_CarMesh3D_makeOutline2D(priusMesh);
+interiorMesh = fcn_CarMesh3D_labelInterior(priusMesh, FigNum=-1);
+interiorOutline = fcn_CarMesh3D_makeOutline2D(interiorMesh);
+% (one interior piece on the left only: it must not get a mirrored twin)
+oneSided = interiorMesh;
+interiorPart = find(strcmp(oneSided.PartNames,'interior'));
+oneSided.Vertices(end+1:end+3,:) = [1.5 0.30 0.9; 1.7 0.30 0.9; 1.6 0.50 0.9];
+oneSided.Faces(end+1,:) = size(oneSided.Vertices,1) + [-2 -1 0];
+for fieldName = {'FacePartIndex','FaceWheelIndex','FaceLightType','FaceMaterialIndex','FaceGroupIndex','FaceAlpha'}
+    if isfield(oneSided, fieldName{1})
+        oneSided.(fieldName{1})(end+1,:) = 0;
+    end
+end
+oneSided.FacePartIndex(end) = interiorPart;
+oneSided.FaceAlpha(end) = 1;
+oneSided.FaceColors(end+1,:) = [0.3 0.3 0.3];
+oneSidedOutline = fcn_CarMesh3D_makeOutline2D(oneSided);
+warning(warningState);
+
+% Check variable values
+assert(isempty(plainOutline.Interior));                       % (no interior part)
+assert(numel(oneSidedOutline.Interior) == numel(interiorOutline.Interior) + 1);
+bodyShape = polyshape(interiorOutline.Body(1:end-1,:));
+for ith_piece = 1:numel(interiorOutline.Interior)
+    piecePoints = interiorOutline.Interior(ith_piece).Polygon;
+    assert(all(isinterior(polybuffer(bodyShape, 0.02), piecePoints(:,1), piecePoints(:,2))));
+end
+% (the added piece: a 0.02 m^2 triangle around (1.6, 0.37), on the left;
+% no such triangle on the right)
+pieceArea = arrayfun(@(p) polyarea(p.Polygon(:,1), p.Polygon(:,2)), oneSidedOutline.Interior);
+pieceCenter = cell2mat(arrayfun(@(p) mean(p.Polygon(1:end-1,:),1), oneSidedOutline.Interior(:), 'UniformOutput', false));
+isAdded = abs(pieceArea(:) - 0.02) < 1e-3 & abs(pieceCenter(:,1) - 1.6) < 0.05 & abs(pieceCenter(:,2) - 0.367) < 0.05;
+isMirror = abs(pieceArea(:) - 0.02) < 1e-3 & abs(pieceCenter(:,1) - 1.6) < 0.05 & abs(pieceCenter(:,2) + 0.367) < 0.05;
+assert(nnz(isAdded) == 1 && nnz(isMirror) == 0);
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 
 %% Basic example - NO FIGURE
@@ -196,6 +273,11 @@ assert(numel(vehicleOutline.Wheels)==4);
 %% FAIL case: A SymmetryTolerance that is not positive
 if 1==0
     fcn_CarMesh3D_makeOutline2D(priusMesh, SymmetryTolerance=-1);
+end
+
+%% FAIL case: A LampGap that is not positive
+if 1==0
+    fcn_CarMesh3D_makeOutline2D(priusMesh, LampGap=0);
 end
 
 %% FAIL case: A mesh without labels

@@ -1,7 +1,7 @@
 Standard checks for 2026 CarMesh3D Generic PickupCrewCab
-Written 2026-11-21 21:01 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 17:14 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 9421 faces, 14751 vertices
+Mesh: 8153 faces, 13644 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 3 of 525 samples
 

@@ -73,6 +73,11 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %   % * ColorBy='material': one color per material, with a legend, for
 %   %   % writing part rules (Sean, Q6)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotLabels
+%   % * The 'interior' part (fcn_CarMesh3D_labelInterior) has its own
+%   %   % color, tan (it was drawn black)
+
 % TO-DO:
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -181,7 +186,7 @@ end
 
 % The label colors: one per part, then one per light type (over the part)
 partColors = struct('body',[0.80 0.80 0.80], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
-    'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45]);
+    'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45], 'interior',[0.85 0.65 0.40]);
 lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
     'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10]);
 
@@ -270,7 +275,7 @@ if flag_do_plots
     else
         title(axesHandle, sprintf('%s: part and light labels', titleText), 'Interpreter','none');
         annotation(figureHandle, 'textbox', [0 0.01 1 0.06], 'EdgeColor','none', 'HorizontalAlignment','center', ...
-            'FontSize',9, 'String',['body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | ' ...
+            'FontSize',9, 'String',['body light gray | glass light blue | wheels black | trim dark gray | interior tan | light with no type magenta | ' ...
             'headlight yellow | turn signal orange | running cyan | tail red | backup green   (drag to rotate; scroll to zoom)']);
     end
     enableDefaultInteractivity(axesHandle);   % (drag rotates a 3D view; scroll zooms)

@@ -198,8 +198,75 @@ assert(isequal(editedMesh.FacePartIndex, vehicleMesh.FacePartIndex));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Interactive editor, driven from code
+%% TEST case: Part 'delete' takes the picked faces out of the mesh
 figNum = 20005;
+titleString = sprintf('TEST case: Part delete takes the picked faces out of the mesh');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail')));
+[editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','no tail lights', ...
+    'FaceIndices',tailFaces,'Part','delete')});
+assert(strcmp(appliedEdits(1).Part,'delete'));
+assert(size(editedMesh.Faces,1) == size(vehicleMesh.Faces,1) - numel(tailFaces));
+assert(numel(editedMesh.FacePartIndex) == size(editedMesh.Faces,1));
+assert(size(editedMesh.FaceColors,1) == size(editedMesh.Faces,1));
+assert(0==fcn_INTERNAL_countLightType(editedMesh,'tail'));
+assert(max(editedMesh.Faces(:)) <= size(editedMesh.Vertices,1));
+assert(isequal(unique(editedMesh.Faces(:))', 1:size(editedMesh.Vertices,1)));   % (no unused vertices)
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: Points picks faces by their centers
+figNum = 20006;
+titleString = sprintf('TEST case: Points picks faces by their centers');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+centers = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+pickedFaces = [1; 5; 9];
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','by points', ...
+    'Points',centers(pickedFaces,:) + 0.001, 'Part','trim')});
+assert(all(editedMesh.FacePartIndex(pickedFaces)==5));
+changed = find(editedMesh.FacePartIndex ~= vehicleMesh.FacePartIndex);
+assert(all(ismember(changed, pickedFaces)));
+% (a point too far from every face picks nothing)
+lastwarn('');
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','too far', ...
+    'Points',[100 100 100], 'Part','trim')});
+assert(isequal(editedMesh.FacePartIndex, vehicleMesh.FacePartIndex));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
+%% TEST case: AlsoLightTypes gives light faces more functions
+vehicleMesh = fcn_INTERNAL_labeledSample;
+tailIndex = find(strcmp(vehicleMesh.LightTypeNames,'tail'));
+turnIndex = find(strcmp(vehicleMesh.LightTypeNames,'turnsignal'));
+tailFaces = find(vehicleMesh.FaceLightType==tailIndex);
+[editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','rear turn', ...
+    'FaceIndices',tailFaces, 'AlsoLightTypes',{{'turnsignal'}})}, FigNum=-1);
+assert(isequal(size(editedMesh.FaceLightFunctions), [size(editedMesh.Faces,1) numel(editedMesh.LightTypeNames)]));
+assert(all(editedMesh.FaceLightFunctions(tailFaces, tailIndex)) && all(editedMesh.FaceLightFunctions(tailFaces, turnIndex)));
+assert(all(editedMesh.FaceLightType(tailFaces)==tailIndex), 'The primary type is kept');
+assert(strcmp(appliedEdits(1).LightType, '+turnsignal'));
+% (relabeling the faces replaces their functions)
+editedMesh = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',tailFaces(1), 'LightType','backup')}, FigNum=-1);
+assert(~editedMesh.FaceLightFunctions(tailFaces(1), turnIndex) && editedMesh.FaceLightFunctions(tailFaces(1), editedMesh.FaceLightType(tailFaces(1))));
+% (faces that were not lights become lights of the first type)
+bodyFace = find(vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames,'body')), 1);
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoLightTypes',{{'running','turnsignal'}})}, FigNum=-1);
+assert(editedMesh.FaceLightType(bodyFace)==find(strcmp(editedMesh.LightTypeNames,'running')));
+assert(editedMesh.FaceLightFunctions(bodyFace, turnIndex));
+
+%% TEST case: Interactive editor, driven from code
+figNum = 20007;
 titleString = sprintf('TEST case: Interactive editor, driven from code');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);

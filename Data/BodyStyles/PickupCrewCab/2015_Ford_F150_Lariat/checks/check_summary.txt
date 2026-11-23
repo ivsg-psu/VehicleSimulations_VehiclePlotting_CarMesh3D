@@ -1,7 +1,7 @@
 Standard checks for 2015 Ford F150 Lariat
-Written 2026-11-21 20:46 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:43 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 9421 faces, 14896 vertices
+Mesh: 8153 faces, 13641 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 3 of 529 samples
 

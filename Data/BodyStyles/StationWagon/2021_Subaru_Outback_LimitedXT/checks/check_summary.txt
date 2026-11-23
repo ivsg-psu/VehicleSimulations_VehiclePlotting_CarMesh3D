@@ -1,7 +1,7 @@
 Standard checks for 2021 Subaru Outback LimitedXT
-Written 2026-11-21 20:48 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:49 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 14408 faces, 23831 vertices
+Mesh: 13143 faces, 22470 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 503 samples
 

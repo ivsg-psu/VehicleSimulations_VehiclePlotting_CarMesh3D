@@ -1,7 +1,7 @@
 Standard checks for 2010 Ford F150 RaptorSVT
-Written 2026-11-21 20:45 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:44 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 20656 faces, 21836 vertices
+Mesh: 19582 faces, 20457 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 521 samples
 

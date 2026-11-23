@@ -1,1 +1,0 @@
-Reducer=2026_11_21e; TargetFaces=24000; WheelPattern=^Shared_057_tire|^Shared_058_tire|^Shared_067_tire|^tire_blake|tire|tyre|wheel|(^|[^a-z])rim|hub|brake; WheelFaces=2000; RemovePattern=^(M_|SM_|m_meter|m_navi|charger|Material_47|2025_TYPER_INPA|body_white_int|Shared_0(07|09|18|22|31|41|45|48|56|71|72|74)_)

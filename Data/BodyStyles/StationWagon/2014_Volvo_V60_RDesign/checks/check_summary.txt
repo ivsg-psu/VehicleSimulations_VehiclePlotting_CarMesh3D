@@ -1,8 +1,20 @@
 Standard checks for 2014 Volvo V60 RDesign
-Written 2026-11-21 06:41 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:49 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 26850 faces, 32388 vertices
+Mesh: 25849 faces, 30741 vertices
+Dimensions: 10 of 12 within tolerance
+Ground contact during the test motion: 0 of 503 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_01_inputs.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_02_dimensions.txt
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_03_labels.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_04_lightStates.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_05_lights.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_06_body.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_07_steering.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_08_wheels.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_09_drive.gif
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\StationWagon\2014_Volvo_V60_RDesign\checks\check_10_groundContact.png

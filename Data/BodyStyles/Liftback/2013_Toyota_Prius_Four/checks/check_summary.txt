@@ -1,7 +1,7 @@
 Standard checks for 2013 Toyota Prius Four
-Written 2026-11-21 20:49 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:38 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 8030 faces, 13737 vertices
+Mesh: 7011 faces, 12674 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 501 samples
 

@@ -331,11 +331,38 @@ assert(all(abs(plotHandles.LightPatches.tail.FaceVertexCData(1,:) - [1.00 0.12 0
 
 % Off again, on the fast path: back to the plain colors, shaded
 plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','off'), FigNum=-1);
-assert(isequal(plotHandles.LightPatches.headlight.FaceVertexCData, plotHandles.LightOffColors.headlight));
+assert(isequal(plotHandles.LightPatches.headlight.FaceVertexCData, plotHandles.LightOffColors.headlight{1}));   % (one cell per patch of the group)
 assert(~strcmp(plotHandles.LightPatches.headlight.FaceLighting,'none'));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A tail light that is also a turn signal (multi-function lights)
+figNum = 20012;
+titleString = sprintf('TEST case: A tail light that is also a turn signal');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+vehicleMesh = fcn_INTERNAL_labeledSample;
+tailIndex = find(strcmp(vehicleMesh.LightTypeNames,'tail'));
+tailFaces = find(vehicleMesh.FaceLightType==tailIndex);
+assert(~isempty(tailFaces), 'The sample has tail lights');
+vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','US rear turn signals', ...
+    'FaceIndices',tailFaces, 'AlsoLightTypes',{{'turnsignal'}})}, FigNum=-1);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=struct('Tail','on'), FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(any(strcmp(plotHandles.LightGroupNames,'turnLeft_tail')) && any(strcmp(plotHandles.LightGroupNames,'turnRight_tail')));
+leftCombo = plotHandles.LightPatches.turnLeft_tail;
+% (tail on: dim red; left signal on: bright red on the left lamp only; off: plain colors)
+assert(all(abs(leftCombo(1).FaceVertexCData(1,:) - [0.70 0.04 0.04])<1e-12));
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Tail','on','TurnLeft',true), FigNum=-1);
+assert(all(abs(leftCombo(1).FaceVertexCData(1,:) - [1.00 0.12 0.08])<1e-12));
+assert(all(abs(plotHandles.LightPatches.turnRight_tail(1).FaceVertexCData(1,:) - [0.70 0.04 0.04])<1e-12));
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, LightStates=struct('Tail','off','TurnLeft',false), FigNum=-1);
+assert(isequal(leftCombo(1).FaceVertexCData, plotHandles.LightOffColors.turnLeft_tail{1}));
+% (with the light effects, the combined groups glow too)
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=struct('TurnRight',true), LightEffects=true, FigNum=figNum);
+assert(strcmp(plotHandles.LightEffects.Glow.turnRight_tail.Visible,'on') && strcmp(plotHandles.LightEffects.Glow.turnLeft_tail.Visible,'off'));
 
 %% TEST case: Night light effects (glows and ground pools) follow the lights
 figNum = 20011;

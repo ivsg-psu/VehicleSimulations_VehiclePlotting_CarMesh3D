@@ -1,7 +1,7 @@
 Standard checks for 2014 Ford Expedition XLT
-Written 2026-11-21 21:01 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:33 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 25581 faces, 18063 vertices
+Mesh: 24477 faces, 17025 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 511 samples
 

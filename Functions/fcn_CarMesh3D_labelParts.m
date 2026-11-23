@@ -90,6 +90,15 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      material that is see-through elsewhere (the painted black border of
 %      a window) become trim. Meshes without these fields are not changed.
 %
+%      LampCovers: true (default) to make each separate piece of glass
+%      that lies over a lamp part of that lamp: a piece (glass faces
+%      joined by shared corners) at least half of whose faces are within
+%      2% of the vehicle's length of a light face. Many downloads give
+%      the lamp covers the window glass material. Windows that only touch
+%      a lamp stay glass, and so does a cover over a lamp with lenses of
+%      its own (light faces near the cover with at least a quarter of its
+%      area): it is the lamp's clear cover, and the lenses show through.
+%
 %      TextureColorParts: a cell array of part names whose faces take
 %      their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB
 %      or fcn_CarMesh3D_transferTextureColors), for example
@@ -151,6 +160,16 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   % * TextureColorParts: parts shown in their texture colors
 %   % * SeeThroughGlass leaves faces labeled light alone (the Transit
 %   %   % Connect's see-through lamp lenses had all become glass)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * LampCovers: glass pieces lying over a lamp become part of it (the
+%   %   % 2020 Supra, 2016 Explorer, 2006 Frontier, 2017 CX-3, and 2014
+%   %   % Leaf had their lamp covers in the window glass material)
+%   % * LampCovers: a glass cover over a lamp that has lenses of its own
+%   %   % (light faces near it with at least a quarter of its area) stays
+%   %   % glass, so the lenses show through (Sean, 14:35: the Fit's
+%   %   % headlight covers were labeled headlight and hid its lenses)
 
 % TO-DO:
 %
@@ -176,6 +195,7 @@ arguments
     options.UseMaterialColors = true % Use the file's material colors?
     options.PartColors = {}   % N x 2 cell of {partName, [r g b]}
     options.SeeThroughGlass = true  % Use .glb see-through marks for glass?
+    options.LampCovers = true       % Glass pieces lying over a lamp become that lamp?
     options.TextureColorParts = {}  % Parts shown in their texture colors
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -423,6 +443,11 @@ end
 faceAlpha = ones(Nfaces,1);
 faceAlpha(facePartIndex==2) = options.GlassAlpha;
 
+% Lamp covers: separate glass pieces lying over a lamp become that lamp
+if options.LampCovers && any(facePartIndex==2) && any(facePartIndex==4)
+    facePartIndex = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex);
+end
+
 % Light types, for switchable lights
 lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
 lightTypeRules = {...
@@ -541,3 +566,85 @@ else
     nameString = '';
 end
 end % Ends fcn_INTERNAL_nameOrEmpty
+
+%% fcn_INTERNAL_lampCovers
+function facePartIndex = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex)
+% Each separate piece of glass (glass faces joined by shared corners)
+% that lies mostly over a lamp becomes part of the lamp: a piece at least
+% half of whose faces are within 2% of the vehicle's length of a light
+% face's center
+vertices = vehicleMesh.Vertices;
+faces = vehicleMesh.Faces;
+centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
+vehicleLength = max(max(vertices,[],1) - min(vertices,[],1));
+nearDistance = 0.02*vehicleLength;
+glassFaces = find(facePartIndex==2);
+lightCenters = centers(facePartIndex==4,:);
+
+% The glass pieces: faces joined by shared corners (union-find on corners)
+Ncorners = size(vertices,1);
+parent = 1:Ncorners;
+glassCorners = faces(glassFaces,:);
+for ith_face = 1:size(glassCorners,1)
+    rootA = fcn_INTERNAL_findRoot(parent, glassCorners(ith_face,1));
+    for ith_corner = 2:3
+        rootB = fcn_INTERNAL_findRoot(parent, glassCorners(ith_face,ith_corner));
+        if rootA ~= rootB
+            parent(rootB) = rootA;
+        end
+    end
+end
+pieceOfFace = zeros(numel(glassFaces),1);
+for ith_face = 1:numel(glassFaces)
+    pieceOfFace(ith_face) = fcn_INTERNAL_findRoot(parent, glassCorners(ith_face,1));
+end
+
+% Distance from each glass face to the nearest light face (in blocks)
+nearestDistance = inf(numel(glassFaces),1);
+blockSize = 400;
+for first = 1:blockSize:numel(glassFaces)
+    rows = first:min(numel(glassFaces), first+blockSize-1);
+    glassCenters = centers(glassFaces(rows),:);
+    squaredDistance = sum(glassCenters.^2,2) + sum(lightCenters.^2,2)' - 2*glassCenters*lightCenters';
+    nearestDistance(rows) = sqrt(max(min(squaredDistance,[],2),0));
+end
+flagNear = nearestDistance <= nearDistance;
+
+% Pieces mostly over a lamp become light, unless the lamp has lenses of
+% its own under the piece (light faces near it with at least a quarter of
+% its area): then the piece is the lamp's clear cover, and stays glass, so
+% the lenses show through it (Sean, 14:35: the Fit's headlight covers
+% hid its lenses)
+[pieces, ~, pieceIndex] = unique(pieceOfFace);
+nearShare = accumarray(pieceIndex, double(flagNear))./accumarray(pieceIndex, 1);
+candidatePieces = find(nearShare >= 0.5);
+faceAreas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
+    vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
+lightFaces = find(facePartIndex==4);
+coverPieces = [];
+for ith_candidate = candidatePieces(:)'
+    pieceFaces = glassFaces(pieceIndex==ith_candidate);
+    pieceArea = sum(faceAreas(pieceFaces));
+    pieceCenters = centers(pieceFaces,:);
+    flagLens = false(numel(lightFaces),1);
+    for first = 1:blockSize:numel(lightFaces)
+        rows = first:min(numel(lightFaces), first+blockSize-1);
+        squaredDistance = sum(lightCenters(rows,:).^2,2) + sum(pieceCenters.^2,2)' - 2*lightCenters(rows,:)*pieceCenters';
+        flagLens(rows) = sqrt(max(min(squaredDistance,[],2),0)) <= nearDistance;
+    end
+    lensArea = sum(faceAreas(lightFaces(flagLens)));
+    if lensArea < 0.25*pieceArea
+        coverPieces(end+1) = pieces(ith_candidate); %#ok<AGROW>
+    end
+end
+facePartIndex(glassFaces(ismember(pieceOfFace, coverPieces))) = 4;
+end % Ends fcn_INTERNAL_lampCovers
+
+%% fcn_INTERNAL_findRoot
+function root = fcn_INTERNAL_findRoot(parent, index)
+% The root of a union-find tree (no path compression: the trees are small)
+root = index;
+while parent(root) ~= root
+    root = parent(root);
+end
+end % Ends fcn_INTERNAL_findRoot

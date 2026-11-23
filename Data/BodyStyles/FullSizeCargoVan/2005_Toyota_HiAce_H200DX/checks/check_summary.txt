@@ -1,7 +1,7 @@
 Standard checks for 2005 Toyota HiAce H200DX
-Written 2026-11-21 20:42 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:34 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 10415 faces, 11699 vertices
+Mesh: 9581 faces, 11560 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 497 samples
 

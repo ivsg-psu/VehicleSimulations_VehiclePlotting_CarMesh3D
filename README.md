@@ -155,7 +155,7 @@ Each animation is the vehicle's `check_09_drive.gif`: the standard test drive (s
 | Vehicle | Animation | Size L x W x H (m) | Wheelbase (m) | Faces | Model license |
 |---|---|---|---|---|---|
 | **2013 Toyota Prius Four**<br>`Data/BodyStyles/Liftback/2013_Toyota_Prius_Four` | ![2013_Toyota_Prius_Four](Images/vehicles/2013_Toyota_Prius_Four.gif) | 4.48 x 2.02 x 1.49 | 2.700 | 6648 | Free Standard |
-| **2014 Ford TransitConnect XLTCargoLWB**<br>`Data/BodyStyles/CompactCargoVan/2014_Ford_TransitConnect_XLTCargoLWB` | ![2014_Ford_TransitConnect_XLTCargoLWB](Images/vehicles/2014_Ford_TransitConnect_XLTCargoLWB.gif) | 4.82 x 2.14 x 1.85 | 3.063 | 36841 | 2014 Ford Transit Connect Cargo by tonielpro520 is licensed under Creative Commons Attribution |
+| **2014 Ford TransitConnect XLTCargoLWB**<br>`Data/BodyStyles/CompactCargoVan/2014_Ford_TransitConnect_XLTCargoLWB` | ![2014_Ford_TransitConnect_XLTCargoLWB](Images/vehicles/2014_Ford_TransitConnect_XLTCargoLWB.gif) | 4.82 x 2.14 x 1.85 | 3.063 | 36062 | 2014 Ford Transit Connect Cargo by tonielpro520 is licensed under Creative Commons Attribution |
 
 (This table is written by fcn_CarMesh3D_addReferenceVehicle from Data/referenceVehicles.csv; 2 vehicles.)
 
@@ -194,7 +194,9 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 | File or folder | Made by | Contents |
 |---|---|---|
 | `vehicleParameters_<ID>.mat` | you | The IVSG `vehicleParameters` structure (see [Vehicle specification files](#vehicle-specification-files)). Keep notes on where each value came from in `vehicleParameters_sources.md`. |
-| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` and its license in `model/LICENSE.txt`, written in the [standard license format](#the-licensetxt-file). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. |
+| `LICENSE.txt` | you | The model's license, written in the [standard license format](#the-licensetxt-file). It stays in the repository. |
+| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` (or directly in `model/`). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. **Not kept in git** (see [Large files](#large-files)). |
+| `rawMesh_<ID>.mat` | the script | The model as imported (`rawMesh`), before it is labeled and fit. It stays in the repository, so the script runs without the download (see [Large files](#large-files)). |
 | `script_CarMesh3D_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
 | `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
 | `vehicleLevels_<ID>.mat` | the script | The detail levels (`detailLevels`): lighter versions of the mesh for animation (see [Detail levels for animation](#detail-levels-for-animation)) |
@@ -330,6 +332,31 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | `Installer` | `fcn_DebugTools_autoInstallRepos.m`, the standard IVSG installer used by the demo |
 | `Utilities` | Installed dependencies (DebugTools), made by the installer; ignored by git |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design |
+
+## Large files
+
+The downloaded models are large (about 4 GB for the library), so they are not kept in git. Each vehicle's download sits in its `model/` folder, which `.gitignore` leaves out; the IVSG large-file storage area (a OneDrive folder) holds a copy of the whole `Data` folder with every `model/` folder in it. The check figures and animations (`checks/*.fig`, `checks/*.gif`), which each script remakes, are left out too; the check pictures (`.png`) stay.
+
+Everything else stays in the repository, including each vehicle's imported mesh, `rawMesh_<ID>.mat` (0.1 to 2 MB each). So a clone without the downloads still works:
+
+- the finished meshes, detail levels and outlines are all there, for plotting and animation;
+- a vehicle's script still runs: when its download is not in `model/`, it rebuilds the vehicle from `rawMesh_<ID>.mat` (it says so when it starts) and skips only the comparison with the download (`check_04_compare_*`).
+
+The large-file area is on OneDrive at: *(location to be added)*. It is mounted at a different place on each computer, so below, `<your large-file Data folder>` is the area's `CarMesh3D\Data` folder as it is found on yours.
+
+To get the downloads, copy that folder into the repository's `Data` folder with rclone (it adds the `model/` folders and leaves everything else alone):
+
+```
+rclone copy "<your large-file Data folder>" "<your clone>\Data" --progress
+```
+
+`fcn_CarMesh3D_checkModels` lists which vehicles have their downloads here, which can be rebuilt without them, and which of the missing ones are in the large-file area, and prints these copy commands (for every vehicle, or for one at a time):
+
+```matlab
+report = fcn_CarMesh3D_checkModels(LargeFileFolder='<your large-file Data folder>', FigNum=1);
+```
+
+When you add a vehicle, put its download in `model/` as usual and run its script once: that makes `rawMesh_<ID>.mat`. Then copy the vehicle's `model/` folder to the large-file area (the same command, with the two folders swapped), so that others can get it.
 
 ## The workflow
 

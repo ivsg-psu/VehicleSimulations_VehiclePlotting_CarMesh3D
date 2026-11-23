@@ -13,8 +13,9 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 % within Distance of the other's plane and inside it, both facing the
 % same way) is found, and the face of the part drawn on top is moved
 % Offset outward along its normal. Parts on top, first to last: light,
-% trim, glass, body (a lamp lens over its housing, a black insert over the
-% paint, a window border over the glass, the glass over the body skin).
+% glass, trim, body (a lamp lens over its housing; the glass over the
+% black trim behind it, since glass is always the outermost surface of a
+% window; a black insert over the paint; the glass over the body skin).
 % Wheels are left alone.
 %
 % FORMAT:
@@ -70,6 +71,13 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 %   % * First write: the 2005 HiAce's bumpers (black inserts lying on
 %   %   % the paint) showed 5% label changes from drawing order alone; 862
 %   %   % pairs of coplanar faces of different parts
+
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_separateOverlays
+%   % * Glass is now on top of trim (it was trim over glass): the black
+%   %   % trim behind the 2009 Honda Fit's rear quarter windows and rear
+%   %   % window was lifted in front of the glass, the worst 8 spots of
+%   %   % its comparison. Glass is always the outermost surface
 
 % TO-DO:
 %
@@ -175,7 +183,7 @@ facePart = vehicleMesh.FacePartIndex(:);
 
 % Which part is drawn on top: a higher rank wins (wheels: never moved)
 partRank = zeros(numel(vehicleMesh.PartNames),1);
-rankOrder = {'body',1; 'glass',2; 'trim',3; 'light',4};
+rankOrder = {'body',1; 'trim',2; 'glass',3; 'light',4};   % (higher is on top: glass over trim)
 for ith_rank = 1:size(rankOrder,1)
     partRank(strcmp(vehicleMesh.PartNames, rankOrder{ith_rank,1})) = rankOrder{ith_rank,2};
 end

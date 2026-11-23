@@ -1,1 +1,0 @@
-Reducer=2026_11_21e; TargetFaces=24000; WheelPattern=^Material\.026|tire|tyre|wheel|(^|[^a-z])rim|hub|brake; WheelFaces=2000; RemovePattern=

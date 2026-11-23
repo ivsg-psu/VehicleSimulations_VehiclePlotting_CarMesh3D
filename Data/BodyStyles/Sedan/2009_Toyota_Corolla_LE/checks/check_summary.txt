@@ -1,7 +1,7 @@
 Standard checks for 2009 Toyota Corolla LE
-Written 2026-11-21 20:30 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:44 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 19879 faces, 27248 vertices
+Mesh: 18656 faces, 26465 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 499 samples
 

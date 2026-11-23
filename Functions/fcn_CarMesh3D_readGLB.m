@@ -85,6 +85,12 @@ function vehicleMesh = fcn_CarMesh3D_readGLB(fileName, options)
 %   % * First write: reads .glb geometry, materials, and texture colors
 %   %   % (the OBJ conversion loses colors; low-poly downloads paint lamps
 %   %   % and trim into one textured material)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_readGLB
+%   % * Skinned meshes are placed by their joints (each joint's world
+%   %   % transform times its inverse bind matrix, weighted per vertex), as
+%   %   % glTF says, not by their node: the 2008 Shelby GT's wheels
 
 % TO-DO:
 %
@@ -271,7 +277,8 @@ else
 end
 stack = num2cell(rootNodes);
 stackTransforms = repmat({eye(4)}, 1, numel(stack));
-meshInstances = {};   % {mesh index, world transform, node name}
+meshInstances = {};   % {mesh index, world transform, node name, skin index (-1: none)}
+nodeWorld = cell(numel(nodes),1);   % (every node's world transform: the joints of skins)
 while ~isempty(stack)
     nodeIndex = stack{end};
     parentTransform = stackTransforms{end};
@@ -279,14 +286,40 @@ while ~isempty(stack)
     stackTransforms(end) = [];
     thisNode = nodes{nodeIndex+1};
     worldTransform = parentTransform*fcn_INTERNAL_nodeTransform(thisNode);
+    nodeWorld{nodeIndex+1} = worldTransform;
     if isfield(thisNode,'mesh')
-        meshInstances(end+1,:) = {thisNode.mesh, worldTransform, char(fcn_INTERNAL_field(thisNode,'name',sprintf('node_%d',nodeIndex)))}; %#ok<AGROW>
+        meshInstances(end+1,:) = {thisNode.mesh, worldTransform, char(fcn_INTERNAL_field(thisNode,'name',sprintf('node_%d',nodeIndex))), ...
+            fcn_INTERNAL_field(thisNode,'skin',-1)}; %#ok<AGROW>
     end
     children = reshape(fcn_INTERNAL_field(thisNode,'children',[]),1,[]);
     for ith_child = children
         stack{end+1} = ith_child; %#ok<AGROW>
         stackTransforms{end+1} = worldTransform; %#ok<AGROW>
     end
+end
+
+% The skins' joint matrices: each joint's world transform times its
+% inverse bind matrix (a skinned mesh is placed by its joints, not by its
+% node: the 2008 Shelby GT's wheels were off their axles)
+skins = fcn_INTERNAL_asCell(fcn_INTERNAL_field(gltf,'skins',{}));
+skinJointMatrices = cell(numel(skins),1);
+for ith_skin = 1:numel(skins)
+    thisSkin = skins{ith_skin};
+    joints = reshape(double(thisSkin.joints),1,[]);
+    if isfield(thisSkin,'inverseBindMatrices')
+        inverseBind = double(fcn_INTERNAL_readAccessor(gltf, binaryChunk, thisSkin.inverseBindMatrices));
+    else
+        inverseBind = repmat(reshape(eye(4),1,16), numel(joints), 1);
+    end
+    jointMatrices = cell(numel(joints),1);
+    for ith_joint = 1:numel(joints)
+        jointWorld = nodeWorld{joints(ith_joint)+1};
+        if isempty(jointWorld)
+            jointWorld = eye(4);   % (a joint outside the scene: left where it is bound)
+        end
+        jointMatrices{ith_joint} = jointWorld*reshape(inverseBind(ith_joint,:),4,4);
+    end
+    skinJointMatrices{ith_skin} = jointMatrices;
 end
 
 % The triangles of every primitive of every placed mesh
@@ -321,8 +354,17 @@ for ith_instance = 1:size(meshInstances,1)
             uv = double(fcn_INTERNAL_readAccessor(gltf, binaryChunk, thisPrimitive.attributes.(sprintf('TEXCOORD_%d',textureSet))));
         end
         % (world positions; a mirroring transform reverses the winding)
-        worldPositions = [double(positions) ones(numVertices,1)]*worldTransform';
-        if det(worldTransform(1:3,1:3)) < 0
+        skinIndex = meshInstances{ith_instance,4};
+        if skinIndex >= 0 && isfield(thisPrimitive.attributes,'JOINTS_0') && isfield(thisPrimitive.attributes,'WEIGHTS_0')
+            [worldPositions, placingTransform] = fcn_INTERNAL_skinPositions(double(positions), ...
+                double(fcn_INTERNAL_readAccessor(gltf, binaryChunk, thisPrimitive.attributes.JOINTS_0)), ...
+                double(fcn_INTERNAL_readAccessor(gltf, binaryChunk, thisPrimitive.attributes.WEIGHTS_0)), ...
+                skinJointMatrices{skinIndex+1});
+        else
+            worldPositions = [double(positions) ones(numVertices,1)]*worldTransform';
+            placingTransform = worldTransform;
+        end
+        if det(placingTransform(1:3,1:3)) < 0
             triangles = triangles(:,[1 3 2]);
         end
         allVertices{end+1,1} = worldPositions(:,1:3); %#ok<AGROW>
@@ -522,6 +564,30 @@ transform(1:3,4) = translation;
 end % Ends fcn_INTERNAL_nodeTransform
 
 %% fcn_INTERNAL_readAccessor
+function [worldPositions, mainTransform] = fcn_INTERNAL_skinPositions(positions, joints, weights, jointMatrices)
+% Skinned positions: each vertex moved by its joints' matrices, weighted
+% (glTF linear blend skinning). mainTransform is the joint matrix with the
+% most weight, for the winding.
+numVertices = size(positions,1);
+homogeneous = [positions ones(numVertices,1)];
+worldPositions = zeros(numVertices,4);
+weightSums = sum(weights,2);
+weightSums(weightSums==0) = 1;
+weights = weights./weightSums;
+jointWeight = zeros(numel(jointMatrices),1);
+for ith_influence = 1:size(joints,2)
+    theseJoints = joints(:,ith_influence) + 1;
+    theseWeights = weights(:,ith_influence);
+    for thisJoint = unique(theseJoints(theseWeights>0))'
+        rows = theseJoints==thisJoint & theseWeights>0;
+        worldPositions(rows,:) = worldPositions(rows,:) + theseWeights(rows).*(homogeneous(rows,:)*jointMatrices{thisJoint}');
+        jointWeight(thisJoint) = jointWeight(thisJoint) + sum(theseWeights(rows));
+    end
+end
+[~, mainJoint] = max(jointWeight);
+mainTransform = jointMatrices{mainJoint};
+end % Ends fcn_INTERNAL_skinPositions
+
 function data = fcn_INTERNAL_readAccessor(gltf, binaryChunk, accessorIndex)
 % An accessor's data as a count x components array (normalized integers
 % become 0 to 1)

@@ -128,6 +128,27 @@
 %   %   % fcn_CarMesh3D_fixFlippedFaces (off by default: experimental)
 %   % * The comparison also finds see-through gaps (the floor panel's
 %   %   % edges), with four low views
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2014_Ford_Expedition_XLT
+%   % * Regenerated from the template (drafted by Claude): this
+%   %   % vehicle's header, settings and own fixes kept; the rest
+%   %   % from the template (interior labels, the painted label
+%   %   % edits, the latest steps)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2014_Ford_Expedition_XLT
+%   % * Regenerated from the template (drafted by Claude): this
+%   %   % vehicle's header, settings and own fixes kept; the rest
+%   %   % from the template (importYaw; a 'built' row in the
+%   %   % change log at each build)
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2014_Ford_Expedition_XLT
+%   % * Regenerated from the template (drafted by Claude): the
+%   %   % download now sits in model\ (not tracked by git); the raw
+%   %   % mesh is saved as rawMesh_<ID>.mat, so the script runs
+%   %   % without the download (see README.md, "Large files")
 
 % TO-DO:
 %
@@ -147,7 +168,7 @@
 vehicleID = '2014_Ford_Expedition_XLT';   % Must match this folder's name
 
 % The downloaded 3D model, relative to this folder
-modelFile = 'ford_expedition_2014.glb';   % (left in this folder as downloaded)
+modelFile = fullfile('model','ford_expedition_2014.glb');   % (in model\, as downloaded; not tracked by git)
 
 % No model of this vehicle? Set modelFile = '' and give its body style: an
 % ID from Data\bodyStyles.csv, such as 'sedan', 'minivan', or
@@ -163,6 +184,11 @@ bodyStyle = '';
 % Blender (FBX, glTF, GLB, .blend) are Z up.
 importUpAxis = '+z';
 importForwardAxis = '+y';
+
+% A turn about the up axis, in degrees (counterclockwise seen from above),
+% after the axes above: for a download whose front is not along one of its
+% axes. Most downloads need none (0).
+importYaw = 0;
 
 % Faces to delete right after import: a regular expression on each face's
 % '<materialName> <groupName>' text, for stray pieces that would spoil the
@@ -237,6 +263,10 @@ partShares = {};
 % mesh can be seen through from below and through its windows
 addFloorPanel = true;
 
+% Label the interior (seats, dash, steering wheel, door panels: the body and
+% trim faces seen only through the glass) as the part 'interior'
+labelInterior = true;
+
 % What to run
 flag_firstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
 flag_compareToOriginal = 1;               % 1: compare the reduced mesh with the download (flagged spots; adds about a minute)
@@ -285,6 +315,7 @@ vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(vehicleFiles.ParametersFile, BodyCol
 cacheFolder = fullfile(vehicleFiles.Folder, 'cache');
 [~, ~, meshVersion] = fcn_CarMesh3D_version(FigNum=-1);
 flag_fromBodyStyle = isempty(modelFile);
+flag_haveDownload = false;
 stage1Files = {vehicleFiles.ParametersFile};
 if flag_fromBodyStyle
     % (a body style: the style list and its exemplars' meshes)
@@ -298,14 +329,28 @@ if flag_fromBodyStyle
         end
     end
 else
-    stage1Files{end+1} = fullfile(thisFolder, modelFile);
+    % (the download; or, when the download is not here, the imported mesh
+    % kept beside the script, rawMesh_<ID>.mat)
+    rawMeshFile = fullfile(vehicleFiles.Folder, sprintf('rawMesh_%s.mat', vehicleID));
+    flag_haveDownload = isfile(fullfile(thisFolder, modelFile));
+    if flag_haveDownload
+        stage1Files{end+1} = fullfile(thisFolder, modelFile);
+    elseif isfile(rawMeshFile)
+        stage1Files{end+1} = rawMeshFile;
+        fprintf(1,['The download (%s) is not here: the vehicle is rebuilt from its imported mesh, %s.\n' ...
+            'To get the downloads, copy the IVSG large-file area''s Data folder into this one (see README.md, "Large files").\n'], ...
+            modelFile, rawMeshFile);
+    else
+        error(['Neither the download (%s) nor the imported mesh (%s) is here. Copy the IVSG large-file area''s ' ...
+            'Data folder into this one (see README.md, "Large files").'], fullfile(thisFolder, modelFile), rawMeshFile);
+    end
 end
 stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodyStyleMesh.m', 'fcn_CarMesh3D_loadBodyStyles.m', ...
     'fcn_CarMesh3D_fillSampleMesh.m', 'fcn_CarMesh3D_readGLB.m', 'fcn_CarMesh3D_convertToOBJ.m', 'fcn_CarMesh3D_importMesh.m', ...
     'fcn_CarMesh3D_transferTextureColors.m', 'fcn_CarMesh3D_normalizeMesh.m', 'fcn_CarMesh3D_labelParts.m', ...
     'fcn_CarMesh3D_editLabels.m', 'fcn_CarMesh3D_fitMeshToSpec.m', 'fcn_CarMesh3D_simplifyMesh.m', ...
     'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
-    'fcn_CarMesh3D_restoreGroundClearance.m'};
+    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_labelInterior.m'};
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
     'FirstLook',logical(flag_firstLook), 'Compare',logical(flag_compareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
@@ -329,8 +374,26 @@ else
 
     %% Step 2: Import the model and turn it to X forward, Y left, Z up
     textureMesh = [];
-    if ~flag_fromBodyStyle
-        licenseFile = fullfile(vehicleFiles.ModelFolder,'LICENSE.txt');
+    downloadFaces = [];   % (the download's face count, for the repair choice in Step 5)
+    if ~flag_fromBodyStyle && ~flag_haveDownload
+        % (no download here: the imported mesh kept from the last build with it)
+        loaded = load(rawMeshFile, 'rawMesh');
+        vehicleMesh = loaded.rawMesh;
+        if isfield(vehicleMesh,'DownloadFaces')
+            downloadFaces = vehicleMesh.DownloadFaces;
+            vehicleMesh = rmfield(vehicleMesh,'DownloadFaces');
+        end
+        modelLicense = vehicleMesh.License;
+        vehicleMesh = fcn_INTERNAL_removeFaces(vehicleMesh, removeFaces);
+        vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, Yaw=importYaw, FigNum=1);
+        fcn_INTERNAL_savePicture(1, fullfile(vehicleFiles.ChecksFolder,'check_00_orientation.png'));
+    elseif ~flag_fromBodyStyle
+        % (the license: the vehicle's own LICENSE.txt, kept in the
+        % repository, else the one in its model folder)
+        licenseFile = fullfile(vehicleFiles.Folder,'LICENSE.txt');
+        if ~isfile(licenseFile)
+            licenseFile = fullfile(vehicleFiles.ModelFolder,'LICENSE.txt');
+        end
         modelLicense = 'unknown';
         if isfile(licenseFile)
             modelLicense = strtrim(fileread(licenseFile));
@@ -354,8 +417,17 @@ else
         if ~isempty(textureMesh)
             vehicleMesh = fcn_CarMesh3D_transferTextureColors(vehicleMesh, textureMesh, FigNum=-1);
         end
+        % (the imported mesh, kept beside the script: a small file that is
+        % in the repository, so the vehicle can be rebuilt without the
+        % download, which is kept in the IVSG large-file area)
+        rawMesh = vehicleMesh;
+        if ~isempty(textureMesh)
+            downloadFaces = size(textureMesh.Faces,1);
+            rawMesh.DownloadFaces = downloadFaces;
+        end
+        save(rawMeshFile, 'rawMesh');
         vehicleMesh = fcn_INTERNAL_removeFaces(vehicleMesh, removeFaces);
-        vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, FigNum=1);
+        vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, Yaw=importYaw, FigNum=1);
         fcn_INTERNAL_savePicture(1, fullfile(vehicleFiles.ChecksFolder,'check_00_orientation.png'));
     end
 
@@ -386,7 +458,9 @@ else
 
     %% Step 4b: The download itself (not reduced), labeled and fit the same way, for the comparison
     originalMesh = [];
-    if flag_compareToOriginal && ~flag_fromBodyStyle
+    if flag_compareToOriginal && ~flag_fromBodyStyle && ~flag_haveDownload
+        fprintf(1,'(no download here: the comparison with the download is skipped)\n');
+    elseif flag_compareToOriginal && ~flag_fromBodyStyle
         if reduceWithBlender && ~isempty(targetFaces)
             if ~isempty(textureMesh)
                 originalMesh = textureMesh;   % (the .glb, read directly)
@@ -394,7 +468,7 @@ else
                 originalMesh = fcn_CarMesh3D_importMesh(fullfile(thisFolder, modelFile), Name=vehicleFiles.Name, License=modelLicense);
             end
             originalMesh = fcn_INTERNAL_removeFaces(originalMesh, removeFaces);
-            originalMesh = fcn_CarMesh3D_normalizeMesh(originalMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, FigNum=-1);
+            originalMesh = fcn_CarMesh3D_normalizeMesh(originalMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, Yaw=importYaw, FigNum=-1);
             originalMesh = fcn_CarMesh3D_labelParts(originalMesh, PartRules=partRules, UseMaterialColors=useMaterialColors, ...
                 PartColors={'body',bodyColor; 'glass',glassColor; 'trim',trimColor}, GlassAlpha=glassAlpha, ...
                 SeeThroughGlass=seeThroughGlass, TextureColorParts=textureColorParts);
@@ -446,9 +520,9 @@ else
         repairSettings = {};
         % (95%: Blender's import welds duplicate corners and drops degenerate
         % faces, 2.5% of the Prius's faces, even when it reduces nothing)
-        if ~isempty(textureMesh) && size(vehicleMesh.Faces,1) >= 0.95*size(textureMesh.Faces,1)
+        if ~isempty(downloadFaces) && size(vehicleMesh.Faces,1) >= 0.95*downloadFaces
             repairSettings = {'StitchTolerance',0, 'EdgeSmoothing',0};
-            fprintf(1,'Not reduced (%d of %d faces kept): no stitching or edge smoothing\n', size(vehicleMesh.Faces,1), size(textureMesh.Faces,1));
+            fprintf(1,'Not reduced (%d of %d faces kept): no stitching or edge smoothing\n', size(vehicleMesh.Faces,1), downloadFaces);
         end
         vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, Symmetric=symmetricMesh, ...
             PartShares=simplifyShares, VisibilityCheck=~flag_firstLook);
@@ -475,9 +549,32 @@ else
             vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FigNum=-1);
         end
     end
+    if labelInterior
+        % (the interior: faces seen only through the glass, found by voxel
+        % fills that close small holes; the download used in the comparison
+        % gets the same, so its interior is not counted as label changes)
+        [vehicleMesh, interiorInfo] = fcn_CarMesh3D_labelInterior(vehicleMesh, FigNum=-1);
+        fprintf(1,'Labeled %d faces interior\n', interiorInfo.NumInterior);
+        if ~isempty(originalMesh)
+            originalMesh = fcn_CarMesh3D_labelInterior(originalMesh, FigNum=-1);
+        end
+    end
     fcn_CarMesh3D_saveCache(stage1File, stage1Inputs, struct('vehicleMesh',vehicleMesh, 'originalMesh',originalMesh), FigNum=-1);
 end
 fprintf(1,'Finished mesh: %d faces\n', size(vehicleMesh.Faces,1));
+
+% Label fixes from the Model Reviewer (fcn_CarMesh3D_reviewVehicle): the
+% faces painted there, saved in this vehicle's labelEdits file, applied
+% to the finished mesh (each face found by its position). Painting again
+% changes only this file, so the slow steps above are not redone.
+reviewEditsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
+reviewEditsStamp = [];
+if isfile(reviewEditsFile)
+    reviewEdits = load(reviewEditsFile, 'labelEditsAfterSimplify');
+    vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=reviewEdits.labelEditsAfterSimplify, FigNum=-1);
+    reviewEditsStamp = fcn_CarMesh3D_fileStamps({reviewEditsFile}, FigNum=-1);
+    fprintf(1,'Applied %d label fixes painted in the Model Reviewer\n', numel(reviewEdits.labelEditsAfterSimplify));
+end
 
 %% Step 6: Save the finished mesh
 if flag_firstLook
@@ -556,7 +653,14 @@ validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1
 % (the saved mesh is kept as it is, with its date, when nothing changed:
 % vehicles made from it as an exemplar then stay up to date)
 flag_saveMesh = true;
-if flag_stage1Reused && flag_stage2Reused && isfile(vehicleFiles.MeshFile)
+% (painted fixes newer than the saved mesh: the mesh is saved again)
+flag_editsNewer = false;
+if isfile(reviewEditsFile) && isfile(vehicleFiles.MeshFile)
+    editsInfo = dir(reviewEditsFile);
+    meshInfo = dir(vehicleFiles.MeshFile);
+    flag_editsNewer = editsInfo.datenum > meshInfo.datenum;
+end
+if flag_stage1Reused && flag_stage2Reused && isfile(vehicleFiles.MeshFile) && ~flag_editsNewer
     savedMesh = load(vehicleFiles.MeshFile, 'vehicleMesh');
     if isfield(savedMesh.vehicleMesh, 'BuildInfo') && strcmp(savedMesh.vehicleMesh.BuildInfo.MeshVersion, meshVersion)
         flag_saveMesh = false;
@@ -569,6 +673,14 @@ if flag_saveMesh
         CompareTotals=compareTotals, Validation=validationTable, Exemplar=exemplarBuildInfo, FigNum=1);
     save(vehicleFiles.MeshFile, 'vehicleMesh', 'vehicleSpec');
     fprintf(1,'Saved %s\n', vehicleFiles.MeshFile);
+    % (the build, in the mesh's change log: who, when, which version)
+    try
+        fcn_CarMesh3D_meshHistory(vehicleFiles.Folder, Action='built', Who='script', ...
+            Details=sprintf('by %s.m (mesh version %s, quality score %.1f)', mfilename, meshVersion, ...
+            vehicleMesh.BuildInfo.Quality.Score), FigNum=-1);
+    catch historyError
+        fprintf(1,'(the change log could not be written: %s)\n', historyError.message);
+    end
 end
 
 %% Stage 3 of the cache: the detail levels, the outline, and the checks
@@ -579,7 +691,8 @@ stage3Functions = {'fcn_CarMesh3D_makeDetailLevels.m', 'fcn_CarMesh3D_makeOutlin
     'fcn_CarMesh3D_plotScene.m', 'fcn_CarMesh3D_saveGifFrame.m', 'fcn_CarMesh3D_checkGroundContact.m', ...
     'fcn_CarMesh3D_fillCameraSettings.m', 'fcn_CarMesh3D_updateCamera.m'};
 stage3Inputs = struct('Stage1',stage1Inputs, 'Functions',fcn_CarMesh3D_fileStamps(stage3Functions, FigNum=-1), ...
-    'RunChecks',logical(flag_runChecks), 'ChecksToRun',{checksToRun}, 'SaveGifs',logical(flag_saveGifs));
+    'RunChecks',logical(flag_runChecks), 'ChecksToRun',{checksToRun}, 'SaveGifs',logical(flag_saveGifs), ...
+    'ReviewEdits',{reviewEditsStamp});
 stage3File = fullfile(cacheFolder, 'stage3_checks.mat');
 stage3Products = {vehicleFiles.LevelsFile, vehicleFiles.OutlineFile};
 if flag_runChecks
@@ -756,4 +869,17 @@ figureHandle = figure(figNum);
 drawnow;
 frame = getframe(figureHandle);
 imwrite(frame.cdata, fileName);
+fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_savePicture
+
+%% fcn_INTERNAL_saveFig
+function fcn_INTERNAL_saveFig(figureHandle, pictureFile)
+% Saves the figure as a .fig file next to its picture (same name), to
+% open later with openfig and zoom, pan, or rotate. The saved copy opens
+% visible, even when it was made in a MATLAB with no display (-batch).
+[folder, name] = fileparts(pictureFile);
+oldCreateFcn = get(figureHandle,'CreateFcn');
+set(figureHandle,'CreateFcn','set(gcbo,''Visible'',''on'')');
+savefig(figureHandle, fullfile(folder,[name '.fig']), 'compact');
+set(figureHandle,'CreateFcn',oldCreateFcn);
+end % Ends fcn_INTERNAL_saveFig

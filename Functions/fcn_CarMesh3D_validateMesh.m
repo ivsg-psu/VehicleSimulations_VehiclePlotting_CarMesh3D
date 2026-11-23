@@ -6,7 +6,8 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 % students to include in a report.
 %
 % Measured values:
-%       OverallLength, OverallWidth, OverallHeight  (bounding box; the
+%       OverallLength, OverallWidth, OverallHeight  (bounding box, the height
+%       to the roof without an antenna; the
 %                        width uses only the body faces if the mesh was
 %                        fitted with WidthReference='body')
 %       WidthWithMirrors (bounding box width, measured only if the mesh
@@ -101,6 +102,12 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 %   % * TireRoundMin and TireRoundMax rows: the smallest and largest outer
 %   %   % tire diameter seen from the side, compared with the tire size,
 %   %   % so a tire reduced to a polygon fails
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_validateMesh
+%   % * OverallHeight is measured to the roof, leaving out an antenna or
+%   %   % other thin part sticking up (as fcn_CarMesh3D_fitMeshToSpec now
+%   %   % fits it): published heights exclude antennas
 
 % TO-DO:
 %
@@ -288,7 +295,7 @@ measuredValues = [...
     maxValues(1) - minValues(1);
     measuredWidth;
     measuredWidthWithMirrors;
-    maxValues(3) - minValues(3);
+    fcn_INTERNAL_roofTop(vertices) - minValues(3);           % (to the roof: an antenna is left out)
     xFrontAxle - xRearAxle;
     wheelCenters(1,2) - wheelCenters(2,2);
     wheelCenters(3,2) - wheelCenters(4,2);
@@ -446,3 +453,32 @@ binRadius = accumarray(min(angleBin,36), radius, [36 1], @max, NaN);
 roundMin = 2*min(binRadius);
 roundMax = 2*max(binRadius);
 end % Ends fcn_INTERNAL_roundness
+
+%% fcn_INTERNAL_roofTop
+function roofTop = fcn_INTERNAL_roofTop(vertices)
+% The top of the roof, leaving out thin parts that stick up above it (a
+% mast or whip antenna, a single stray point). Scanning down from the
+% highest point in steps of 0.5% of the height, the roof is the first
+% height whose band (the 2% of the height below it) is at least 15% of
+% the vehicle's length and width across. Published heights exclude
+% antennas; the 2011 Fusion's antenna made its body 12% too short.
+zValues = vertices(:,3);
+zMin = min(zValues);
+zMax = max(zValues);
+heightRange = zMax - zMin;
+roofTop = zMax;
+if heightRange <= 0
+    return;
+end
+minimumSpan = 0.15*(max(vertices(:,1:2),[],1) - min(vertices(:,1:2),[],1));
+for zTop = zMax:-0.005*heightRange:zMin + 0.5*heightRange
+    inBand = zValues <= zTop & zValues >= zTop - 0.02*heightRange;
+    if any(inBand)
+        bandSpan = max(vertices(inBand,1:2),[],1) - min(vertices(inBand,1:2),[],1);
+        if all(bandSpan >= minimumSpan)
+            roofTop = max(zValues(inBand));
+            return;
+        end
+    end
+end
+end % Ends fcn_INTERNAL_roofTop

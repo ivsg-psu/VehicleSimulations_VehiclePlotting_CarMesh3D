@@ -42,9 +42,18 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 % overlaps its own mirror image), and it is to half the face budget, and then mirrored to make the right
 % half: the result is exactly symmetric, and each side gets the whole
 % budget's worth of detail. Wheels 1 (FL) and 3 (RL) are mirrored into 2
-% (FR) and 4 (RR). Steps 4 and 4b then run on the whole vehicle. Anything
-% that is not symmetric on the real vehicle (the steering wheel, a
-% one-sided fuel door) comes out on both sides.
+% (FR) and 4 (RR). Steps 4 and 4b then run on the whole vehicle.
+%
+% ONE-SIDED PIECES (KeepOneSided=true, the default, with Symmetric=true):
+% a piece that is on one side only (the steering wheel, a fuel door, an
+% offset exhaust tip or antenna) would come out on both sides, or, on the
+% right, be lost. So before the half is cut, each connected piece that is
+% off the centerline, has no wheel faces, and is under 1 m across is
+% mirrored, and its corners are looked for on the other side: a corner
+% has a match if some corner or face center of the mesh is within about
+% 2 to 5 cm of it. A piece with fewer than half its corners matched is
+% one-sided: it is taken out of the half, reduced by itself (its share of
+% the budget), and added back where it is, not mirrored.
 %
 % Keeping groups separate also gives sharp edges between parts, which
 % looks better with lighting.
@@ -53,7 +62,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %
 %       vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh,...
 %           (TargetFaces=numFaces), (WheelFaces=numFaces),...
-%           (Symmetric=flag), (PartShares=shares),...
+%           (Symmetric=flag), (KeepOneSided=flag), (PartShares=shares),...
 %           (MergeTolerance=tolerance), (ClearWheels=flag),...
 %           (RestoreTolerance=meters), (EdgeSmoothing=passes),...
 %           (StitchTolerance=meters),...
@@ -126,6 +135,11 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      (centerline at Y = 0, as after fcn_CarMesh3D_fitMeshToSpec).
 %      Default false.
 %
+%      KeepOneSided: with Symmetric=true, true (default) to keep pieces
+%      that are on one side only (see ONE-SIDED PIECES above) where they
+%      are, instead of mirroring the left half's copy. Ignored when
+%      Symmetric is false.
+%
 %      MergeTolerance: vertices closer than this distance (in mesh units,
 %      normally meters) are merged. Default is 1e-4 (0.1 mm).
 %
@@ -149,6 +163,11 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %           SimplifyInfo: a structure with OriginalFaces, FinalFaces,
 %               OriginalVertices, FinalVertices, and VisibilityFlips (the
 %               number of faces step 4b turned around; NaN if skipped)
+%               With Symmetric=true, also Symmetric (true),
+%               OneSidedPieces and OneSidedFaces (the pieces kept on one
+%               side, and their faces before the reduction), and
+%               OneSidedBoxes (one row per piece: [xmin xmax ymin ymax
+%               zmin zmax], to see which pieces they were).
 %      FaceMaterialIndex and FaceGroupIndex are set to the values of the
 %      first face of each group, since reduced faces no longer map to
 %      single original faces.
@@ -223,6 +242,13 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %   % * Faces are grouped by material too, so each face keeps its own
 %   %   % material name (they took their group's first face's material)
 
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_simplifyMesh
+%   % * KeepOneSided (default true): with Symmetric=true, pieces on one
+%   %   % side only are kept where they are, not mirrored (the steering
+%   %   % wheel of the 2009 Honda Fit came out on both sides; a piece on
+%   %   % the right only was lost)
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -244,6 +270,7 @@ arguments
     options.TargetFaces = 5000      % Approximate total faces after reduction
     options.WheelFaces = 2000       % Fewest faces each wheel keeps (round tires)
     options.Symmetric = false       % true: reduce the left half and mirror it
+    options.KeepOneSided = true     % Symmetric: keep one-sided pieces where they are
     options.PartShares = {}         % {part, fraction; ...}: set shares of the budget
     options.MergeTolerance = 1e-4   % Distance for merging vertices
     options.ClearWheels = true      % Delete other faces that pass through a tire
@@ -327,6 +354,11 @@ if 0==flag_max_speed
         % Check the Symmetric input
         if ~(islogical(options.Symmetric) || isnumeric(options.Symmetric)) || ~isscalar(options.Symmetric)
             error('Symmetric must be true or false');
+        end
+
+        % Check the KeepOneSided input
+        if ~(islogical(options.KeepOneSided) || isnumeric(options.KeepOneSided)) || ~isscalar(options.KeepOneSided)
+            error('KeepOneSided must be true or false');
         end
 
         % Check the RestoreTolerance input
@@ -1167,14 +1199,27 @@ function vehicleMesh = fcn_INTERNAL_symmetric(vehicleMesh, options)
 % corners within 2 cm of the centerline, go onto Y = 0), mirrors it
 % across Y = 0, and finishes the whole mesh
 Nfaces = size(vehicleMesh.Faces,1);
+% Pieces on one side only (the steering wheel) are not mirrored: they are
+% set aside, reduced by themselves, and added back where they are
+if options.KeepOneSided
+    [flagOneSided, numOneSided, oneSidedBoxes] = fcn_INTERNAL_oneSidedFaces(vehicleMesh);
+else
+    flagOneSided = false(Nfaces,1);
+    numOneSided = 0;
+    oneSidedBoxes = zeros(0,6);
+end
+sideTarget = 0;
+if any(flagOneSided)
+    sideTarget = min(nnz(flagOneSided), max(4*numOneSided, round(options.TargetFaces*nnz(flagOneSided)/Nfaces)));
+end
 % The half is cut 15 cm past the centerline, and reduced: a reduction
 % pulls in a piece's cut edge (a windshield would get a notch at the
 % centerline), so the cut is made where that does no harm
 cutMargin = 0.15;
 cornerY = reshape(vehicleMesh.Vertices(vehicleMesh.Faces(:),2), [], 3);
-keepFaces = any(cornerY >= -cutMargin, 2);
+keepFaces = any(cornerY >= -cutMargin, 2) & ~flagOneSided;
 halfMesh = fcn_INTERNAL_selectFaces(vehicleMesh, keepFaces, Nfaces);
-halfMesh = fcn_CarMesh3D_simplifyMesh(halfMesh, TargetFaces=max(4,round(options.TargetFaces/2*(1 + cutMargin))), ...
+halfMesh = fcn_CarMesh3D_simplifyMesh(halfMesh, TargetFaces=max(4,round((options.TargetFaces - sideTarget)/2*(1 + cutMargin))), ...
     WheelFaces=options.WheelFaces, PartShares=options.PartShares, MergeTolerance=options.MergeTolerance, ClearWheels=options.ClearWheels, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=options.StitchTolerance, VisibilityCheck=false, FigNum=-1);
 halfInfo = halfMesh.SimplifyInfo;
 % ...then trimmed at the centerline: faces with any corner at Y >= 0 are
@@ -1220,6 +1265,31 @@ for ith_field = 1:numel(fieldNames)
         wholeMesh.(thisField) = [halfMesh.(thisField); mirrored.(thisField)(keepMirror,:)];
     end
 end
+% The one-sided pieces, reduced by themselves, go back where they were
+if any(flagOneSided)
+    sideMesh = fcn_INTERNAL_selectFaces(vehicleMesh, flagOneSided, Nfaces);
+    sideMesh = fcn_CarMesh3D_simplifyMesh(sideMesh, TargetFaces=max(4,sideTarget), ...
+        WheelFaces=0, MergeTolerance=options.MergeTolerance, ClearWheels=false, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=0, VisibilityCheck=false, FigNum=-1);
+    wholeFaces = size(wholeMesh.Faces,1);
+    sideFaces = size(sideMesh.Faces,1);
+    fieldNames = fieldnames(wholeMesh);
+    for ith_field = 1:numel(fieldNames)
+        thisField = fieldNames{ith_field};
+        if any(strcmp(thisField, {'Vertices','Faces'})) || ~(isnumeric(wholeMesh.(thisField)) || islogical(wholeMesh.(thisField))) ...
+                || size(wholeMesh.(thisField),1)~=wholeFaces
+            continue;
+        end
+        if isfield(sideMesh,thisField) && size(sideMesh.(thisField),1)==sideFaces && size(sideMesh.(thisField),2)==size(wholeMesh.(thisField),2)
+            wholeMesh.(thisField) = [wholeMesh.(thisField); sideMesh.(thisField)];
+        else
+            padRows = wholeMesh.(thisField)(ones(sideFaces,1),:);
+            padRows(:) = 0;
+            wholeMesh.(thisField) = [wholeMesh.(thisField); padRows];
+        end
+    end
+    wholeMesh.Faces = [wholeMesh.Faces; sideMesh.Faces + size(wholeMesh.Vertices,1)];
+    wholeMesh.Vertices = [wholeMesh.Vertices; sideMesh.Vertices];
+end
 if isfield(wholeMesh,'SimplifyInfo')
     wholeMesh = rmfield(wholeMesh,'SimplifyInfo');
 end
@@ -1230,11 +1300,89 @@ vehicleMesh = fcn_CarMesh3D_simplifyMesh(wholeMesh, TargetFaces=size(wholeMesh.F
     MaxVisibilityFaces=options.MaxVisibilityFaces, FigNum=-1);
 vehicleMesh.SimplifyInfo.OriginalFaces = Nfaces;
 vehicleMesh.SimplifyInfo.Symmetric = true;
+vehicleMesh.SimplifyInfo.OneSidedPieces = numOneSided;
+vehicleMesh.SimplifyInfo.OneSidedFaces = nnz(flagOneSided);
+vehicleMesh.SimplifyInfo.OneSidedBoxes = oneSidedBoxes;
 % (the counts of the half's steps, for both halves)
 vehicleMesh.SimplifyInfo.WheelClearFaces = vehicleMesh.SimplifyInfo.WheelClearFaces + 2*halfInfo.WheelClearFaces;
 vehicleMesh.SimplifyInfo.RestoreMoves = 2*halfInfo.RestoreMoves;
 vehicleMesh.SimplifyInfo.StitchMoves = vehicleMesh.SimplifyInfo.StitchMoves + 2*halfInfo.StitchMoves;
 end % Ends fcn_INTERNAL_symmetric
+
+%% fcn_INTERNAL_oneSidedFaces
+function [flagOneSided, numOneSided, oneSidedBoxes] = fcn_INTERNAL_oneSidedFaces(vehicleMesh)
+% Faces of pieces that are on one side only: connected pieces (corners at
+% the same place count as shared) that are off the centerline, have no
+% wheel faces, and are under maxSize across, whose mirrored corners
+% mostly find no corner or face center of the mesh nearby
+cellSize = 0.015;      % m: a match is within 1 to 3.5 cells (about 2 to 5 cm)
+maxSize = 1.0;         % m: larger pieces are body panels, assumed paired
+matchFraction = 0.5;   % pieces with fewer corners matched are one-sided
+vertices = vehicleMesh.Vertices;
+faces = vehicleMesh.Faces;
+Nfaces = size(faces,1);
+flagOneSided = false(Nfaces,1);
+numOneSided = 0;
+oneSidedBoxes = zeros(0,6);
+if Nfaces==0
+    return;
+end
+% Pieces, by corners at the same place
+[~, firstVertex, vertexKey] = unique(round(vertices/1e-5), 'rows');
+vertexKey = vertexKey(:);
+keyFaces = vertexKey(faces);
+if size(keyFaces,2)~=3
+    keyFaces = reshape(keyFaces, [], 3);
+end
+Nkeys = numel(firstVertex);
+pieceGraph = graph([keyFaces(:,1); keyFaces(:,2); keyFaces(:,3)], ...
+    [keyFaces(:,2); keyFaces(:,3); keyFaces(:,1)], [], Nkeys);
+keyPiece = conncomp(pieceGraph)';
+facePiece = keyPiece(keyFaces(:,1));
+Npieces = max(keyPiece);
+keyPoints = vertices(firstVertex,:);
+% Candidates: off the centerline, no wheel faces, small
+pieceMin = zeros(Npieces,3); pieceMax = zeros(Npieces,3);
+for ith_axis = 1:3
+    pieceMin(:,ith_axis) = accumarray(keyPiece, keyPoints(:,ith_axis), [Npieces 1], @min);
+    pieceMax(:,ith_axis) = accumarray(keyPiece, keyPoints(:,ith_axis), [Npieces 1], @max);
+end
+if isfield(vehicleMesh,'FaceWheelIndex')
+    pieceWheel = accumarray(facePiece, double(vehicleMesh.FaceWheelIndex(:)>0), [Npieces 1], @max);
+else
+    pieceWheel = zeros(Npieces,1);
+end
+offCenter = pieceMin(:,2) > cellSize | pieceMax(:,2) < -cellSize;
+pieceSize = vecnorm(pieceMax - pieceMin, 2, 2);
+candidate = offCenter & pieceWheel==0 & pieceSize < maxSize;
+if ~any(candidate)
+    return;
+end
+% Every corner and face center of the mesh, by grid cell
+faceCenters = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
+targetCells = floor([keyPoints; faceCenters]/cellSize);
+queryKeys = find(candidate(keyPiece));
+queryCells = floor((keyPoints(queryKeys,:).*[1 -1 1])/cellSize);
+cellLow = min([targetCells; queryCells],[],1) - 1;
+cellSpan = max([targetCells; queryCells],[],1) - cellLow + 2;
+cellCode = @(c) ((c(:,1) - cellLow(1))*cellSpan(2) + (c(:,2) - cellLow(2)))*cellSpan(3) + (c(:,3) - cellLow(3));
+targetCodes = unique(cellCode(targetCells));
+matched = false(numel(queryKeys),1);
+[dx, dy, dz] = ndgrid(-1:1, -1:1, -1:1);
+offsets = [dx(:) dy(:) dz(:)];
+for ith_offset = 1:size(offsets,1)
+    unmatched = ~matched;
+    matched(unmatched) = ismember(cellCode(queryCells(unmatched,:) + offsets(ith_offset,:)), targetCodes);
+end
+% Pieces with too few corners matched are one-sided
+queryPiece = keyPiece(queryKeys);
+pieceMatched = accumarray(queryPiece, double(matched), [Npieces 1]);
+pieceCorners = accumarray(queryPiece, 1, [Npieces 1]);
+oneSided = candidate & pieceMatched < matchFraction*max(pieceCorners,1);
+numOneSided = nnz(oneSided);
+flagOneSided = oneSided(facePiece);
+oneSidedBoxes = [pieceMin(oneSided,1) pieceMax(oneSided,1) pieceMin(oneSided,2) pieceMax(oneSided,2) pieceMin(oneSided,3) pieceMax(oneSided,3)];
+end % Ends fcn_INTERNAL_oneSidedFaces
 
 %% fcn_INTERNAL_selectFaces
 function subMesh = fcn_INTERNAL_selectFaces(vehicleMesh, keepFaces, Nfaces)

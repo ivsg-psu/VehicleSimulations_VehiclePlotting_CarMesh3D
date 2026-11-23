@@ -1,9 +1,9 @@
 Standard checks for 2026 CarMesh3D Generic StationWagon
-Written 2026-11-21 20:56 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 17:16 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 14402 faces, 23729 vertices
+Mesh: 13143 faces, 22695 vertices
 Dimensions: 12 of 12 within tolerance
-Ground contact during the test motion: 0 of 501 samples
+Ground contact during the test motion: 0 of 503 samples
 
 Files:
   C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_StationWagon\checks\testMotion.csv

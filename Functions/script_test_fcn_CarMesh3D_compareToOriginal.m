@@ -6,6 +6,10 @@
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_compareToOriginal
 %   % * First write
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_compareToOriginal
+%   % * Tests the parts table and flips seen in the download too
 
 % TO-DO:
 %
@@ -50,6 +54,23 @@ assert(report.Views.LabelChangePercent(topRow) > 50);
 assert(report.Views.FlippedPercent(leftRow) > 50);
 assert(~isempty(report.Spots));
 assert(ishandle(figNum));
+
+% (the parts table: the top's glass is gone, as trim; the body lost the
+% front and rear sides, a third of its area)
+glassRow = strcmp(report.Parts.Label, 'glass');
+assert(report.Parts.OriginalFaces(glassRow)==2 && report.Parts.ReducedFaces(glassRow)==0);
+assert(report.Parts.Missing(glassRow) && any(strcmp(report.MissingLabels, 'glass')));
+bodyRow = strcmp(report.Parts.Label, 'body');
+assert(~report.Parts.Missing(bodyRow) && report.Parts.AreaChangePercent(bodyRow) < -20);
+
+%% A one-sided surface seen from behind in both: not a flip
+% (both meshes have their left side inside out, as a download's spokes
+% are seen from their back: only flips the reduction made are counted)
+insideOut = boxMesh;
+insideOut.Faces(9:10,:) = insideOut.Faces(9:10,[1 3 2]);
+report = fcn_CarMesh3D_compareToOriginal(insideOut, insideOut, FigNum=-1);
+assert(report.Totals.FlippedPercent==0, 'The download faces away there too: not counted');
+assert(isempty(report.MissingLabels));
 
 %% FAIL: not labeled meshes
 if 1==0

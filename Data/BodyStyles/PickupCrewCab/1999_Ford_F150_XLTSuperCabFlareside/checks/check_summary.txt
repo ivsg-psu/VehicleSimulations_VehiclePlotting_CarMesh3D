@@ -1,7 +1,7 @@
 Standard checks for 1999 Ford F150 XLTSuperCabFlareside
-Written 2026-11-21 20:43 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:39 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 5106 faces, 5189 vertices
+Mesh: 3816 faces, 4272 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 525 samples
 

@@ -1,7 +1,7 @@
 Standard checks for 2026 CarMesh3D Generic FullSizeCargoVan
-Written 2026-11-21 21:04 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 17:14 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 10415 faces, 11600 vertices
+Mesh: 9581 faces, 11616 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 497 samples
 

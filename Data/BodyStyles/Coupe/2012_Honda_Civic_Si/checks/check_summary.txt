@@ -1,7 +1,7 @@
 Standard checks for 2012 Honda Civic Si
-Written 2026-11-21 20:33 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:28 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 22607 faces, 22689 vertices
+Mesh: 21757 faces, 22139 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 499 samples
 

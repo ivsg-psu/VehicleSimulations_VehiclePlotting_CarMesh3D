@@ -1,7 +1,7 @@
 Standard checks for 2009 Honda Fit Sport
-Written 2026-11-21 20:26 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:38 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 23672 faces, 33310 vertices
+Mesh: 22782 faces, 32160 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 495 samples
 

@@ -68,6 +68,30 @@ assert(isequal(liftedMesh.Vertices(1:4,:), testMesh.Vertices(1:4,:)));
 % Make sure no plot was made
 assert(isempty(findobj('Number',figNum)));
 
+%% TEST case: glass is lifted over trim (glass is always outermost)
+figNum = 20003;
+titleString = sprintf('TEST case: glass is lifted over trim (glass is always outermost)');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+
+% (a glass square on a trim square: the glass moves, not the trim; the
+% 2009 Honda Fit's quarter-window trim was lifted in front of its glass)
+testMesh = fcn_INTERNAL_twoSquares('glass', 0);
+testMesh.FacePartIndex(1:2) = find(strcmp(testMesh.PartNames, 'trim'));
+[liftedMesh, numLifted] = fcn_CarMesh3D_separateOverlays(testMesh, FigNum=[]);
+assert(numLifted == 2);
+assert(max(abs(liftedMesh.Vertices(5:8,3) - 0.002)) < 1e-12);       % (the glass, lifted)
+assert(isequal(liftedMesh.Vertices(1:4,:), testMesh.Vertices(1:4,:)));  % (the trim, not)
+% (and the other way round: trim on glass, the glass is still the one lifted)
+testMesh = fcn_INTERNAL_twoSquares('trim', 0);
+testMesh.FacePartIndex(1:2) = find(strcmp(testMesh.PartNames, 'glass'));
+[liftedMesh, numLifted] = fcn_CarMesh3D_separateOverlays(testMesh, FigNum=[]);
+assert(numLifted == 2);
+assert(max(abs(liftedMesh.Vertices(1:4,3) - 0.002)) < 1e-12);
+assert(isequal(liftedMesh.Vertices(5:8,:), testMesh.Vertices(5:8,:)));
+
+% Make sure no plot was made
+assert(isempty(findobj('Number',figNum)));
+
 %% TEST case: wheels, same parts, and faces apart are left alone
 figNum = 20002;
 titleString = sprintf('TEST case: wheels, same parts, and faces apart are left alone');

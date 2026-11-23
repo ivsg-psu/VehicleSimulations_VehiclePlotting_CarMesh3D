@@ -66,6 +66,16 @@
 %   % * Added Step 14: the vehicle browser (fcn_CarMesh3D_browseVehicles)
 %   % * Step 6 restores the ground clearance after reduction
 %   %   % (fcn_CarMesh3D_restoreGroundClearance), so the check in Step 7 passes
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In script_demo_CarMesh3D
+%   % * Opens with a menu of demos (fcn_DebugTools_menuManageSelections):
+%   %   % the library browser (first), the viewer, a shared view, the mesh editor, the reviewer,
+%   %   % plotting and animating, the change log, the vehicle list, the
+%   %   % vehicle browser, and the step-by-step demo (Steps 1-14 below).
+%   %   % Each demo prints its commands, on a temporary copy of a vehicle
+%   %   % (fcn_CarMesh3D_makeDemoCopy: changes are not saved) and on the
+%   %   % actual vehicle, then runs them (fcn_CarMesh3D_runDemoExample)
 
 % TO-DO:
 %
@@ -122,6 +132,60 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 disp('Welcome to the demo code for the CarMesh3D library!')
+
+%% The demo menu
+% A menu, in the command window, of what can be demonstrated: type an
+% option's number (or letter) and press Enter. Each example first prints
+% its commands, so they can be copied and pasted:
+%   * the commands it runs, on a temporary COPY of a vehicle (made by
+%     fcn_CarMesh3D_makeDemoCopy): changes made in the demo (painted
+%     labels, review answers) are saved only in the copy, NOT in the
+%     vehicle, and the copy is replaced each time an example starts;
+%   * the same commands for the actual vehicle, whose changes ARE saved.
+% The commands run in this workspace, so their outputs (viewSettings,
+% editedMesh, reviewTable, ...) are here afterward. Choose q to leave the
+% menu, or p to run the step-by-step demo below it (Steps 1-14: building
+% a mesh from a downloaded model). The menu remembers which examples were
+% shown (in Data\answersSoFar_CarMesh3D_demo.mat); s clears the marks.
+
+demoVehicleID = '2009_Honda_Fit_Sport';   % The vehicle the examples copy
+flag_runStepByStepDemo = false;           % (set by the menu's p option)
+demoExamples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=demoVehicleID);
+
+clear demoMenu
+for ith_example = 1:numel(demoExamples)
+    demoMenu(ith_example).MenuChar = sprintf('%.0f', ith_example); %#ok<SAGROW>
+    demoMenu(ith_example).Text = demoExamples(ith_example).Title;
+    % (runs the example, marks it shown, and waits before the menu returns)
+    demoMenu(ith_example).FunctionSubmission = sprintf(['fcn_CarMesh3D_runDemoExample(''%s'', VehicleID=''%s''); ' ...
+        'answers{%.0f} = ''shown''; disp('' ''); disp(''The commands are printed above. Press any key to return to the menu.''); pause;'], ...
+        demoExamples(ith_example).Name, demoVehicleID, ith_example);
+end
+demoMenu(end+1).MenuChar = 'w';
+demoMenu(end).Text = sprintf(['WARNING: the examples use a temporary COPY of the %s. ' ...
+    'Changes made in them are NOT saved to the vehicle (w: more)'], strrep(demoVehicleID, '_', ' '));
+demoMenu(end).FunctionSubmission = sprintf('fcn_CarMesh3D_runDemoExample(''warning'', VehicleID=''%s''); pause;', demoVehicleID);
+demoMenu(end+1).MenuChar = 'p';
+demoMenu(end).Text = 'script_demo_CarMesh3D: leave the menu and run the step-by-step demo (Steps 1-14: build a mesh from a download)';
+demoMenu(end).FunctionSubmission = 'flag_exitMain = 1; assignin(''base'', ''flag_runStepByStepDemo'', true);';
+demoMenu(end+1).MenuChar = 's';
+demoMenu(end).Text = 'Start over: clear the "shown" marks (asks to confirm while some are not shown)';
+demoMenu(end).FunctionSubmission = 'answers = cell(size(answers));';
+demoMenu(end+1).MenuChar = 'q';
+demoMenu(end).Text = 'Quit the menu (the last example''s commands are printed again)';
+demoMenu(end).FunctionSubmission = 'flag_exitMain = 1;';
+[demoMenu.AnswerDefault] = deal(' ');
+[demoMenu.FunctionMore] = deal('');
+[demoMenu.isAllowableMenuOption] = deal(true);
+[demoMenu.AssignmentString] = deal('CarMesh3D_demo');
+
+fcn_DebugTools_menuManageSelections(demoMenu);
+
+% Leaving the menu: the last example's commands again, to copy
+fcn_CarMesh3D_runDemoExample('last');
+if ~flag_runStepByStepDemo
+    return;   % (the step-by-step demo was not chosen)
+end
 
 %% Step 1: The vehicle specification
 % Every mesh is scaled to agree with published data for the vehicle. The

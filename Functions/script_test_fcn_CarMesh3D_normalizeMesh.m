@@ -124,6 +124,16 @@ assert(max(abs(wrongMesh.Vertices(:,3) - rightMesh.Vertices(:,3)))<1e-9);
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: Yaw turns the model about its up axis
+fprintf(1,'TEST case: Yaw\n');
+straightMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', FigNum=-1);
+turnedMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Yaw=90, FigNum=-1);
+assert(abs(det(turnedMesh.NormalizeInfo.RotationMatrix) - 1)<1e-12);
+assert(abs(range(turnedMesh.Vertices(:,2)) - range(straightMesh.Vertices(:,1)))<1e-9, 'Its length now runs along Y');
+assert(abs(range(turnedMesh.Vertices(:,3)) - range(straightMesh.Vertices(:,3)))<1e-9, 'Its height is unchanged');
+zeroMesh = fcn_CarMesh3D_normalizeMesh(messyMesh, UpAxis='+y', ForwardAxis='+z', Yaw=0, FigNum=-1);
+assert(isequal(zeroMesh.Vertices, straightMesh.Vertices), 'Yaw=0 changes nothing');
+
 %% TEST case: A model in inches is detected by auto units
 figNum = 20003;
 titleString = sprintf('TEST case: A model in inches is detected by auto units');

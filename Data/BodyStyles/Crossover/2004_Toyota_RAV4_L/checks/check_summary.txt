@@ -1,7 +1,7 @@
 Standard checks for 2004 Toyota RAV4 L
-Written 2026-11-21 20:37 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:28 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 16752 faces, 22766 vertices
+Mesh: 15690 faces, 21960 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 495 samples
 

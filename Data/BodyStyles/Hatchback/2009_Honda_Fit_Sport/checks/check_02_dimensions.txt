@@ -2,7 +2,7 @@ Quantity	Target_m	Measured_m	Error_m	PercentError	Pass
 OverallLength	4.10464	4.10464	0	0	1
 OverallWidth	1.69418	NaN	NaN	NaN	1
 WidthWithMirrors	2.024	2.024	0	0	1
-OverallHeight	1.524	1.524	0	0	1
+OverallHeight	1.524	1.52096570332105	-0.00303429667894983	-0.199100831952089	1
 Wheelbase	2.49936	2.49936	0	0	1
 TrackFront	1.47574	1.47574	0	0	1
 TrackRear	1.45796	1.45796	0	0	1

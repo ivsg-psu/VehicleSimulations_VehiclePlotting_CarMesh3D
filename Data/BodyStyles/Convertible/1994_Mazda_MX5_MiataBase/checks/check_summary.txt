@@ -1,7 +1,7 @@
 Standard checks for 1994 Mazda MX5 MiataBase
-Written 2026-11-21 21:02 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-22 19:28 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 26075 faces, 15986 vertices
+Mesh: 24953 faces, 15226 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 5 of 489 samples
 

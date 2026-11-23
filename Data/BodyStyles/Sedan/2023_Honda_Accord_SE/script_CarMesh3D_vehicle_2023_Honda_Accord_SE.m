@@ -95,7 +95,7 @@
 vehicleID = '2023_Honda_Accord_SE';   % Must match this folder's name
 
 % The downloaded 3D model, relative to this folder
-modelFile = 'honda_accord_11_gen.glb';   % (left in this folder as downloaded)
+modelFile = fullfile('model','honda_accord_11_gen.glb');   % (left in this folder as downloaded)
 
 % No model of this vehicle? Set modelFile = '' and give its body style: an
 % ID from Data\bodyStyles.csv, such as 'sedan', 'minivan', or

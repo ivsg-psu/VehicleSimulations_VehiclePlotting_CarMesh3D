@@ -31,6 +31,9 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %                                behind and above (every second frame).
 %   check_10_groundContact.png   Body clearance over the whole motion
 %                                (fcn_CarMesh3D_checkGroundContact).
+%   Each .png also has a .fig of the same name, to open with openfig and
+%   zoom, pan, or rotate. check_03_labels.fig is one 3D view of the
+%   labels (fcn_CarMesh3D_plotLabels), not the four pictures.
 %   check_summary.txt            The list of files, the dimension check,
 %                                and the ground-contact result.
 %   testMotion.csv               The standard test motion, as a CSV file.
@@ -119,6 +122,8 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %   %   % light states) are captured again, after waiting longer, when the
 %   %   % vehicle has not been drawn yet: in a MATLAB started with -batch,
 %   %   % most labels pictures of the 2026_11_21 remake were blank
+%   % * Each picture is also saved as a .fig file (Sean: PNGs cannot be
+%   %   % zoomed or rotated); check_03_labels.fig is one rotatable 3D view
 
 % TO-DO:
 %
@@ -402,7 +407,20 @@ figureHandle = figure(figNum);
 set(figureHandle,'Units','pixels');
 position = get(figureHandle,'Position');
 imwrite(fcn_INTERNAL_capture(figureHandle, position(3:4)), fileName);
+fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_savePicture
+
+%% fcn_INTERNAL_saveFig
+function fcn_INTERNAL_saveFig(figureHandle, pictureFile)
+% Saves the figure as a .fig file next to its picture (same name), to
+% open later with openfig and zoom, pan, or rotate. The saved copy opens
+% visible, even when it was made in a MATLAB with no display (-batch).
+[folder, name] = fileparts(pictureFile);
+oldCreateFcn = get(figureHandle,'CreateFcn');
+set(figureHandle,'CreateFcn','set(gcbo,''Visible'',''on'')');
+savefig(figureHandle, fullfile(folder,[name '.fig']), 'compact');
+set(figureHandle,'CreateFcn',oldCreateFcn);
+end % Ends fcn_INTERNAL_saveFig
 
 %% fcn_INTERNAL_standardCameras
 function cameras = fcn_INTERNAL_standardCameras(vehicleMesh)
@@ -617,6 +635,12 @@ for ith_view = 1:4
 end
 legendText = 'Labels:  body light gray | glass light blue | wheels black | trim dark gray | light with no type magenta | headlight yellow | turn signal orange | running cyan | tail red | backup green';
 fileName = fcn_INTERNAL_montage(pictures, 2, 2, sprintf('%s: part and light labels', settings.VehicleName), legendText, settings, fileName);
+
+% The .fig is one 3D view that can be rotated and zoomed (in place of the
+% montage's .fig, which is only a picture)
+figureHandle = fcn_INTERNAL_freshFigure(settings.FigNum, [1000 700], [1 1 1]);
+fcn_CarMesh3D_plotLabels(vehicleMesh, Title=settings.VehicleName, FigNum=settings.FigNum);
+fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_labelPicture
 
 %% fcn_INTERNAL_lightStatesPicture
@@ -678,6 +702,7 @@ annotation(figureHandle,'textbox','Units','pixels','Position',[1 1 figureSize(1)
     'HorizontalAlignment','center','VerticalAlignment','middle','Interpreter','none');
 montageImage = fcn_INTERNAL_capture(figureHandle, figureSize);
 imwrite(montageImage, fileName);
+fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_montage
 
 %% fcn_INTERNAL_freshFigure

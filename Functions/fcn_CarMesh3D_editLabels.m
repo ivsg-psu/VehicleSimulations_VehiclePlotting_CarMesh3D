@@ -17,10 +17,27 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %       Group:       a regular expression matched to the group name
 %       CurrentPart: only faces now labeled as this part
 %       FaceIndices: a list of face numbers
+%       Points:      an N x 3 list of face centers, in meters: the face
+%                    whose center is nearest each point is picked, if it
+%                    is within PointTolerance (default 0.005 m). Exact
+%                    faces of a finished mesh, painted in the Model
+%                    Reviewer (fcn_CarMesh3D_reviewVehicle), are given so
 % and say what they become with:
-%       Part:        'body', 'glass', 'wheel', 'light', or 'trim'
+%       Part:        'body', 'glass', 'wheel', 'light', 'trim', or
+%                    'interior' (added to PartNames if needed); or
+%                    'delete' to take the picked faces out of the mesh
+%                    (a part of the download not wanted, such as a rear
+%                    wiper or an antenna)
 %       LightType:   'headlight', 'turnsignal', 'running', 'tail', or
 %                    'backup' (this also makes Part 'light')
+%       AlsoLightTypes: more light types the picked faces also are (a
+%                    cell array, such as {'turnsignal'}: a rear lamp that
+%                    is a tail light and flashes as a turn signal; a front
+%                    running light that is a turn signal too). They are
+%                    kept in FaceLightFunctions (one column per light
+%                    type); fcn_CarMesh3D_plotVehicle lights the face for
+%                    any of them. Faces that are not lights yet become
+%                    lights of the first type given
 %       Color:       optional [r g b] for the picked faces
 %       Name:        optional description, printed in the summary
 % Example: make both taillight housings into tail lights:
@@ -74,7 +91,10 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 % OUTPUTS:
 %
 %      vehicleMesh: the mesh with FacePartIndex, FaceLightType,
-%      FaceWheelIndex, FaceColors, and FaceAlpha updated.
+%      FaceWheelIndex, FaceColors, and FaceAlpha updated (and
+%      FaceLightFunctions, an Nfaces x numel(LightTypeNames) logical
+%      matrix, when an edit gives AlsoLightTypes: each light face's
+%      functions, its FaceLightType among them).
 %
 %      appliedEdits: a structure array with one element per edit made
 %      (scripted and interactive), with the fields Name, Part,
@@ -104,6 +124,28 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   % * Faces relabeled to a part shown in texture colors (labelParts
 %   %   % TextureColorParts) keep their texture colors, unless the edit
 %   %   % gives a color
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Part 'delete': the picked faces are taken out of the mesh (a part
+%   %   % of the download not wanted, such as a rear wiper), written by the
+%   %   % Model Reviewer for the vehicle's script
+%   % * Points (with PointTolerance): faces picked by their centers, for
+%   %   % the faces painted in the Model Reviewer on a finished mesh
+
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Part 'interior' (fcn_CarMesh3D_labelInterior): allowed in edits and
+%   %   % in the editor; added to PartNames when a mesh does not have it;
+%   %   % its faces keep their own colors. Parts are found by name in the
+%   %   % mesh's own PartNames, and colored by name
+%
+% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * AlsoLightTypes: a light face can have several functions (a tail
+%   %   % light that is also a turn signal), kept in FaceLightFunctions;
+%   %   % fcn_CarMesh3D_plotVehicle lights it for any of them (Sean's
+%   %   % multi-function lights, 01:57)
 
 % TO-DO:
 %
@@ -170,7 +212,7 @@ end
 %              |_|
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-partNames = {'body';'glass';'wheel';'light';'trim'};
+partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
 lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
 
 % Edits may be a struct array or a cell array; use a cell array inside
@@ -199,7 +241,7 @@ if 0==flag_max_speed
         if ~iscell(editList)
             error('Edits must be a cell array of structures (or a structure array)');
         end
-        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Part','LightType','Color'};
+        allowedFields = {'Name','Region','BothSides','Material','Group','CurrentPart','FaceIndices','Points','PointTolerance','Part','LightType','AlsoLightTypes','Color'};
         for ith_edit = 1:length(editList)
             thisEdit = editList{ith_edit};
             if ~isstruct(thisEdit) || ~isscalar(thisEdit)
@@ -209,11 +251,14 @@ if 0==flag_max_speed
             if ~isempty(unknownFields)
                 error('Edit %d has unknown field(s): %s. Allowed: %s',ith_edit,strjoin(unknownFields,', '),strjoin(allowedFields,', '));
             end
-            if ~fcn_INTERNAL_hasValue(thisEdit,'Part') && ~fcn_INTERNAL_hasValue(thisEdit,'LightType')
-                error('Edit %d must say what to label the faces, with Part or LightType',ith_edit);
+            if ~fcn_INTERNAL_hasValue(thisEdit,'Part') && ~fcn_INTERNAL_hasValue(thisEdit,'LightType') && ~fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes')
+                error('Edit %d must say what to label the faces, with Part, LightType or AlsoLightTypes',ith_edit);
             end
-            if fcn_INTERNAL_hasValue(thisEdit,'Part') && ~any(strcmpi(thisEdit.Part, partNames))
-                error('Edit %d has an unknown Part: %s. Allowed: %s',ith_edit,char(thisEdit.Part),strjoin(partNames',', '));
+            if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lightTypeNames))
+                error('Edit %d has an unknown AlsoLightTypes entry. Allowed: %s',ith_edit,strjoin(lightTypeNames',', '));
+            end
+            if fcn_INTERNAL_hasValue(thisEdit,'Part') && ~any(strcmpi(thisEdit.Part, [partNames; {'delete'}]))
+                error('Edit %d has an unknown Part: %s. Allowed: %s, delete',ith_edit,char(thisEdit.Part),strjoin(partNames',', '));
             end
             if fcn_INTERNAL_hasValue(thisEdit,'LightType') && ~any(strcmpi(thisEdit.LightType, lightTypeNames))
                 error('Edit %d has an unknown LightType: %s. Allowed: %s',ith_edit,char(thisEdit.LightType),strjoin(lightTypeNames',', '));
@@ -274,9 +319,25 @@ appliedEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 for ith_edit = 1:length(editList)
     thisEdit = editList{ith_edit};
     selectedFaces = fcn_INTERNAL_selectFaces(vehicleMesh, thisEdit);
-    [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces, ...
-        fcn_INTERNAL_getValue(thisEdit,'Part',''), fcn_INTERNAL_getValue(thisEdit,'LightType',''), ...
-        fcn_INTERNAL_getValue(thisEdit,'Color',[]), options.GlassAlpha);
+    if strcmpi(fcn_INTERNAL_getValue(thisEdit,'Part',''), 'delete')
+        % (faces taken out of the mesh; the face numbers of later edits
+        % are the new ones)
+        vehicleMesh = fcn_INTERNAL_deleteFaces(vehicleMesh, selectedFaces);
+        newPart = 'delete';
+        newLightType = '';
+    else
+        newPart = '';
+        newLightType = '';
+        if fcn_INTERNAL_hasValue(thisEdit,'Part') || fcn_INTERNAL_hasValue(thisEdit,'LightType')
+            [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces, ...
+                fcn_INTERNAL_getValue(thisEdit,'Part',''), fcn_INTERNAL_getValue(thisEdit,'LightType',''), ...
+                fcn_INTERNAL_getValue(thisEdit,'Color',[]), options.GlassAlpha);
+        end
+        if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes')
+            [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_addLightFunctions(vehicleMesh, selectedFaces, ...
+                lower(cellstr(thisEdit.AlsoLightTypes)), newPart, newLightType, options.GlassAlpha);
+        end
+    end
     appliedEdits(end+1) = struct('Name', fcn_INTERNAL_getValue(thisEdit,'Name',sprintf('Edit %d',ith_edit)), ...
         'Part', newPart, 'LightType', newLightType, 'FaceIndices', selectedFaces(:)'); %#ok<AGROW>
     if 0==flag_max_speed && isempty(selectedFaces)
@@ -335,6 +396,70 @@ end % Ends main function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% fcn_INTERNAL_hasValue
+function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_addLightFunctions(vehicleMesh, selectedFaces, alsoTypes, newPart, newLightType, glassAlpha)
+% Gives the selected faces more light functions (FaceLightFunctions: one
+% column per light type, each light face's own type among them). Faces
+% that are not lights yet become lights of the first type given.
+Nfaces = size(vehicleMesh.Faces,1);
+lightTypeNames = vehicleMesh.LightTypeNames;
+if ~isfield(vehicleMesh,'FaceLightFunctions') || size(vehicleMesh.FaceLightFunctions,1) ~= Nfaces ...
+        || size(vehicleMesh.FaceLightFunctions,2) ~= numel(lightTypeNames)
+    functions = false(Nfaces, numel(lightTypeNames));
+    flagTyped = vehicleMesh.FaceLightType(:) > 0;
+    functions(sub2ind(size(functions), find(flagTyped), vehicleMesh.FaceLightType(flagTyped))) = true;
+    vehicleMesh.FaceLightFunctions = functions;
+end
+if isempty(selectedFaces)
+    return;
+end
+flagNotLight = vehicleMesh.FaceLightType(selectedFaces) == 0;
+if any(flagNotLight)
+    [vehicleMesh, ~, ~] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces(flagNotLight), 'light', alsoTypes{1}, [], glassAlpha);
+end
+typeColumns = find(ismember(lightTypeNames, alsoTypes));
+vehicleMesh.FaceLightFunctions(selectedFaces, typeColumns) = true;
+if isempty(newPart)
+    newPart = 'light';
+end
+if isempty(newLightType)
+    newLightType = ['+' strjoin(alsoTypes, '+')];
+else
+    newLightType = [newLightType '+' strjoin(alsoTypes, '+')];
+end
+end % Ends fcn_INTERNAL_addLightFunctions
+
+function vehicleMesh = fcn_INTERNAL_deleteFaces(vehicleMesh, deletedFaces)
+% Takes faces out of the mesh, with every per-face field (any field with
+% one row per face), and the vertices no face uses any more
+Nfaces = size(vehicleMesh.Faces,1);
+keep = true(Nfaces,1);
+keep(deletedFaces) = false;
+fieldList = fieldnames(vehicleMesh);
+for ith_field = 1:numel(fieldList)
+    name = fieldList{ith_field};
+    value = vehicleMesh.(name);
+    if strcmp(name, 'Vertices') || ~(isnumeric(value) || islogical(value) || iscell(value) || isstring(value))
+        continue;
+    end
+    if size(value,1) == Nfaces && Nfaces > 1
+        vehicleMesh.(name) = value(keep,:);
+    end
+end
+% (vertices no longer used: dropped, and the faces renumbered)
+used = unique(vehicleMesh.Faces(:));
+newNumber = zeros(size(vehicleMesh.Vertices,1),1);
+newNumber(used) = 1:numel(used);
+Nvertices = size(vehicleMesh.Vertices,1);
+for ith_field = 1:numel(fieldList)
+    name = fieldList{ith_field};
+    value = vehicleMesh.(name);
+    if ~strcmp(name, 'Faces') && (isnumeric(value) || islogical(value)) && size(value,1) == Nvertices && Nvertices > 1
+        vehicleMesh.(name) = value(used,:);   % (per-vertex fields, such as normals)
+    end
+end
+vehicleMesh.Faces = newNumber(vehicleMesh.Faces);
+end % Ends fcn_INTERNAL_deleteFaces
+
 function flag = fcn_INTERNAL_hasValue(thisStruct, fieldName)
 flag = isfield(thisStruct, fieldName) && ~isempty(thisStruct.(fieldName));
 end % Ends fcn_INTERNAL_hasValue
@@ -360,6 +485,21 @@ function selectedFaces = fcn_INTERNAL_selectFaces(vehicleMesh, thisEdit)
 % Returns the indices of the faces that pass every selection field given
 Nfaces = size(vehicleMesh.Faces,1);
 flagSelected = true(Nfaces,1);
+
+if fcn_INTERNAL_hasValue(thisEdit,'Points')
+    % (the face nearest each point, if close enough)
+    centers = fcn_INTERNAL_faceCenters(vehicleMesh);
+    tolerance = fcn_INTERNAL_getValue(thisEdit, 'PointTolerance', 0.005);
+    flagPoint = false(Nfaces,1);
+    points = thisEdit.Points;
+    for ith_point = 1:size(points,1)
+        [distanceSquared, nearestFace] = min(sum((centers - points(ith_point,:)).^2, 2));
+        if distanceSquared <= tolerance^2
+            flagPoint(nearestFace) = true;
+        end
+    end
+    flagSelected = flagSelected & flagPoint;
+end
 
 if fcn_INTERNAL_hasValue(thisEdit,'FaceIndices')
     flagIndex = false(Nfaces,1);
@@ -415,9 +555,9 @@ end % Ends fcn_INTERNAL_selectFaces
 function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces, newPart, newLightType, newColor, glassAlpha)
 % Gives the selected faces a new part (and light type), with matching
 % default colors and transparency
-partNames = {'body';'glass';'wheel';'light';'trim'};
+partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
 lightTypeNames = vehicleMesh.LightTypeNames;
-defaultPartColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20];
+defaultPartColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20; 0.35 0.33 0.32];
 defaultLightColors = [0.90 0.90 0.85; 0.85 0.55 0.15; 0.90 0.90 0.85; 0.55 0.05 0.05; 0.85 0.85 0.85];
 
 if ~isempty(newLightType)
@@ -428,17 +568,29 @@ newLightType = lower(char(newLightType));
 if isempty(selectedFaces)
     return;
 end
-partIndex = find(strcmp(newPart, partNames));
+% (the part's index in this mesh's own PartNames: 'interior' is added
+% when a mesh does not have it yet)
+partIndex = find(strcmp(newPart, vehicleMesh.PartNames), 1);
+if isempty(partIndex)
+    vehicleMesh.PartNames{end+1} = newPart;
+    partIndex = numel(vehicleMesh.PartNames);
+end
 vehicleMesh.FacePartIndex(selectedFaces) = partIndex;
 
-% Light type
+% Light type (a new label replaces the faces' light functions)
+if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
+    vehicleMesh.FaceLightFunctions(selectedFaces,:) = false;
+end
 if strcmp(newPart,'light') && ~isempty(newLightType)
     lightIndex = find(strcmp(newLightType, lightTypeNames));
     vehicleMesh.FaceLightType(selectedFaces) = lightIndex;
+    if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
+        vehicleMesh.FaceLightFunctions(selectedFaces, lightIndex) = true;
+    end
     defaultColor = defaultLightColors(lightIndex,:);
 else
     vehicleMesh.FaceLightType(selectedFaces) = 0;
-    defaultColor = defaultPartColors(partIndex,:);
+    defaultColor = defaultPartColors(strcmp(newPart, partNames),:);
 end
 
 % Wheel corner
@@ -455,10 +607,16 @@ end
 
 % Color and transparency
 flagNoColorGiven = isempty(newColor);
+originalColors = vehicleMesh.FaceColors(selectedFaces,:);
 if isempty(newColor)
     newColor = defaultColor;
 end
 vehicleMesh.FaceColors(selectedFaces,:) = repmat(newColor, length(selectedFaces), 1);
+% (interior faces keep their own colors, unless the edit gave a color:
+% the seats and dash are many colors)
+if flagNoColorGiven && strcmp(newPart,'interior')
+    vehicleMesh.FaceColors(selectedFaces,:) = originalColors;
+end
 % (parts shown in texture colors, set by fcn_CarMesh3D_labelParts
 % TextureColorParts, keep them, unless the edit gave a color)
 if flagNoColorGiven && isfield(vehicleMesh,'TextureColorParts') && any(strcmpi(newPart, vehicleMesh.TextureColorParts)) ...
@@ -475,14 +633,24 @@ end % Ends fcn_INTERNAL_applyLabel
 %% fcn_INTERNAL_labelColors
 function [displayColors, legendNames, legendColors] = fcn_INTERNAL_labelColors(vehicleMesh)
 % False colors that show each part and light type clearly
-partColors = [0.80 0.80 0.80; 0.45 0.70 1.00; 0.15 0.15 0.15; 1.00 1.00 0.60; 0.80 0.45 0.15];
+partColors = [0.80 0.80 0.80; 0.45 0.70 1.00; 0.15 0.15 0.15; 1.00 1.00 0.60; 0.80 0.45 0.15; 0.85 0.65 0.40];
 lightColors = [1.00 1.00 0.20; 1.00 0.55 0.00; 0.70 1.00 0.70; 0.90 0.05 0.05; 0.60 0.20 1.00];
 Nfaces = size(vehicleMesh.Faces,1);
-displayColors = partColors(vehicleMesh.FacePartIndex,:);
+% (by part name, so a mesh whose parts are in another order, or that has
+% 'interior', is colored right)
+standardNames = {'body';'glass';'wheel';'light';'trim';'interior'};
+displayColors = repmat([0.5 0.5 0.5], numel(vehicleMesh.FacePartIndex), 1);
+for ith_part = 1:numel(vehicleMesh.PartNames)
+    standardIndex = find(strcmp(vehicleMesh.PartNames{ith_part}, standardNames), 1);
+    if ~isempty(standardIndex)
+        flagPart = vehicleMesh.FacePartIndex(:)==ith_part;
+        displayColors(flagPart,:) = repmat(partColors(standardIndex,:), nnz(flagPart), 1);
+    end
+end
 faceLightType = vehicleMesh.FaceLightType(:);
 flagTyped = faceLightType>0;
 displayColors(flagTyped,:) = lightColors(faceLightType(flagTyped),:);
-legendNames = [{'body';'glass';'wheel';'light (no type)';'trim'}; strcat({'light: '}, vehicleMesh.LightTypeNames(:))];
+legendNames = [{'body';'glass';'wheel';'light (no type)';'trim';'interior'}; strcat({'light: '}, vehicleMesh.LightTypeNames(:))];
 legendColors = [partColors; lightColors];
 if Nfaces==0
     displayColors = zeros(0,3);
@@ -598,6 +766,15 @@ for ith_edit = 1:length(appliedEdits)
     end
     if isempty(thisEdit.LightType)
         labelText = sprintf('''Part'',''%s''', thisEdit.Part);
+    elseif contains(thisEdit.LightType, '+')
+        % (light functions added: 'tail+turnsignal', or '+turnsignal')
+        typeParts = split(string(thisEdit.LightType), '+');
+        alsoText = strjoin(strcat('''', typeParts(2:end), ''''), ',');
+        if strlength(typeParts(1)) > 0
+            labelText = sprintf('''LightType'',''%s'', ''AlsoLightTypes'',{%s}', typeParts(1), alsoText);
+        else
+            labelText = sprintf('''AlsoLightTypes'',{%s}', alsoText);
+        end
     else
         labelText = sprintf('''LightType'',''%s''', thisEdit.LightType);
     end
@@ -619,7 +796,7 @@ pieceOfFace = fcn_INTERNAL_connectedPieces(vehicleMesh);
 flagSelected = false(Nfaces,1);
 interactiveEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 undoStack = {};
-targetNames = {'body','glass','wheel','trim','light: headlight','light: turnsignal', ...
+targetNames = {'body','glass','wheel','trim','interior','light: headlight','light: turnsignal', ...
     'light: running','light: tail','light: backup'};
 selectModes = {'Connected piece','Single face','Same material','Same group'};
 
