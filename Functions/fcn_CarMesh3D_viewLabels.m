@@ -25,7 +25,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           (Hidden=keys), (PhotoFolder=folder), (Outline=outline),...
 %           (Parent=container), (LabelListParent=container),...
 %           (ShowTools=flag), (OnHint=function), (ColorFilter=function),...
-%           (HiddenFaces=function), (Wait=flag), (Visible=flag),...
+%           (HiddenFaces=function), (PhotoOptions=flag), (OnLamps=function),...
+%           (Wait=flag), (Visible=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -88,6 +89,14 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      mesh was built, its last change, and whether a person has reviewed
 %      it (by whom, when). Default: the history of the mesh file given
 %      (none for a mesh variable); false for no fine print.
+%
+%      PhotoOptions: true to put the photo's options under the photo (its
+%      folder, with Browse; whether picking a photo turns the model; its
+%      size: small, medium, large). Default false. (The painter uses it.)
+%
+%      OnLamps: a function called with the lamp states (a structure, as
+%      in NightLights) whenever they change, for a window with a lamp
+%      panel of its own. Default [] (none).
 %
 %      Wait: true to wait until the window is closed and return the view
 %      settings then. Default: true in a window of its own on screen,
@@ -228,6 +237,15 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % on white (it was in a box above the photo)
 %   % * Lit more evenly (ambient 0.85, diffuse 0.3), so the near-white
 %   %   % body reads as white and the label colors stand out
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * Hooks for the painter's new panels (Sean, 10:24; Documents/
+%   %   % Documentation_CarMesh3D_GUIdesign_paintLabels.md): labels drawn
+%   %   % plain gray ("Colored? No", SetUncolored), SetBoundaries,
+%   %   % SetNightLamp, LabelKinds, LampTypes, CopyViewCall, OnLamps; the
+%   %   % photo's options under the photo (PhotoOptions: folder, turn the
+%   %   % model with the photo, size). The viewer on its own is unchanged.
 
 % TO-DO:
 %
@@ -258,6 +276,8 @@ arguments
     options.HiddenFaces = []    % flagHidden = f(keys): a host's own hidden faces
     options.History = []        % The mesh's history (fcn_CarMesh3D_meshHistory); [] for the file's; false for none
     options.Wait = []           % Wait until closed; [] for the default
+    options.PhotoOptions = false % Photo options under the photo (folder, turn the model, size)
+    options.OnLamps = []        % Called with the lamp states when they change (a host's lamp panel)
     options.Visible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
@@ -441,7 +461,10 @@ flagNight = false;   % (the nighttime view)
 nightBox = [];
 nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, 'TurnRight', false, ...
     'Tail', 'off', 'Backup', false);   % (the lamps switched on: none by day, at first; all, the first time night falls)
-flagLampsSet = false;   % (true once the lamps were set: by the list, or by the view settings)
+flagLampsSet = false;
+uncoloredKeys = {};     % (labels drawn plain gray: a host's "Colored? No"; Sean, 10:24)
+flagTurnWithPhoto = true;   % (the model turns to a photo picked on the dial)
+photoFolderLabel = [];   % (true once the lamps were set: by the list, or by the view settings)
 nightHandles = [];      % (fcn_CarMesh3D_plotVehicle's handles in it)
 nightControls = struct();   % (the lamp list's controls)
 listInner = [];         % (the label list over the lamp list: one shown at a time)
@@ -608,6 +631,9 @@ if ~isempty(photoSet)
     [dialArrow, dialDots] = fcn_INTERNAL_drawDial(dialAxes, data, [photoSet.Angle]);
     dialAxes.ButtonDownFcn = @onDialDown;
     placePhoto();
+    if options.PhotoOptions
+        makePhotoOptions();
+    end
 end
 hintLabel = [];
 if flagHasHint
@@ -678,6 +704,12 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'ResetView', @resetView, 'SetSeeThrough', @setSeeThrough, 'SeeThrough', @getSeeThrough, ...
     'SetNightView', @setNightView, 'NightView', @getNightView, ...
     'SetNightLights', @setNightLights, 'NightLights', @getNightLights, ...
+    'SetBoundaries', @setBoundaries, 'Boundaries', @getBoundaries, 'Colors', @getColors, ...
+    'SetUncolored', @setUncolored, 'Uncolored', @getUncolored, 'LabelKinds', @getLabelKinds, ...
+    'LampTypes', @getLampTypes, 'SetNightLamp', @setNightLamp, 'CopyViewCall', @copyViewCall, ...
+    'SetTurnWithPhoto', @setTurnWithPhoto, 'TurnWithPhoto', @getTurnWithPhoto, ...
+    'SetPhotoHeight', @setPhotoHeight, 'PhotoHeight', @getPhotoHeight, 'SetPhotoFolder', @setPhotoFolder, ...
+    'PhotoFolder', @getPhotoFolder, 'PlacePhoto', @placePhoto, ...
     'Stop', @stopTimer, 'Close', @closeViewer);
 if flagOwnWindow
     figureHandle.UserData = viewer;
@@ -831,6 +863,20 @@ end
         if strcmp(currentKey, 'all')
             faceColors = baseColors;
             faceAlpha = baseAlpha;
+            if ~isempty(uncoloredKeys)
+                % (labels set "Colored? No": plain light gray, so the
+                % colored ones stand out; a face that also has a colored
+                % label keeps its color)
+                flagPlain = false(numFaces,1);
+                for ith_key = 1:numel(uncoloredKeys)
+                    flagPlain = flagPlain | fcn_INTERNAL_labelFaces(data.Mesh, uncoloredKeys{ith_key});
+                end
+                coloredKeys = setdiff(labelKeys, [uncoloredKeys, {'hidden'}]);
+                for ith_key = 1:numel(coloredKeys)
+                    flagPlain = flagPlain & ~fcn_INTERNAL_labelFaces(data.Mesh, coloredKeys{ith_key});
+                end
+                faceColors(flagPlain,:) = repmat([0.88 0.88 0.88], nnz(flagPlain), 1);
+            end
         else
             flagLabel = fcn_INTERNAL_labelFaces(data.Mesh, currentKey);
             faceColors = repmat([0.88 0.88 0.88], numFaces, 1);
@@ -896,6 +942,148 @@ end
             flagHidden = options.HiddenFaces(hiddenKeys);
         end
         flagHidden = logical(flagHidden(:));
+    end
+
+    %% For a host's panels (the painter's: Sean, 10:24)
+    function setUncolored(keysIn)
+        % Labels drawn plain gray ("Colored? No"); {} colors every label
+        if isempty(keysIn)
+            uncoloredKeys = {};
+        else
+            uncoloredKeys = reshape(cellstr(keysIn), 1, []);
+        end
+        redraw();
+    end
+
+    % (getters as nested functions: an anonymous function would keep the
+    % value it was made with)
+    function keys = getUncolored()
+        keys = uncoloredKeys;
+    end
+
+    function flagOn = getBoundaries()
+        flagOn = flagBoundaries;
+    end
+
+    function modeOut = getColors()
+        modeOut = colorsMode;
+    end
+
+    function typesOut = getLampTypes()
+        typesOut = fcn_INTERNAL_lampTypes(data.Mesh);
+    end
+
+    function flagOn = getTurnWithPhoto()
+        flagOn = flagTurnWithPhoto;
+    end
+
+    function heightOut = getPhotoHeight()
+        heightOut = photoHeight;
+    end
+
+    function folderOut = getPhotoFolder()
+        folderOut = photoFolder;
+    end
+
+    function kinds = getLabelKinds()
+        % The labels of the mesh: their keys and names, in the list's order
+        kinds = struct('Keys', {labelKeys}, 'Names', {labelNames});
+    end
+
+    function setTurnWithPhoto(flagOn)
+        flagTurnWithPhoto = logical(flagOn);
+        markPhotoOptions();
+    end
+
+    function setPhotoFolder(folderIn)
+        % Photos from another folder (ViewInDegrees_<angle> files)
+        folderIn = char(folderIn);
+        if isempty(photoSet) || ~isfolder(folderIn)
+            setHint(sprintf('No folder %s', folderIn));
+            return;
+        end
+        listing = [dir(fullfile(folderIn,'*.jpg')); dir(fullfile(folderIn,'*.jpeg')); dir(fullfile(folderIn,'*.png'))];
+        newSet = fcn_INTERNAL_photoAngles(fullfile(folderIn, {listing.name}));
+        if isempty(newSet)
+            setHint(sprintf('No ViewInDegrees_<angle> photos in %s: the photos are not changed.', folderIn));
+            return;
+        end
+        photoFolder = folderIn;
+        photoSet = newSet;
+        photoIndex = 0;
+        cla(dialAxes);
+        [dialArrow, dialDots] = fcn_INTERNAL_drawDial(dialAxes, data, [photoSet.Angle]);
+        try
+            photoInfo = imfinfo(photoSet(1).File);
+            photoAspect = photoInfo(1).Width/photoInfo(1).Height;
+        catch
+        end
+        setPhotoHeight(photoHeight);
+        [azimuth, ~] = fcn_INTERNAL_cameraAngles(axesHandle);
+        setDialAngle(azimuth - 90, false, false);
+        markPhotoOptions();
+    end
+
+    function makePhotoOptions()
+        % Under the photo: its folder, whether the model turns with it,
+        % and its size (the photo's working options, at the photo's side)
+        blue = [0.93 0.95 1];
+        optionsPanel = uipanel(photoColumn, 'Title', 'Photo', 'FontWeight', 'bold', 'BackgroundColor', blue);
+        optionsPanel.Layout.Row = 2;
+        photoColumn.RowSpacing = 6;
+        optionsGrid = uigridlayout(optionsPanel, [4 3], 'RowHeight', {24, 24, 24, '1x'}, 'ColumnWidth', {150, '1x', 80}, ...
+            'Padding', [6 6 6 6], 'RowSpacing', 6, 'BackgroundColor', blue);
+        uilabel(optionsGrid, 'Text', 'Photo folder', 'Tooltip', 'Where the ViewInDegrees_<angle> photos are');
+        photoFolderLabel = uilabel(optionsGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3]);
+        uibutton(optionsGrid, 'Text', 'Browse...', 'Tooltip', 'Pick another folder of ViewInDegrees_<angle> photos', ...
+            'ButtonPushedFcn', @(~,~) browsePhotoFolder());
+        uilabel(optionsGrid, 'Text', 'Turn model with photo', ...
+            'Tooltip', 'On: picking a photo on the dial turns the model to the same side');
+        turnGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'turnWithPhoto', ...
+            'SelectionChangedFcn', @(~,event) setTurnWithPhoto(strcmp(event.NewValue.Text, 'On')));
+        turnGroup.Layout.Column = [2 3];
+        uiradiobutton(turnGroup, 'Text', 'Off', 'Position', [2 1 52 22]);
+        uiradiobutton(turnGroup, 'Text', 'On', 'Position', [54 1 52 22]);
+        uilabel(optionsGrid, 'Text', 'Photo size', 'Tooltip', 'The photo''s height (its corner can also be dragged)');
+        sizeGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'photoSize', ...
+            'SelectionChangedFcn', @(~,event) setPhotoHeight(event.NewValue.UserData));
+        sizeGroup.Layout.Column = [2 3];
+        uiradiobutton(sizeGroup, 'Text', 'Small', 'Position', [2 1 64 22], 'UserData', 220);
+        uiradiobutton(sizeGroup, 'Text', 'Medium', 'Position', [68 1 74 22], 'UserData', 300);
+        uiradiobutton(sizeGroup, 'Text', 'Large', 'Position', [144 1 64 22], 'UserData', 420);
+        uiradiobutton(sizeGroup, 'Text', '', 'Position', [210 1 10 22], 'UserData', NaN, 'Visible', 'off');   % (dragged to another size)
+        markPhotoOptions();
+    end
+
+    function browsePhotoFolder()
+        folderOut = uigetdir(photoFolder, 'Folder of ViewInDegrees_<angle> photos');
+        if ischar(folderOut)
+            setPhotoFolder(folderOut);
+        end
+    end
+
+    function markPhotoOptions()
+        % (the photo options showing the state)
+        if isempty(photoFolderLabel) || ~isvalid(photoFolderLabel)
+            return;
+        end
+        [parentFolder, leaf] = fileparts(photoFolder);
+        [~, vehicleLeaf] = fileparts(parentFolder);
+        photoFolderLabel.Text = ['...' filesep vehicleLeaf filesep leaf];
+        photoFolderLabel.Tooltip = photoFolder;
+        turnGroup = findobj(photoColumn, 'Tag', 'turnWithPhoto');
+        onOffText = 'Off';
+        if flagTurnWithPhoto
+            onOffText = 'On';
+        end
+        turnGroup.SelectedObject = findobj(turnGroup.Children, 'Text', onOffText);
+        sizeGroup = findobj(photoColumn, 'Tag', 'photoSize');
+        radios = sizeGroup.Children;
+        match = arrayfun(@(radio) isequal(radio.UserData, photoHeight), radios);
+        if ~any(match)
+            match = arrayfun(@(radio) isnan(radio.UserData), radios);
+        end
+        sizeGroup.SelectedObject = radios(find(match, 1));
     end
 
     %% The view settings
@@ -1018,7 +1206,7 @@ end
     %% The photo dial
     function onDialDown(~, ~)
         flagDialDragging = true;
-        setDialAngle(pointerAngle(), true, false);
+        setDialAngle(pointerAngle(), flagTurnWithPhoto, false);
     end
 
     function angle = pointerAngle()
@@ -1156,6 +1344,7 @@ end
         layout.ColumnWidth{3} = photoHeight*photoAspect;
         photoColumn.RowHeight{1} = photoHeight;
         dialGrid.RowHeight{1} = max(0, (photoHeight - dialSize)/2);
+        markPhotoOptions();
     end
 
     function placePhoto()
@@ -1216,8 +1405,8 @@ end
         axesHandle.Color = nightSky;
         modelHolder.BackgroundColor = nightSky;
         buildNight();
-        setHint(['<b>Nighttime view:</b> switch the lamps in the lamp list; untick a label''s Show box ' ...
-            'to take it away (the glass over a lamp, say). Paint by day: untick "Nighttime view".']);
+        setHint(['<b>Nighttime view:</b> switch the lamps in the lamp list; hide a label (its Show box, or ' ...
+            'Shown? No) to take it away (the glass over a lamp, say). Paint by day: turn the nighttime view off.']);
     end
 
     function buildNight()
@@ -1309,6 +1498,9 @@ end
             fcn_CarMesh3D_plotVehicle(data.Mesh, 'PlotHandles', nightHandles, 'LightStates', nightStates);
         elseif ~flagNight
             redraw();   % (by day: the lamps lit on the model)
+        end
+        if ~isempty(options.OnLamps)
+            options.OnLamps(nightStates);
         end
     end
 
@@ -1526,7 +1718,7 @@ end
         end
         flagUsed = flagDialDragging && ~isempty(dialAxes) && isvalid(dialAxes);
         if flagUsed
-            setDialAngle(pointerAngle(), true, false);
+            setDialAngle(pointerAngle(), flagTurnWithPhoto, false);
         end
     end
 
@@ -1540,7 +1732,7 @@ end
         flagUsed = flagDialDragging;
         if flagUsed
             flagDialDragging = false;
-            setDialAngle(getPhotoAngle(), true, true);
+            setDialAngle(getPhotoAngle(), flagTurnWithPhoto, true);
         end
     end
 

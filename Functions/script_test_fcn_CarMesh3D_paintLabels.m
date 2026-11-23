@@ -45,6 +45,13 @@ if flagHadFolderPref
 end
 setpref('CarMesh3D', 'VersionFolder', versionFolder);
 cleanupVersions = onCleanup(@() fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore, versionFolder));
+% (the panel the painter opens with is remembered: put back after the tests)
+flagHadPanelPref = ispref('CarMesh3D', 'PainterPanel');
+panelPrefBefore = '';
+if flagHadPanelPref
+    panelPrefBefore = getpref('CarMesh3D', 'PainterPanel');
+end
+cleanupPanel = onCleanup(@() fcn_INTERNAL_restorePanelPref(flagHadPanelPref, panelPrefBefore));
 
 %% Code demos start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -87,8 +94,7 @@ baseMesh = editedMesh;
 centers = (baseMesh.Vertices(baseMesh.Faces(:,1),:) + baseMesh.Vertices(baseMesh.Faces(:,2),:) + baseMesh.Vertices(baseMesh.Faces(:,3),:))/3;
 bodyFaces = find(baseMesh.FacePartIndex == find(strcmp(baseMesh.PartNames,'body')));
 picks = bodyFaces([10 200 400 600]);
-mirrorBox = findobj(painter.Figure, 'Type', 'uicheckbox', 'Text', 'Mirror to the other side');
-mirrorBox.Value = false;
+painter.SetMirror(false);
 % (four separate selections, each saved: as backup lights)
 for ith_pick = 1:4
     painter.Paint('backup', centers(picks(ith_pick),:), false);
@@ -114,11 +120,11 @@ painter.RevertToStart();
 assert(isempty(painter.Edits()) && ~painter.Status().Saved);
 painter.RevertToSaved();
 assert(numel(painter.Edits()) == 1 && painter.Status().Saved);
-mirrorBox.Value = true;
+painter.SetMirror(true);
 
 %% TEST case: Saved paint becomes the working mesh (painted trim looks like the rest of the trim)
 fprintf(1,'TEST case: saved paint becomes the working mesh\n');
-mirrorBox.Value = false;
+painter.SetMirror(false);
 trimPick = bodyFaces(300);
 painter.SetTool('trim');
 painter.Paint('trim', centers(trimPick,:), false);   % (Paint saves)
@@ -144,7 +150,7 @@ painter.Undo();
 assert(painter.Status().Pending == 0 && ~painter.Status().Saved);
 painter.Save();
 assert(painter.WorkingMesh().FacePartIndex(trimPick) ~= trimPart);
-mirrorBox.Value = true;
+painter.SetMirror(true);
 
 %% TEST case: Timestamped copies: Save as version, and at each save with the box ticked
 fprintf(1,'TEST case: timestamped copies\n');
@@ -158,12 +164,11 @@ assert(~isempty(regexp(versionName, ['^' regexptranslate('escape', meshName) '_\
 saved = load(versionFile);
 assert(isfield(saved, 'vehicleMesh') && isfield(saved, 'labelEditsAfterSimplify'));
 assert(isequal(size(saved.vehicleMesh.Faces), size(painter.EditedMesh().Faces)));
-versionsCheck = findobj(painter.Figure, 'Type', 'uicheckbox', 'Text', 'Timestamped copy at each save');
-versionsCheck.Value = false;
+painter.SetVersions(false);
 pause(1.1);
 painter.Save();
 assert(strcmp(painter.LastVersionFile(), versionFile));          % (box off: no new copy)
-versionsCheck.Value = true;
+painter.SetVersions(true);
 pause(1.1);
 painter.Save();
 assert(~strcmp(painter.LastVersionFile(), versionFile) && isfile(painter.LastVersionFile()));
@@ -213,6 +218,52 @@ assert(any(painter.Patch.FaceVertexAlphaData(glassFaces) > 0));
 painter.ShowLabel('part_trim');
 painter.ShowLabel('all');
 
+%% TEST case: The menu and the panels (the design file's layout)
+fprintf(1,'TEST case: the menu and the panels\n');
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Settings'};
+for ith_panel = 1:numel(panelNames)
+    painter.OpenPanel(panelNames{ith_panel});
+    assert(strcmp(painter.Panel(), panelNames{ith_panel}));
+    shownPanels = findall(painter.Figure, 'Type', 'uipanel', 'Visible', 'on', 'Tag', panelNames{ith_panel});
+    assert(numel(shownPanels) == 1);
+    for ith_other = setdiff(1:numel(panelNames), ith_panel)
+        assert(isempty(findall(painter.Figure, 'Type', 'uipanel', 'Visible', 'on', 'Tag', panelNames{ith_other})));
+    end
+end
+assert(strcmp(getpref('CarMesh3D', 'PainterPanel'), 'Settings'));    % (remembered)
+% (no check boxes: every on/off choice is a pair of radio buttons)
+for ith_panel = 1:numel(panelNames)
+    assert(isempty(findall(findall(painter.Figure, 'Type', 'uipanel', 'Tag', panelNames{ith_panel}), 'Type', 'uicheckbox')));
+end
+% (Labels To Display: Colored? No draws a label plain gray)
+glassIndex = find(strcmp(baseMesh.PartNames, 'glass'));
+glassFaces = find(baseMesh.FacePartIndex == glassIndex);
+coloredGroup = findall(painter.Figure, 'Tag', 'colored_part_glass');
+noButton = findobj(coloredGroup.Children, 'flat', 'UserData', false);
+coloredGroup.SelectedObject = noButton;
+coloredGroup.SelectionChangedFcn(coloredGroup, struct('NewValue', noButton));
+assert(isequal(painter.Viewer.Uncolored(), {'part_glass'}));
+assert(all(abs(painter.Patch.FaceVertexCData(glassFaces(1),:) - [0.88 0.88 0.88]) < 1e-9));
+allColored = findall(painter.Figure, 'Tag', 'allColored');
+assert(isnan(allColored.SelectedObject.UserData));                     % (the rows differ: none shown)
+yesButton = findobj(allColored.Children, 'flat', 'UserData', true);
+allColored.SelectionChangedFcn(allColored, struct('NewValue', yesButton));
+assert(isempty(painter.Viewer.Uncolored()));
+% (Lamps To Display: the tail lights on, and the buttons follow the viewer)
+tailGroup = findall(painter.Figure, 'Tag', 'lamp_Tail');
+onButton = findobj(tailGroup.Children, 'flat', 'UserData', 'on');
+tailGroup.SelectionChangedFcn(tailGroup, struct('NewValue', onButton));
+assert(strcmp(painter.Viewer.NightLights().Tail, 'on'));
+painter.Viewer.SetNightLamp('All', false);
+assert(strcmp(tailGroup.SelectedObject.UserData, 'off'));
+% (Modify Labels: the tool picked shows as its radio button)
+painter.SetTool('trim');
+paintGroup = findall(painter.Figure, 'Tag', 'paintAs');
+assert(strcmp(paintGroup.SelectedObject.UserData, 'trim'));
+painter.SetTool('');
+assert(isempty(paintGroup.SelectedObject.UserData));
+painter.OpenPanel('Modify Labels');
+
 %% TEST case: The photo dial
 fprintf(1,'TEST case: the photo dial\n');
 if isfolder(fullfile(vehicleFiles.Folder, 'photos')) && ~isempty(dir(fullfile(vehicleFiles.Folder, 'photos', 'ViewInDegrees_090.jpg')))
@@ -245,7 +296,7 @@ if 1==0
     fcn_CarMesh3D_paintLabels(42);
 end
 
-clear cleanupBackup cleanupVersions cleanupHistory;   % (puts the vehicle's edits file back, and takes out the tests' timestamped copies)
+clear cleanupBackup cleanupVersions cleanupHistory cleanupPanel;   % (puts the vehicle's edits file back, and takes out the tests' timestamped copies)
 fprintf(1,'All tests of fcn_CarMesh3D_paintLabels passed\n');
 
 %% Functions follow
@@ -271,6 +322,15 @@ if isfolder(fileparts(versionFolder))
     rmdir(fileparts(versionFolder), 's');
 end
 end % Ends fcn_INTERNAL_restoreFolderPref
+
+function fcn_INTERNAL_restorePanelPref(flagHadPanelPref, panelPrefBefore)
+% Puts back the panel the painter opens with
+if flagHadPanelPref
+    setpref('CarMesh3D', 'PainterPanel', panelPrefBefore);
+elseif ispref('CarMesh3D', 'PainterPanel')
+    rmpref('CarMesh3D', 'PainterPanel');
+end
+end % Ends fcn_INTERNAL_restorePanelPref
 
 function fcn_INTERNAL_restore(editsFile, backupFolder, flagHadEdits)
 % Puts the vehicle's edits file back as it was

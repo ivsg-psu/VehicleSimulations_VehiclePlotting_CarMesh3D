@@ -143,6 +143,11 @@ loaded = load(meshFile, 'vehicleMesh');
 partNames = loaded.vehicleMesh.PartNames;
 flagGlass = loaded.vehicleMesh.FacePartIndex == find(strcmp(partNames, 'glass'));
 flagBody = loaded.vehicleMesh.FacePartIndex == find(strcmp(partNames, 'body'));
+if isfield(loaded.vehicleMesh, 'FaceHiddenSet')
+    % (hidden faces are out of view: not drawn as rendered)
+    flagGlass = flagGlass & loaded.vehicleMesh.FaceHiddenSet(:) == 0;
+    flagBody = flagBody & loaded.vehicleMesh.FaceHiddenSet(:) == 0;
+end
 alphaData = viewer.Patch.FaceVertexAlphaData;
 assert(max(abs(alphaData(flagGlass) - loaded.vehicleMesh.FaceAlpha(flagGlass))) < 1e-9, 'Glass as rendered');
 viewer.SetSeeThrough(0.6);

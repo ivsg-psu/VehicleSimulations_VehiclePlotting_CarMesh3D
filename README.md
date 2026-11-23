@@ -14,13 +14,54 @@ The workflow is meant to be simple enough for undergraduate students to make a n
 
 CarMesh3D works with one vehicle at a time. Scenes with many vehicles (decision branches, surrounding traffic, live data) are handled by the companion repository **AnimateCar3D**, which builds on CarMesh3D.
 
-> **Status:** prototype (2026_11_21). All 47 test scripts pass in MATLAB R2025b, and FBX/GLB conversion was tested with Blender 5.3 on downloaded models.
+> **Status:** prototype (2026_11_23). 65 functions, 64 with a test script (`fcn_CarMesh3D_saveCache` is tested by `loadCache`'s); all pass in MATLAB R2025b except two known older failures (see [Tests](#tests)). FBX/GLB conversion was tested with Blender 5.3 on downloaded models. The library holds about 37 finished vehicles in 13 body styles (see `fcn_CarMesh3D_browseLibrary`).
 
 | Wheels roll, steer, peel out, and lock up | Lights at night: beams, signals, brake, backup | Cameras: chase, driver, orbit, ... |
 |---|---|---|
 | ![Peel out and lock up](Images/animations/wheels_peelOutAndLockUp.gif) | ![Night signals, hazards, backup](Images/animations/night_signalsHazardsBackup.gif) | ![Orbit camera](Images/animations/camera_orbit.gif) |
 
 ---
+
+## How the functions fit together
+
+Every vehicle is made by its own copy of one script (`script_CarMesh3D_vehicle_<ID>.m`, from `Data/script_CarMesh3D_vehicle_TEMPLATE.m`). The chart shows which function feeds which, and the files in between (rounded boxes). Solid arrows carry the mesh; dotted arrows are optional or used only by some vehicles. The [Function reference](#function-reference) at the end describes every function, its inputs and outputs, and shows a sample of what it draws.
+
+```mermaid
+flowchart TB
+  subgraph IN["Inputs, per vehicle (Data/BodyStyles/Style/ID)"]
+    P(["vehicleParameters_ID.mat"])
+    M(["model/ (the download: GLB, FBX, OBJ...)"])
+    R(["rawMesh_ID.mat (the imported mesh, in git)"])
+    E(["labelEdits_ID.mat (painted label fixes)"])
+  end
+  P --> LS["loadVehicleSpec / fillVehicleSpec"]
+  M --> CO["convertToOBJ (Blender)"] --> IM["importMesh"]
+  M -.-> RG["readGLB"] -.-> TT["transferTextureColors"]
+  IM --> TT --> NM["normalizeMesh"]
+  IM -. "saved as" .-> R
+  R -. "no download here" .-> NM
+  NM --> LP["labelParts"] --> EL1["editLabels (script edits)"] --> FT["fitMeshToSpec"]
+  LS --> FT
+  BS["fillBodyStyleMesh (no model: refit an exemplar)"] -.-> SM
+  FT --> SM["simplifyMesh (normals; reduction only with targetFaces)"]
+  SM --> RC["restoreGroundClearance"] --> FF["fixFlippedFaces"] --> SO["separateOverlays"] --> FP["addFloorPanel (only above 10% open)"] --> LI["labelInterior"]
+  LI --> EL2["editLabels (painted fixes, hide/unhide)"]
+  E --> EL2
+  EL2 --> VM(["vehicleMesh_ID.mat"])
+  EL2 --> CK["runVehicleChecks"]
+  CK --> VA["validateMesh"] & HF["checkHiddenFaces"] & PL["plotLabels"]
+  EL2 -. "reduced meshes only" .-> CT["compareToOriginal"]
+  CK --> BI["makeBuildInfo (versions, quality score)"] --> VM
+  VM --> DL["makeDetailLevels"] --> LV(["vehicleLevels_ID.mat"])
+  VM --> O2["makeOutline2D"] --> OL(["vehicleOutline_ID.mat"])
+  VIS["visibleMesh (hidden faces left out)"] -.-> VA & HF & DL & O2 & CT
+  VM --> RV["reviewVehicle: viewOrientation, viewDimensions, viewLabels + paintLabels, viewOutline, viewDetailLevels, animateChecks"]
+  RV -- "Save paint" --> E
+  VM --> BL["browseLibrary / listVehicles / showVehicle"]
+  VM --> AN["Animation (and AnimateCar3D): plotVehicle, plotScene, loadMotionCSV, fillTrajectory, calcAckermannSteering, fillCameraSettings, updateCamera, saveGifFrame"]
+```
+
+Two loops close the chart. **Painting:** the label painter (in the Model Reviewer, or `fcn_CarMesh3D_paintLabels` alone) saves its fixes in `labelEdits_<ID>.mat`, and the next build applies them, so a fix is never lost when the vehicle is built again. **Caching:** each slow stage (the mesh, the comparison, the checks) is saved in the vehicle's `cache` folder with the dates of every file and function it depends on (`fcn_CarMesh3D_saveCache`, `fcn_CarMesh3D_loadCache`, `fcn_CarMesh3D_fileStamps`), and reused when none of them changed.
 
 ## Inputs: what CarMesh3D needs
 
@@ -238,9 +279,9 @@ The whole file becomes the mesh's `License` field. The [Vehicles available](#veh
 
 1. Make the folder `Data/BodyStyles/<Style>/<ID>` (the style folders are listed in `Data/bodyStyles.csv`; for example `Data/BodyStyles/Sedan/2025_Toyota_Camry_XV80`), and put the parameters file and the model in it as above. `fcn_CarMesh3D_findVehicleFiles(ID)` finds the folder wherever it is filed, so scripts and functions only need the ID. A download left directly in the vehicle folder (not yet moved into `model/`) is found too (`ModelFiles`).
 2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, any faces to delete (`removeFaces`: stray pieces that would spoil the fit, such as a lone point above the roof), the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
-3. Run it, and look at every file in `checks/` (the list below). The first run usually shows something to fix: the orientation (`check_00`), labels (`check_03`), or lights (`check_04`).
-4. Fix the settings and run again. Most fixes are label edits: regions in meters, with the origin on the ground below the rear axle (`labelEditsAfterFit`), found with `flag_useInteractiveLabelEditor = 1`. Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
-5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more. This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
+3. Run it, and look at the checks it writes (`check_00_orientation.png`, `check_02_dimensions.png`, `check_03_labels.png`; see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run)), or open the vehicle in the Model Reviewer, `fcn_CarMesh3D_reviewVehicle(ID)`. The first run usually shows something to fix: the orientation, the labels, or the lamps (`fcn_CarMesh3D_viewLabels`, "Nighttime view").
+4. Fix the settings and run again. Most fixes are label fixes, painted in the label painter (`fcn_CarMesh3D_paintLabels(ID)`; saved in `labelEdits_<ID>.mat` and applied by every later build), or written as regions in the script (`labelEditsAfterFit`: meters, with the origin on the ground below the rear axle). Pieces that should not be seen are **hidden, not deleted** (see [Hidden faces](#hidden-faces-never-deleted)); `removeFaces` is only for stray pieces that would spoil the fit (a lone point above the roof, a ground plane). Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
+5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more (this also makes its drive GIF). This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
 
 ### No model of the vehicle? Use its body style
 
@@ -261,19 +302,19 @@ The styles are the folders of `Data/BodyStyles`; their names and descriptions ar
 
 | Style ID (folder) | Body style | Exemplars (finished) | Good exemplars still to add |
 |---|---|---|---|
-| `sedan` | Sedan (separate trunk) | (none yet) | Toyota Camry, Honda Accord |
+| `sedan` | Sedan (separate trunk) | 2025 Toyota Camry XV80 | Toyota Camry, Honda Accord |
 | `hatchback` | Hatchback (5-door) | (none yet) | Honda Civic hatchback, VW Golf |
-| `liftback` | Liftback (sloped rear hatch) | 2013 Toyota Prius Four | |
-| `stationWagon` | Station wagon | (none yet) | Subaru Outback, VW Golf SportWagen, Volvo V60 |
-| `coupe` | Coupe (2-door) | (none yet) | Ford Mustang, Honda Civic coupe |
+| `liftback` | Liftback (sloped rear hatch) | 2013 Toyota Prius Four |  |
+| `stationWagon` | Station wagon | 2021 Subaru Outback Limited XT | Subaru Outback, VW Golf SportWagen, Volvo V60 |
+| `coupe` | Coupe (2-door) | 2006 Ford Mustang GT, 2012 Honda Civic Si | Ford Mustang, Honda Civic coupe |
 | `convertible` | Convertible or roadster | (none yet) | Mazda MX-5 Miata |
 | `sportsCar` | Sports car (low, often mid-engine) | (none yet) | Chevrolet Corvette C8, Acura NSX |
-| `crossover` | Crossover or compact SUV | (none yet) | Toyota RAV4, Honda CR-V |
+| `crossover` | Crossover or compact SUV | 2004 Toyota RAV4 L, 2014 Honda CR-V EX-L, 2017 Toyota RAV4 XLE | Toyota RAV4, Honda CR-V |
 | `fullSizeSUV` | Full-size SUV | (none yet) | Chevrolet Tahoe, Ford Expedition |
 | `minivan` | Minivan | (none yet) | Honda Odyssey, Chrysler Pacifica, Toyota Sienna |
-| `pickupCrewCab` | Full-size pickup (crew cab) | (none yet) | Ford F-150 SuperCrew |
-| `compactCargoVan` | Compact cargo van | 2014 Ford Transit Connect XLT Cargo LWB | |
-| `fullSizeCargoVan` | Full-size cargo van (high roof) | (none yet) | Ford Transit, Mercedes Sprinter, Ram ProMaster |
+| `pickupCrewCab` | Full-size pickup (crew cab) | 2015 Ford F-150 Lariat | Ford F-150 SuperCrew |
+| `compactCargoVan` | Compact cargo van | 2014 Ford Transit Connect XLT Cargo LWB |  |
+| `fullSizeCargoVan` | Full-size cargo van (high roof) | 2005 Toyota HiAce H200 DX | Ford Transit, Mercedes Sprinter, Ram ProMaster |
 | `midsizeSUV` | Midsize three-row SUV (optional) | (none yet) | Ford Explorer, Toyota Highlander |
 | `pickupMidsize` | Midsize pickup (optional) | (none yet) | Toyota Tacoma |
 | `passengerVan` | Passenger van (optional) | (none yet) | Ford Transit passenger van |
@@ -284,7 +325,7 @@ The styles are the folders of `Data/BodyStyles`; their names and descriptions ar
 | `transitBus` | Transit bus, 40 ft (optional) | (none yet) | New Flyer Xcelsior, Gillig Low Floor |
 | `semiTractor` | Semi tractor (optional) | (none yet) | Freightliner Cascadia |
 
-Each style's folder is its ID with a capital first letter (`compactCargoVan` is `Data/BodyStyles/CompactCargoVan`). Models downloaded so far and not yet finished: seven sedans (2002, 2006, 2010, 2025 Camry; 2013, 2017, 2023 Accord) and three hatchbacks (2007 Golf GTI, 2023 Civic Type R, 2025 Golf R Variant); the 2022 Acura NSX (sports car) is downloaded too. The optional styles' larger vehicles (box truck to semi) need multi-axle fitting first.
+Each style's folder is its ID with a capital first letter (`compactCargoVan` is `Data/BodyStyles/CompactCargoVan`). The exemplars listed are the approved ones (`Data/bodyStyles.csv`); the library holds more finished vehicles (`fcn_CarMesh3D_browseLibrary`), and exemplar approvals for the remaining styles wait until the review tools are done. The optional styles' larger vehicles (box truck to semi) need multi-axle fitting first.
 
 To add an exemplar: file the vehicle under its style's folder and finish it as usual; nothing else is needed. A style without one makes the sample car at the vehicle's size, with a warning (`Fallback='error'` stops instead).
 
@@ -293,34 +334,55 @@ Notes:
 - **The license** of a refit mesh is the exemplar's (its `License` field is copied): a CC-BY exemplar's attribution goes with every vehicle made from it.
 - The shape between the measured points (hood length, roof line, glass) is the exemplar's, stretched; a vehicle whose shape differs much from its style's exemplar is better made from its own model.
 
-### The standard checks
+### Mesh families and the checks to run
 
-`fcn_CarMesh3D_runVehicleChecks` drives every vehicle through the same **standard test motion** (`fcn_CarMesh3D_fillTestMotion`, saved as `checks/testMotion.csv` in the [motion CSV format](#inputs-what-carmesh3d-needs)) in the same **standard scene** (the gray grid with colored cubes on a 10 m grid, kept at least 9 m from the path), with cameras placed as fractions of the vehicle's length and height so that a van and a compact car are framed alike. The test motion has four segments, each testing a group of inputs:
+Most downloads are already light "game" models (a few thousand to 25,000 faces). Changing them (reducing, mirroring, patching) only adds mistakes, so **the default build keeps the download as it is** and runs only the checks that have ever found a problem. A vehicle falls in one of three families:
+
+| Family | What it is | What the build does | Checks to look at |
+|---|---|---|---|
+| **1. Low-poly, unmodified** (the default) | A download under about 50,000 faces | Import, turn to X forward, label, fit to the specs, turn faces seen only from behind, save. No reduction, no mirroring; a floor panel only if more than 10% of the floor is open (`floorPanelMinOpen`) | **Required:** orientation (first look only), dimensions, labels (with the lamps: the "Nighttime view" in `fcn_CarMesh3D_viewLabels`), 2D outline |
+| **2. Low-poly, modified** | Family 1 with a floor panel, mirroring, or hidden faces | The same, plus that change | Family 1's, plus **Differences** (`fcn_CarMesh3D_compareToOriginal`) and the hidden-face warnings |
+| **3. Dense** (experimental) | A download far over the budget (73,000 to 1,000,000 faces) | Reduced in Blender to `targetFaces`, mirrored (`symmetricMesh`), compared with the download | Family 2's. Reduction has worked for only 3 of 8 dense downloads: **look for a low-poly download first** |
+
+A model is never rejected for having an open underside. The checks every build writes are set in the vehicle script (`checksToRun`):
+
+| File | Check | Written |
+|---|---|---|
+| `check_00_orientation.png` | The model after turning it to X forward, Y left, Z up: the front must be toward +X | always |
+| `check_02_dimensions.png`, `.txt` | Target vs. measured length, widths, height, wheelbase, tracks, tire diameter, overhang, ground clearance (on the shown faces) | **default** |
+| `check_03_labels.png` | Parts and lamp types in color, from four sides | **default** |
+| `check_11_detailLevels.png` | The finished mesh and its detail levels side by side | always |
+| `check_12_outline2D.png` | The top-down outlines | always |
+| `check_04_compare_*.png` | Differences from the download: holes, label changes, flipped faces, see-through gaps | reduced meshes (`flag_compareToOriginal`) |
+| `check_summary.txt`, `testMotion.csv` | The files written, the dimension result, any hidden-face warnings; the standard test motion | always |
+| `check_01_inputs.png`, `check_04_lightStates.png`, `check_10_groundContact.png` | The standard test motion's inputs, each light alone, body contact with the road | **optional**: `checksToRun = 'all'` |
+| `check_05_lights.gif` to `check_09_drive.gif` | The test motion's lights, body, steering, wheels, and drive segments | **optional**: `checksToRun = 'all'` and `flag_saveGifs = 1` (about 30 MB per vehicle). `check_09_drive.gif` is made when the vehicle is added to the reference list |
+
+The optional checks have never failed on a vehicle that passed the required ones, so they stay off unless asked for; the Model Reviewer (`fcn_CarMesh3D_reviewVehicle`) draws them live under "More checks". `.fig` copies of the pictures are saved only with `flag_saveFigs = 1`.
+
+The **standard test motion** (`fcn_CarMesh3D_fillTestMotion`, in the [motion CSV format](#inputs-what-carmesh3d-needs)) drives the vehicle through four segments in the standard scene (a gray grid with colored cubes), with cameras placed as fractions of the vehicle's size:
 
 | Segment | Vehicle | Tests |
 |---|---|---|
 | `lights` | parked | Each light alone for 1.2 s: off, low beams, high beams, running lights, left signal, right signal, hazards, brake, backup |
 | `body` | parked | Body roll ±5°, pitch ±3°, heave ±5 cm, then each tire lifted 8 cm in turn (FL, FR, RL, RR) |
 | `steering` | 2 m/s | A 90° left turn then a 90° right turn, at a radius of 1.5 wheelbases, with the turn signals on |
-| `wheels` | driving | A peel-out (front tires spinning twice as fast as the road), cruising, a locked-wheel stop (brake lights), stopped, and backing up (backup lights) |
+| `wheels` | driving | A peel-out, cruising, a locked-wheel stop (brake lights), stopped, and backing up (backup lights) |
 
-| File | What to check |
+#### Mesh size and drawing speed
+
+How many faces is "too many" depends on the computer and on how many vehicles are drawn at once. Drawing time grows with **all the faces in view**, not with the number of vehicles. Measured on one example machine (copies of the 2009 Fit, 22,782 faces each, each under its own moving transform, one `drawnow` per frame):
+
+| Faces in the scene | Frames per second |
 |---|---|
-| `check_00_orientation.png` | The model after turning it to X forward, Y left, Z up: the front must be toward +X |
-| `check_01_inputs.png` | Every input of the test motion over time |
-| `check_02_dimensions.png`, `.txt` | Target vs. measured length, widths, height, wheelbase, tracks, tire diameter, overhang, and ground clearance |
-| `check_03_labels.png` | Parts and light types in color, from four sides: every tire black, every lamp colored by its type |
-| `check_04_lightStates.png` | Each light alone, at night: only the named light may be lit |
-| `check_05_lights.gif` | The `lights` segment at night, from the front left and from behind |
-| `check_06_body.gif` | The `body` segment, from low at the front left and the rear right |
-| `check_07_steering.gif` | The `steering` segment from overhead, with lines from the turn center to the wheels (Ackermann) |
-| `check_08_wheels.gif` | The `wheels` segment from the side |
-| `check_09_drive.gif` | The `steering` and `wheels` segments from a camera following above and behind (the reference animation) |
-| `check_10_groundContact.png` | Whether the body touches the road during the body segment |
-| `check_11_detailLevels.png` | The finished mesh and its detail levels side by side (made by the vehicle's script, Step 6b): each should still look like the vehicle, down to the box |
-| `check_summary.txt` | A summary of the above |
+| 23,000 (1 vehicle) | 614 |
+| 91,000 (4) | 184 |
+| 228,000 (10) | 96 |
+| 501,000 (22) | 52 |
+| 1,000,000 (44) | 27 |
+| 2,000,000 (88) | 14 |
 
-A check that shows a problem is doing its job: for example, a model with one material for all its rear lamps shows the whole lamp lit for every rear light in `check_04` until its lamps are split by label edits.
+That machine draws about 27 million faces per second, so 25 frames per second holds up to about 1 million faces in view. A student laptop may be several times slower. **A quick test on your own computer:** open the vehicle in `fcn_CarMesh3D_viewLabels` and rotate it. If rotating is not smooth there, the mesh is almost certainly too large for real-time animation on that computer. The build prints a note for meshes over 50,000 faces. There is no face budget for now: one will be set after the animator (AnimateCar3D) is tested with the library.
 
 ## Folders
 
@@ -331,7 +393,7 @@ A check that shows a problem is doing its job: for example, a model with one mat
 | `Data` | One folder per vehicle, filed by body style: `Data/BodyStyles/<Style>/YEAR_Make_Model_Trimline`, and made-up vehicles in `Data/Samples` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv`; the body styles, `bodyStyles.csv` |
 | `Installer` | `fcn_DebugTools_autoInstallRepos.m`, the standard IVSG installer used by the demo |
 | `Utilities` | Installed dependencies (DebugTools), made by the installer; ignored by git |
-| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design |
+| `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design; `Images/functions` holds each function's sample output for the [Function reference](#function-reference) |
 
 ## Large files
 
@@ -368,8 +430,10 @@ When you add a vehicle, put its download in `model/` as usual and run its script
 | 4. Label parts | `fcn_CarMesh3D_labelParts` | Marks each face as body, glass, wheel, light, or trim from material and group names. Numbers the wheels FL, FR, RL, RR. Sets colors and glass transparency. |
 | 4b. Fix labels | `fcn_CarMesh3D_editLabels` | Corrects labels the name rules got wrong (for example headlights stored as trim), by region in a script or by clicking (see [Fixing labels](#fixing-labels)). Also sets light types for switchable lights. |
 | 5. Fit to spec | `fcn_CarMesh3D_fitMeshToSpec` | Scales the body to length, width, and height, then stretches it so the axles land at the true wheelbase. Moves each wheel, without stretching it, to the true track and tire diameter. Puts the origin below the rear axle. |
-| 6. Simplify | `fcn_CarMesh3D_simplifyMesh` | Merges duplicate vertices, removes bad faces, reduces to a face budget, and makes all normals point outward. Last, it checks what can be seen: a face that can only be seen from behind is turned around (`VisibilityCheck=`). |
-| 7. Validate | `fcn_CarMesh3D_validateMesh` | Returns a table of target vs. measured dimensions with percent error, plus side, top, and front views. |
+| 6. Simplify | `fcn_CarMesh3D_simplifyMesh` | Merges duplicate vertices, removes bad faces, makes all normals point outward, and (only when `targetFaces` is given) reduces to a face budget. Last, it checks what can be seen: a face that can only be seen from behind is turned around (`VisibilityCheck=`, up to 30,000 faces; `fcn_CarMesh3D_fixFlippedFaces` does this for larger meshes). |
+| 6b. Repair | `fcn_CarMesh3D_restoreGroundClearance`, `fcn_CarMesh3D_fixFlippedFaces`, `fcn_CarMesh3D_separateOverlays`, `fcn_CarMesh3D_addFloorPanel`, `fcn_CarMesh3D_labelInterior` | Puts the ground clearance back after a reduction, turns inside-out panels, lifts overlays 2 mm off the surface under them, adds a floor panel when more than 10% of the floor is open, and labels the interior seen through the glass. |
+| 6c. Painted fixes | `fcn_CarMesh3D_editLabels` | Applies the vehicle's `labelEdits_<ID>.mat` (painted in the label painter), including hidden faces. |
+| 7. Validate | `fcn_CarMesh3D_validateMesh`, `fcn_CarMesh3D_checkHiddenFaces` | Returns a table of target vs. measured dimensions with percent error (on the shown faces), plus side, top, and front views; warns about hidden faces that could mislead. |
 | 7b. Check the outline | `fcn_CarMesh3D_plotSideImage` | Puts a side-view photo of the real vehicle on the centerline plane, with its wheel centers on the mesh's axles, so the outlines can be compared (see [Checking against a side photo](#checking-against-a-side-photo)). |
 | 8. Plot / animate | `fcn_CarMesh3D_plotVehicle` | Draws the mesh as a few patches under one `hgtransform`. Pass `PlotHandles` back in to move the vehicle quickly. `Finish=` sets how shiny it looks (`'matte'`, `'satin'`, `'glossy'`, `'metallic'`, or `[ka kd ks n sc]`); `ShowEdges=` and `EdgeColor=` control the face edges. Also moves the wheels (`WheelSpin=`, `SteerAngle=`, `WheelLift=`), the body (`BodyRoll=`, `BodyPitch=`, `BodyHeave=`), switches the lights (`LightStates=`), and adds glows and light pools for night scenes (`LightEffects=`). |
 
@@ -519,14 +583,32 @@ Things to know:
 
 ## Switchable lights
 
-Light faces have a **light type**: `'headlight'`, `'turnsignal'`, `'running'`, `'tail'`, or `'backup'`. `fcn_CarMesh3D_labelParts` sets the type from names (for example `TurnSignal`, `Reverse`, `TailLight`); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. Fix any mistakes with `fcn_CarMesh3D_editLabels`.
+Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by labeling), and a **signal** is behavior (what the driver or the animation tells the lamps to do). Hazards and braking are signals; there is no "hazard lamp" or "brake lamp".
 
-Switch the lights with `LightStates`, a structure. Leave out any field to keep that light off:
+**Lamp types.** Light faces have a lamp type (`LightTypeNames`, `FaceLightType`):
 
-| Field | Values | Light |
+| Type | Lamp | Lit color |
 |---|---|---|
-| `Headlights` | `'off'`, `'low'`, `'high'` | Headlights |
-| `TurnLeft`, `TurnRight` | `true` / `false` | Turn signals. Left and right are found from position, so mark the turn signal lenses once |
+| `'headlight'` | Low beam (both beams, on a vehicle with no high-beam faces) | warm white |
+| `'highbeam'` | High beam, a lamp of its own | white |
+| `'turnsignal'` | Turn signal; left and right are found from position (Y > 0 is left), so a turn signal is labeled once | amber |
+| `'running'` | Front running lights | white |
+| `'tail'` | Tail lights (and the brake lights: braking makes them bright) | dark red; bright red braking |
+| `'backup'` | Backup (reverse) lights | white |
+
+`fcn_CarMesh3D_labelParts` sets the type from names (`TurnSignal`, `Reverse`, `TailLight`, `HighBeam`...); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. **High beams are found automatically** where a headlight's faces clearly form two clusters (`AutoHighBeams`, on by default): the cluster nearer the middle of the car (or the upper one) becomes the high beam. This is a starting point; check it in `fcn_CarMesh3D_viewLabels` ("high beam") and fix it in the label painter. Planned (task 8): fog, license plate, marker (side markers, clearance lamps), and warning lamps (beacons, light bars).
+
+**One lamp, several functions.** A lamp that is tail, brake, and turn signal at once (common on US cars) keeps one type and lists the others in `FaceLightFunctions` (M x number of types, logical), set with `fcn_CarMesh3D_editLabels`'s `AlsoLightTypes`. It glows in the color of the first function that is on: turn signal, tail, high beam, low beam, running, backup (a turn signal that is also a tail light flashes red).
+
+**Clear covers over lamps.** A clear cover lying over a lamp lens is labeled as that lamp *and* as glass (`FaceAlsoParts`, M x number of parts, logical): it is drawn as glass while the lamp is off, and lit while it is on.
+
+**Switching the lights.** `LightStates` is a structure; leave out a field to keep that light off:
+
+| Field | Values | Signal |
+|---|---|---|
+| `Headlights` | `'off'`, `'low'`, `'high'` | Headlights (`'high'` is both beams) |
+| `LowBeam`, `HighBeam` | `true` / `false` | Each beam alone (overrides `Headlights` for it) |
+| `TurnLeft`, `TurnRight` | `true` / `false` | Turn signals (blink them in your loop; both together are the hazards) |
 | `Running` | `true` / `false` | Front running lights |
 | `Tail` | `'off'`, `'on'`, `'brake'` | Rear lights: dim red when on, bright red when braking |
 | `Backup` | `true` / `false` | Backup (reverse) lights |
@@ -537,9 +619,11 @@ A light that is on is drawn unshaded (`FaceLighting='none'`) in a bright color, 
 blinkOn = mod(t, 0.8) < 0.4;                                        % 0.4 s on, 0.4 s off
 lightStates = struct('Headlights','low', 'Tail','on', 'TurnLeft',blinkOn);   % left signal
 lightStates = struct('TurnLeft',blinkOn, 'TurnRight',blinkOn, 'Tail','brake'); % hazards, braking
-lightStates = struct('Tail','on', 'Backup',true);                    % backing up
+lightStates = struct('LowBeam',false, 'HighBeam',true);              % high beams alone
 fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=lightStates, PlotHandles=h, FigNum=-1);
 ```
+
+Flash patterns for warning lamps and hazards (steady, single, double, alternating, rotating) belong to the animation inputs, not the mesh; they are planned for after the animator is integrated.
 
 These are easiest to see at night (see [Night scenes](#night-scenes)).
 
@@ -568,14 +652,49 @@ h = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', LightEffects=true);
 | High-beam pool | The same, 40 m long and narrower (6°), added on top of the low beam | `Headlights` is `'high'` |
 | Tail and brake pools | Short, wide red fans behind the car: faint when `Tail='on'`, stronger when `Tail='brake'` | `Tail` |
 | Backup pool | A white fan behind the car, 6 m long | `Backup` is true |
+| Turn-signal pools | A small fan at that side's front corner (amber) and rear corner (red), placed from the turn-signal lamps, or from the headlights and tail lights | `TurnLeft` or `TurnRight` is true |
 
 The pools are flat on the ground and ride with the vehicle's ground frame, so they stay on the ground when the body rolls or pitches. They do not light up other objects such as cubes. Each pool sits at a slightly different height (1 to 2.5 cm) so that two pools that are on at the same time do not flicker (z-fighting). The sizes, colors, and transparencies are in one table in `fcn_INTERNAL_makeLightEffects` in `fcn_CarMesh3D_plotVehicle.m`; change them there to change the look.
 
 ![High beams and braking (left); low beams and backing up (right)](Images/night_lightEffects.png)
 
+**To check one vehicle's lamps at night**, open it in `fcn_CarMesh3D_viewLabels` (or the label painter) and tick **Nighttime view**: the same scene as the animator's light check, with a lamp list to switch each lamp, and **Show** boxes to take the glass away and see the bulbs.
+
 | Headlights off, low, high | Signal, change lanes, hazards and brake, back up |
 |---|---|
 | ![Night headlights](Images/animations/night_headlights.gif) | ![Night signals](Images/animations/night_signalsHazardsBackup.gif) |
+
+## Hidden faces (never deleted)
+
+Sometimes part of a download should not be seen: a hard top taken off a convertible, a rear wiper, a stand or a stray piece. **CarMesh3D never deletes such faces from a finished mesh; it hides them.** A deleted face would leave a hole that no tool downstream could repair, and the same vehicle name would mean two different shapes. A hidden face keeps its part, lamp type, and color, and stays in `vehicleMesh`:
+
+- `FaceHiddenSet` (M x 1): 0 for a shown face, else the number of its **hidden set**;
+- `HiddenSetNames` (cell): each set's name, such as `'hard top'` or `'hidden'`.
+
+**Hiding and showing faces.** In the label painter, pick **hide**, type the set's name in **Hide as**, and paint the faces; **unhide** shows them again (tick **Show hidden faces** to see them first). In a script, the same edits are `fcn_CarMesh3D_editLabels` edits:
+
+```matlab
+edits = {struct('Name','top off', 'Material','HardTop', 'Hide','hard top'), ...
+         struct('Name','wiper back', 'Material','Wiper', 'Unhide',true)};
+vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
+```
+
+Edits files written before hiding existed used `Part='delete'`; such an edit now hides its faces in the set `'hidden'`.
+
+**What hidden faces do downstream:**
+
+| Where | Hidden faces |
+|---|---|
+| `fcn_CarMesh3D_plotVehicle` | Not drawn. Each set is a patch of its own, switched off, so it costs nothing to draw. `ShowHidden={'hard top'}` (or `true` for all) switches a set on, also on the fast path, so an animation can put the top up when it starts to rain. A hidden lamp does not light |
+| Measuring: `validateMesh`, `makeOutline2D`, `makeDetailLevels`, `checkGroundContact`, `compareToOriginal` | Left out: they measure the vehicle **as shown**, through `fcn_CarMesh3D_visibleMesh` |
+| The fit to the specs (`fitMeshToSpec`) | Kept: the vehicle is sized as the real car, with every piece, so a convertible compares to the manufacturer's data |
+| `fcn_CarMesh3D_viewLabels`, the label painter | Listed as "hidden (not drawn)", out of view until ticked |
+
+**Warnings.** Every build runs `fcn_CarMesh3D_checkHiddenFaces`, which prints a warning (and writes it to `check_summary.txt`) when:
+
+1. more than 10% of the faces are hidden;
+2. the hidden faces change a dimension by more than 1 cm. Both values are given. For example, a hidden muffler that hangs below the body: "GroundClearance: 0.140 m shown; 0.080 m with the hidden faces";
+3. hidden faces reach outside the shown vehicle's bounding box. Each set, side, and distance is given. **This matters for collision checks**, which use a vehicle's bounding box: if the box were taken from all of the mesh's vertices, a hidden piece (a hard top, a tow bar) would make collisions with something nobody can see, which is very hard to debug. Take the box from the shown faces (`fcn_CarMesh3D_visibleMesh`), or keep hidden pieces inside the shown vehicle.
 
 ## Checking against a side photo
 
@@ -614,7 +733,7 @@ In the left picture, the outlines agree. On the right, a picture of a different 
 
 ## Fixing labels
 
-Downloaded models are labeled from their material and group names, and those names are often unhelpful. In the 2010 Prius model, the headlights and taillights use the same material as the black bumper trim, so they are labeled trim. `fcn_CarMesh3D_editLabels` fixes this in two ways.
+Downloaded models are labeled from their material and group names, and those names are often unhelpful. In the 2010 Prius model, the headlights and taillights use the same material as the black bumper trim, so they are labeled trim. `fcn_CarMesh3D_editLabels` fixes this in three ways.
 
 **1. By clicking** (to find what needs fixing):
 
@@ -637,7 +756,19 @@ edits{end+1} = struct('Name','tail lights', ...
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
 ```
 
-Each edit picks faces with any of these fields (a face must pass all of the ones given), then sets `Part` or `LightType` (and optionally `Color`):
+**3. By painting, in the Model Reviewer or the label painter** (the usual way for a finished vehicle):
+
+```matlab
+fcn_CarMesh3D_reviewVehicle('2009_Honda_Fit_Sport');   % every check of one vehicle, with the painter in its Labels panel
+fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');     % the painter alone
+fcn_CarMesh3D_viewLabels('2009_Honda_Fit_Sport');      % look only
+```
+
+`fcn_CarMesh3D_viewLabels` shows the mesh in label colors, with the vehicle's photos beside it (a dial picks the photo by angle; the photo can be resized from its bottom-left corner). The list beside the model shows each label in its color, with a **Show** box to take a label out of view (to reach faces behind it). **Show mesh boundaries** draws the face edges. The **lamp list** under the labels switches each lamp: by day the lamps are drawn lit on the model; with **Nighttime view**, the scene turns to night (as in the animator's light check) and each lamp throws its light on the ground. Lamps with no labeled faces are marked "(no faces)" and still show where their light would land.
+
+`fcn_CarMesh3D_paintLabels` adds a **Paint as** row: body, glass, trim, interior, wheel, low beam, high beam, tail, running, turn signal, backup, **hide**, and **unhide**. Ctrl+drag paints faces (Ctrl+Shift+drag erases), a click paints one face, and a double-click a whole connected piece; **Mirror to the other side** paints both sides at once. Paint is pending (yellow edges) until **Apply**; **Save** writes the edits to the vehicle's `labelEdits_<ID>.mat` (by face centers, `Points`, so they survive a rebuild), and the next build applies them after simplifying. **Undo**, **Revert to save**, **Revert to start**, and timestamped copies of each save are there too. Nothing is ever deleted: see [Hidden faces](#hidden-faces-never-deleted).
+
+Each edit picks faces with any of these fields (a face must pass all of the ones given), then sets what the edit says:
 
 | Field | Picks faces... |
 |---|---|
@@ -646,6 +777,16 @@ Each edit picks faces with any of these fields (a face must pass all of the ones
 | `Material`, `Group` | whose material or group name matches a regular expression |
 | `CurrentPart` | that are now labeled as this part |
 | `FaceIndices` | in this list |
+| `Points` (with `PointTolerance`) | whose centers are at these points (how the painter saves its edits) |
+
+| Field | Sets... |
+|---|---|
+| `Part` | the part: `'body'`, `'glass'`, `'wheel'`, `'light'`, `'trim'`, `'interior'` |
+| `LightType` | the lamp type (this also makes the part `'light'`) |
+| `AlsoLightTypes` | more functions of the same lamp (`FaceLightFunctions`) |
+| `AlsoParts` | more parts the faces also belong to, such as `'glass'` for a clear lamp cover (`FaceAlsoParts`) |
+| `Color` | the display color |
+| `Hide`, `Unhide` | hides the faces in a named set, or shows them again |
 
 Use the clicking tool to find the faces and the printed regions, then paste the regions into your script. The full set of Prius light edits is in `script_demo_CarMesh3D_animation.m`.
 
@@ -849,6 +990,24 @@ All functions follow the IVSG convention: required inputs first, then optional i
 
 Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fast mode, and 9xxxx for bugs. Fail conditions are wrapped in `if 1==0` blocks.
 
+## Tests
+
+Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (64 pairs; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`). Run one by name, or all of them:
+
+```matlab
+script_test_fcn_CarMesh3D_plotVehicle            % one function
+testFiles = dir('Functions/script_test_fcn_CarMesh3D_*.m');   % all of them, as scripts
+for ii = 1:numel(testFiles), run(fullfile(testFiles(ii).folder, testFiles(ii).name)); end
+```
+
+Each test script runs as a plain script, top to bottom: its sections share variables, so run it as a script (not with `runtests`, which runs each section alone and so fails sections that use earlier ones). Its sections are numbered by figure: **1xxxx demos** (these draw the pictures in the [Function reference](#function-reference)), **2xxxx tests**, **8xxxx fast mode**, **9xxxx bugs**; fail conditions are kept in `if 1==0` blocks. A test passes when it reaches its last line, `All tests of fcn_CarMesh3D_<name> passed`.
+
+**Required before a commit:** the tests of every function changed, and of the functions that call it (the [chart](#how-the-functions-fit-together) shows them). **Optional:** the full set, about 10 minutes (the GUI tests open hidden windows; `fcn_CarMesh3D_compareToOriginal`'s takes about 2 minutes).
+
+**Known failures** (both fail on the committed code too, and are on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), and `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check).
+
+These tests check the code. The checks of a *vehicle* (is its mesh right?) are the pictures its build writes: see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run).
+
 ## The vehicle frame
 
 Normalized meshes follow ISO 8855: **X forward, Y left, Z up**, in meters, with the tires touching Z = 0. After fitting, the default origin is on the ground below the center of the rear axle (`Origin='center'` is also available).
@@ -857,23 +1016,35 @@ Angles follow the right-hand rule about these axes: positive yaw and steering tu
 
 ## The mesh structure
 
-| Field | Size | Set by | Meaning |
+A finished `vehicleMesh` (here the 2009 Fit: N = 31,293 vertices, M = 22,276 faces) holds:
+
+| Field | Class, size | Set by | Meaning |
 |---|---|---|---|
-| `Name`, `Source`, `License` | text | import / sample | Where the mesh came from. Always record the license of downloaded models. |
-| `Units`, `Frame` | text | import, normalize | `'m'` and `'ISO8855'` after normalizing |
-| `Vertices` | N x 3 | all | Vertex positions |
-| `Faces` | M x 3 | all | Triangles (indices into `Vertices`) |
-| `MaterialNames`, `MaterialColors`, `MaterialAlpha` | K x 1, K x 3, K x 1 | import | Materials from the file (colors are NaN if unknown) |
-| `FaceMaterialIndex` | M x 1 | import | Material of each face |
-| `GroupNames`, `FaceGroupIndex` | G x 1, M x 1 | import | Group or object of each face |
-| `NormalizeInfo` | struct | normalize | Rotation, units scale, offset used |
-| `PartNames` | 5 x 1 | label | `{'body';'glass';'wheel';'light';'trim'}` |
-| `FacePartIndex` | M x 1 | label | Part of each face |
-| `FaceWheelIndex` | M x 1 | label | 0, or 1 FL, 2 FR, 3 RL, 4 RR |
-| `FaceColors`, `FaceAlpha` | M x 3, M x 1 | label | Display color and transparency |
-| `LightTypeNames`, `FaceLightType` | 5 x 1, M x 1 | label, edit | `{'headlight';'turnsignal';'running';'tail';'backup'}`, and each light face's type (0 = not a switchable light) |
-| `VehicleSpec`, `AxleX`, `FitInfo` | struct, 1 x 2, struct | fit | Spec used, axle positions, fit details |
-| `FaceNormals`, `SimplifyInfo` | M x 3, struct | simplify | Unit outward normals, face counts |
+| `Name`, `Source`, `License` | char | import | Where the mesh came from; `License` is the whole LICENSE.txt |
+| `Units`, `Frame` | char | import, normalize | `'m'` and `'ISO8855'` (X forward, Y left, Z up) |
+| `Vertices` | double, N x 3 | all | Vertex positions [m] |
+| `Faces` | double, M x 3 | all | Triangles (indices into `Vertices`) |
+| `MaterialNames`, `MaterialColors`, `MaterialAlpha` | cell K x 1, double K x 3, K x 1 | import | Materials from the file (colors NaN if unknown) |
+| `FaceMaterialIndex` | double, M x 1 | import | Material of each face |
+| `GroupNames`, `FaceGroupIndex` | cell G x 1, double M x 1 | import | Group or object of each face |
+| `SeeThroughReliable` | logical, 1 x 1 | readGLB | Whether the download marks its see-through faces |
+| `NormalizeInfo` | struct | normalize | Rotation, units scale, and offset used |
+| `PartNames` | cell, 6 x 1 | label | `{'body';'glass';'wheel';'light';'trim';'interior'}` |
+| `FacePartIndex` | double, M x 1 | label, edit | Part of each face |
+| `FaceAlsoParts` | logical, M x parts | label, edit | More parts a face belongs to (a clear lamp cover is light and glass) |
+| `FaceWheelIndex` | double, M x 1 | label | 0, or 1 FL, 2 FR, 3 RL, 4 RR |
+| `LightTypeNames` | cell, 6 x 1 | label | `{'headlight';'turnsignal';'running';'tail';'backup';'highbeam'}` |
+| `FaceLightType` | double, M x 1 | label, edit | Each light face's lamp type (0: not a lamp) |
+| `FaceLightFunctions` | logical, M x types | edit | A lamp's other functions (only when a lamp has several) |
+| `FaceColors`, `FaceAlpha` | double, M x 3, M x 1 | label | Display color and transparency |
+| `TextureColorParts` | cell | label | Parts shown in the download's texture colors |
+| `VehicleSpec`, `AxleX`, `FitInfo` | struct, double 1 x 2, struct | fit | Spec used, axle positions, fit details |
+| `FaceNormals`, `SimplifyInfo` | double M x 3, struct | simplify | Unit outward normals; face counts |
+| `FloorPanel`, `InteriorInfo` | struct | addFloorPanel, labelInterior | What the floor panel and interior steps did |
+| `FaceHiddenSet`, `HiddenSetNames` | double M x 1, cell | edit | Hidden faces and their sets (see [Hidden faces](#hidden-faces-never-deleted)) |
+| `BuildInfo` | struct | makeBuildInfo | `CarMesh3DVersion`, `MeshVersion`, `Date`, `Script`, `MATLABRelease`, `Settings`, `ExemplarID`, `ExemplarMeshVersion`, `Quality` |
+
+Every per-face field has one row per face, so a function that removes or reorders faces must cut them all; `fcn_CarMesh3D_simplifyMesh` and `fcn_CarMesh3D_visibleMesh` carry every `Face*` field.
 
 ## Detail levels for animation
 
@@ -1100,36 +1271,1876 @@ Overhangs use the usual definitions: **front overhang** is from the center of th
 - Some models have no separate glass, so there is nothing to make transparent.
 - Wheel-named parts near the car's centerline (axles, drive shafts) are labeled trim automatically so they don't throw off the wheel positions.
 
+## Function reference
+
+Each function has a test script of the same name with `script_test_` in front (in `Functions/`); the test script is the best example of its use, and the picture under each entry is the first figure its test draws (a window's picture for the GUIs). Click an entry to open it: what the function does, its call (FORMAT), its inputs, options and outputs (name, meaning, MATLAB class, size), and the assumptions it makes.
+
+Rules shared by every function, so they are not repeated below:
+
+- **Options** are `Name=Value` pairs after the required inputs, in any order; an option not given takes its default.
+- **`FigNum`** (option, double, 1 x 1 or empty) is always last: `[]` (the default) means no plot; a number plots into that figure; `-1` is **fast mode**, with no input checks and no plots (for use inside loops).
+- **Flags** (options named `...=flag`, or `Show...`, `Wait`, `Visible`) are logical 1 x 1: `true` turns the behavior on.
+- **Lengths are meters** and the mesh is in the CarMesh3D vehicle frame (x forward, y left, z up, origin on the ground under the middle of the rear axle), unless an entry says otherwise.
+- **Debug switches:** the environment variables `MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS` and `MATLABFLAG_CARMESH3D_FLAG_DO_DEBUG` turn input checks and debug printing on or off for every function.
+- **Hidden faces:** functions that measure (validate, outlines, detail levels, ground contact, comparison) use only the shown faces, through `fcn_CarMesh3D_visibleMesh`; the fit and the drawing functions keep every face (see [Hidden faces](#hidden-faces-never-deleted)).
+
+### Gather the inputs
+
+<details><summary><b><code>fcn_CarMesh3D_loadVehicleSpec</code></b> (test: <code>script_test_fcn_CarMesh3D_loadVehicleSpec.m</code>): Loads one or many vehicle specifications, from a .mat file or from a structure already in the workspace, and returns CarMesh3D vehicle specification structures (the same structure made by fcn_CarMesh3D_fillVehicleSpec).</summary>
+
+Loads one or many vehicle specifications, from a .mat file or from a structure already in the workspace, and returns CarMesh3D vehicle specification structures (the same structure made by fcn_CarMesh3D_fillVehicleSpec). Two kinds of structures are read (listed in the function's header).
+
+```matlab
+vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(specSource,...
+    (BodyColor=[r g b]),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `specSource` | input | the full or relative path to a .mat file, or a structure (or array of structures) of either kind above. | char or struct | 1 x n, or 1 x N |
+| `BodyColor` | option | a 1 x 3 RGB paint color (values from 0 to 1) to add to the spec, since vehicleParameters files do not store a color. Default is [] (none). | double | 1 x 3 |
+| `FigNum` | option | a figure number to plot the dimensioned specification (for an array, the first vehicle's). If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleSpec` | output | a CarMesh3D vehicle specification structure, with Source set to the file name (or '(structure)'), or an array of them (the same size as the input array). | struct | 1 x 1 |
+
+**Assumptions:** The file holds either a CarMesh3D spec or a vehicleParameters structure (the IVSG format); lengths are converted to meters.
+
+![fcn_CarMesh3D_loadVehicleSpec sample output](Images/functions/fcn_CarMesh3D_loadVehicleSpec.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillVehicleSpec</code></b> (test: <code>script_test_fcn_CarMesh3D_fillVehicleSpec.m</code>): Creates a vehicle specification structure that holds the published geometric data for one vehicle: overall length, width, height, wheelbase, track widths, tire size, and similar values.</summary>
+
+Creates a vehicle specification structure that holds the published geometric data for one vehicle: overall length, width, height, wheelbase, track widths, tire size, and similar values. This structure is the "ground truth" that every mesh in the CarMesh3D library is scaled to agree with. All lengths are stored in meters.
+
+```matlab
+vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(...
+    (Preset=presetName),...
+    (Name=nameString),...
+    (OverallLength=L), (OverallWidth=W), (OverallHeight=H), (WidthWithMirrors=WM),...
+    (Wheelbase=WB), (TrackFront=TF), (TrackRear=TR),...
+    (TireSize=tireSizeString), (TireDiameter=D),...
+    (TireSizeRear=tireSizeString), (TireDiameterRear=D),...
+    (FrontOverhang=FOH), (GroundClearance=GC),...
+    (EngineType=engineString), (HybridEngineType=engineString),...
+    (BodyColor=[r g b]), (Source=sourceString),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Preset` | option | a character string naming a set of default values to start from. Allowed values are '' (the default, no preset), 'genericSedan', and 'genericSUV'. Default `''`. | char | 1 x n |
+| `Name` | option | a character string naming the vehicle, for example '2024 Example Sedan'. Default is '' or the preset name. | char or string | 1 x n |
+| `OverallLength` | option | bumper-to-bumper length, in meters. Default `[]`. | double | 1 x 1 |
+| `OverallWidth` | option | body width, in meters. Note: most published widths EXCLUDE the side mirrors. If a mesh includes mirrors, the fitted body will be slightly narrow; see TO-DO in fcn_CarMesh3D_fitMeshToSpec. Default `[]`. | double | 1 x 1 |
+| `OverallHeight` | option | ground to top of roof, in meters. Default `[]`. | double | 1 x 1 |
+| `WidthWithMirrors` | option | width including the side mirrors, in meters. Stored for reference (and for future mirror-aware fitting). Default `[]`. | double | 1 x 1 |
+| `Wheelbase` | option | front axle to rear axle distance, in meters. Default `[]`. | double | 1 x 1 |
+| `TrackFront` | option | center-to-center distance between the front tires, in meters. Default `[]`. | double | 1 x 1 |
+| `TrackRear` | option | center-to-center distance between the rear tires, in meters. If empty and TrackFront is given, TrackRear = TrackFront. Default `[]`. | double | 1 x 1 |
+| `TireSize` | option | a standard tire size string, for example '225/45R17' or 'P225/45ZR17': the FRONT tires' size, and the rear tires' too unless TireSizeRear is given. Default `[]`. | char | 1 x n |
+| `TireDiameter` | option | overall tire diameter, in meters: the front tires' (and the rear's, unless TireDiameterRear or TireSizeRear is given). If given, this takes priority over the value computed from TireSize. Default `[]`. | double | 1 x 1 |
+| `TireSizeRear` | option | the rear tires' size, for vehicles with different front and rear tires (a staggered fitment). Default: TireSize. | char | 1 x n |
+| `TireDiameterRear` | option | the rear tires' overall diameter, in meters. If given, this takes priority over the value computed from TireSizeRear. Default: from TireSizeRear, else TireDiameter. | double | 1 x 1 |
+| `EngineType` | option | what powers the vehicle: 'sparkIgnition' (gasoline), 'diesel', 'wankel' (rotary), 'hybrid', or 'electric' (battery electric, no engine). Default '' (not given). Not used for the shape; carried with the spec. | char | 1 x n |
+| `HybridEngineType` | option | for EngineType 'hybrid', the hybrid's engine: 'sparkIgnition', 'diesel', or 'wankel'. Default ''. | char | 1 x n |
+| `FrontOverhang` | option | front bumper to front axle distance, in meters. If empty, later steps keep the axle placement of the mesh (or assume equal front and rear overhangs). Default `[]`. | double | 1 x 1 |
+| `GroundClearance` | option | ground to lowest point of the body, in meters. Used only for validation. Default `[]`. | double | 1 x 1 |
+| `BodyColor` | option | a 1 x 3 RGB color, each value from 0 to 1, for the body paint. Used by fcn_CarMesh3D_labelParts if given. Default `[]`. | double | 1 x 3 |
+| `Source` | option | a character string noting where the data came from (a URL or citation). Strongly recommended for student work. Default `[]`. | char | 1 x n |
+| `FigNum` | option | a figure number to plot a dimensioned side and top view of the specification. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleSpec` | output | a structure with the fields Name, Units ('m'), OverallLength, OverallWidth, WidthWithMirrors, OverallHeight, Wheelbase, TrackFront, TrackRear, TireSize, TireDiameter, TireSizeRear, TireDiameterRear, FrontOverhang, RearOverhang, GroundClearance, EngineType, HybridEngineType, BodyColor, Source TireSize and TireDiameter are the front tires'; TireSizeRear and TireDiameterRear the rear's (the same as the front's unless given). | struct | 1 x 1 |
+
+**Assumptions:** Published values are given in meters (tire sizes as text, such as 'P185/55R16'); values not given stay NaN and are skipped by the fit and the checks.
+
+![fcn_CarMesh3D_fillVehicleSpec sample output](Images/functions/fcn_CarMesh3D_fillVehicleSpec.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_findVehicleFiles</code></b> (test: <code>script_test_fcn_CarMesh3D_findVehicleFiles.m</code>): Returns the standard file and folder names for a vehicle stored in the Data folder, or lists every vehicle stored there.</summary>
+
+Returns the standard file and folder names for a vehicle stored in the Data folder, or lists every vehicle stored there. This function is the CarMesh3D naming convention, in code.
+
+```matlab
+vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID,...
+    (BodyStyle=style), (DataFolder=folder), (FigNum=figNum))
+```
+
+**Assumptions:** This name is the vehicle ID, and it must be used by only one folder.
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID, such as '2013_Toyota_Prius_Four', or '' (empty) to list every vehicle folder below the Data folder. | char or string | 1 x n |
+| `BodyStyle` | option | for a NEW vehicle (no folder yet), the body style it will be filed under, such as 'sedan' or 'compactCargoVan': its paths are then in Data\BodyStyles\<Style>\<ID>. | char | 1 x n |
+| `DataFolder` | option | the Data folder. Default [] uses the Data folder next to the Functions folder that holds this function. | char or string | 1 x n |
+| `FigNum` | option | if given (and not -1), the vehicles are also printed as a table in the command window. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleFiles` | output | a structure (or, when listing, a structure array, one element per vehicle folder) with fields: ID, Year (number), Make, Model, Trim, Name ('2013 Toyota Prius Four') Folder, ParametersFile, ScriptFile, MeshFile, LevelsFile, OutlineFile, ModelFolder, ChecksFolder: full paths, following the convention above (ModelFolder is the vehicle's folder itself when it has no model subfolder) ModelFiles: the 3D model files found (glb, gltf, obj, stl, ply, fbx, blend) in ModelFolder and its source subfolder, as full paths in a cell array BodyStyle: the style ID from the folder it is filed under, such as 'sedan' ('' if not under Data\BodyStyles) BodyStyleFolder: that folder's name, such as 'Sedan' IsSample: true for a vehicle under Data\Samples Found: true if the vehicle's folder exists HasParameters, HasScript, HasMesh, HasLevels, HasOutline: true if those files exist For a new vehicle the paths are returned even if nothing exists yet. | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_convertToOBJ</code></b> (test: <code>script_test_fcn_CarMesh3D_convertToOBJ.m</code>): Converts a 3D model file that MATLAB cannot read (FBX, glTF, GLB, or a Blender .blend file) into a Wavefront OBJ file with a matching .mtl material file, by running Blender in the background.</summary>
+
+Converts a 3D model file that MATLAB cannot read (FBX, glTF, GLB, or a Blender .blend file) into a Wavefront OBJ file with a matching .mtl material file, by running Blender in the background. The OBJ file can then be read by fcn_CarMesh3D_importMesh. (importMesh calls this function automatically for these file types.)
+
+```matlab
+objFile = fcn_CarMesh3D_convertToOBJ(inputFile,...
+    (OutputFile=outputFileName),...
+    (BlenderPath=blenderExecutable),...
+    (Overwrite=flagOverwrite),...
+    (TargetFaces=numFaces), (WheelPattern=regexp),...
+    (WheelFaces=numFaces), (RemovePattern=regexp),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `inputFile` | input | the full or relative path to a .fbx, .glb, .gltf, .blend, or .obj file. (An .obj input is re-written by Blender, which can repair files that fcn_CarMesh3D_importMesh cannot read.) | char or string | 1 x n |
+| `OutputFile` | option | the .obj file to write. Default is the input file name with '_converted.obj' added (or '_reduced<TargetFaces>.obj' when reducing), in the same folder. | char | 1 x n |
+| `BlenderPath` | option | the full path to the Blender program. Default is '' (search for it). The search order is: the environment variable CARMESH3D_BLENDER_PATH; then on Windows, the newest | char | 1 x n |
+| `Overwrite` | option | false (default) to reuse an existing output file that is newer than the input file (and, when reducing, was made with the same reduction settings), which skips the slow conversion; true to always convert again. Default `false`. | logical | 1 x 1 |
+| `TargetFaces` | option | about how many faces to reduce the model to, in Blender (see REDUCTION IN BLENDER above). Default [] (no reduction). | double | 1 x 1 |
+| `WheelPattern` | option | a regular expression for the wheel objects, which keep at least WheelFaces faces per wheel. Default '' (no wheels known). | char | 1 x n |
+| `WheelFaces` | option | the fewest faces per wheel (the four wheels together), at most TargetFaces/8 each. Default 2000. | double | 1 x 1 |
+| `RemovePattern` | option | a regular expression for faces to delete before the reduction (a hidden interior, stray pieces), so they take none of the face budget. Default ''. | char | 1 x n |
+| `FigNum` | option | a figure number to plot the converted mesh. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `objFile` | output | the full path of the OBJ file that was written (or reused). | char or string | 1 x n |
+
+**Assumptions:** Blender (free, blender.org) is installed, in a usual location or given with BlenderPath; the OBJ comes out in Blender's axes (Z up), and the input file is not changed.
+
+![fcn_CarMesh3D_convertToOBJ sample output](Images/functions/fcn_CarMesh3D_convertToOBJ.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_readGLB</code></b> (test: <code>script_test_fcn_CarMesh3D_readGLB.m</code>): Reads a binary glTF file (.glb) directly in MATLAB, with no Blender, keeping what the OBJ conversion loses: each material's base color and transparency, and the colors of its texture images.</summary>
+
+Reads a binary glTF file (.glb) directly in MATLAB, with no Blender, keeping what the OBJ conversion loses: each material's base color and transparency, and the colors of its texture images. Each face gets the color of its texture under it (sampled at its center and corners), so parts painted into one texture (lamps, trim, and body in one material, as in many low-poly downloads) can be told apart by color.
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_readGLB(fileName,...
+    (Name=nameString), (License=licenseString), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `fileName` | input | the path to a .glb file. | char or string | 1 x n |
+| `Name` | option | a name for the mesh. Default is the file name. | char or string | 1 x n |
+| `License` | option | the license of the downloaded model. Default 'unknown'. | char | 1 x n |
+| `FigNum` | option | a figure to plot the mesh in its face colors. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | a CarMesh3D mesh structure (the fields are listed in [The mesh structure](#the-mesh-structure)). | struct | 1 x 1 |
+
+**Assumptions:** A binary glTF file (.glb); the mesh comes back in Blender's axes (Z up), the same as a .glb converted by convertToOBJ, so the vehicle script's axis settings do not change.
+
+![fcn_CarMesh3D_readGLB sample output](Images/functions/fcn_CarMesh3D_readGLB.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_importMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_importMesh.m</code>): Reads a 3D model file into a CarMesh3D mesh structure. Supported formats.</summary>
+
+Reads a 3D model file into a CarMesh3D mesh structure. Supported formats (listed in the function's header).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_importMesh(fileName,...
+    (Name=nameString),...
+    (License=licenseString),...
+    (BlenderPath=blenderExecutable),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `fileName` | input | the full or relative path to a .obj, .stl, .fbx, .glb, .gltf, or .blend file. | char or string | 1 x n |
+| `Name` | option | a name for the mesh. Default is the file name. | char or string | 1 x n |
+| `License` | option | the license of the downloaded model, for example 'CC0' or 'CC-BY 4.0, author: ...'. Default is 'unknown'. Recording this is strongly recommended for any model that will be shared. | char | 1 x n |
+| `BlenderPath` | option | the full path to the Blender program, used only for .fbx, .glb, .gltf, and .blend files. Default is '' (search for it; see fcn_CarMesh3D_convertToOBJ). | char | 1 x n |
+| `FigNum` | option | a figure number to plot the imported mesh. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | a CarMesh3D mesh structure with the fields Name, Source, License, Units ('unknown'), Frame ('source'), Vertices (N x 3), Faces (M x 3), MaterialNames (K x 1 cell), MaterialColors (K x 3, NaN if unknown), MaterialAlpha (K x 1), FaceMaterialIndex (M x 1), GroupNames (G x 1 cell), FaceGroupIndex (M x 1) | struct | 1 x 1 |
+
+**Assumptions:** An OBJ (its .mtl next to it, for colors), STL (no colors), or a format Blender converts (FBX, GLB/GLTF, BLEND); units are whatever the file uses, set to meters later by normalizeMesh.
+
+![fcn_CarMesh3D_importMesh sample output](Images/functions/fcn_CarMesh3D_importMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_transferTextureColors</code></b> (test: <code>script_test_fcn_CarMesh3D_transferTextureColors.m</code>): Gives each face of a mesh the texture color and transparency of the nearest face of another mesh of the same model, read with fcn_CarMesh3D_readGLB.</summary>
+
+Gives each face of a mesh the texture color and transparency of the nearest face of another mesh of the same model, read with fcn_CarMesh3D_readGLB. Used when a model is reduced in Blender (whose OBJ keeps no texture colors): the reduced faces lie on the download's surface, so the nearest download face facing the same way has the color painted there.
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_transferTextureColors(vehicleMesh, textureMesh,...
+    (MaxDistance=meters), (FigNum=figNum))
+```
+
+**Assumptions:** Both meshes must be in the same axes (as they are straight from fcn_CarMesh3D_readGLB and fcn_CarMesh3D_importMesh of the Blender conversion, before normalizing).
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure (for example, imported from the Blender-reduced OBJ). | struct | 1 x 1 |
+| `textureMesh` | input | the download read by fcn_CarMesh3D_readGLB (it has the fields FaceTextureColors, FaceTextureAlpha, SeeThroughReliable). | struct | 1 x 1 |
+| `MaxDistance` | option | faces whose center is farther than this from every download face center (in the meshes' units) get a neutral gray and alpha 1. | double | 1 x 1 |
+| `FigNum` | option | a figure to plot the mesh in the transferred colors. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the same structure with FaceTextureColors (M x 3), FaceTextureAlpha (M x 1), and SeeThroughReliable added. | struct | 1 x 1 |
+
+![fcn_CarMesh3D_transferTextureColors sample output](Images/functions/fcn_CarMesh3D_transferTextureColors.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_normalizeMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_normalizeMesh.m</code>): Puts a mesh into the CarMesh3D vehicle frame, which follows the ISO 8855 vehicle convention.</summary>
+
+Puts a mesh into the CarMesh3D vehicle frame, which follows the ISO 8855 vehicle convention (listed in the function's header).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh,...
+    (UpAxis=upAxisString),...
+    (ForwardAxis=forwardAxisString),...
+    (Units=unitsSetting),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure, for example from fcn_CarMesh3D_importMesh. | struct | 1 x 1 |
+| `UpAxis` | option | the file axis that points up, as a string with a sign: '+x', '-x', '+y', '-y', '+z', or '-z'. Default is '+z'. | char | 1 x n |
+| `ForwardAxis` | option | the file axis that points toward the FRONT of the vehicle, in the same format. Default is '+x'. Must be a different axis than UpAxis. | char | 1 x n |
+| `Units` | option | the length units of the file: 'm', 'cm', 'mm', 'in', or 'auto' (the default). A positive number may also be given, as the number of meters per file unit. Default `'auto'`. | char | 1 x n |
+| `Yaw` | option | degrees to turn the model about its up axis, after the axes above (counterclockwise seen from above), for a download whose front is not along one of its axes. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the result. If empty or omitted, no plot is made. If set to -1, input checking is skipped and no plot is made (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the same structure with Vertices (and FaceNormals, if present) changed, Units set to 'm', Frame set to 'ISO8855', and a new field NormalizeInfo with fields RotationMatrix, MetersPerFileUnit, and OffsetMeters (the shift that was applied after rotating and scaling). | struct | 1 x 1 |
+
+**Assumptions:** The up and forward axes are known (given, or the defaults for the download's format); the vehicle sits on its tires.
+
+![fcn_CarMesh3D_normalizeMesh sample output](Images/functions/fcn_CarMesh3D_normalizeMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillSampleMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_fillSampleMesh.m</code>): Builds a simple, low-poly sample car mesh directly from a vehicle specification.</summary>
+
+Builds a simple, low-poly sample car mesh directly from a vehicle specification. The sample has a body extruded from a side profile with wheel arches, glass panes (windshield, rear window, side windows), head and tail lights, and four wheels made of tire and rim materials. Materials and groups are named the way downloaded models often name them, so the sample can be used to test every step of the CarMesh3D workflow without downloading anything.
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_fillSampleMesh(...
+    (VehicleSpec=vehicleSpec),...
+    (Style=styleString),...
+    (NumWheelSegments=numSegments),...
+    (FigNum=figNum))
+```
+
+**Assumptions:** It must contain OverallLength, OverallWidth, OverallHeight, and Wheelbase.
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `VehicleSpec` | option | a vehicle specification structure from fcn_CarMesh3D_fillVehicleSpec. It must contain OverallLength, OverallWidth, OverallHeight, and Wheelbase. If empty or omitted, the 'genericSedan' preset is used. Default `[]`. | struct | 1 x 1 |
+| `Style` | option | 'clean' (default) or 'messy'. 'clean': CarMesh3D vehicle frame (ISO 8855: X forward, Y left, Z up), meters, origin on the ground at the center of the length and width. Default `'clean'`. | char | 1 x n |
+| `NumWheelSegments` | option | the number of flat segments around each wheel. Default is 16. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the result. If empty or omitted, no plot is made. If set to -1, input checking is skipped and no plot is made (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | a CarMesh3D mesh structure with the fields Name, Source, License, Units, Frame, Vertices (N x 3), Faces (M x 3, triangles), MaterialNames (K x 1 cell), MaterialColors (K x 3, RGB), MaterialAlpha (K x 1), FaceMaterialIndex (M x 1), GroupNames (G x 1 cell), FaceGroupIndex (M x 1) See README.md for the full description of the mesh structure. | struct | 1 x 1 |
+
+![fcn_CarMesh3D_fillSampleMesh sample output](Images/functions/fcn_CarMesh3D_fillSampleMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillBodyStyleMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_fillBodyStyleMesh.m</code>): Makes a vehicle's mesh from its body style when no 3D model of the vehicle itself is found: one of the style's exemplars (the finished, checked vehicles filed in Data\BodyStyles\<Style>; see fcn_CarMesh3D_loadBodyStyles) is refit to this vehicle's specification: its length, width, height, wheelbase, tracks, overhangs, ground clearance, and tire size, the wheels moved and sized as rigid parts (fcn_CarMesh3D_fitMeshToSpec).</summary>
+
+Makes a vehicle's mesh from its body style when no 3D model of the vehicle itself is found: one of the style's exemplars (the finished, checked vehicles filed in Data\BodyStyles\<Style>; see fcn_CarMesh3D_loadBodyStyles) is refit to this vehicle's specification: its length, width, height, wheelbase, tracks, overhangs, ground clearance, and tire size, the wheels moved and sized as rigid parts (fcn_CarMesh3D_fitMeshToSpec).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_fillBodyStyleMesh(bodyStyle, vehicleSpec,...
+    (ExemplarID=id), (BodyColor=rgb), (Fallback=choice), (DataFolder=folder),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `bodyStyle` | input | a style's ID from Data\bodyStyles.csv, such as 'liftback' or 'compactCargoVan' (case is ignored). See fcn_CarMesh3D_loadBodyStyles. | char | 1 x n |
+| `vehicleSpec` | input | the vehicle's specification (fcn_CarMesh3D_fillVehicleSpec or fcn_CarMesh3D_loadVehicleSpec). OverallLength, OverallWidth, OverallHeight, and Wheelbase are needed; the other dimensions are used when given. | struct | 1 x 1 |
+| `ExemplarID` | option | the exemplar to use, one of the style's finished vehicles, such as '2013_Toyota_Prius_Four'. Default '' picks the one closest in size. | char | 1 x n |
+| `BodyColor` | option | an RGB color for the body faces. Default [] uses the spec's BodyColor, or keeps the exemplar's. | double | 1 x 3 |
+| `Fallback` | option | 'sample' (default) or 'error', for a style with no exemplar. Default `'sample'`. | char | 1 x n |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | a figure to plot the result. If empty or omitted, no plot is made. If set to -1, input checking is skipped and no plot is made (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | a CarMesh3D mesh structure, fit to the spec (with VehicleSpec, AxleX, and FitInfo as from fcn_CarMesh3D_fitMeshToSpec), with Name from the spec, Source naming the exemplar, the exemplar's License (its attribution carries over), and BodyStyleInfo: BodyStyle, ExemplarID, ExemplarName, WidthReference, and WidthNote (how the width was fit), CandidateIDs (the style's exemplars) and SizeDifference (each one's root-mean-square relative size difference from this vehicle, the same order) | struct | 1 x 1 |
+
+**Assumptions:** The body style has an approved exemplar with a finished mesh (Data/bodyStyles.csv); the result is a stand-in shaped like the exemplar, not like the vehicle.
+
+![fcn_CarMesh3D_fillBodyStyleMesh sample output](Images/functions/fcn_CarMesh3D_fillBodyStyleMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_loadBodyStyles</code></b> (test: <code>script_test_fcn_CarMesh3D_loadBodyStyles.m</code>): Lists the vehicle body styles (sedan, hatchback, minivan, pickup, and so on) and the finished vehicles filed under each.</summary>
+
+Lists the vehicle body styles (sedan, hatchback, minivan, pickup, and so on) and the finished vehicles filed under each. Vehicles are kept in Data\BodyStyles\<Style>\<ID> (see fcn_CarMesh3D_findVehicleFiles). An EXEMPLAR of a style is a finished vehicle used as a starting shape that can be refit to any vehicle of that style when no model of the vehicle itself is found (fcn_CarMesh3D_fillBodyStyleMesh picks the exemplar closest in size).
+
+```matlab
+bodyStyles = fcn_CarMesh3D_loadBodyStyles(...
+    (DataFolder=folder), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | a figure to show every exemplar, one row per style, each labeled (styles without one are listed in the title). If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `bodyStyles` | output | a structure array, one element per style, with BodyStyle: the style's ID, such as 'sedan' or 'minivan' Name: a readable name, such as 'Full-size pickup (crew cab)' Description: what sets the style apart Core: true for the 13 core light-vehicle styles, false for the optional ones Folder: the style's folder, Data\BodyStyles\<Style> VehicleIDs: every vehicle filed there (a cell array of IDs) ExemplarIDs: the approved exemplars (named in the Exemplars column) with a finished mesh; without that column, every vehicle in the folder with a finished mesh HasExemplar: true if there is at least one exemplar SuggestedVehicles: vehicles that would make good exemplars A folder under Data\BodyStyles that is not in the list is added at the end (its name as its Name), with a warning ('CarMesh3D:unlistedStyle'). | logical | 1 x 1 |
+
+**Assumptions:** Data/bodyStyles.csv is present and lists each style's ID, name and exemplars.
+
+![fcn_CarMesh3D_loadBodyStyles sample output](Images/functions/fcn_CarMesh3D_loadBodyStyles.png)
+
+</details>
+
+### Label and fit
+
+<details><summary><b><code>fcn_CarMesh3D_labelParts</code></b> (test: <code>script_test_fcn_CarMesh3D_labelParts.m</code>): Labels every face of a mesh as one of five vehicle parts.</summary>
+
+Labels every face of a mesh as one of five vehicle parts (listed in the function's header).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh,...
+    (PartRules=partRules),...
+    (BodyColor=[r g b]),...
+    (GlassAlpha=alpha),...
+    (UseMaterialColors=flag),...
+    (PartColors=partColors),...
+    (SeeThroughGlass=flag),...
+    (TextureColorParts=partList),...
+    (FigNum=figNum))
+```
+
+**Assumptions:** This needs the mesh to be in the CarMesh3D vehicle frame (run fcn_CarMesh3D_normalizeMesh first).
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure, normalized with fcn_CarMesh3D_normalizeMesh. | struct | 1 x 1 |
+| `PartRules` | option | an N x 2 cell array of extra rules, checked BEFORE the default rules. | double | N x 2 |
+| `BodyColor` | option | a 1 x 3 RGB color (values from 0 to 1) applied to ALL body faces, replacing material colors. | double | 1 x 3 |
+| `GlassAlpha` | option | the transparency of glass faces, from 0 (invisible) to 1 (opaque). Default is 0.35. | double | 1 x 1 |
+| `UseMaterialColors` | option | true (default) to color faces from the file's material colors where known. Default `true`. | logical | 1 x 1 |
+| `PartColors` | option | an N x 2 cell array of {partName, [r g b]} pairs that set the color of every face of a part, for example PartColors = {'glass',[0.35 0.35 0.38]; 'trim',[0 0 0]} These are applied last, so they override material colors and BodyColor. | double | N x 2 |
+| `SeeThroughGlass` | option | true (default) to use the see-through marks of a mesh read with fcn_CarMesh3D_readGLB (its FaceTextureAlpha, when Default `true`. | logical | 1 x 1 |
+| `LampCovers` | option | true (default) to make each separate piece of glass that lies over a lamp part of that lamp: a piece (glass faces joined by shared corners) at least half of whose faces are within 2% of the vehicle's length of a light face. Default `true`. | logical | 1 x 1 |
+| `AutoHighBeams` | option | Split each headlight into low and high beams by position? Default `true`. | logical | 1 x 1 |
+| `TextureColorParts` | option | a cell array of part names whose faces take their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB or fcn_CarMesh3D_transferTextureColors), for example TextureColorParts = {'light','trim','wheel'} applied after PartColors. Default is {} (none). | cell | 1 x n |
+| `FigNum` | option | a figure number to plot the labeled parts. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the same structure with these fields added: PartNames (5 x 1 cell): {'body';'glass';'wheel';'light';'trim'} FacePartIndex (M x 1): index into PartNames for each face FaceWheelIndex (M x 1): 0 for non-wheel faces, else 1 to 4 (1 FL, 2 FR, 3 RL, 4 RR) FaceColors (M x 3): RGB display color of each face FaceAlpha (M x 1): transparency of each face LightTypeNames (6 x 1 cell): {'headlight';'turnsignal'; 'running';'tail';'backup';'highbeam'} FaceLightType (M x 1): index into LightTypeNames for light faces, 0 for all other faces TextureColorParts (cell): the TextureColorParts option FaceAlsoParts (M x numel(PartNames) logical): the other parts each face also belongs to (one column per part). | struct | 1 x 1 |
+
+![fcn_CarMesh3D_labelParts sample output](Images/functions/fcn_CarMesh3D_labelParts.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_editLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_editLabels.m</code>): Corrects part labels (and light types) that fcn_CarMesh3D_labelParts got wrong, for example headlights that a downloaded model put in the same material as its black trim.</summary>
+
+Corrects part labels (and light types) that fcn_CarMesh3D_labelParts got wrong, for example headlights that a downloaded model put in the same material as its black trim. Edits can be given in a script, so they are repeatable, or made by clicking on the vehicle.
+
+```matlab
+[vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh,...
+    (Edits=edits),...
+    (Interactive=flagInteractive),...
+    (GlassAlpha=alpha),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh structure (from fcn_CarMesh3D_labelParts). | struct | 1 x 1 |
+| `Edits` | option | a cell array of edit structures (or a structure array), as described above. They are applied in order. Default is {}. | cell | 1 x n (structs) |
+| `Interactive` | option | true to open the click-to-select editor after the scripted edits are applied. Default is false. | logical | 1 x 1 |
+| `GlassAlpha` | option | the transparency given to faces that are changed to glass. Default is 0.35. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the labels after editing. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with FacePartIndex, FaceLightType, FaceWheelIndex, FaceColors, and FaceAlpha updated (and FaceLightFunctions, an Nfaces x numel(LightTypeNames) logical matrix, when an edit gives AlsoLightTypes: each light face's functions, its FaceLightType among them; and FaceAlsoParts, an Nfaces x numel(PartNames) logical matrix, when an edit gives AlsoParts or the mesh has it: the other parts of each face. | struct | 1 x 1 |
+| `appliedEdits` | output | a structure array with one element per edit made (scripted and interactive), with the fields Name, Part, LightType, and FaceIndices (the faces that were changed). | struct | 1 x n |
+
+**Assumptions:** The mesh is labeled (labelParts); regions are in meters in the mesh's current frame (after the fit: origin on the ground under the rear axle). Faces are never deleted: Hide moves them to a hidden set.
+
+![fcn_CarMesh3D_editLabels sample output](Images/functions/fcn_CarMesh3D_editLabels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fitMeshToSpec</code></b> (test: <code>script_test_fcn_CarMesh3D_fitMeshToSpec.m</code>): Scales and shifts a normalized mesh so that its size agrees with a vehicle specification (from fcn_CarMesh3D_fillVehicleSpec).</summary>
+
+Scales and shifts a normalized mesh so that its size agrees with a vehicle specification (from fcn_CarMesh3D_fillVehicleSpec).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec,...
+    (FitMethod=methodString),...
+    (Origin=originString),...
+    (WidthReference=widthString),...
+    (Symmetric=flag),...
+    (FigNum=figNum))
+```
+
+**Assumptions:** Needs wheel faces numbered by fcn_CarMesh3D_labelParts. Needs a Wheelbase in the spec.
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure in the vehicle frame (from fcn_CarMesh3D_normalizeMesh), ideally labeled (from fcn_CarMesh3D_labelParts). | struct | 1 x 1 |
+| `vehicleSpec` | input | a vehicle specification structure. OverallLength, OverallWidth, and OverallHeight are required. | struct | 1 x 1 |
+| `FitMethod` | option | 'auto' (default), 'wheels', or 'box'. Default `'auto'`. | char | 1 x n |
+| `Origin` | option | where to put the origin after fitting: 'rearAxle' (default): on the ground, below the center of the rear axle (the usual vehicle dynamics convention). Needs a Wheelbase in the spec. Default `'rearAxle'`. | char | 1 x n |
+| `WidthReference` | option | what is scaled to OverallWidth: 'all' (default): the whole mesh. 'body': only the faces labeled 'body'. Default `'all'`. | char | 1 x n |
+| `Symmetric` | option | true when the mesh will later be made symmetric by reducing its left half and mirroring it (fcn_CarMesh3D_simplifyMesh Symmetric=true). | logical | 1 x 1 |
+| `FigNum` | option | a figure number to plot the fitted mesh. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the same structure with Vertices changed, and these fields added or updated: VehicleSpec: a copy of the spec that was used AxleX: [rearAxleX frontAxleX] in the output frame (NaN if unknown) FitInfo: a structure with Method, Origin, BoxScale ([sx sy sz]), and WheelScale (4 x 1, NaN for wheels not found) Any FaceNormals field is cleared, since stretching changes normals; fcn_CarMesh3D_simplifyMesh recomputes them. | struct | 1 x 1 |
+
+![fcn_CarMesh3D_fitMeshToSpec sample output](Images/functions/fcn_CarMesh3D_fitMeshToSpec.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_visibleMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_visibleMesh.m</code>): The vehicle as it is shown: the mesh without its hidden faces.</summary>
+
+The vehicle as it is shown: the mesh without its hidden faces.
+
+```matlab
+[visibleMesh, flagShown] = fcn_CarMesh3D_visibleMesh(vehicleMesh,...
+    (ShowSets=setNames), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh (Vertices, Faces, and the per-face fields), with or without FaceHiddenSet. | struct | 1 x 1 |
+| `ShowSets` | option | hidden sets to show anyway, by name (a cell array, such as {'hard top'}), or true for all of them. Default {} (none). | cell or logical | 1 x n |
+| `FigNum` | option | a figure to show the visible mesh (gray) and the hidden faces (red). If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `visibleMesh` | output | the mesh with the hidden faces taken out. | struct | 1 x 1 |
+| `flagShown` | output | one flag per face of vehicleMesh: true for the faces kept. | logical | M x 1 |
+
+**Assumptions:** FaceHiddenSet is present (a mesh without it is returned unchanged); every per-face field (Face*) has one row per face.
+
+![fcn_CarMesh3D_visibleMesh sample output](Images/functions/fcn_CarMesh3D_visibleMesh.png)
+
+</details>
+
+### Reduce and repair
+
+<details><summary><b><code>fcn_CarMesh3D_simplifyMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_simplifyMesh.m</code>): Cleans and simplifies a labeled mesh for fast plotting and animation, and makes every face normal point outward.</summary>
+
+Cleans and simplifies a labeled mesh for fast plotting and animation, and makes every face normal point outward. The mesh is split into groups that share a part, a wheel number, and a color/alpha, and each group is processed separately so that parts, wheels, and colors stay intact (listed in the function's header).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh,...
+    (TargetFaces=numFaces), (WheelFaces=numFaces),...
+    (Symmetric=flag), (KeepOneSided=flag), (PartShares=shares),...
+    (MergeTolerance=tolerance), (ClearWheels=flag),...
+    (RestoreTolerance=meters), (EdgeSmoothing=passes),...
+    (StitchTolerance=meters),...
+    (VisibilityCheck=flag), (MaxVisibilityFaces=numFaces),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh structure (from fcn_CarMesh3D_labelParts), usually already fitted to the spec. | struct | 1 x 1 |
+| `TargetFaces` | option | the approximate total number of faces wanted. If the mesh already has fewer faces, it is cleaned but not reduced. Default is 5000 (a good size for animation). | double | 1 x 1 |
+| `WheelFaces` | option | the fewest faces each wheel keeps (tire and rim together), so the tires stay round when a dense download is reduced a lot; a wheel with fewer faces keeps all of them. | double | 1 x 1 |
+| `Symmetric` | option | true to reduce the left half and mirror it (see SYMMETRIC above); the mesh must be in the vehicle frame (centerline at Y = 0, as after fcn_CarMesh3D_fitMeshToSpec). Default false. | logical | 1 x 1 |
+| `KeepOneSided` | option | with Symmetric=true, true (default) to keep pieces that are on one side only (see ONE-SIDED PIECES above) where they are, instead of mirroring the left half's copy. Default `true`. | logical | 1 x 1 |
+| `PartShares` | option | an N x 2 cell array of {partName, fraction}: the fraction of the budget (after the wheels) that a part gets, for example {'body',0.6; 'trim',0.15} to give the painted body most of the faces when a download has a dense hidden interior (labeled trim). | double | N x 2 |
+| `MergeTolerance` | option | vertices closer than this distance (in mesh units, normally meters) are merged. Default is 1e-4 (0.1 mm). | double | 1 x 1 |
+| `ClearWheels` | option | true (default) to delete faces of other parts that pass through a tire. Default `true`. | logical | 1 x 1 |
+| `RestoreTolerance` | option | meters. | double | 1 x 1 |
+| `EdgeSmoothing` | option | passes of smoothing along each reduced piece's open Default `3`. | double | 1 x 1 |
+| `StitchTolerance` | option | meters. | double | 1 x 1 |
+| `VisibilityCheck` | option | true (default) to do step 4b. Default `true`. | logical | 1 x 1 |
+| `MaxVisibilityFaces` | option | the largest face count for step 4b. Default 30000. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the mesh before and after. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the same structure with new Vertices, Faces, and per-face fields (FacePartIndex, FaceWheelIndex, FaceColors, FaceAlpha, FaceMaterialIndex, FaceGroupIndex, and any other per-face field named Face..., such as FaceAlsoParts and | struct | 1 x 1 |
+
+**Assumptions:** The mesh is labeled and in the vehicle frame; reduction runs only when targetFaces is given, and parts, wheels and colors are reduced separately so they stay intact.
+
+![fcn_CarMesh3D_simplifyMesh sample output](Images/functions/fcn_CarMesh3D_simplifyMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_restoreGroundClearance</code></b> (test: <code>script_test_fcn_CarMesh3D_restoreGroundClearance.m</code>): Puts the lowest point of the body back at the ground clearance after a reduction raised it.</summary>
+
+Puts the lowest point of the body back at the ground clearance after a reduction raised it. A reduction (Blender's, especially of a dense download) can collapse the thin bottom edge of the rocker panels, so the lowest body point ends up a few millimeters above where the fit put it (the 2025 Camry: 5 mm, failing its dimension check).
+
+```matlab
+[vehicleMesh, shiftDistance] = fcn_CarMesh3D_restoreGroundClearance(...
+    vehicleMesh, groundClearance, (Tolerance=meters), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a fitted, labeled vehicle mesh (FacePartIndex, with the body as part 1 and the wheels as part 3), in meters with the ground at Z = 0. | struct | 1 x 1 |
+| `groundClearance` | input | the ground clearance, in meters (the fit's target, `vehicleSpec.GroundClearance`). | double | 1 x 1 |
+| `Tolerance` | option | how far (m) the lowest body point may be from the ground clearance before it is moved. Default 0.0005 (half a millimeter). | double | 1 x 1 |
+| `FigNum` | option | if given (not -1), the change is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh, with its non-wheel vertices stretched. Its face normals are kept: the stretch moves the lowest points by millimeters, which does not change which way the faces point. | struct | 1 x 1 |
+| `shiftDistance` | output | how far (m) the lowest body point was moved. | double | 1 x 1 |
+
+**Assumptions:** The spec's GroundClearance is known; only the body (not the wheels) is moved.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fixFlippedFaces</code></b> (test: <code>script_test_fcn_CarMesh3D_fixFlippedFaces.m</code>): Finds the faces of a mesh that are seen only from behind (inside-out panels, which look dark), and flips them, quickly: the mesh is drawn from 14 directions (the six sides and eight corners) with each face in its own color, so each pixel tells which face is seen.</summary>
+
+Finds the faces of a mesh that are seen only from behind (inside-out panels, which look dark), and flips them, quickly: the mesh is drawn from 14 directions (the six sides and eight corners) with each face in its own color, so each pixel tells which face is seen. A face seen mostly from behind (more than twice as many pixels from behind as from the front, over all views) is flipped.
+
+```matlab
+[vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(vehicleMesh,...
+    (ImageWidth=pixels), (Symmetric=flag), (RemoveDoubleLayers=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh (Vertices, Faces; FaceAlpha if it has see-through faces; FaceNormals is updated if present). | struct | 1 x 1 |
+| `ImageWidth` | option | pixels across each picture. Default 700. | double | 1 x 1 |
+| `Symmetric` | option | 'auto' (default) pairs faces with their mirror twins when at least 90% of the faces have one; true always pairs the faces that have one; false never pairs. Default `'auto'`. | char | 1 x n |
+| `RemoveDoubleLayers` | option | true to delete the inner skin of back-to-back double layers; false (default) keeps every face. Default `false`. | logical | 1 x 1 |
+| `FigNum` | option | a figure to plot the mesh with the flipped faces marked in red. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with those faces flipped (their corner order reversed) and FaceNormals updated. | struct | 1 x 1 |
+| `numFlipped` | output | how many faces were flipped. | double | 1 x 1 |
+| `numRemoved` | output | how many inner-skin faces of double layers were deleted (every per-face field is cut the same way). | double | 1 x 1 |
+
+**Assumptions:** Faces are mostly outward already (after simplifyMesh); a face counts as flipped when, over 14 views from outside, it is seen from behind more than twice as often as from the front.
+
+![fcn_CarMesh3D_fixFlippedFaces sample output](Images/functions/fcn_CarMesh3D_fixFlippedFaces.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_separateOverlays</code></b> (test: <code>script_test_fcn_CarMesh3D_separateOverlays.m</code>): Lifts overlays off the surfaces they lie on.</summary>
+
+Lifts overlays off the surfaces they lie on. Many downloads paint details as separate faces lying exactly on another part's surface (a black bumper insert on the painted bumper, a window's black border on the glass, a lamp lens on the trim). Two faces at the same depth are drawn in whichever order the graphics card picks, so the overlay flickers, shows in patches, or vanishes, and the result changes when the faces are reordered (as the simplification does).
+
+```matlab
+[vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh,...
+    (Distance=meters), (Offset=meters), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex), fit to its spec (in meters). | struct | 1 x 1 |
+| `Distance` | option | how close (meters) a face's center must be to another face's plane to count as lying on it. Default 0.004. | double | 1 x 1 |
+| `Offset` | option | how far (meters) the top face is moved outward. Default 0.002. | double | 1 x 1 |
+| `FigNum` | option | a figure to plot the lifted faces in red. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with the overlays' corners moved outward (corners shared with other faces move too, by the same small amount). FaceNormals, if present, is unchanged (the faces keep their directions). | struct | 1 x 1 |
+| `numLifted` | output | how many faces were moved. | double | 1 x 1 |
+
+**Assumptions:** The mesh is labeled and fitted (meters). An overlay is a face of another part within Distance (4 mm) of a surface and facing the same way; it is lifted Offset (2 mm) outward.
+
+![fcn_CarMesh3D_separateOverlays sample output](Images/functions/fcn_CarMesh3D_separateOverlays.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_addFloorPanel</code></b> (test: <code>script_test_fcn_CarMesh3D_addFloorPanel.m</code>): Adds a flat floor panel under a vehicle: one polygon at the ground clearance height, the shape of the lower body seen from above, with each wheel's footprint cut out.</summary>
+
+Adds a flat floor panel under a vehicle: one polygon at the ground clearance height, the shape of the lower body seen from above, with each wheel's footprint cut out. Downloaded models often have no underside (the cabin is open from below), so a reduced mesh can be seen through from below or through its windows; the panel closes it.
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh,...
+    (Height=meters), (LowerBodyHeight=meters), (Inset=meters),...
+    (WheelClearance=meters), (SteerRoom=meters),...
+    (BlendWidth=meters), (MaxRise=meters), (Color=rgb),...
+    (Symmetric=flag), (OnlyWhereOpen=flag),...
+    (CoverHeight=meters), (GridSpacing=meters), (Overlap=meters),...
+    (MinCovered=squareMeters), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a finished CarMesh3D mesh (labeled and fit to its spec, in the vehicle frame: origin on the ground below the rear axle, X forward, Y left, Z up). | struct | 1 x 1 |
+| `Height` | option | meters above the ground for the panel. Default: the spec's GroundClearance (vehicleMesh.VehicleSpec), or the lowest point of the body (not the wheels) if there is none. | double | varies |
+| `LowerBodyHeight` | option | meters; the outline is traced from the faces whose centers are below this. Default 0.6. | double | 1 x 1 |
+| `Inset` | option | meters the outline is shrunk by. Default 0.03. | double | 1 x 1 |
+| `WheelClearance` | option | meters added around each wheel's cutout. Default 0.05. | double | 1 x 1 |
+| `SteerRoom` | option | meters added to the width of the front wheels' cutouts, so a steered tire does not cut through the panel. Default 0.15. | double | 1 x 1 |
+| `BlendWidth` | option | meters; a strip this wide along the panel's edges rises to meet the body: each edge point (every 5 cm) goes up to the lowest body corner within 6 cm of it (seen from above), up or down (to at most half the panel height), so the panel joins the body's lower edge with no gap seen from the side; the edge heights are then smoothed along the edge (the median within 15 cm each way, then a running mean), so no spikes rise where a point found a door skin above the rocker. | double | 1 x 1 |
+| `MaxRise` | option | meters; the most an edge point rises above the panel. Default 0.30. | double | 1 x 1 |
+| `Color` | option | the panel's color. Default [0.15 0.15 0.15]. | double | 1 x 3 |
+| `Symmetric` | option | 'auto' (default) builds the left half of the panel (Y >= 0) and mirrors it when the mesh is its own mirror image (90% of its faces have a mirror twin), so both sides of the car meet the panel the same way; true always does; false never does. Default `'auto'`. | char | 1 x n |
+| `OnlyWhereOpen` | option | true (default) to add the panel only where the model is open from below (see ONLY WHERE NEEDED above); false for the whole outline. Default `true`. | logical | 1 x 1 |
+| `CoverHeight` | option | meters; an opaque face below this height closes the model from below. Default 0.6. | double | 1 x 1 |
+| `GridSpacing` | option | meters between the rays cast up. Default 0.03. | double | 1 x 1 |
+| `Overlap` | option | meters the open area is grown by, under the model's own floor edges. Default 0.03. | double | 1 x 1 |
+| `MinCovered` | option | square meters; closed patches smaller than this are ignored. Default 0.01. | double | 1 x 1 |
+| `MinOpenFraction` | option | no panel is added unless more than this share of the outline is open from below (with OnlyWhereOpen). Default 0 (any opening gets a panel); the vehicle scripts use 0.10. | double | 1 x 1 |
+| `FigNum` | option | a figure to plot the panel (and the mesh, faded) from below. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with the panel's faces added at the end (every per-face field extended), its material named 'CarMesh3D_floorPanel', and FloorPanel set to a structure with Height, Polygon (the panel's outline with holes, a polyshape), Faces (the indices of the panel's faces), and OpenFraction (the share of the full outline that was open from below, so got the panel; 1 with OnlyWhereOpen=false). | struct | 1 x 1 |
+
+**Assumptions:** The vehicle frame (ground at z = 0); a panel is added only when more than 10% of the floor is open from below.
+
+![fcn_CarMesh3D_addFloorPanel sample output](Images/functions/fcn_CarMesh3D_addFloorPanel.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_labelInterior</code></b> (test: <code>script_test_fcn_CarMesh3D_labelInterior.m</code>): Labels a vehicle's interior (seats, steering wheel, dash, door panels): the faces of the body and trim parts that can be seen from outside only through the glass.</summary>
+
+Labels a vehicle's interior (seats, steering wheel, dash, door panels): the faces of the body and trim parts that can be seen from outside only through the glass. Downloads rarely name their interior materials, so the interior is found from the shape, with voxels (listed in the function's header).
+
+```matlab
+[vehicleMesh, interiorInfo] = fcn_CarMesh3D_labelInterior(vehicleMesh,...
+    (VoxelSize=meters), (GapSize=meters), (Parts=names),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex, FaceWheelIndex), fit to its spec (in meters). | struct | 1 x 1 |
+| `VoxelSize` | option | meters. Default 0.02. | double | 1 x 1 |
+| `GapSize` | option | meters; holes and gaps up to this size are closed (steps 2 and 3). Default 0.12. | double | 1 x 1 |
+| `Parts` | option | the parts whose faces may become interior. Default {'body','trim'}. | cell | 1 x n |
+| `FigNum` | option | a figure to plot the mesh with its interior faces in orange (the rest faded). If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with its interior faces' FacePartIndex set to the 'interior' part (added to PartNames if needed), and InteriorInfo set to interiorInfo. | struct | 1 x 1 |
+| `interiorInfo` | output | a structure with VoxelSize, GapSize, NumInterior (faces relabeled), NumFromPart (a table-like structure: how many came from each part), and GridSize. | double | 1 x 1 |
+
+**Assumptions:** Glass is labeled; the interior is found from the shape (voxels), since downloads rarely name interior materials.
+
+![fcn_CarMesh3D_labelInterior sample output](Images/functions/fcn_CarMesh3D_labelInterior.png)
+
+</details>
+
+### Check the mesh
+
+<details><summary><b><code>fcn_CarMesh3D_validateMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_validateMesh.m</code>): Measures a fitted mesh and compares it, value by value, against a vehicle specification.</summary>
+
+Measures a fitted mesh and compares it, value by value, against a vehicle specification. This is the "did it work?" check at the end of the CarMesh3D workflow, and the table it returns is a good thing for students to include in a report.
+
+```matlab
+validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec,...
+    (Tolerance=percentTolerance),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure in the vehicle frame, usually after fcn_CarMesh3D_fitMeshToSpec. | struct | 1 x 1 |
+| `vehicleSpec` | input | a vehicle specification structure from fcn_CarMesh3D_fillVehicleSpec. | struct | 1 x 1 |
+| `Tolerance` | option | the percent error at or below which a value is marked as passing. Default is 2 (percent). | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot side, top, and front views of the mesh with the target dimensions drawn as dashed lines. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `validationTable` | output | a MATLAB table with one row per quantity and the columns Quantity (string), Target_m, Measured_m, Error_m, PercentError, Pass (true, false, or missing) Target_m is NaN when the spec has no value, and Measured_m is NaN when the mesh cannot be measured for that quantity. | table | rows x 5 |
+
+**Assumptions:** The mesh is fitted and in the vehicle frame; only shown faces are measured (visibleMesh); spec values left NaN are skipped.
+
+![fcn_CarMesh3D_validateMesh sample output](Images/functions/fcn_CarMesh3D_validateMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_compareToOriginal</code></b> (test: <code>script_test_fcn_CarMesh3D_compareToOriginal.m</code>): Compares a reduced (finished) mesh with the original download it came from, both in the vehicle frame, and flags the spots where the reduction went wrong, so a review starts from a short list instead of a search.</summary>
+
+Compares a reduced (finished) mesh with the original download it came from, both in the vehicle frame, and flags the spots where the reduction went wrong, so a review starts from a short list instead of a search. Both meshes are drawn from the same cameras (14 views: the four sides, top, bottom, four corners, and the four sides from 12 degrees below), each face in its own unique color, so each pixel tells which face is seen there.
+
+```matlab
+report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh,...
+    (Title=text), (ImageWidth=pixels), (NumSpots=count),...
+    (OutputFile=pngPrefix), (OriginalCache=matFile), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `reducedMesh` | input | the finished (reduced) CarMesh3D mesh, labeled and fit to its spec. | struct | 1 x 1 |
+| `originalMesh` | input | the same download, labeled and fit the same way, not reduced. | struct | 1 x 1 |
+| `Title` | option | text for the sheets' titles (for example, the vehicle's name). Default ''. | char | 1 x n |
+| `ImageWidth` | option | pixels across each view. Default 900. | double | 1 x 1 |
+| `NumSpots` | option | how many flagged spots get close-ups. Default 9. | double | 1 x 1 |
+| `OutputFile` | option | a file name prefix: the two sheets are saved as <prefix>_views.png and <prefix>_spots.png. Default '' (not saved). | char | 1 x n |
+| `OriginalCache` | option | a .mat file in which the download's renders (face numbers and shaded pictures, 28 of the 56 renders) are kept. | char | 1 x n |
+| `FigNum` | option | a figure for the views sheet (the spots sheet goes in a figure of its own, named '<Title>: flagged spots'); both are left open. Default `[]`. | double | 1 x 1 (or empty) |
+| `report` | output | a structure with Views: a table, one row per view: View, CarPixels, and HolePercent, LabelChangePercent, FlippedPercent, SeeThroughPercent (of the car's pixels in that view) Totals: the same four percentages over all views Spots: a structure array, worst first: View, Box ([row1 row2 col1 col2] in that view's pictures), Holes, LabelChanges, Flipped, SeeThrough (pixel counts) Images: per view, the shaded pictures (Original, Reduced) and the flagged masks (Holes, LabelChanges, Flipped, SeeThrough) Parts: a table, one row per label (part, or light type): Label, OriginalFaces, ReducedFaces, OriginalArea and ReducedArea (m^2), AreaChangePercent, and Missing (true when a label with at least 0.01 m^2 in the download kept less than half of its area: faces lost in the reduction) MissingLabels: the labels flagged Missing | struct | 1 x 1 |
+
+**Assumptions:** Both meshes are labeled and fitted the same way, so their views line up; only shown faces of the reduced mesh are compared.
+
+![fcn_CarMesh3D_compareToOriginal sample output](Images/functions/fcn_CarMesh3D_compareToOriginal.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_checkHiddenFaces</code></b> (test: <code>script_test_fcn_CarMesh3D_checkHiddenFaces.m</code>): Warns about hidden faces (FaceHiddenSet, in named sets: see fcn_CarMesh3D_editLabels's Hide) that could mislead.</summary>
+
+Warns about hidden faces (FaceHiddenSet, in named sets: see fcn_CarMesh3D_editLabels's Hide) that could mislead. The checks and outlines measure the vehicle as it is shown (fcn_CarMesh3D_visibleMesh), which is right for a vehicle shown that way (a coupe with its hard top off), but hidden faces are still in the mesh, so three things are worth knowing (listed in the function's header).
+
+```matlab
+report = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec,...
+    (Tolerance=meters), (ManyFraction=fraction), (Quiet=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh, with or without hidden faces. | struct | 1 x 1 |
+| `vehicleSpec` | input | the vehicle's parameters (fcn_CarMesh3D_loadVehicleSpec), for the dimensions (fcn_CarMesh3D_validateMesh); [] to skip the dimensions. | struct | 1 x 1 |
+| `Tolerance` | option | how much a dimension may change, or a hidden face reach past the shown vehicle, before it is reported [m]. Default 0.01. | double | 1 x 1 |
+| `ManyFraction` | option | the share of faces hidden above which it is reported. Default 0.10. | double | 1 x 1 |
+| `Quiet` | option | true to return the report without printing warnings. Default false. | logical | 1 x 1 |
+| `FigNum` | option | a figure to show the shown faces (gray), the hidden faces (red), and the shown vehicle's bounding box (blue). If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `report` | output | a structure with NumHidden, NumFaces, HiddenFraction Sets: a table (Name, Faces) of the hidden sets Dimensions: a table (Quantity, Shown_m, WithHidden_m, Difference_m) of the dimensions the hidden faces change OutsideBox: a table (Set, Side, Distance_m) of the hidden sets reaching past the shown vehicle's bounding box ShownBox, FullBox: [xmin ymin zmin; xmax ymax zmax] of the shown faces, and of every face Messages: the findings, as text (a cell array) | struct | 1 x 1 |
+
+**Assumptions:** Warnings only; nothing is changed. Tolerance (0.01 m) is the change in size that counts, and ManyFraction (0.10) is the share of faces that counts as many.
+
+![fcn_CarMesh3D_checkHiddenFaces sample output](Images/functions/fcn_CarMesh3D_checkHiddenFaces.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_runVehicleChecks</code></b> (test: <code>script_test_fcn_CarMesh3D_runVehicleChecks.m</code>): Runs the STANDARD CHECKS on a finished vehicle mesh: the standard test motion (fcn_CarMesh3D_fillTestMotion), in the standard scene, seen through standard cameras, saved as a standard set of images and animated GIFs.</summary>
+
+Runs the STANDARD CHECKS on a finished vehicle mesh: the standard test motion (fcn_CarMesh3D_fillTestMotion), in the standard scene, seen through standard cameras, saved as a standard set of images and animated GIFs. Look through them to confirm that every input works for this vehicle (lights, steering, wheels, body motion) before using it.
+
+```matlab
+checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh,...
+    vehicleSpec, outputFolder, (Checks=names), (SaveGifs=flag), (SaveFigs=flag),...
+    (VehicleName=name), (PanelSize=[w h]), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a finished mesh (labeled, fitted, simplified). | struct | 1 x 1 |
+| `vehicleSpec` | input | the vehicle's spec (for the test motion and the dimension check). | struct | 1 x 1 |
+| `outputFolder` | input | where to write the files. It is made if needed. | char or string | 1 x n |
+| `Checks` | option | 'all' (default), or a cell array of check names to run: 'inputs','dimensions','labels','lightStates','lights','body', 'steering','wheels','drive','groundContact'. Default `'all'`. | char | 1 x n |
+| `SaveGifs` | option | true (default) to save the GIFs; false to only play the animations (faster, for a first look). Default `true`. | logical | 1 x 1 |
+| `SaveFigs` | option | true to save a .fig beside each picture (to open with openfig and zoom or rotate); false (default) for the pictures only. Default `false`. | logical | 1 x 1 |
+| `VehicleName` | option | a name for the captions. Default is vehicleSpec.Name. | char | 1 x n |
+| `PanelSize` | option | [width height] in pixels of each view. Default [480 300]. | double | 1 x 2 |
+| `FigNum` | option | the figure number to draw in (all checks reuse it). Default [] uses figure 900. If set to -1, input checking is skipped. | double | 1 x 1 (or empty) |
+| `checkResults` | output | a structure with fields Files (cell array of the files written), ValidationTable, ContactFlags (N x 1), TestMotion, and Hidden (fcn_CarMesh3D_checkHiddenFaces's report). | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's build script has run, so its mesh and spec are saved; family-1 vehicles (the download kept as it is) run only the dimension and label checks by default.
+
+![fcn_CarMesh3D_runVehicleChecks sample output](Images/functions/fcn_CarMesh3D_runVehicleChecks.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_animateChecks</code></b> (test: <code>script_test_fcn_CarMesh3D_animateChecks.m</code>): The animation checks of a vehicle's mesh, drawn live from the mesh and the test motion: Lights, Body, Steering, Wheels, or Drive.</summary>
+
+The animation checks of a vehicle's mesh, drawn live from the mesh and the test motion: Lights, Body, Steering, Wheels, or Drive. Two copies of the vehicle side by side, one seen from ahead and to the left, one from behind and to the right, each view following its vehicle, with a caption naming the step.
+
+```matlab
+animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey,...
+    (TestMotion=testMotion), (Rows=rows), (StepRows=stepRows),...
+    (Parent=container), (ShowPlayer=flag), (OnStep=function),...
+    (OnHint=function), (Visible=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), or a labeled CarMesh3D mesh. | char or struct | 1 x n, or 1 x 1 |
+| `checkKey` | input | 'lights', 'body', 'steering', 'wheels', or 'drive' | char | 1 x n |
+| `TestMotion` | option | the test motion (as fcn_CarMesh3D_checkVehicle's checkResults.TestMotion). Needed with a mesh; with an ID, the default is from the vehicle's cache. Default `[]`. | struct | 1 x 1 |
+| `Rows` | option | the rows of the test motion to animate. Default: the rows whose captions start with the check's name. | char | 1 x n |
+| `StepRows` | option | one row per step, the row each step is shown at. | double | N x 1 |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `ShowPlayer` | option | true to show Play, a time slider, and the inputs plotted over time. Default: true in its own window, false in a parent. | logical | 1 x 1 |
+| `OnStep` | option | a function called with a step number as the whole animation plays, when the step showing changes (0 when it stops): the reviewer lights up that step's item. Default `[]`. | function_handle | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `animator` | output | a structure of the animation's handles and functions: Figure, Axes (the two views), InputAxes, Handles (the fcn_CarMesh3D_plotVehicle handles of each view), Mesh, Rows, Steps (Name, Row of each step), CheckKey ShowFrame(frameIndex), Frame(): one time step (an index into Rows) ShowStep(stepIndex): a step's scene; 0 for the whole animation, played over and over Play(), Pause(), IsPlaying() ResetViews(): the cameras back on the vehicle Stop(): stop playing (before the parent is cleared) Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** The mesh is finished and labeled (lamp types set for the Lights check); the test motion is fillTestMotion's unless one is given.
+
+![fcn_CarMesh3D_animateChecks sample output](Images/functions/fcn_CarMesh3D_animateChecks.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_checkGroundContact</code></b> (test: <code>script_test_fcn_CarMesh3D_checkGroundContact.m</code>): Checks, at each time step, whether the body (the sprung mass) has rolled, pitched, or dropped so far that part of it reaches the ground: for example, a front corner of the bumper pushed down in hard braking while turning.</summary>
+
+Checks, at each time step, whether the body (the sprung mass) has rolled, pitched, or dropped so far that part of it reaches the ground: for example, a front corner of the bumper pushed down in hard braking while turning. Contact means body damage is likely, unless that part of the vehicle is protected (for example, by a skid plate).
+
+```matlab
+[flagContact, clearance, lowestPoint] = ...
+    fcn_CarMesh3D_checkGroundContact(vehicleMesh, bodyRoll,...
+    bodyPitch, bodyHeave, (BodyPivot=[x y z]),...
+    (MinimumClearance=c), (Time=t), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a fitted mesh (fcn_CarMesh3D_fitMeshToSpec), labeled so the wheels are known (FaceWheelIndex). | struct | 1 x 1 |
+| `bodyRoll` | input | N x 1 body roll and pitch relative to the ground frame, in radians (ISO 8855: + roll lowers the right side, + pitch lowers the nose). | double | N x 1 |
+| `bodyPitch` | input | N x 1 body roll and pitch relative to the ground frame, in radians (ISO 8855: + roll lowers the right side, + pitch lowers the nose). | double | N x 1 |
+| `bodyHeave` | input | N x 1 body displacement up from equilibrium, in meters (motion.BodyHeave), or a scalar (used for every time). | double | N x 1 |
+| `BodyPivot` | option | the point [x y z] the body rolls and pitches about, in the vehicle frame. Default [] uses the same point as fcn_CarMesh3D_plotVehicle. | double | 1 x 3 (or empty) |
+| `MinimumClearance` | option | the lowest allowed height above the road, in meters. Default 0 (touching the road). Use a positive value for a safety margin. | double | 1 x 1 |
+| `Time` | option | N x 1 times, used for the warning message and the plot. Default [] (sample numbers are used). | double | N x 1 |
+| `FigNum` | option | a figure number to plot the clearance over time, and a side and front view of the body at the lowest moment. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `flagContact` | output | N x 1 logical, true where the body reaches the road. | logical | N x 1 |
+| `clearance` | output | N x 1 height of the lowest body point above the road, in meters (negative means it would be below the road surface). | double | N x 1 |
+| `lowestPoint` | output | N x 3 position of that lowest point on the body, in the body's own (unmoved) vehicle frame, to tell which part it is (for example, x > front axle and y < 0 is the front right). | double | N x 3 |
+
+**Assumptions:** The body is rigid and moves exactly as plotVehicle moves it (rolled and pitched about BodyPivot, then heaved); the wheels stay on a flat road.
+
+![fcn_CarMesh3D_checkGroundContact sample output](Images/functions/fcn_CarMesh3D_checkGroundContact.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillTestMotion</code></b> (test: <code>script_test_fcn_CarMesh3D_fillTestMotion.m</code>): Makes the STANDARD TEST MOTION: one motion that uses every motion input (see "Inputs" in the README), in short, labeled segments, so that a new vehicle can be checked the same way every time.</summary>
+
+Makes the STANDARD TEST MOTION: one motion that uses every motion input (see "Inputs" in the README), in short, labeled segments, so that a new vehicle can be checked the same way every time. The motion is written to a CSV file in the CarMesh3D column convention and then read back with fcn_CarMesh3D_loadMotionCSV, so the file reader is checked too.
+
+```matlab
+testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec,...
+    (SampleTime=dt), (CSVFile=fileName), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleSpec` | input | a CarMesh3D vehicle spec (fcn_CarMesh3D_loadVehicleSpec or fcn_CarMesh3D_fillVehicleSpec). The wheelbase sets the turn radius; the wheelbase and front track set the Ackermann angles; the tire diameter sets the wheel speeds. | struct | 1 x 1 |
+| `SampleTime` | option | the time step, in seconds. Default 1/12 (12 frames per second, the rate of the check GIFs). | double | 1 x 1 |
+| `CSVFile` | option | where to write the CSV file. Default [] writes it to a temporary file (and deletes it after reading it back). | char or string | 1 x n |
+| `FigNum` | option | a figure number to plot the inputs over time, with the segments shaded. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `testMotion` | output | the motion as read back by fcn_CarMesh3D_loadMotionCSV (Time, Pose, BodyRoll, BodyPitch, BodyHeave, Speed, SteerAngle, WheelSpin, WheelLift, LightStates, Data, ...), plus: Segments: a structure array with Name, StartTime, EndTime, and Description for each segment Caption: K x 1 cell array describing the inputs at each time step (for captions in the check animations) CSVFile: the file written ('' if it was temporary) | struct | 1 x N |
+
+**Assumptions:** Fixed test steps (lights, body, steering, wheels, drive), the same for every vehicle, so checks can be compared.
+
+![fcn_CarMesh3D_fillTestMotion sample output](Images/functions/fcn_CarMesh3D_fillTestMotion.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_plotSideImage</code></b> (test: <code>script_test_fcn_CarMesh3D_plotSideImage.m</code>): Shows a side-view photo (or drawing) of the real vehicle on a vertical plane through the vehicle's centerline, scaled and placed so its wheel centers land on the mesh's wheel centers.</summary>
+
+Shows a side-view photo (or drawing) of the real vehicle on a vertical plane through the vehicle's centerline, scaled and placed so its wheel centers land on the mesh's wheel centers. Looking from the side, the outline of the mesh can then be checked against the real vehicle: the roof line, hood, bumpers, windows, and wheel arches.
+
+```matlab
+overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh,...
+    (WheelCentersPixels=[colRear rowRear; colFront rowFront]),...
+    (PlaneY=y), (ImageAlpha=alpha), (VehicleAlpha=alpha),...
+    (ShowVehicle=flag), (SetView=flag), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `sideImage` | input | the side-view picture, as an image file name (any format imread reads, such as .jpg or .png) or an image array (H x W x 3 color, H x W gray). | char | 1 x n |
+| `vehicleMesh` | input | a mesh fitted with fcn_CarMesh3D_fitMeshToSpec, which gives the axle positions (AxleX) and the tire diameter (VehicleSpec.TireDiameter). | struct | 1 x 1 |
+| `WheelCentersPixels` | option | [colRear rowRear; colFront rowFront], the pixel positions (column, row; row 1 is the top of the image) of the rear and front wheel centers in the picture. | double | 2 x 2 |
+| `PlaneY` | option | where the picture plane is, along Y (left), in meters. Default 0, the vehicle centerline. | double | 1 x 1 |
+| `ImageAlpha` | option | how solid the picture is, from 0 (clear) to 1 (solid, the default). Default `1`. | double | 1 x 1 |
+| `VehicleAlpha` | option | how solid the vehicle is drawn, from 0 to 1. Default 0.4, so the picture shows through. | double | 1 x 1 |
+| `ShowVehicle` | option | true (default) to also draw the vehicle with fcn_CarMesh3D_plotVehicle; false to draw only the picture (for example, into an axes where the vehicle is already drawn). Default `true`. | logical | 1 x 1 |
+| `SetView` | option | true (default) to look from the vehicle's right side (-Y), with no perspective (orthographic), so the outlines can be compared exactly. Rotate the view to see the other side. Default `true`. | logical | 1 x 1 |
+| `FigNum` | option | a figure number to draw into. If empty or omitted, draws into the current figure. If set to -1, input checking is skipped (WheelCentersPixels must then be given). Default `[]`. | double | 1 x 1 (or empty) |
+| `overlayHandles` | output | a structure with fields Image: the surface showing the picture Vehicle: the plot handles from fcn_CarMesh3D_plotVehicle (or []) Corners: 4 x 3 corners of the picture in the vehicle frame (top-left, top-right, bottom-left, bottom-right) MetersPerPixel: the scale of the picture TiltDegrees: how much the picture was rotated to level it FlippedImage: true if the picture was flipped left-to-right (the vehicle faced left in it) WheelCentersPixels: the wheel centers used PixelToVehicle: a function that maps [col row] pixel points (N x 2, in the original picture) to [x z] in meters | function_handle | 1 x 1 |
+
+**Assumptions:** A side photo taken square to the vehicle (from far away, to limit perspective), with both wheel centers visible.
+
+![fcn_CarMesh3D_plotSideImage sample output](Images/functions/fcn_CarMesh3D_plotSideImage.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_checkModels</code></b> (test: <code>script_test_fcn_CarMesh3D_checkModels.m</code>): Lists, for each vehicle in the library, whether its downloaded model is on this computer and whether its imported mesh (rawMesh_<ID>.mat) is.</summary>
+
+Lists, for each vehicle in the library, whether its downloaded model is on this computer and whether its imported mesh (rawMesh_<ID>.mat) is. The downloads are large, so they are not kept in the git repository: they are kept in the IVSG large-file storage area (a OneDrive folder) and copied into each vehicle's model\ folder (see README.md, "Large files"). A vehicle's script runs with either one: from the download, or, without it, from its imported mesh, which is in the repository.
+
+```matlab
+report = fcn_CarMesh3D_checkModels(...
+    (Vehicles=vehicleIDs), (LargeFileFolder=folder), (DataFolder=folder), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Vehicles` | option | a cell array of vehicle IDs to check, such as {'2009_Honda_Fit_Sport'}. Default: {} (every vehicle with a script). | cell | 1 x n |
+| `LargeFileFolder` | option | the large-file area's CarMesh3D Data folder, as it is found on this computer (the OneDrive folder is mounted at a different place on each computer). | char | 1 x n |
+| `DataFolder` | option | the repository's Data folder. Default: the Data folder next to this function's Functions folder. | char | 1 x n |
+| `FigNum` | option | if given (and not -1), the list is printed. If set to -1, input checking is skipped (fast mode) and nothing is printed. Default `[]`. | double | 1 x 1 (or empty) |
+| `report` | output | a table, one row per vehicle, with the columns ID: the vehicle ID Folder: the vehicle's folder ModelFile: the script's modelFile ('' for a vehicle made from its body style, or the built-in sample car, which need no download) HasDownload: true if the model file is on this computer HasRawMesh: true if rawMesh_<ID>.mat is in the folder CanBuild: true if the script can run (a download, an imported mesh, or no download needed) InLargeFileFolder: true if the download is in LargeFileFolder (false when no LargeFileFolder is given) | table | vehicles x columns |
+
+**Assumptions:** Each vehicle's download sits in its model/ folder (in the large-file area, not in git).
+
+</details>
+
+### Save, stamp and cache
+
+<details><summary><b><code>fcn_CarMesh3D_makeBuildInfo</code></b> (test: <code>script_test_fcn_CarMesh3D_makeBuildInfo.m</code>): Makes the BuildInfo saved with a finished mesh (vehicleMesh.BuildInfo): the CarMesh3D version and MESH VERSION it was made with (see fcn_CarMesh3D_version), when, by which script, with which main settings, from which exemplar (for a body-style vehicle), and its QUALITY SCORE.</summary>
+
+Makes the BuildInfo saved with a finished mesh (vehicleMesh.BuildInfo): the CarMesh3D version and MESH VERSION it was made with (see fcn_CarMesh3D_version), when, by which script, with which main settings, from which exemplar (for a body-style vehicle), and its QUALITY SCORE. With it, meshes made before a change to CarMesh3D can be found and made again (fcn_CarMesh3D_listVehicles), and vehicles can be compared by quality.
+
+```matlab
+buildInfo = fcn_CarMesh3D_makeBuildInfo(...
+    (Script=fileName), (Settings=struct), (CompareTotals=totals),...
+    (Validation=table), (Exemplar=buildInfo), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Script` | option | the script that made the mesh (a file name or path; only the name is kept). Default ''. | char | 1 x n |
+| `Settings` | option | a structure of the main settings used (for example TargetFaces, ReduceWithBlender, Symmetric, BodyStyle), kept as given. Default struct(). | struct | 1 x 1 |
+| `CompareTotals` | option | the Totals of fcn_CarMesh3D_compareToOriginal (HolePercent, LabelChangePercent, FlippedPercent, SeeThroughPercent). Default [] (no comparison). | struct | 1 x 1 |
+| `Validation` | option | the table of fcn_CarMesh3D_validateMesh (its Pass column). Default [] (no dimension checks). | table | rows x 5 |
+| `Exemplar` | option | the exemplar's own BuildInfo, for a body-style vehicle (its ID is taken from its Settings, its comparison terms are used when CompareTotals is empty). Default []. | char | 1 x n |
+| `FigNum` | option | if given (not -1), the build information is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `buildInfo` | output | a structure with CarMesh3DVersion, MeshVersion: from fcn_CarMesh3D_version Date: when it was made, 'yyyy-MM-dd HH:mm' Script: the script's file name MATLABRelease: such as '2025b' Settings: as given ExemplarID, ExemplarMeshVersion: for a body-style vehicle ('' otherwise) Quality: Score, HolePercent, LabelChangePercent, FlippedPercent, SeeThroughPercent (NaN if unknown), DimensionChecks and DimensionChecksFailed (counts), Basis ('comparison', 'exemplar', or 'dimensions only'), and Formula (the formula as text) | struct | 1 x 1 |
+
+**Assumptions:** Called at the end of a build; the quality score comes from the checks that ran.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_makeDetailLevels</code></b> (test: <code>script_test_fcn_CarMesh3D_makeDetailLevels.m</code>): Makes a "ladder" of lighter versions of a finished vehicle mesh, for animations where a vehicle is often far away and small on screen.</summary>
+
+Makes a "ladder" of lighter versions of a finished vehicle mesh, for animations where a vehicle is often far away and small on screen. Each level is made for a range of sizes on screen, with about the same number of visible faces per pixel as the others, so detail is spent only where it can be seen.
+
+```matlab
+detailLevels = fcn_CarMesh3D_makeDetailLevels(vehicleMesh,...
+    (TopScreenSize=pixels), (Step=ratio), (FacesPerPixel=density),...
+    (VoxelSize=meters), (GapSize=meters), (MinFaces=count),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a finished CarMesh3D mesh (labeled, fitted, and simplified). | struct | 1 x 1 |
+| `TopScreenSize` | option | the size on screen (pixels) the top level is made for. | double | 1 x 1 |
+| `Step` | option | the ratio between the sizes of two levels. Default sqrt(2). | double | 1 x 1 |
+| `FacesPerPixel` | option | visible faces per pixel. Default 0.2. | double | 1 x 1 |
+| `VoxelSize` | option | the voxel size of the hull, meters. Default 0.03. | double | 1 x 1 |
+| `GapSize` | option | openings up to this size (meters) are closed. Default 0.36. | double | 1 x 1 |
+| `MinFaces` | option | below this many faces, the level is a box. Default 15. | double | 1 x 1 |
+| `FigNum` | option | a figure number to show every level side by side. Empty (default) for no figure; -1 for fast mode (no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `detailLevels` | output | a structure with fields Levels: a structure array, finest first, with fields MaxScreenSize (pixels: the largest size it is made for), Faces, IsBox, and Mesh (a CarMesh3D mesh; [] for the box) SizeDiagonal: D, meters BoxCenter: the bounding box's center, in the vehicle frame BoxSize: the bounding box's [length width height], meters ShadowArea: A, m^2 SolidFraction: the hull's volume over its box's (a car or van is about 0.5; much less means the hull is hollow) FacesPerPixel, TopScreenSize, Step, MinFaces, VoxelSize, GapSize FullFaces: the finished mesh's face count Method: 'closedHull' FormatVersion: 1 MadeBy: this function and its date; MadeOn: when it was run MakeSeconds: how long it took | struct | 1 x 1 |
+
+**Assumptions:** The finished mesh, with hidden faces left out; the face budgets follow the size-on-screen standard (about 0.2 shown faces per pixel).
+
+![fcn_CarMesh3D_makeDetailLevels sample output](Images/functions/fcn_CarMesh3D_makeDetailLevels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_loadDetailLevels</code></b> (test: <code>script_test_fcn_CarMesh3D_loadDetailLevels.m</code>): Loads a vehicle's detail levels (the ladder of lighter versions of its mesh, for animation) from its folder in Data: vehicleLevels_<ID>.mat, made by the vehicle's script with fcn_CarMesh3D_makeDetailLevels.</summary>
+
+Loads a vehicle's detail levels (the ladder of lighter versions of its mesh, for animation) from its folder in Data: vehicleLevels_<ID>.mat, made by the vehicle's script with fcn_CarMesh3D_makeDetailLevels. This is how an animation (AnimateCar3D) gets them.
+
+```matlab
+detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID,...
+    (DataFolder=folder), (MakeIfMissing=flag), (SaveIfMade=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID, such as '2013_Toyota_Prius_Four' (see fcn_CarMesh3D_findVehicleFiles). | char or string | 1 x n |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `MakeIfMissing` | option | make the levels from the finished mesh if there is no levels file. Default true. (False: an error.) | logical | 1 x 1 |
+| `SaveIfMade` | option | save the levels made that way to the vehicle's folder. Default false. | logical | 1 x 1 |
+| `FigNum` | option | a figure number to show the levels (as fcn_CarMesh3D_makeDetailLevels does). Empty (default) for no figure; -1 for fast mode (no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `detailLevels` | output | the structure from fcn_CarMesh3D_makeDetailLevels (Levels, SizeDiagonal, BoxCenter, BoxSize, ShadowArea, ...), plus VehicleID and Source ('file', or 'made' when made because the file was missing). | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's vehicleLevels_<ID>.mat was made by makeDetailLevels from its current mesh.
+
+![fcn_CarMesh3D_loadDetailLevels sample output](Images/functions/fcn_CarMesh3D_loadDetailLevels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_makeOutline2D</code></b> (test: <code>script_test_fcn_CarMesh3D_makeOutline2D.m</code>): Makes a vehicle's top-down (2D) outlines from its finished mesh, for plotting and animating vehicles in 2D: XY polygons, not XYZ meshes.</summary>
+
+Makes a vehicle's top-down (2D) outlines from its finished mesh, for plotting and animating vehicles in 2D: XY polygons, not XYZ meshes. The outlines are in the vehicle frame (meters; origin on the ground below the rear axle, X forward, Y left), so a 2D pose [x y yaw] places them exactly as the mesh would be placed.
+
+```matlab
+vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh,...
+    (SliceSpacing=meters), (Tolerance=meters),...
+    (MinWindowArea=squareMeters), (Symmetric=flag),...
+    (SymmetryTolerance=fraction), (LampGap=meters),...
+    (MinInteriorArea=squareMeters), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a finished CarMesh3D mesh (labeled and fit to its spec, origin below the rear axle). | struct | 1 x 1 |
+| `SliceSpacing` | option | meters between the slices along X that find the body outline. Default 0.01. | double | 1 x 1 |
+| `Tolerance` | option | meters: the most a thinned outline may stray from the full one (Douglas-Peucker). Default 0.01. | double | 1 x 1 |
+| `MinWindowArea` | option | square meters: smaller pieces of upward glass are dropped. Default 0.05. | double | 1 x 1 |
+| `LampGap` | option | meters; pieces of lamps of one type and side closer than this are one lamp. Default 0.02. | double | 1 x 1 |
+| `MinInteriorArea` | option | square meters; smaller interior pieces (seen from above) are dropped. Default 0.01. | double | 1 x 1 |
+| `Symmetric` | option | true (default) to make every outline symmetric about the centerline (see SYMMETRY above); false to keep them as traced. Default `true`. | logical | 1 x 1 |
+| `SymmetryTolerance` | option | the fraction of an outline's area (for the body, of its width) above which a change made for symmetry is warned about. Default 0.05 (5 percent). | double | 1 x 1 |
+| `FigNum` | option | a figure to plot the outlines, in two panels: alone (as a 2D plot would draw them) and over the mesh seen from above (faded). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleOutline` | output | a structure with Name, Units ('m'), Frame (the mesh's), Source Body: N x 2 [x y], a closed polygon (first point repeated at the end), counterclockwise Windows: a structure array with Name ('glass 1', ... | struct | 1 x 1 |
+
+**Assumptions:** The finished mesh in the vehicle frame, with hidden faces left out; outlines are seen from above.
+
+![fcn_CarMesh3D_makeOutline2D sample output](Images/functions/fcn_CarMesh3D_makeOutline2D.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_loadOutline2D</code></b> (test: <code>script_test_fcn_CarMesh3D_loadOutline2D.m</code>): Loads a vehicle's top-down (2D) outlines from its folder in Data: vehicleOutline_<ID>.mat, made by the vehicle's script with fcn_CarMesh3D_makeOutline2D.</summary>
+
+Loads a vehicle's top-down (2D) outlines from its folder in Data: vehicleOutline_<ID>.mat, made by the vehicle's script with fcn_CarMesh3D_makeOutline2D. This is how a 2D plotting tool gets them.
+
+```matlab
+vehicleOutline = fcn_CarMesh3D_loadOutline2D(vehicleID,...
+    (DataFolder=folder), (MakeIfMissing=flag), (SaveIfMade=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID, such as '2013_Toyota_Prius_Four' (see fcn_CarMesh3D_findVehicleFiles). | char or string | 1 x n |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `MakeIfMissing` | option | make the outlines from the finished mesh when there is no outline file. Default true. | logical | 1 x 1 |
+| `SaveIfMade` | option | save outlines made that way to the vehicle's folder. Default false. | logical | 1 x 1 |
+| `FigNum` | option | a figure to show the outlines, filled, in 2D. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleOutline` | output | the outlines (see fcn_CarMesh3D_makeOutline2D), with VehicleID and Origin ('file' or 'made') added. | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's vehicleOutline_<ID>.mat was made by makeOutline2D.
+
+![fcn_CarMesh3D_loadOutline2D sample output](Images/functions/fcn_CarMesh3D_loadOutline2D.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_loadCache</code></b> (test: <code>script_test_fcn_CarMesh3D_loadCache.m</code>): Reuses the saved results of a slow step (fcn_CarMesh3D_saveCache) when nothing the step depends on has changed: the saved inputs must equal cacheInputs exactly (compared directly, field by field, with NaN equal to NaN; no hashing).</summary>
+
+Reuses the saved results of a slow step (fcn_CarMesh3D_saveCache) when nothing the step depends on has changed: the saved inputs must equal cacheInputs exactly (compared directly, field by field, with NaN equal to NaN; no hashing). Otherwise says what changed, so the step is done again. The vehicle template uses it for three stages of a full run: the finished mesh, the comparison with the download, and the checks.
+
+```matlab
+[cacheOutputs, flagReused, reason] = fcn_CarMesh3D_loadCache(...
+    cacheFile, cacheInputs, (Enabled=flag), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `cacheFile` | input | the cache file's path (a .mat file). | char or string | 1 x n |
+| `cacheInputs` | input | a structure of everything the step depends on, made the same way as when it was saved. | struct | 1 x 1 |
+| `Enabled` | option | false to never reuse (the step is always done; the reason is 'cache not used'). Default true. | logical | 1 x 1 |
+| `FigNum` | option | if given (not -1), the decision is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `cacheOutputs` | output | the saved results (a structure), or [] when not reused. | struct | 1 x 1 |
+| `flagReused` | output | true when the saved results were reused. | logical | 1 x 1 |
+| `reason` | output | why, as text: 'nothing changed (cached <date>)', 'no cache file', 'cache not used', 'the cache file could not be read', or 'changed: <the top-level inputs that differ>'. | char | 1 x n |
+
+**Assumptions:** The cache file was written by saveCache; inputs are compared exactly, so any change (a file date, a setting) redoes the step.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_saveCache</code></b> (test: <code>script_test_fcn_CarMesh3D_loadCache.m</code>): Saves the results of a slow step together with everything the step depended on, so the next run can reuse them (fcn_CarMesh3D_loadCache) when nothing has changed.</summary>
+
+Saves the results of a slow step together with everything the step depended on, so the next run can reuse them (fcn_CarMesh3D_loadCache) when nothing has changed. The folder is made if needed.
+
+```matlab
+fcn_CarMesh3D_saveCache(cacheFile, cacheInputs, cacheOutputs, (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `cacheFile` | input | the cache file's path (a .mat file). | char or string | 1 x n |
+| `cacheInputs` | input | a structure of everything the step depends on (settings, the vehicle specification, fcn_CarMesh3D_fileStamps of the files and functions it reads, the mesh version). | struct | 1 x 1 |
+| `cacheOutputs` | input | a structure of the step's results. | struct | 1 x 1 |
+| `FigNum` | option | if given (not -1), what was saved is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+
+**Assumptions:** The cache folder is local (ignored by git).
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fileStamps</code></b> (test: <code>script_test_fcn_CarMesh3D_fileStamps.m</code>): The name, size, and date of each file in a list: a stamp that changes whenever a file is saved again, without reading the file.</summary>
+
+The name, size, and date of each file in a list: a stamp that changes whenever a file is saved again, without reading the file. Used as part of a cached step's inputs (fcn_CarMesh3D_loadCache), so the step is done again when a file it reads, or a function it runs, has changed.
+
+```matlab
+fileStamps = fcn_CarMesh3D_fileStamps(fileList, (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `fileList` | input | a cell array of file names or paths (or one as text). A name without a folder that MATLAB can find (a function, such as 'fcn_CarMesh3D_labelParts.m') is found with WHICH. | function_handle | 1 x 1 |
+| `FigNum` | option | if given (not -1), the stamps are printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `fileStamps` | output | an N x 1 structure array, one per file, in the list's order, with Name (the file's name), Bytes, and Date (its modification time as a datenum); a file that is not found has Bytes -1 and Date 0 (so two "not found" stamps are equal). | double | N x 1 |
+
+**Assumptions:** A stamp is a file's name, size and date (the file is not read); a function name without a folder is found with WHICH.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_meshHistory</code></b> (test: <code>script_test_fcn_CarMesh3D_meshHistory.m</code>): A vehicle mesh's history: who changed it and when (its change log), the license of the model it was made from, when it was last built, and whether it has been reviewed by a person since it was made (and by whom, when, and the decision).</summary>
+
+A vehicle mesh's history: who changed it and when (its change log), the license of the model it was made from, when it was last built, and whether it has been reviewed by a person since it was made (and by whom, when, and the decision). Meshes are made by the vehicle's script (automatically); a person's review is what says they are fit to use.
+
+```matlab
+history = fcn_CarMesh3D_meshHistory(vehicleInput,...
+    (Action=action), (Details=details), (Who=name), (Mesh=mesh),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), a mesh file name (vehicleMesh_<ID>.mat, or a timestamped copy of it, vehicleMesh_<ID>_YYYYMMDDHHMMSS.mat), or a vehicle folder. | char or struct | 1 x n, or 1 x 1 |
+| `Action` | option | a change to add to the log, for example 'label edits saved', 'reviewed: approved', 'reviewed: rejected', 'built', or 'note'. '' (default): only read. Default `''`. | char | 1 x n |
+| `Details` | option | more about the change (text). Default ''. | char | 1 x n |
+| `Who` | option | who made the change. Default: the computer's user name. | char | 1 x n |
+| `Mesh` | option | the mesh, if already loaded (its BuildInfo gives the build); [] (default) to read it from the mesh file. Default `[]`. | struct | 1 x 1 |
+| `FigNum` | option | not used (no plot); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `history` | output | a structure: ID, Folder, HistoryFile Entries: a table (Time, Who, Action, Details), oldest first, with the build (from BuildInfo) put in its place License: Name, Author, Source, Text (from LICENSE.txt; '' if none) Built: Date, Script, MeshVersion ('' if not known) LastChange: Time, Who, Action (the newest entry) Review: Status ('not reviewed', 'approved', 'rejected'), By, Date, Current (false when the mesh changed after it) FinePrint: one line for the bottom of a viewer | struct | 1 x 1 |
+
+**Assumptions:** The change log is meshHistory_<ID>.csv in the vehicle's folder (one row per change); the painter and the Model Reviewer add rows to it.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_version</code></b> (test: <code>script_test_fcn_CarMesh3D_version.m</code>): The version of this copy of CarMesh3D: the date of its release, as 'YYYY_MM_DD' (the same name its release folder has, such as CarMesh3D_2026_11_20).</summary>
+
+The version of this copy of CarMesh3D: the date of its release, as 'YYYY_MM_DD' (the same name its release folder has, such as CarMesh3D_2026_11_20). Programs that use CarMesh3D (such as AnimateCar3D) can check that the copy they find is new enough. The version is changed in this function when a new release is made.
+
+```matlab
+[versionString, flagAtLeast, meshVersion] = fcn_CarMesh3D_version(...
+    (AtLeast=versionString), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `AtLeast` | option | a version, 'YYYY_MM_DD', to compare with. Default '' (no comparison). | char | 1 x n |
+| `FigNum` | option | if given (not -1), the version is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `versionString` | output | this copy's version, such as '2026_11_20'. | char | 1 x 10 |
+| `flagAtLeast` | output | true if this copy's version is AtLeast or newer (true when AtLeast is not given). | logical | 1 x 1 |
+| `meshVersion` | output | the version of the mesh-making steps, such as '2026_11_21c' (the date of the change, and a letter for several in a day; see MESH VERSIONS above). Versions sort as text. | char | 1 x n |
+
+**Assumptions:** The version is written in this function at each release; the mesh version changes whenever a change to CarMesh3D would make a different finished mesh.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_addReferenceVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_addReferenceVehicle.m</code>): Adds a finished, checked vehicle to the REFERENCE VEHICLE LIST: the list of vehicles that are ready to use.</summary>
+
+Adds a finished, checked vehicle to the REFERENCE VEHICLE LIST: the list of vehicles that are ready to use. Three things are updated (listed in the function's header).
+
+```matlab
+referenceList = fcn_CarMesh3D_addReferenceVehicle(vehicleID,...
+    vehicleMesh, referenceGif, (ListFile=file),...
+    (ImagesFolder=folder), (ReadmeFile=file), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID (YEAR_Make_Model_Trimline, see fcn_CarMesh3D_findVehicleFiles). | char or string | 1 x n |
+| `vehicleMesh` | input | the finished mesh (for its size and face count). | struct | 1 x 1 |
+| `referenceGif` | input | the GIF to show for this vehicle. | char or string | 1 x n |
+| `ListFile` | option | the list file. Default [] is Data\referenceVehicles.csv. | char or string | 1 x n |
+| `ImagesFolder` | option | where reference GIFs are kept. Default [] is Images\vehicles. | char or string | 1 x n |
+| `ReadmeFile` | option | the README to update. Default [] is the README.md in the CarMesh3D folder. Use '' to not update a README. | char or string | 1 x n |
+| `FigNum` | option | if set to -1, input checking is skipped (fast mode). The function makes no plot. Default `[]`. | double | 1 x 1 (or empty) |
+| `referenceList` | output | the list, as a table (one row per vehicle). | table | rows x columns |
+
+**Assumptions:** The vehicle passed its checks; its folder name is its ID.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_listVehicles</code></b> (test: <code>script_test_fcn_CarMesh3D_listVehicles.m</code>): Lists the finished vehicles (those with a saved mesh) in the Data folder, one row each, with what a user needs to choose among them and to know which must be made again: body style, size, face count, the quality score, and whether the mesh is up to date.</summary>
+
+Lists the finished vehicles (those with a saved mesh) in the Data folder, one row each, with what a user needs to choose among them and to know which must be made again: body style, size, face count, the quality score, and whether the mesh is up to date.
+
+```matlab
+vehicleTable = fcn_CarMesh3D_listVehicles(...
+    (IncludeUnfinished=flag), (DataFolder=folder), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `IncludeUnfinished` | option | true to list vehicles without a saved mesh too (Status 'no mesh'). Default false. | logical | 1 x 1 |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | if given (not -1), the table is printed. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleTable` | output | a table, one row per vehicle, sorted by body style and then ID, with ID, Name, BodyStyle (the style ID; for a sample, the style it was made from, or 'sample') IsExemplar: an approved exemplar of its style FromBodyStyle: made from a body style's exemplar (no download) Faces: the finished mesh's face count Length_m, Width_m, Height_m: from the saved specification Score: the quality score, 0 to 100 (NaN without a BuildInfo) ChecksFailed: dimension checks failed (NaN without a BuildInfo) MeshVersion: the mesh version it was made with ('' if none) Made: when it was made ('' if not recorded) Status: 'up to date', 'out of date' (an older mesh version), 'exemplar changed' (its exemplar was made again since), 'no stamp' (made before BuildInfo existed), or 'no mesh' MeshFile: the saved mesh's path | table | rows x columns |
+
+**Assumptions:** Vehicles live in Data/BodyStyles/<Style>/<ID> folders.
+
+</details>
+
+### Review and edit (GUIs)
+
+<details><summary><b><code>fcn_CarMesh3D_reviewVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewVehicle.m</code>): The MODEL REVIEWER: a window for reviewing a finished vehicle, one check at a time, and recording an approval, a rejection, or a comment for each question.</summary>
+
+The MODEL REVIEWER: a window for reviewing a finished vehicle, one check at a time, and recording an approval, a rejection, or a comment for each question. It replaces looking through the checks folder's pictures.
+
+```matlab
+[reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID,...
+    (Reviewer=name), (Visible=flag), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | a vehicle ID (its folder name), such as '2009_Honda_Fit_Sport', or the full path of a vehicle's folder kept anywhere (such as the demo's copy, from | char or string | 1 x n |
+| `Reviewer` | option | the reviewer's name, saved with each answer. Default: the computer's user name. | char | 1 x n |
+| `Visible` | option | true (default) to show the window; false to build it without showing it (for tests). Default `true`. | logical | 1 x 1 |
+| `FigNum` | option | not used for plotting (the reviewer is its own window). If set to -1, input checking is skipped. Default `[]`. | double | 1 x 1 (or empty) |
+| `reviewTable` | output | the answers so far (one row per question): Check, Item, Question, Status ('', 'approved', 'rejected'), Severity ('minor', 'must fix'), Cause, Comment, Reviewer, Time. | table | questions x 11 |
+| `figureHandle` | output | the reviewer's window (a uifigure). | graphics handle | 1 x 1 |
+
+**Assumptions:** The vehicle has a finished mesh and its checks have run; the reviewer's answers are saved beside the vehicle.
+
+![fcn_CarMesh3D_reviewVehicle sample output](Images/functions/fcn_CarMesh3D_reviewVehicle.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_viewLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_viewLabels.m</code>): A viewer for looking at a vehicle's labels next to its photos: the mesh with each label in its own color (or in the vehicle's colors), and the photos of the real vehicle with the photo dial (drag its arrow around the vehicle; the model turns to the same side, and turning the model moves the arrow and the photo).</summary>
+
+A viewer for looking at a vehicle's labels next to its photos: the mesh with each label in its own color (or in the vehicle's colors), and the photos of the real vehicle with the photo dial (drag its arrow around the vehicle; the model turns to the same side, and turning the model moves the arrow and the photo). Pick a label to see it alone; untick a label's box to hide it and see what is under it.
+
+```matlab
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput,...
+    (ViewSettings=viewSettings), (Colors=colors), (Label=key),...
+    (Hidden=keys), (PhotoFolder=folder), (Outline=outline),...
+    (Parent=container), (LabelListParent=container),...
+    (ShowTools=flag), (OnHint=function), (ColorFilter=function),...
+    (HiddenFaces=function), (Wait=flag), (Visible=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `meshInput` | input | the mesh to view, either way: - a file name: a .mat file holding a labeled CarMesh3D mesh (the variable vehicleMesh, else the first mesh in it), such as a vehicle's mesh file or a timestamped copy from the painter. | char or struct | 1 x n, or 1 x 1 |
+| `ViewSettings` | option | view settings this viewer returned before: opens at that camera, label, hidden labels, colors and photo. Default `[]`. | struct | 1 x 1 |
+| `Colors` | option | 'labels' (default: each label in its own color) or 'vehicle' (the vehicle's own colors). Default `''`. | char | 1 x n |
+| `Label` | option | the label shown alone ('part_trim', 'light_tail', ...; as the list's keys), or 'all' (default). Default `''`. | char | 1 x n |
+| `Hidden` | option | labels whose faces are hidden (a cell array of keys). Default `[]`. | cell | 1 x n |
+| `PhotoFolder` | option | a folder of ViewInDegrees_<angle> photos. Default: a folder "photos" beside the mesh file (a file given), else none. | char or string | 1 x n |
+| `Outline` | option | the vehicle's 2D outline (fcn_CarMesh3D_makeOutline2D's output, or a .mat file holding vehicleOutline), drawn in the photo dial. Default: none (the dial draws the mesh from above). | char | 1 x n |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `LabelListParent` | option | a panel or grid to put the list of labels in. Default `[]`. | graphics handle | 1 x 1 |
+| `ShowTools` | option | false to leave out the row of tools (colors, reset view, copy view call). Default true. | logical | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text); [] (default) to show hints in the viewer's own hint line. Default `[]`. | function_handle | 1 x 1 |
+| `ColorFilter` | option | for a window that builds the viewer in and colors faces of its own (the painter: painted faces): a function [faceColors, faceAlpha] = f(faceColors, faceAlpha), called each time the model is colored, before hidden faces are made see-through. Default `[]`. | function_handle | 1 x 1 |
+| `HiddenFaces` | option | for such a window: a function flagHidden = f(keys) giving the faces hidden for these hidden label keys (one flag per face). Default: the faces with those labels. | function_handle | 1 x 1 |
+| `History` | option | the mesh's history (fcn_CarMesh3D_meshHistory's output), shown as fine print at the bottom: the model's license, when the mesh was built, its last change, and whether a person has reviewed it (by whom, when). | char | 1 x n |
+| `Wait` | option | true to wait until the window is closed and return the view settings then. | logical | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `viewSettings` | output | a structure: MeshFile ('' for a mesh variable), Camera (CameraPosition, CameraTarget, CameraUpVector, CameraViewAngle, Projection, XLim, YLim, ZLim), Label, Hidden, Colors, PhotoAngle (the photo shown, in degrees; NaN for none), SeeThrough (how see-through the body is drawn: 0 solid, up to 0.9), MeshBoundaries (true when the faces' edges are drawn), NightView (true for the nighttime view), NightLights (the lamps switched on in it: fcn_CarMesh3D_plotVehicle's LightStates), PhotoHeight (the photo's height in pixels, set with the handle at its bottom left corner). | struct | 1 x 1 |
+| `viewer` | output | a structure of the viewer's handles and functions: Figure, Axes, Patch GetView(): the view settings now SetView(viewSettings): go to these view settings ViewCall(): the MATLAB call that opens this view, as text ShowLabel(key), Label(), SetHidden(keys), Hidden(), SetColors(colors), Redraw() SetMesh(mesh, labelColors, labelAlpha): a mesh with the same faces and new labels (the painter, after a save) SetPhotoAngle(angle), PhotoAngle() DialMove(), DialUp(), GripDown(): for a window that handles the mouse itself (each says whether it used the event: the dial's arrow, or the photo's corner, is being dragged; call GripDown first in the window's mouse-down) SetHistory(history): new fine print (after a change) ResetView(), SetSeeThrough(fraction), SeeThrough(): how see-through the body is drawn (0 solid, up to 0.9) Stop() (its timer), Close() | struct | 1 x 1 |
+
+**Assumptions:** A labeled mesh (or a vehicle ID with a saved mesh); photos, if any, are in the vehicle's pictures folder.
+
+![fcn_CarMesh3D_viewLabels sample output](Images/functions/fcn_CarMesh3D_viewLabels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_paintLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_paintLabels.m</code>): A window for fixing a vehicle's labels by painting its faces: pick a label (body, glass, trim, interior, wheel, a light type), or hide or unhide, then paint the faces that should have it.</summary>
+
+A window for fixing a vehicle's labels by painting its faces: pick a label (body, glass, trim, interior, wheel, a light type), or hide or unhide, then paint the faces that should have it. It works on its own (its own window), or inside another window, such as the Model Reviewer (fcn_CarMesh3D_reviewVehicle), which gives it a panel to build into.
+
+```matlab
+[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleInput,...
+    (Parent=container), (EditsFile=file), (PhotoFolder=folder),...
+    (Wait=flag), (Visible=flag), (OnPaint=function),...
+    (OnChange=function), (OnHint=function), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport') or a vehicle's folder (as fcn_CarMesh3D_findVehicleFiles takes), or a labeled CarMesh3D mesh. | char or struct | 1 x n, or 1 x 1 |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `EditsFile` | option | where the edits are saved ('' for not saved: with a mesh given, the default). With an ID, the default is the vehicle's labelEdits_<ID>.mat. Default `[]`. | char or string | 1 x n |
+| `PhotoFolder` | option | a folder of ViewInDegrees_<angle> photos. Default: the vehicle's photos folder (with an ID), else none. | char or string | 1 x n |
+| `Wait` | option | true to wait until the window is closed, and return the edited mesh then (its own window only). Default false: return at once. | logical | 1 x 1 |
+| `Versions` | option | true (default) to keep a timestamped copy of the edits and the edited mesh at each save, in the VersionFolder, as <mesh name>_YYYYMMDDHHMMSS.mat (a second save in the same second overwrites the first). Default `true`. | logical | 1 x 1 |
+| `VersionFolder` | option | where the timestamped copies go. | char or string | 1 x n |
+| `Who` | option | who is painting, for the vehicle's change log (meshHistory_<ID>.csv; fcn_CarMesh3D_meshHistory): each save adds a row. Default: the computer's user name. (With a vehicle ID only.) | char | 1 x n |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `OnPaint` | option | a function called with no inputs after each click or stroke that paints (the reviewer marks its Labels item rejected). Default `[]`. | function_handle | 1 x 1 |
+| `OnChange` | option | a function called with the edited mesh after Apply, Save, Undo of applied paint, or a Revert. Default `[]`. | function_handle | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show hints in the painter's own hint line. Default `[]`. | function_handle | 1 x 1 |
+| `FigNum` | option | not used (the painter is a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `editedMesh` | output | the mesh with the applied edits (from the edits file, when the painter returns at once; or as left, with Wait=true). | struct | 1 x 1 |
+| `labelEdits` | output | the applied edits, as fcn_CarMesh3D_editLabels edits (one per label, faces by their centers). | cell | 1 x n (structs) |
+| `painter` | output | a structure of the painter's handles and functions: Figure, Axes, Patch (the model), EditsFile ShowLabel(key): one label colored ('part_body', 'light_tail', ...; as fcn_CarMesh3D_reviewVehicle's label keys), the rest gray, or 'all' for every label in its color SetHidden(keys): hide the faces of these labels (a cell array of keys; {} shows all) EditedMesh(), Edits(), NumPainted(), IsUnsaved(), Status() Apply(), Undo(), Save(), RevertToSaved(), RevertToStart() SaveVersion(): Save, and keep a timestamped copy (returns its file); LastVersionFile(); VersionFolder(); SetVersionFolder(folder) (remembered for next time; '' for the default) WorkingMesh(): the working mesh (the mesh before any edits, with the saved edits taken in; same faces), with the LabelColors the view shows SetTool(name), Paint(tool, points, flagErase): paint the faces nearest these points (for scripts and tests; then Save) SetPhotoAngle(angle), PhotoAngle() StrokeStart(flagErase), MouseMove(), MouseUp(), Click(flagPiece): for a window that holds the painter and handles the mouse itself (MouseMove and MouseUp say whether they used the event) Stop(): stop the painter's timer (before the parent is cleared) Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** A vehicle ID with a saved mesh (or a mesh and an EditsFile); edits are saved to labelEdits_<ID>.mat and applied by the next build.
+
+![fcn_CarMesh3D_paintLabels sample output](Images/functions/fcn_CarMesh3D_paintLabels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_viewDimensions</code></b> (test: <code>script_test_fcn_CarMesh3D_viewDimensions.m</code>): A view for checking a vehicle's dimensions against its data, drawn as on a drawing: the side view (top, wide), the front and rear views, and a table of each quantity's target, as measured on the mesh, and error.</summary>
+
+A view for checking a vehicle's dimensions against its data, drawn as on a drawing: the side view (top, wide), the front and rear views, and a table of each quantity's target, as measured on the mesh, and error.
+
+```matlab
+viewer = fcn_CarMesh3D_viewDimensions(vehicleInput,...
+    (DimensionTable=dimensionTable), (Parent=container),...
+    (OnSelect=function), (OnHint=function), (Visible=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), or a labeled CarMesh3D mesh. With an ID, the mesh is the vehicle's mesh file and the dimensions are from its checks' cache (stage 3). | char or struct | 1 x n, or 1 x 1 |
+| `DimensionTable` | option | one row per quantity: its name (as fcn_CarMesh3D_validateMesh's ValidationTable.Quantity), target (m), measured (m), error (%), and pass. Default `[]`. | table | rows x columns |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `OnSelect` | option | a function called with a quantity's name when its row of the table is clicked (the reviewer goes to that item); [] to show that dimension. Default `[]`. | function_handle | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `viewer` | output | a structure of the view's handles and functions: Figure, Axes (side, front, rear), Table, Quantities (the names, in the table's order), Names (as shown) ShowDimension(quantity): that dimension drawn, its view's title bold, its row of the table in bold ('' for none) Shown(): the quantity drawn now ResetViews(): the views as they were made Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** The mesh is fitted and its spec is known; only shown faces are measured.
+
+![fcn_CarMesh3D_viewDimensions sample output](Images/functions/fcn_CarMesh3D_viewDimensions.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_viewOrientation</code></b> (test: <code>script_test_fcn_CarMesh3D_viewOrientation.m</code>): A view for checking a vehicle mesh's orientation: the mesh, see-through, with its axes as large arrows from its origin (on the ground, under the middle of the rear axle): FRONT (+X, red) past the front bumper, UP (+Z, blue) above the roof, and +Y (left, green) past the left side.</summary>
+
+A view for checking a vehicle mesh's orientation: the mesh, see-through, with its axes as large arrows from its origin (on the ground, under the middle of the rear axle): FRONT (+X, red) past the front bumper, UP (+Z, blue) above the roof, and +Y (left, green) past the left side. The red arrow should point to the front, the blue one up.
+
+```matlab
+viewer = fcn_CarMesh3D_viewOrientation(vehicleInput,...
+    (Parent=container), (OnHint=function), (Visible=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), or a CarMesh3D mesh. With an ID, the mesh is the vehicle's mesh file. | char or struct | 1 x n, or 1 x 1 |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `viewer` | output | a structure of the view's handles and functions: Figure, Axes ResetView(): the view as it was made Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** The mesh is in the vehicle frame (normalizeMesh), with its origin on the ground.
+
+![fcn_CarMesh3D_viewOrientation sample output](Images/functions/fcn_CarMesh3D_viewOrientation.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_viewOutline</code></b> (test: <code>script_test_fcn_CarMesh3D_viewOutline.m</code>): A view for checking a vehicle's 2D outline (from fcn_CarMesh3D_makeOutline2D): the outlines from above, in gray, over the vehicle drawn faintly, with one element at a time filled in orange (the body, each window, each wheel, the lights by type and side, the interior).</summary>
+
+A view for checking a vehicle's 2D outline (from fcn_CarMesh3D_makeOutline2D): the outlines from above, in gray, over the vehicle drawn faintly, with one element at a time filled in orange (the body, each window, each wheel, the lights by type and side, the interior). A toggle shows the 3D model, see-through, over the outlines.
+
+```matlab
+viewer = fcn_CarMesh3D_viewOutline(vehicleInput,...
+    (Mesh=vehicleMesh), (Parent=container), (OnHint=function),...
+    (Visible=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), or a 2D outline (fcn_CarMesh3D_makeOutline2D's output). With an ID, the outline and the mesh are the vehicle's files. | char or struct | 1 x n, or 1 x 1 |
+| `Mesh` | option | the vehicle's mesh, drawn under the outlines (and in 3D with the toggle). Default: the vehicle's mesh file (with an ID), else none. | struct | 1 x 1 |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `viewer` | output | a structure of the view's handles and functions: Figure, Axes, Elements (Key, Label, Polygons of each element) ShowElement(key): that element filled in orange ('' for none) SetModel3D(flag): the 3D model over the outlines, or not ResetView(): back to the view from above Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's outline was made (makeOutline2D).
+
+![fcn_CarMesh3D_viewOutline sample output](Images/functions/fcn_CarMesh3D_viewOutline.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_viewDetailLevels</code></b> (test: <code>script_test_fcn_CarMesh3D_viewDetailLevels.m</code>): A view for checking a vehicle's detail levels (from fcn_CarMesh3D_makeDetailLevels).</summary>
+
+A view for checking a vehicle's detail levels (from fcn_CarMesh3D_makeDetailLevels). Top: the full mesh and every detail level in a line, all at one distance (a line-up, to compare them side by side). Bottom: each level beside the full mesh at the distance where that level is first used, through the animations' camera (645 pixels per radian: what an animation would show). Every vehicle turns slowly, in both.
+
+```matlab
+viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput,...
+    (Mesh=vehicleMesh), (Parent=container), (Turn=flag),...
+    (OnHint=function), (Visible=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID ('2009_Honda_Fit_Sport'), or detail levels (fcn_CarMesh3D_makeDetailLevels's output: Levels, SizeDiagonal, BoxCenter, BoxSize). With an ID, the levels and the full mesh are the vehicle's files. | char or struct | 1 x n, or 1 x 1 |
+| `Mesh` | option | the full mesh, shown beside the levels. Needed with detail levels given; with an ID, the default is the vehicle's mesh file. Default `[]`. | struct | 1 x 1 |
+| `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
+| `Turn` | option | true (default) to turn every vehicle slowly (20 degrees a second). Default `true`. | logical | 1 x 1 |
+| `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `FigNum` | option | not used (a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
+| `viewer` | output | a structure of the view's handles and functions: Figure, LineupAxes, SceneAxes, Transforms (one per vehicle shown, each turning about its own middle) StartTurning(), Stop(), IsTurning() ResetViews(): both views as they were made Close(): close its own window | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's detail levels were made (makeDetailLevels).
+
+![fcn_CarMesh3D_viewDetailLevels sample output](Images/functions/fcn_CarMesh3D_viewDetailLevels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_browseLibrary</code></b> (test: <code>script_test_fcn_CarMesh3D_browseLibrary.m</code>): A window listing every finished vehicle in the library, one row each, in a scrolling list.</summary>
+
+A window listing every finished vehicle in the library, one row each, in a scrolling list.
+
+```matlab
+[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(...
+    (Vehicles=names), (SortBy=key), (GroupBy=key), (Descending=flag),...
+    (Selected=names), (DefaultVehicle=id), (Wait=flag),...
+    (Visible=flag), (DataFolder=folder), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Vehicles` | option | a cell array of MATLAB names (vehicle IDs), such as {'2009_Honda_Fit_Sport', '2013_Toyota_Prius_Four'}: the browser shows, sorts, groups, filters and selects only these vehicles. | cell | 1 x n |
+| `SortBy` | option | 'name', 'year', 'make', 'class' (default), 'length', 'score', 'review' (the percent of review items approved), 'built' (when the mesh was made), or 'reviewDate'. Default `'class'`. | char | 1 x n |
+| `GroupBy` | option | 'class' (default), 'make', 'year', 'review' (reviewed, partly reviewed, not reviewed), 'exemplar' (exemplars first), 'license', or 'none'. Default `'class'`. | char | 1 x n |
+| `Descending` | option | true to sort (and group) in descending order. Default false. | logical | 1 x 1 |
+| `Selected` | option | MATLAB names (vehicle IDs) ticked when the window opens. Default {}. | cell | 1 x n |
+| `DefaultVehicle` | option | the vehicle copied and returned when none is selected. Default '2009_Honda_Fit_Sport' (the demo menu's test vehicle). | char | 1 x n |
+| `Wait` | option | true to wait until the window is closed, and return the selection then. Default: true when Visible, else false. | logical | 1 x 1 |
+| `Visible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
+| `DataFolder` | option | the library's Data folder. Default: the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | not used (a window). If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `selectedNames` | output | a cell array of the selected vehicles' MATLAB names (vehicle IDs), in the order they were shown when the window was closed (vehicles selected but hidden by the filter come last). | cell | 1 x n |
+| `browser` | output | a structure of the window's handles and functions: Figure, Vehicles (one element per vehicle: ID, Name, details) Order(): the IDs in the order shown (those the filter hides are left out) SetSort(key, flagDescending), SetGroup(key) ApplyFilter(text): keep, of the vehicles shown, those whose name, MATLAB name or class holds the text (filters stack); a text matching none is not applied (true if applied) ClearFilters(), Filters(): the filters applied, in order Open(name, tool, (flagUseCopy)): open a vehicle in a tool, as its row's buttons do: 'view', 'edit' or 'review'. | struct | 1 x 1 |
+
+**Assumptions:** Vehicles live in Data/BodyStyles/<Style>/<ID> folders with their saved meshes and outlines.
+
+![fcn_CarMesh3D_browseLibrary sample output](Images/functions/fcn_CarMesh3D_browseLibrary.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_browseVehicles</code></b> (test: <code>script_test_fcn_CarMesh3D_browseVehicles.m</code>): A menu, in the command window, of the finished vehicles in the Data folder: one numbered line per vehicle, with its name, body style, quality score (0 to 100, see fcn_CarMesh3D_makeBuildInfo), and whether its mesh is up to date.</summary>
+
+A menu, in the command window, of the finished vehicles in the Data folder: one numbered line per vehicle, with its name, body style, quality score (0 to 100, see fcn_CarMesh3D_makeBuildInfo), and whether its mesh is up to date. Typing a vehicle's number shows it (fcn_CarMesh3D_showVehicle: the mesh in 3D and its 2D outlines) and marks it "viewed"; the menu then offers the next vehicle.
+
+```matlab
+[vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(...
+    (SortBy=order), (IncludeUnfinished=flag), (Interactive=flag),...
+    (ViewFigNum=figNum), (DataFolder=folder), (FigNum=figNum))
+```
+
+**Assumptions:** DebugTools must be installed. The menu is DebugTools' fcn_DebugTools_menuManageSelections, so DebugTools must be installed: run script_demo_CarMesh3D once (its installer puts DebugTools in the Utilities folder).
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `SortBy` | option | the order of the list: 'bodyStyle' (default: by body style, then ID), 'score' (best first), or 'name'. Default `'bodyStyle'`. | char | 1 x n |
+| `IncludeUnfinished` | option | true to list vehicles without a finished mesh too (they are shown grayed out and cannot be chosen). Default false. | logical | 1 x 1 |
+| `Interactive` | option | true (default) to open the menu. False only builds the menu (selections) and returns, for scripts and tests. Default `true`. | logical | 1 x 1 |
+| `ViewFigNum` | option | the figure a chosen vehicle is shown in (its 2D outlines go in ViewFigNum+1). Default 1. | double | 1 x 1 |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | if given (not -1), the vehicle list is also printed before the menu opens. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleTable` | output | the vehicles listed, in menu order (the table from fcn_CarMesh3D_listVehicles), with a MenuChar column. | table | rows x columns |
+| `selections` | output | the menu definition given to fcn_DebugTools_menuManageSelections (one element per menu line). | struct | 1 x N |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_showVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_showVehicle.m</code>): Shows one finished vehicle from the Data folder: its mesh in 3D (as it will be plotted and animated), its 2D outlines, or its parts colored by label or by material, and prints a short summary (name, body style, size, faces, quality score, dimension checks, mesh version).</summary>
+
+Shows one finished vehicle from the Data folder: its mesh in 3D (as it will be plotted and animated), its 2D outlines, or its parts colored by label or by material, and prints a short summary (name, body style, size, faces, quality score, dimension checks, mesh version). This is what the vehicle browser (fcn_CarMesh3D_browseVehicles) calls when a vehicle is chosen, and it can be called directly too.
+
+```matlab
+[vehicleMesh, vehicleInfo] = fcn_CarMesh3D_showVehicle(vehicleID,...
+    (View=view), (DataFolder=folder), (FigNum=figNum))
+```
+
+**Assumptions:** The vehicle must have a saved (finished) mesh.
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID, such as '2013_Toyota_Prius_Four' (see fcn_CarMesh3D_findVehicleFiles). The vehicle must have a saved (finished) mesh. | char or string | 1 x n |
+| `View` | option | what to show: 'both' (default): the 3D mesh in figure FigNum and the 2D outlines in figure FigNum+1 '3d': the 3D mesh only '2d': the 2D outlines only (in figure FigNum) 'labels': the parts colored by label (fcn_CarMesh3D_plotLabels) 'materials': the parts colored by source material Default `'both'`. | char | 1 x n |
+| `DataFolder` | option | the Data folder. Default [] uses the one next to the Functions folder. | char or string | 1 x n |
+| `FigNum` | option | the figure to show the vehicle in. If empty or omitted, the vehicle is loaded and summarized but not shown. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the finished mesh, as saved. | struct | 1 x 1 |
+| `vehicleInfo` | output | a structure with ID, Name, BodyStyle, Faces, Length_m, Width_m, Height_m, Score (NaN without a BuildInfo), ChecksFailed, MeshVersion, Made, and MeshFile. | struct | 1 x 1 |
+
+![fcn_CarMesh3D_showVehicle sample output](Images/functions/fcn_CarMesh3D_showVehicle.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_plotLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_plotLabels.m</code>): Colors a finished mesh by its labels (each part and light type in its own color) and plots it in one 3D view that can be rotated and zoomed with the mouse: the interactive version of the check_03_labels.png picture, for reviewing a vehicle's labels in MATLAB.</summary>
+
+Colors a finished mesh by its labels (each part and light type in its own color) and plots it in one 3D view that can be rotated and zoomed with the mouse: the interactive version of the check_03_labels.png picture, for reviewing a vehicle's labels in MATLAB.
+
+```matlab
+labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh,...
+    (Title=text), (ColorBy=mode), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh (PartNames, FacePartIndex; FaceLightType and LightTypeNames if it has lights). | struct | 1 x 1 |
+| `Title` | option | the figure's title (for example, the vehicle's name). Default `''`. | char | 1 x n |
+| `ColorBy` | option | 'labels' (default) for the part and light-type colors above, or 'material' for one color per material name (needs MaterialNames and FaceMaterialIndex), with a legend. Default `'labels'`. | char | 1 x n |
+| `FigNum` | option | a figure to plot into. The figure is cleared, made visible, and left open: drag to rotate the view, scroll to zoom. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `labelMesh` | output | the mesh with FaceColors set to the label colors and FaceAlpha set to 1 (0.6 for glass), ready for fcn_CarMesh3D_plotVehicle. | struct | 1 x 1 |
+
+**Assumptions:** A labeled mesh (PartNames, LightTypeNames and their per-face fields).
+
+![fcn_CarMesh3D_plotLabels sample output](Images/functions/fcn_CarMesh3D_plotLabels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_addTitleBar</code></b> (test: <code>script_test_fcn_CarMesh3D_addTitleBar.m</code>): Puts the standard title bar at the top of a CarMesh3D window: the name of the function that made the window, large, so that a user knows what to call (and what to name when reporting a problem), and under it the date and time that function's file was last changed (its version), and an optional subtitle (such as the vehicle's name).</summary>
+
+Puts the standard title bar at the top of a CarMesh3D window: the name of the function that made the window, large, so that a user knows what to call (and what to name when reporting a problem), and under it the date and time that function's file was last changed (its version), and an optional subtitle (such as the vehicle's name). The rest of the window goes in the panel returned.
+
+```matlab
+[contentPanel, titleBar] = fcn_CarMesh3D_addTitleBar(figureHandle,...
+    functionName, (Subtitle=text), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `figureHandle` | input | the window (a uifigure), with nothing in it yet. | graphics handle | 1 x 1 |
+| `functionName` | input | the function that made the window, such as 'fcn_CarMesh3D_viewLabels'. | char or string | 1 x n |
+| `Subtitle` | option | text shown after the date, such as the vehicle's name. Default ''. | char | 1 x n |
+| `FigNum` | option | not used. If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `contentPanel` | output | a panel filling the window under the title bar, for the rest of the window. | graphics handle | 1 x 1 |
+| `titleBar` | output | a structure: Grid, NameLabel, VersionLabel, Modified (the file's last change, as text 'yyyy-MM-dd HH:mm'), SetSubtitle(text) | struct | 1 x 1 |
+
+**Assumptions:** An empty uifigure.
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_runDemoExample</code></b> (test: <code>script_test_fcn_CarMesh3D_runDemoExample.m</code>): Runs one of the CarMesh3D demo examples, as chosen in the demo menu of script_demo_CarMesh3D.</summary>
+
+Runs one of the CarMesh3D demo examples, as chosen in the demo menu of script_demo_CarMesh3D. Before running it, the example's commands are printed in the command window, so they can be copied and pasted: * the commands the demo runs, on a temporary copy of a vehicle (fcn_CarMesh3D_makeDemoCopy): changes made with them are NOT saved to the vehicle, and * the same commands for the actual vehicle, whose changes ARE saved in the vehicle's folder.
+
+```matlab
+[examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName,...
+    (VehicleID=id), (Run=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `exampleName` | input | which example (see 'list'): 'library' the library browser: pick vehicles from a list 'viewer' the label viewer, beside the vehicle's photos 'sharedView' the viewer opened at a view another user sent 'editor' the mesh (label) editor on its own 'reviewer' the reviewer 'animate' plot a finished vehicle and drive it around 'history' a mesh's change log, license, and review status 'list' (the example) list every vehicle in the library 'browse' the vehicle browser (a menu of its own) or one of these, which run nothing: 'examples' return the list of examples (for building a menu) 'last' print the last example's commands again 'warning' print what the demo copy is, and that changes made to it are not saved to the vehicle | char | 1 x n |
+| `VehicleID` | option | the vehicle the examples use. Default '2009_Honda_Fit_Sport'. | char | 1 x n |
+| `Run` | option | false to only print the commands. Default true. | logical | 1 x 1 |
+| `FigNum` | option | if set to -1, input checking is skipped (fast mode) and nothing is printed (the commands are still run, if Run is true). Otherwise not used. Default `[]`. | double | 1 x 1 (or empty) |
+| `examples` | output | the examples, one element each: Name, Title (one line, for a menu, starting with the function shown, without its fcn_CarMesh3D_ prefix), Description, DemoCommands and VehicleCommands (cell arrays of lines), and SavesChanges (true when the tool can save changes to a vehicle) | cell | 1 x n |
+| `echoText` | output | the text printed for the example ('' for 'examples') | char | 1 x n |
+
+**Assumptions:** The demo's vehicles are in the library (or the built-in sample is used).
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_makeDemoCopy</code></b> (test: <code>script_test_fcn_CarMesh3D_makeDemoCopy.m</code>): Makes a fresh, temporary copy of a finished vehicle's folder, for demos and for trying the tools.</summary>
+
+Makes a fresh, temporary copy of a finished vehicle's folder, for demos and for trying the tools. The viewer, the mesh editor and the reviewer can be given the copy's folder or files in place of the vehicle's: any change made with them (painted labels, review answers, the change log) is saved in the copy only, never in the vehicle. Each call replaces the copy with a new one, so changes made to the copy are thrown away.
+
+```matlab
+demoFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID,...
+    (DemoFolder=folder), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | the vehicle ID of a finished vehicle, such as '2009_Honda_Fit_Sport'. | char or string | 1 x n |
+| `DemoFolder` | option | where the copy is put (as <DemoFolder>\<ID>). Default: a folder CarMesh3D_demo in the computer's temporary folder (tempdir). | char | 1 x n |
+| `FigNum` | option | if given (and not -1), a line saying where the copy is, and that changes there are not saved to the vehicle, is printed. Default `[]`. | double | 1 x 1 (or empty) |
+| `demoFiles` | output | the copy's file names, as fcn_CarMesh3D_findVehicleFiles gives them for a vehicle (Folder, MeshFile, OutlineFile, ...: all in the copy), with one more field: SourceFolder: the vehicle's own folder, which was copied | char or string | 1 x n |
+
+**Assumptions:** Writes into a temporary folder, so the repository's data are not changed.
+
+</details>
+
+### Draw and animate
+
+<details><summary><b><code>fcn_CarMesh3D_plotVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_plotVehicle.m</code>): Plots a CarMesh3D vehicle mesh as a small number of patch objects: one patch for the opaque body, one for each level of transparency (typically the glass), one per wheel, and one per group of switchable lights.</summary>
+
+Plots a CarMesh3D vehicle mesh as a small number of patch objects: one patch for the opaque body, one for each level of transparency (typically the glass), one per wheel, and one per group of switchable lights. Everything sits under one hgtransform, so the vehicle moves by changing a single transform matrix.
+
+```matlab
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh,...
+    (Pose=pose),...
+    (PlotHandles=plotHandles),...
+    (ShowEdges=flagShowEdges),...
+    (EdgeColor=[r g b]),...
+    (Finish=finishSetting),...
+    (FaceLighting=lightingString),...
+    (SceneLights=sceneLightsString),...
+    (WheelSpin=spinAngles),...
+    (SteerAngle=steerAngles),...
+    (LightStates=lightStates),...
+    (AxesHandle=axesHandle),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a CarMesh3D mesh structure. If it has FaceColors and FaceAlpha fields (from fcn_CarMesh3D_labelParts), those are used. | struct | 1 x 1 |
+| `Pose` | option | the vehicle position and orientation, as either [x y yaw] (planar motion, yaw in radians), or [x y z roll pitch yaw] (angles in radians). | double | 1 x 3 or 1 x 6 |
+| `PlotHandles` | option | the output of a previous call. If given and still valid, the function ONLY updates the pose of that plot (fast path for animation) and does not redraw the mesh. Default `[]`. | struct | 1 x 1 |
+| `ShowEdges` | option | true to draw face edges (useful for checking a mesh), false (default) to hide them. Default `false`. | logical | 1 x 1 |
+| `EdgeColor` | option | a 1 x 3 RGB color (values from 0 to 1) for the face edges, used when ShowEdges is true. Default is [0.2 0.2 0.2]. | double | 1 x 3 |
+| `Finish` | option | how shiny the surface looks. Default `'matte'`. | char | 1 x n |
+| `FaceLighting` | option | 'auto' (default), 'flat', 'gouraud', or 'none'. 'flat' gives a crisp low-poly look, with one shade per face. Default `'auto'`. | char | 1 x n |
+| `SceneLights` | option | 'auto' (default) adds two lights to the axes if it has Default `'auto'`. | char | 1 x n |
+| `WheelSpin` | option | how far each wheel has rolled, in radians, as a scalar (all four wheels) or a 1 x 4 vector [FL FR RL RR]. Positive is forward rolling. | double | 1 x 1 or 1 x 4 |
+| `SteerAngle` | option | the steer angle of the front wheels, in radians, as a scalar (both) or 1 x 2 [FL FR]. Positive steers left. Default 0. | double | K x 2 or 1 x 2 |
+| `WheelLift` | option | how far each wheel is lifted off the ground, in meters, as a scalar (all four) or 1 x 4 [FL FR RL RR]. Default 0. | double | 1 x 4 |
+| `BodyRoll` | option | Body roll relative to the wheels [rad], + right side down Default `0`. | double | 1 x 1 |
+| `BodyPitch` | option | Body pitch relative to the wheels [rad], + nose down Default `0`. | double | 1 x 1 |
+| `BodyHeave` | option | Body rise relative to the wheels [m], + up Default `0`. | double | 1 x 1 |
+| `BodyPivot` | option | the point [x y z], in the vehicle frame, that the body rolls and pitches about. | double | 1 x 3 (or empty) |
+| `LightStates` | option | a structure that switches the vehicle's lights. | struct | 1 x 1 |
+| `LightEffects` | option | true to "fake" light shining from the lamps, for night scenes (see fcn_CarMesh3D_plotScene with TimeOfDay='night'). Default is false. | logical | 1 x 1 |
+| `ShowHidden` | option | the hidden sets to show (hidden faces: FaceHiddenSet, named in HiddenSetNames, from fcn_CarMesh3D_editLabels's Hide), by name, such as {'hard top'}, or true for all, or false for none. | cell, char or logical | 1 x n |
+| `AxesHandle` | option | an axes to plot into, in any figure (a uifigure's uiaxes too, which FigNum cannot reach). If given, FigNum only chooses fast mode (-1) or not. Default `[]`. | graphics handle | 1 x 1 |
+| `FigNum` | option | a figure number to plot into. If empty or omitted, plots into the current figure (creating one if none exists). Default `[]`. | double | 1 x 1 (or empty) |
+| `plotHandles` | output | a structure with fields Transform: the hgtransform holding the whole vehicle (the ground frame: moved by Pose) BodyTransform: the hgtransform holding the body and lights (the sprung mass: BodyRoll, BodyPitch, BodyHeave). | struct | 1 x 1 |
+
+**Assumptions:** A finished mesh in the vehicle frame (origin on the ground under the rear axle); hidden sets are drawn switched off; the whole vehicle moves by one transform, so a frame costs almost nothing.
+
+![fcn_CarMesh3D_plotVehicle sample output](Images/functions/fcn_CarMesh3D_plotVehicle.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_plotScene</code></b> (test: <code>script_test_fcn_CarMesh3D_plotScene.m</code>): Draws a simple scene for a vehicle to drive in: a flat ground plane with grid lines, optional colored cubes (things for a driver-view or roof camera to "see" go by), and an optional path line.</summary>
+
+Draws a simple scene for a vehicle to drive in: a flat ground plane with grid lines, optional colored cubes (things for a driver-view or roof camera to "see" go by), and an optional path line. The scene is drawn in the current axes (or the given figure), so plot the scene first, then the vehicle.
+
+```matlab
+sceneHandles = fcn_CarMesh3D_plotScene(...
+    (GroundExtent=[xmin xmax ymin ymax]),...
+    (GridSpacing=meters), (GroundColor=[r g b]),...
+    (Cubes=cubeList), (PathXY=xy), (TimeOfDay=timeOfDay),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `GroundExtent` | option | [xmin xmax ymin ymax] of the ground, in meters. Default is [-40 40 -40 40]. | double | 1 x 4 |
+| `GridSpacing` | option | the spacing of the grid lines, in meters. Default 5. Set to 0 for no grid lines. | double | 1 x 1 |
+| `GroundColor` | option | [r g b] of the ground. Default is [] (automatic): [0.55 0.60 0.55] by day, [0.22 0.22 0.25] (dark asphalt) at night. | double | 1 x 3 |
+| `Cubes` | option | an N x 4 list of cubes, [x y size colorIndex], each sitting on the ground. | double | N x 4 |
+| `PathXY` | option | an N x 2 list of [x y] points to draw as a dashed line on the ground. Default is [] (no path line). | double | N x 2 |
+| `TimeOfDay` | option | 'day' (default) or 'night'. Default `'day'`. | char | 1 x n |
+| `FigNum` | option | a figure number to draw into. If empty or omitted, draws into the current figure. Default `[]`. | double | 1 x 1 (or empty) |
+| `sceneHandles` | output | a structure with fields Ground (patch), GridLines (line), Cubes (patch, or []), Path (line, or []), Lights (the lights added at night, or []), TimeOfDay, and Axes. | struct | 1 x 1 |
+
+**Assumptions:** An axes to draw into; the scene is drawn once, not every frame.
+
+![fcn_CarMesh3D_plotScene sample output](Images/functions/fcn_CarMesh3D_plotScene.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillTrajectory</code></b> (test: <code>script_test_fcn_CarMesh3D_fillTrajectory.m</code>): Makes a vehicle motion for animation: where the vehicle is (pose), how far each wheel has rolled (wheel spin), and how far the front wheels are steered, at every time step.</summary>
+
+Makes a vehicle motion for animation: where the vehicle is (pose), how far each wheel has rolled (wheel spin), and how far the front wheels are steered, at every time step. The vehicle follows a path at a given speed. The pose is the position of the REAR AXLE center and the heading (yaw), which is the frame used by fcn_CarMesh3D_fitMeshToSpec, so the steering angle follows exactly from the path's curvature with the kinematic bicycle model (listed in the function's header).
+
+```matlab
+trajectory = fcn_CarMesh3D_fillTrajectory(...
+    (Path=pathName), (Waypoints=xy),...
+    (Speed=speed), (Duration=seconds), (SampleTime=dt),...
+    (Radius=R), (LaneOffset=offset), (StartPose=[x y yaw]),...
+    (VehicleSpec=vehicleSpec), (WheelSlip=slip),...
+    (AckermannFraction=fraction), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Path` | option | the shape of the path, starting at the origin heading along +X (then moved to StartPose): 'straight' a straight line (default) 'circle' a counterclockwise circle of radius Radius 'figureEight' a figure eight, Radius wide on each loop 'laneChange' straight, with a smooth sideways step of LaneOffset (positive = to the left) 'waypoints' straight lines through the points in Waypoints Default `'straight'`. | char | 1 x n |
+| `Waypoints` | option | an N x 2 list of [x y] points, for Path='waypoints'. Default `[]`. | double | N x 2 |
+| `Speed` | option | the speed along the path, in m/s. | function_handle | 1 x 1 |
+| `Duration` | option | the length of the motion, in seconds. Default is 10. | double | 1 x 1 |
+| `SampleTime` | option | the time step, in seconds. Default is 1/20 (20 frames per second). | double | 1 x 1 |
+| `Radius` | option | the radius for 'circle', and the loop size for 'figureEight', in meters. Default is 15. | double | 1 x 1 |
+| `LaneOffset` | option | the sideways step for 'laneChange', in meters. Default is 3.5 (one lane, to the left). | double | 1 x 1 |
+| `StartPose` | option | [x y yaw] where the path starts (yaw in radians). Default is [0 0 0]. | double | 1 x 3 |
+| `VehicleSpec` | option | a spec from fcn_CarMesh3D_fillVehicleSpec or fcn_CarMesh3D_loadVehicleSpec, for the wheelbase and tire diameter, and the front track (for Ackermann steering). Default is the 'genericSedan' preset. | char | 1 x n |
+| `WheelSlip` | option | slip for each wheel, as a scalar (all wheels), a 1 x 4 vector [FL FR RL RR], or a K x 4 matrix (one row per time step). | double | 1 x 1 |
+| `AckermannFraction` | option | how much Ackermann steering to use, passed to Default `1`. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the path, speed, steering, and wheel spin. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `trajectory` | output | a structure with one row per time step: Time (K x 1), Pose (K x 3: [x y yaw] of the rear axle), Speed (K x 1), Distance (K x 1, along the path), Curvature (K x 1, 1/m), SteerAngle (K x 2, rad, [FL FR], with Ackermann steering), BicycleSteerAngle (K x 1, rad, one centerline tire), WheelSpin (K x 4, rad, [FL FR RL RR]), WheelSlip (K x 4) Use row k with fcn_CarMesh3D_plotVehicle: Pose=trajectory.Pose(k,:), WheelSpin=trajectory.WheelSpin(k,:), SteerAngle=trajectory.SteerAngle(k,:) | struct | 1 x 1 |
+
+**Assumptions:** Kinematic bicycle model on a flat road: no tire slip unless given, and the pose is the rear axle's.
+
+![fcn_CarMesh3D_fillTrajectory sample output](Images/functions/fcn_CarMesh3D_fillTrajectory.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_calcAckermannSteering</code></b> (test: <code>script_test_fcn_CarMesh3D_calcAckermannSteering.m</code>): Calculates the steer angle of each front tire, left and right, so that the two front tires turn about the same point as the rest of the vehicle (Ackermann steering).</summary>
+
+Calculates the steer angle of each front tire, left and right, so that the two front tires turn about the same point as the rest of the vehicle (Ackermann steering).
+
+```matlab
+[steerAngles, insideOutsideAngles, turnRadius] = ...
+    fcn_CarMesh3D_calcAckermannSteering(bicycleSteerAngle,...
+    wheelbase, track, (AckermannFraction=fraction),...
+    (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `bicycleSteerAngle` | input | the steer angle of an imaginary single front tire on the centerline, in radians, as a scalar or a K x 1 vector (one per time step). | double | 1 x 1 |
+| `wheelbase` | input | the distance from the rear axle to the front axle, in meters (vehicleSpec.Wheelbase). | double | 1 x 1 |
+| `track` | input | the distance between the centers of the two front tires, in meters (vehicleSpec.TrackFront). | double | 1 x 1 |
+| `AckermannFraction` | option | how much of the Ackermann difference to use: 1 full Ackermann (default): no tire slides sideways 0 parallel steering: both tires steer the bicycle angle 0.5 half way between Values below 0 give "anti-Ackermann" steering (the outside tire steers more), which some race cars use. Default `1`. | double | 1 x 1 |
+| `FigNum` | option | a figure number to draw a top view of the steering geometry (for the sample with the largest steer angle) and, for a vector input, a plot of the tire angles against the bicycle angle. Default `[]`. | double | 1 x 1 (or empty) |
+| `steerAngles` | output | K x 2 steer angles [left right] of the front tires, in radians. | double | K x 2 |
+| `insideOutsideAngles` | output | K x 2 steer angles [inside outside], in radians. In a left turn the inside tire is the left one; in a right turn it is the right one. | double | K x 2 |
+| `turnRadius` | output | K x 1 signed turn radius of the rear axle center, in meters. Positive for left turns, negative for right turns, Inf when driving straight. | double | K x 1 |
+
+**Assumptions:** Ideal Ackermann geometry from the wheelbase and the front track; small tire slip.
+
+![fcn_CarMesh3D_calcAckermannSteering sample output](Images/functions/fcn_CarMesh3D_calcAckermannSteering.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_loadMotionCSV</code></b> (test: <code>script_test_fcn_CarMesh3D_loadMotionCSV.m</code>): Reads a vehicle motion from a CSV file (for example, the output of a vehicle dynamics simulation) and converts it into everything fcn_CarMesh3D_plotVehicle needs at each time step: the pose of the ground (unsprung) frame, the body (sprung mass) roll, pitch, and heave relative to it, wheel spin and lift, front-wheel steer angles, and the light states.</summary>
+
+Reads a vehicle motion from a CSV file (for example, the output of a vehicle dynamics simulation) and converts it into everything fcn_CarMesh3D_plotVehicle needs at each time step: the pose of the ground (unsprung) frame, the body (sprung mass) roll, pitch, and heave relative to it, wheel spin and lift, front-wheel steer angles, and the light states.
+
+```matlab
+motion = fcn_CarMesh3D_loadMotionCSV(fileName,...
+    (VehicleSpec=vehicleSpec), (SampleTime=dt),...
+    (ColumnNames=names), (SteeringRatio=ratio),...
+    (BlinkPeriod=T), (FigNum=figNum))
+```
+
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `fileName` | input | the CSV file to read; or the motion already in memory: a table (its variable names are the column names), or a matrix of numbers (one column per quantity, named by ColumnNames, or in the usual column order if ColumnNames is not given). | char or string | 1 x n |
+| `VehicleSpec` | option | a spec from fcn_CarMesh3D_fillVehicleSpec or fcn_CarMesh3D_loadVehicleSpec, for the wheelbase, front track, and tire diameter. Default is the 'genericSedan' preset. | char | 1 x n |
+| `SampleTime` | option | the time step, in seconds, for files with no time column. Default [] (the file must then have a time column). | double | 1 x 1 |
+| `ColumnNames` | option | a cell array of column names, for files with NO header row (the first line is numbers). Default is the usual order above. | cell | 1 x n |
+| `SteeringRatio` | option | steering-wheel angle / road-wheel angle, used only with a steeringWheelAngle column. Default 15. | double | 1 x 1 |
+| `BlinkPeriod` | option | the turn signal on-off period, in seconds. Default 0.8. | double | 1 x 1 |
+| `FigNum` | option | a figure number to plot the path, speed, steering, and body motion. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
+| `motion` | output | a structure with one row per time step (K rows): Time (K x 1) Pose (K x 6): [x y z roll pitch yaw] of the ground frame BodyRoll, BodyPitch, BodyHeave (K x 1): the body relative to the ground frame Speed (K x 1, U), Distance (K x 1) SteerAngle (K x 2): [FL FR] road-wheel angles SteerSource: which column the steering came from WheelSpin (K x 4), WheelLift (K x 4): in CarMesh3D's [FL FR RL RR] order, ready for fcn_CarMesh3D_plotVehicle LightStates (K x 1 structure array): ready for fcn_CarMesh3D_plotVehicle's LightStates Data: every column read, by its usual name, in SI units ColumnsUsed, ColumnsIgnored: the column names as written in the file FileName, Path ('csv') Use row k with fcn_CarMesh3D_plotVehicle: Pose=motion.Pose(k,:), WheelSpin=motion.WheelSpin(k,:), SteerAngle=motion.SteerAngle(k,:), WheelLift=motion.WheelLift(k,:), BodyRoll=motion.BodyRoll(k), BodyPitch=motion.BodyPitch(k), BodyHeave=motion.BodyHeave(k), LightStates=motion.LightStates(k) | struct | 1 x 1 |
+
+**Assumptions:** A CSV (or a table or matrix) with a header row of the column names saveMotionCSV writes; columns are found by name, and any column but X, Y and yaw may be left out.
+
+![fcn_CarMesh3D_loadMotionCSV sample output](Images/functions/fcn_CarMesh3D_loadMotionCSV.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_saveMotionCSV</code></b> (test: <code>script_test_fcn_CarMesh3D_saveMotionCSV.m</code>): Writes a vehicle motion to a CSV file in the CarMesh3D column convention, which fcn_CarMesh3D_loadMotionCSV reads.</summary>
+
+Writes a vehicle motion to a CSV file in the CarMesh3D column convention, which fcn_CarMesh3D_loadMotionCSV reads. Use it to see an example of the convention, to save a motion made with fcn_CarMesh3D_fillTrajectory, or as a template for writing the same columns from a vehicle dynamics simulation.
+
+```matlab
+fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion,...
+    (BodyRoll=roll), (BodyPitch=pitch), (BodyHeave=heave),...
+    (WheelLift=lift), (Lights=lights), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `fileName` | input | the .csv file to write (it is replaced if it exists). | char or string | 1 x n |
+| `motion` | input | a motion structure with Time, Pose (K x 3 [x y yaw] or K x 6 [x y z roll pitch yaw] of the ground frame), and optionally Speed, WheelSpin (K x 4, [FL FR RL RR]), SteerAngle (K x 1 or K x 2 [FL FR]), BodyRoll, BodyPitch, BodyHeave, and WheelLift (K x 4, [FL FR RL RR]). | struct | 1 x 1 |
+| `BodyRoll` | option | K x 1 [rad]; [] to use motion.BodyRoll or 0 Default `[]`. | double | K x 1 |
+| `BodyPitch` | option | K x 1 [rad] Default `[]`. | double | K x 1 |
+| `BodyHeave` | option | K x 1 [m] Default `[]`. | double | K x 1 |
+| `WheelLift` | option | K x 4 wheel lift [FL FR RL RR] in meters. Default []. | double | K x 4 |
+| `Lights` | option | a structure of light columns, each a scalar or K x 1: headlights (0/1/2), indicator (0/1/2/3), brakeLight (0/1/2), reverseLight (0/1), runningLights (0/1). Missing fields are 0. Default `struct`. | struct | 1 x 1 |
+| `FigNum` | option | if set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `fileName` | output | the file that was written. | char or string | 1 x n |
+
+**Assumptions:** A motion structure from fillTrajectory (or one with the same fields).
+
+![fcn_CarMesh3D_saveMotionCSV sample output](Images/functions/fcn_CarMesh3D_saveMotionCSV.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fillCameraSettings</code></b> (test: <code>script_test_fcn_CarMesh3D_fillCameraSettings.m</code>): Makes the settings for a camera that frames a vehicle.</summary>
+
+Makes the settings for a camera that frames a vehicle. Every camera, however different it looks, is described by the same four things (listed in the function's header).
+
+```matlab
+cameraSettings = fcn_CarMesh3D_fillCameraSettings(...
+    (Mode=modeName),...
+    (Position=[x y z]), (PositionFrame=frameName),...
+    (Target=[x y z]), (TargetFrame=frameName),...
+    (FieldOfView=degrees), (OrbitRate=radPerSec),...
+    (UpVector=[x y z]),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Mode` | option | one of the preset names above. Default is 'chase'. Position, PositionFrame, Target, TargetFrame, FieldOfView, | char | 1 x n |
+| `Position` | option | [x y z] camera position Default `[]`. | double | 1 x 3 |
+| `PositionFrame` | option | 'world' or 'vehicle' Default `''`. | char | 1 x n |
+| `Target` | option | [x y z] point the camera looks at Default `[]`. | double | 1 x 3 |
+| `TargetFrame` | option | 'world' or 'vehicle' Default `''`. | char | 1 x n |
+| `FieldOfView` | option | degrees Default `[]`. | double | 1 x 1 |
+| `OrbitRate` | option | override the preset values (see above). Frames are 'world' or 'vehicle'. Default `[]`. | char | 1 x n |
+| `UpVector` | option | which way is "up" in the picture, in world coordinates. Default is [0 0 1]. | double | 1 x 3 |
+| `FigNum` | option | a figure number to draw a picture of the camera setup (the camera, its target, and a car outline, seen from above and from the side). Default `[]`. | double | 1 x 1 (or empty) |
+| `cameraSettings` | output | a structure with fields Mode, Position, PositionFrame, Target, TargetFrame, FieldOfView, OrbitRate, UpVector. | struct | 1 x 1 |
+
+**Assumptions:** The vehicle's size is known (from its mesh or spec), so the camera can frame it.
+
+![fcn_CarMesh3D_fillCameraSettings sample output](Images/functions/fcn_CarMesh3D_fillCameraSettings.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_updateCamera</code></b> (test: <code>script_test_fcn_CarMesh3D_updateCamera.m</code>): Points the camera of an axes for one animation frame, from camera settings (fcn_CarMesh3D_fillCameraSettings) and the vehicle's pose.</summary>
+
+Points the camera of an axes for one animation frame, from camera settings (fcn_CarMesh3D_fillCameraSettings) and the vehicle's pose. Call it once per frame, after moving the vehicle (listed in the function's header).
+
+```matlab
+[cameraPosition, cameraTarget] = fcn_CarMesh3D_updateCamera(...
+    cameraSettings, vehiclePose,...
+    (Time=t), (AxesHandle=axesHandle),...
+    (FollowHeight=flag), (FollowPitch=flag),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `cameraSettings` | input | from fcn_CarMesh3D_fillCameraSettings. | struct | 1 x 1 |
+| `vehiclePose` | input | [x y yaw] or [x y z roll pitch yaw] of the vehicle (the same pose given to fcn_CarMesh3D_plotVehicle). | double | 1 x 3 or 1 x 6 |
+| `Time` | option | the animation time, in seconds, for orbiting cameras. Default is 0. | double | 1 x 1 |
+| `AxesHandle` | option | the axes to point. Default is the current axes. | graphics handle | 1 x 1 |
+| `FollowHeight` | option | true (default) to raise the camera with the pose's z (a six-value pose), so it stays above the vehicle on hills; false for the old behavior (z = 0). Default `true`. | logical | 1 x 1 |
+| `FollowPitch` | option | true to tilt the camera with the pose's pitch (a six-value pose; positive pitch is nose down), so the road ahead stays level in the picture on a grade. | logical | 1 x 1 |
+| `FigNum` | option | if set to -1, input checking is skipped (fast mode, for animation loops). Otherwise not used; the camera is always set. Default `[]`. | double | 1 x 1 (or empty) |
+| `cameraPosition` | output | — | double | 1 x 3 |
+| `cameraTarget` | output | — | double | 1 x 3 |
+
+**Assumptions:** Called once per frame, after moving the vehicle; the axes' camera properties are set in manual mode.
+
+![fcn_CarMesh3D_updateCamera sample output](Images/functions/fcn_CarMesh3D_updateCamera.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_saveGifFrame</code></b> (test: <code>script_test_fcn_CarMesh3D_saveGifFrame.m</code>): Adds the current picture of a figure to an animated GIF file, for sharing animations (for example in a README).</summary>
+
+Adds the current picture of a figure to an animated GIF file, for sharing animations (for example in a README). Call it once per frame inside an animation loop, after drawnow (listed in the function's header).
+
+```matlab
+fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber,...
+    (DelayTime=seconds), (LoopCount=count), (Scale=scale),...
+    (ColorMap=mapChoice),...
+    (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `figureHandle` | input | the figure to capture. | graphics handle | 1 x 1 |
+| `fileName` | input | the .gif file to write. | char or string | 1 x n |
+| `frameNumber` | input | 1 for the first frame (starts the file), then 2, 3, ... | char | 1 x n |
+| `DelayTime` | option | seconds each frame is shown. Default is 0.05 (20 frames per second). | double | 1 x 1 |
+| `LoopCount` | option | how many times the GIF repeats; Inf (default) repeats forever. Default `Inf`. | double | 1 x 1 |
+| `Scale` | option | shrink factor for the image, from 0 to 1, to make smaller files. Default is 1 (full size). | double | 1 x 1 |
+| `ColorMap` | option | the 256 colors each frame is reduced to: 'perFrame' (default): chosen for each frame from its own colors (best for each frame alone; colors may shift from frame to frame) 'fixed': one standard map for every frame: a 6 x 7 x 6 cube of colors (252) and 4 grays. Default `'perFrame'`. | char | 1 x n |
+| `FigNum` | option | if set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+
+**Assumptions:** The figure stays the same size while frames are added; frame 1 starts a new file (replacing an old one); colors are reduced to 256 per frame.
+
+![fcn_CarMesh3D_saveGifFrame sample output](Images/functions/fcn_CarMesh3D_saveGifFrame.png)
+
+</details>
+
+
 ## TO-DO
 
-Three lists: **high priority** (the current focus), **changes wanted by AnimateCar3D**, and **low priority** (parked; may not be needed). Each function's header also has its own TO-DO list.
+Six lists, kept in step with the project's work queue: **Claude work** (development in progress, in order), **Sean work now**, **Sean work later**, **Someday**, **End-of-project return-to** (items deliberately left until the animator is integrated or the project closes), and **Updates to other repos**. Each function's header also has its own TO-DO list.
 
-### High priority
+### Claude work
 
-1. **Body-style templates** (started 2026_11_20): the code is done (`Data/bodyStyles.csv`, `fcn_CarMesh3D_loadBodyStyles`, `fcn_CarMesh3D_fillBodyStyleMesh`, and `bodyStyle` in the vehicle template; see [No model of the vehicle? Use its body style](#no-model-of-the-vehicle-use-its-body-style)). Vehicles are filed by style (`Data/BodyStyles/<Style>/<ID>`, 22 style folders); a style's exemplars are its finished vehicles, and the closest in size is used. Exemplars exist for 2 styles (liftback: Prius; compact cargo van: Transit Connect); seven sedans, three hatchbacks, and the NSX are downloaded and to be finished.
-2. ~~**2D (top-down) outlines**~~ (done 2026_11_20): `fcn_CarMesh3D_makeOutline2D` and `fcn_CarMesh3D_loadOutline2D`, saved by each vehicle's script as `vehicleOutline_<ID>.mat` (see [Top-down (2D) outlines](#top-down-2d-outlines)). Next, in the planned 2D repository: plotting and animating them.
-3. **Fixes to the `vehicleParameters` structure** (found 2026_11_20; the first two done 2026_11_20, see [Vehicle specification files](#vehicle-specification-files)): some fields are missing or represented incorrectly.
-   - ~~**Tires, front and rear**~~ (done): `TireSidewallMarkings` holds one tire size, but some vehicles have different front and rear tires (and so different wheel diameters). It should allow a front and a rear value (one value still meaning both). In CarMesh3D this reaches the spec (`TireSize` and `TireDiameter` for each axle), fitting the mesh to the spec (each axle's wheels to its own diameter), the wheel checks, and the motion reader (wheel spin from speed uses each tire's radius).
-   - ~~**Engine type**~~ (done): an engine specification that names the engine type: diesel, spark-ignition, Wankel (rotary), or hybrid (with the engine type of the hybrid). `EngineType` and `EngineHybridEngineType`; `'electric'` was added for battery-electric vehicles.
-   - Other missing or mis-represented fields to be listed as they are found; `fcn_CarMesh3D_loadVehicleSpec` and [Vehicle specification files](#vehicle-specification-files) change with them.
+1. **This README** (2026_11_23): the dependency chart, the function reference with sample outputs, hidden faces, tests, mesh families.
+2. **Lamp painting** (task 8, first part): paint every lamp type in the label painter, including each side's turn signal.
+3. **Clear lamp covers:** a plain-glass cover over a lamp becomes clear glass (about 15% opacity, untinted, found automatically), and covers no longer glow, so the lit bulb shows through.
+4. **The Model Reviewer by mesh family** (task 6): Orientation, Dimensions, Labels (with lamp types), 2D outline, and Summary up front; "More checks" for the rest (Differences as one overview picture, for changed meshes only; lights, body, steering, wheels, drive, detail levels); the rotation question ("If rotating is not smooth here, this mesh is almost certainly too large for real-time animation on this computer"); a review older than the last build marked "built since review".
+5. **The GUI layout rules applied to the reviewer and the painter** (task 7): read-only text shown as text, controls in the order they are used.
+6. **Lamp types and signals** (task 8, the rest): four more lamp types (fog, license plate, marker, warning), each with a color; a lamp-type section in the editor; painting a lamp with several functions.
+7. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body.
+8. **The high-beam split** (`AutoHighBeams`): it looks wrong on the 2009 Fit and 2009 Corolla (most of the lamp became high beam); check whether it picks the wrong cluster or splits lens from housing.
+9. **Known test failures** (see [Tests](#tests)): `makeOutline2D` line 220 and `runVehicleChecks` line 83.
+10. **Backlog:** process the downloaded models in the download list; wheel-spoke faces drawn backward (the Fit's worst comparison spots); the .glb reader and skins (the 2008 Shelby GT's wheels); `compareToOriginal` additions (a missing-face test, part counts); demo-menu examples for the stand-alone check tools; the viewLabels test needing `clearvars` before a second run.
 
-Animating **many vehicles in one scene** (decision branches, surrounding traffic, pedestrians, moving items, live data) has moved to a separate repository, **AnimateCar3D**, which uses CarMesh3D's meshes and functions. CarMesh3D stays focused on making, viewing, and checking one vehicle at a time.
+### Sean work now
 
-### Changes wanted by AnimateCar3D
+- Review this README and commit it (the commit message comes as a `..._PASTE_THIS.txt` file).
+- Check the high-beam split on the 2009 Fit and 2009 Corolla in `fcn_CarMesh3D_viewLabels` (pick "high beam").
 
-AnimateCar3D (which installs CarMesh3D releases) works around each of these for now; its README lists them too, under "Changes wanted in CarMesh3D".
+### Sean work later
 
-All six were done on 2026_11_20; AnimateCar3D can drop its work-arounds when it installs this release (`fcn_CarMesh3D_version` gives `'2026_11_20'`). Note: the camera now rises with the vehicle by itself, so AnimateCar3D's own raise must go when it takes this release, or the camera rises twice.
+- **Exemplar approvals** for each body style, once the review GUIs are done.
+- **Downloads** from the download list (CC0 and Free Standard only).
+- **Better downloads** for the poor dense meshes (2023 Civic Type R, 2025 Golf R, 2023 Accord); the V60 and Golf R keep 2 failed dimension checks until then.
+- **A tagged release** of CarMesh3D, so AnimateCar3D can take it.
+- **Scope of the 2D plotting repository.**
 
-- ~~**The sample car as a vehicle folder**~~ (done): `Data/Samples/2026_CarMesh3D_Sample_GenericSedan`, made by its script from `fcn_CarMesh3D_fillSampleMesh` at the `genericSedan` preset's size, with its mesh, detail levels, outlines, and checks.
-- ~~**`fcn_CarMesh3D_plotVehicle` and hidden-handle scenes**~~ (done): an axes holding only hidden-handle objects is not treated as new, and hidden lights count.
-- ~~**A fixed color map for `fcn_CarMesh3D_saveGifFrame`**~~ (done): `ColorMap='fixed'`, `'firstFrame'`, or a map (see [Saving animations as GIFs](#saving-animations-as-gifs)).
-- ~~**A version function**~~ (done): `fcn_CarMesh3D_version` (with `AtLeast=` to compare).
-- ~~**`fcn_CarMesh3D_updateCamera` following the vehicle's height**~~ (done): `FollowHeight` (default on) and `FollowPitch`.
-- ~~**`fcn_CarMesh3D_loadMotionCSV` from a table, or numbers and column names**~~ (done).
+### Someday
 
-### Low priority
-
+- A frame-rate checker for a user's own computer, which suggests other vehicles when the rate is low; perhaps a frame-rate readout in the viewer while rotating.
+- Better reduction of dense models; double-layer panels (the Outback's cladding).
+- Mesh extras: smoothing, pop-up headlights, part shares by area, multi-axle body styles (box truck to semi).
+- Recheck estimated ('E') parameter values.
+- One-material models (2002 Camry, likely the 2003 Express); the Corolla as the plain-paint sedan exemplar.
 - Shape from blueprints: cut out the side, top, and front outlines and keep only the space inside all three. (Free-to-use blueprints are very hard to find.)
 - Night scenes: let the light pools brighten objects they reach (for example, the cube faces inside a beam)
 - Daytime headlights GIF: low and high beams are hard to tell apart (they are clear in the night GIF)
@@ -1141,7 +3152,27 @@ All six were done on 2026_11_20; AnimateCar3D can drop its work-arounds when it 
 - Detail levels for very large vehicles (a bus or a truck): the voxel grid and sampled points grow with size; the step could use coarser voxels for them
 - Detail levels: the Transit Connect's small lamps do not survive into its reduced levels (the vote gives their faces to the body); a larger level could keep lamp colors with a lower vote threshold for lights
 
-**Done recently** (2026_11_19)
+### End-of-project return-to
+
+- **After the animator is integrated and tested:** a face budget per vehicle, if any, and the policy on dense downloads (allowed for now: a student may animate one large vehicle alone); detail levels per vehicle or exemplar rungs for far vehicles (the 2-pixel far switch); the size of finished dense meshes in git; flash patterns for warning lamps and hazards (they belong to the animation inputs, not the mesh); regenerating the generic vehicles once the new exemplars are approved.
+- **Before the project ends:** check whether the Sketchfab authors DogeAvalon2006 and ActsOfDoge are the same author, and list good sources and good authors of downloads in this README.
+
+### Updates to other repos
+
+- **AnimateCar3D** takes this release: hidden sets (`ShowHidden=`, a bounding box from the shown faces), high beams (`LowBeam`/`HighBeam`), turn-signal pools; per-axle tire sizes. When it takes the 2026_11_20 or later release it can drop its work-arounds, and its own camera raise must go (`fcn_CarMesh3D_updateCamera` now follows the vehicle's height, or the camera rises twice). Its README lists these under "Changes wanted in CarMesh3D"; all six it asked for were done on 2026_11_20: the sample car as a vehicle folder; `plotVehicle` with hidden-handle scenes; a fixed GIF color map; `fcn_CarMesh3D_version`; `updateCamera` following the vehicle's height; `loadMotionCSV` from a table or numbers.
+- **vehicleParameters** (the shared IVSG format): parameter checks (change request 15).
+- **AnimateCar3D extras** (Someday): trails, roads, scenarios, terrain, street lights, contact patches.
+
+**Done recently** (2026_11_22 to 2026_11_23)
+
+- Hidden faces in named sets instead of deleted faces (`fcn_CarMesh3D_visibleMesh`, `fcn_CarMesh3D_checkHiddenFaces`, `ShowHidden=`); the painter's hide and unhide tools
+- High beams as lamps of their own (`'highbeam'`, `LowBeam`/`HighBeam`, `AutoHighBeams`); turn-signal light pools; lamp covers that are also glass; lamps with several functions
+- `fcn_CarMesh3D_viewLabels`: label list in label colors, mesh boundaries, a resizable photo, a lamp list, and the nighttime view; `fcn_CarMesh3D_paintLabels`, `fcn_CarMesh3D_reviewVehicle`, `fcn_CarMesh3D_browseLibrary`
+- Simpler verification: mesh families, the download kept as it is by default, only the dimension and label checks written by default, the frame-rate table
+- Downloads moved out of git (`model/` folders, the large-file area, `fcn_CarMesh3D_checkModels`); `rawMesh_<ID>.mat` kept
+- About 37 vehicles in 13 body styles; the 2006 Camry and 2002 Outback removed
+
+**Done earlier** (2026_11_19)
 
 - Detail levels for animation (`fcn_CarMesh3D_makeDetailLevels`, `fcn_CarMesh3D_loadDetailLevels`, `vehicleLevels_<ID>.mat` for both reference vehicles, Step 6b in every vehicle script, and `check_11_detailLevels.png`); `CameraViewAngle` measured to span the axes' smaller side
 - Renamed to the naming convention: test scripts are `script_test_fcn_CarMesh3D_<name>.m`, and vehicle scripts are `script_CarMesh3D_vehicle_<ID>.m`
