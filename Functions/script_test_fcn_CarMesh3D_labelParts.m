@@ -18,6 +18,12 @@
 %   % * Test: a lamp's clear cover is a light that is also glass
 %   %   % (FaceAlsoParts)
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_labelParts
+%   % * Test: a clear cover lying over a lamp is clear glass, recorded as
+%   %   % a cover of that lamp (FaceCoverLamp, fcn_CarMesh3D_findLampCovers);
+%   %   % LampCoverDistance; with LampCovers off, no covers
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -66,6 +72,7 @@ assert(isequal(size(vehicleMesh.FacePartIndex),[Nfaces 1]));
 assert(isequal(size(vehicleMesh.FaceWheelIndex),[Nfaces 1]));
 assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
 assert(isequal(size(vehicleMesh.FaceAlpha),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.FaceCoverLamp),[Nfaces 1]));
 
 % Check variable values. The sample has 8 glass faces (windshield 2, rear
 % window 2, side windows 4), 8 light faces, and 4 wheels of 8*16 faces.
@@ -82,6 +89,8 @@ assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
 assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight'))));
 assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail'))));
 assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
+% The sample has no glass over its lamps: no lamp covers
+assert(all(vehicleMesh.FaceCoverLamp==0));
 
 % Wheel 1 is front-left: positive X and positive Y
 fcn_INTERNAL_checkWheelCorner(vehicleMesh, 1, [ 1  1]);
@@ -225,9 +234,9 @@ assert(isequal(offMesh.FacePartIndex, plainLabels.FacePartIndex));
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
-%% TEST case: LampCovers: a clear cover over a lamp's lenses is a light that is also glass
+%% TEST case: LampCovers: a clear cover over a lamp's lenses is clear glass that covers the lamp
 figNum = 20007;
-titleString = sprintf('TEST case: LampCovers: a clear cover over a lamp''s lenses is a light that is also glass');
+titleString = sprintf('TEST case: LampCovers: a clear cover over a lamp''s lenses is clear glass that covers the lamp');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
@@ -257,15 +266,29 @@ coverFaces = (size(sampleMesh.Faces,1)+1 : size(coverMesh.Faces,1))';
 vehicleMesh = fcn_CarMesh3D_labelParts(coverMesh, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 assert(isequal(size(vehicleMesh.FaceAlsoParts), [size(coverMesh.Faces,1) numel(vehicleMesh.PartNames)]));
-assert(all(vehicleMesh.FacePartIndex(coverFaces)==4));          % (a light: light always wins)
-assert(all(vehicleMesh.FaceAlsoParts(coverFaces,2)));            % (and also glass)
-assert(all(vehicleMesh.FaceLightType(coverFaces)==1));           % (its lenses' type: headlight)
-assert(~any(vehicleMesh.FaceAlsoParts(lensFaces,:), 'all'));     % (the lenses are lights only)
-assert(nnz(vehicleMesh.FaceAlsoParts) == numel(coverFaces));
-% (with LampCovers off, the cover is plain glass)
+assert(isequal(size(vehicleMesh.FaceCoverLamp), [size(coverMesh.Faces,1) 1]));
+% (the cover lies 3 mm over the headlight lenses: it is clear glass, 15%
+% opaque and untinted, recorded as a cover of the headlight; no longer a
+% lamp, so it is not lit itself; fcn_CarMesh3D_findLampCovers, Sean's
+% option A)
+assert(all(vehicleMesh.FacePartIndex(coverFaces)==2));           % (glass)
+assert(all(vehicleMesh.FaceCoverLamp(coverFaces)==1));           % (covering the headlight)
+assert(all(vehicleMesh.FaceLightType(coverFaces)==0));           % (not a lamp)
+assert(all(abs(vehicleMesh.FaceAlpha(coverFaces) - 0.15) < 1e-12));
+assert(all(all(abs(vehicleMesh.FaceColors(coverFaces,:) - 0.90) < 1e-12)));
+assert(~any(vehicleMesh.FaceAlsoParts, 'all'));                  % (glass only)
+assert(all(vehicleMesh.FacePartIndex(lensFaces)==4) && all(vehicleMesh.FaceCoverLamp(lensFaces)==0));   % (the lenses are lights)
+assert(nnz(vehicleMesh.FaceCoverLamp) == numel(coverFaces));
+% (looking for lamps less than 3 mm behind the glass, the cover is not
+% found: it stays a light that is also glass, as before)
+nearMesh = fcn_CarMesh3D_labelParts(coverMesh, LampCoverDistance=0.001, FigNum=-1);
+assert(all(nearMesh.FacePartIndex(coverFaces)==4) && all(nearMesh.FaceAlsoParts(coverFaces,2)));
+assert(all(nearMesh.FaceLightType(coverFaces)==1) && all(nearMesh.FaceCoverLamp==0));
+% (with LampCovers off, the cover is plain glass, and no face is a cover)
 offMesh = fcn_CarMesh3D_labelParts(coverMesh, LampCovers=false, FigNum=-1);
 assert(all(offMesh.FacePartIndex(coverFaces)==2));
 assert(~any(offMesh.FaceAlsoParts, 'all'));
+assert(isequal(offMesh.FaceCoverLamp, zeros(size(coverMesh.Faces,1),1)));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -432,6 +455,7 @@ bar(X,Y)
 ylabel('Execution time (Milliseconds)')
 title('fcn_CarMesh3D_labelParts: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
+close(373737);   % (leave no figures behind)
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

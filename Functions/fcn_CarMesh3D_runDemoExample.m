@@ -88,6 +88,13 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 %   %   % reviewer, and others; each echoes its commands (on the demo
 %   %   % copy, and on the actual vehicle) before it runs
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runDemoExample
+%   % * The mesh editor is two examples (Sean, 13:12): on the GUI test
+%   %   % vehicle (2026_CarMesh3D_Sample_GUITestVehicle, every feature) and
+%   %   % on the demo vehicle; both wait for the window to close, so the
+%   %   % outputs come back
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -313,18 +320,38 @@ examples(end).VehicleCommands = [vehicleLines; {
     'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView)'}];
 examples(end).SavesChanges = false;
 
-% The mesh editor
+% The mesh editor: on the GUI test vehicle (every feature), then on the
+% demo vehicle (a real download): the calls of its test script (Sean, 13:12)
+testID = '2026_CarMesh3D_Sample_GUITestVehicle';
+examples(end+1).Name = 'editorTest';
+examples(end).Title = 'paintLabels: fix labels by painting faces, on the GUI TEST VEHICLE (every lamp, cover, hidden set)';
+examples(end).Description = ['The mesh editor on a made-up vehicle that has every feature it shows: all six lamp types on ' ...
+    'both sides, glass covers over the headlights, interior objects, two hidden sets, and its own photos. Pick a panel ' ...
+    'from the menu at the top left; paint in Modify Labels, then Apply and Save. On the demo copy, Save writes only ' ...
+    'into the copy. The outputs come back when the window is closed.'];
+examples(end).DemoCommands = {
+    '% A fresh, temporary copy of the GUI test vehicle: changes are NOT saved to it'
+    sprintf('demoFiles = fcn_CarMesh3D_makeDemoCopy(''%s'', FigNum=1);', testID)
+    '% Opens the mesh editor; Save writes labelEdits_<ID>.mat in the COPY''s folder'
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, Wait=true);'};
+examples(end).VehicleCommands = {
+    '% The GUI test vehicle''s own files (it is rebuilt by its script, so saved paint is lost then)'
+    sprintf('vehicleFiles = fcn_CarMesh3D_findVehicleFiles(''%s'');', testID)
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Wait=true);'};
+examples(end).SavesChanges = true;
+
 examples(end+1).Name = 'editor';
-examples(end).Title = 'paintLabels: fix a mesh''s labels by painting faces (the mesh editor)';
-examples(end).Description = ['Paint faces with a label (trim, glass, a light, ...) or delete them, then Apply and Save. ' ...
-    'On the demo copy, Save writes only into the copy.'];
+examples(end).Title = sprintf('paintLabels: fix labels by painting faces, on the %s', strrep(vehicleID, '_', ' '));
+examples(end).Description = ['The mesh editor on a real download. Pick a panel from the menu at the top left; paint in ' ...
+    'Modify Labels (a label, or hide and unhide), then Apply and Save. On the demo copy, Save writes only into ' ...
+    'the copy. The outputs come back when the window is closed.'];
 examples(end).DemoCommands = [copyLines; {
     '% Opens the mesh editor; Save writes labelEdits_<ID>.mat in the COPY''s folder'
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder);'}];
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, Wait=true);'}];
 examples(end).VehicleCommands = [vehicleLines; {
     '% Save writes labelEdits_<ID>.mat in the VEHICLE''s folder; rerun the'
     '% vehicle''s script afterward to rebuild its mesh with the edits'
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder);'}];
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Wait=true);'}];
 examples(end).SavesChanges = true;
 
 % The reviewer

@@ -57,7 +57,12 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    fcn_CarMesh3D_plotVehicle draws a light that is also
 %                    glass as glass while the light is off. 'light' is not
 %                    allowed here: give LightType, and the faces' other
-%                    parts as AlsoParts
+%                    parts as AlsoParts. On a mesh that has FaceCoverLamp
+%                    (lamp covers, from fcn_CarMesh3D_findLampCovers),
+%                    lights made also glass that lie over a lamp then
+%                    become that lamp's clear cover (clear glass, tinted
+%                    while the lamp is lit), as fcn_CarMesh3D_labelParts
+%                    does
 %       Color:       optional [r g b] for the picked faces
 %       Name:        optional description, printed in the summary
 % Example: make both taillight housings into tail lights:
@@ -118,6 +123,10 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %      Nfaces x numel(PartNames) logical matrix, when an edit gives
 %      AlsoParts or the mesh has it: the other parts of each face. A new
 %      Part or LightType clears the faces' other parts and functions).
+%      FaceCoverLamp (lamp covers), when the mesh has it, is kept one
+%      row per face: a face given a new Part or LightType is no longer a
+%      lamp's cover (0). A mesh without FaceCoverLamp is left without it,
+%      so fcn_CarMesh3D_plotVehicle still finds its covers when drawn.
 %
 %      appliedEdits: a structure array with one element per edit made
 %      (scripted and interactive), with the fields Name, Part,
@@ -125,7 +134,8 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %
 % DEPENDENCIES:
 %
-%      (none)
+%      fcn_CarMesh3D_findLampCovers (only after an AlsoParts edit adds
+%      glass, on a mesh with FaceCoverLamp)
 %
 % EXAMPLES:
 %
@@ -185,6 +195,15 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   % * 'highbeam' light type (Sean, 03:27); a mesh made before it gets it
 %   %   % added to its LightTypeNames (and a column in FaceLightFunctions)
 %   %   % when an edit needs it
+
+% 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Clear lamp covers (FaceCoverLamp, from fcn_CarMesh3D_findLampCovers;
+%   %   % Sean, 09:22, option A): kept one row per face (padded with zeros
+%   %   % when faces were added); a face given a new Part or LightType is
+%   %   % no longer a cover (also in the click editor, and undone with
+%   %   % it); after an AlsoParts edit adds glass, lights now also glass
+%   %   % that lie over a lamp become its clear cover
 
 % TO-DO:
 %
@@ -374,6 +393,17 @@ end
 if ~isfield(vehicleMesh,'FaceWheelIndex') || isempty(vehicleMesh.FaceWheelIndex)
     vehicleMesh.FaceWheelIndex = zeros(Nfaces,1);
 end
+% (lamp covers, FaceCoverLamp: kept one row per face, padded with zeros,
+% "not a cover", if faces were added since. Its numbers are light types,
+% which stay as they are when a type is added at the end above. A mesh
+% without it is left without it: fcn_CarMesh3D_plotVehicle finds its
+% covers when it is drawn)
+if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) ~= Nfaces
+    oldCovers = double(vehicleMesh.FaceCoverLamp(:));
+    vehicleMesh.FaceCoverLamp = zeros(Nfaces,1);
+    vehicleMesh.FaceCoverLamp(1:min(Nfaces, numel(oldCovers))) = oldCovers(1:min(Nfaces, numel(oldCovers)));
+end
+flag_find_covers = false;   % (set when an edit makes lights also glass: they may be lamp covers)
 
 appliedEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 
@@ -415,6 +445,9 @@ for ith_edit = 1:length(editList)
             vehicleMesh = fcn_INTERNAL_addAlsoParts(vehicleMesh, selectedFaces, alsoParts);
             % (recorded as 'light+glass': the part, then its other parts)
             newPart = [char(newPart) '+' strjoin(alsoParts, '+')];
+            if any(strcmp(alsoParts, 'glass')) && ~isempty(selectedFaces)
+                flag_find_covers = true;
+            end
         end
     end
     appliedEdits(end+1) = struct('Name', fcn_INTERNAL_getValue(thisEdit,'Name',sprintf('Edit %d',ith_edit)), ...
@@ -430,6 +463,14 @@ end
 if options.Interactive
     [vehicleMesh, interactiveEdits] = fcn_INTERNAL_interactiveEditor(vehicleMesh, options.GlassAlpha);
     appliedEdits = [appliedEdits, interactiveEdits];
+end
+
+% Lamp covers: lights made also glass by an edit, lying over a lamp,
+% become that lamp's clear cover, as in fcn_CarMesh3D_labelParts (only on
+% a mesh that has FaceCoverLamp; one without it has its covers found when
+% it is drawn)
+if flag_find_covers && isfield(vehicleMesh,'FaceCoverLamp')
+    vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, FigNum=-1);
 end
 
 if flag_do_debug || (options.Interactive && 0==flag_max_speed)
@@ -682,6 +723,10 @@ vehicleMesh.FacePartIndex(selectedFaces) = partIndex;
 if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1) == size(vehicleMesh.Faces,1)
     vehicleMesh.FaceAlsoParts(selectedFaces,:) = false;
 end
+% (and a face given a new label is no longer a lamp's clear cover)
+if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) == size(vehicleMesh.Faces,1)
+    vehicleMesh.FaceCoverLamp(selectedFaces) = 0;
+end
 
 % Light type (a new label replaces the faces' light functions)
 if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
@@ -738,6 +783,16 @@ else
     vehicleMesh.FaceAlpha(selectedFaces) = 1;
 end
 end % Ends fcn_INTERNAL_applyLabel
+
+%% fcn_INTERNAL_coverValues
+function coverValues = fcn_INTERNAL_coverValues(vehicleMesh, theseFaces)
+% The faces' FaceCoverLamp values (lamp covers), or [] if the mesh does
+% not have them, kept so the click editor can undo a label
+coverValues = [];
+if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) == size(vehicleMesh.Faces,1)
+    coverValues = vehicleMesh.FaceCoverLamp(theseFaces);
+end
+end % Ends fcn_INTERNAL_coverValues
 
 %% fcn_INTERNAL_labelColors
 function [displayColors, legendNames, legendColors] = fcn_INTERNAL_labelColors(vehicleMesh)
@@ -1015,7 +1070,8 @@ end
             'LightType',vehicleMesh.FaceLightType(theseFaces), ...
             'Wheel',vehicleMesh.FaceWheelIndex(theseFaces), ...
             'Colors',vehicleMesh.FaceColors(theseFaces,:), ...
-            'Alpha',vehicleMesh.FaceAlpha(theseFaces));
+            'Alpha',vehicleMesh.FaceAlpha(theseFaces), ...
+            'Cover',fcn_INTERNAL_coverValues(vehicleMesh, theseFaces));
         [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, theseFaces, newPart, newLightType, [], glassAlpha);
         interactiveEdits(end+1) = struct('Name',sprintf('Clicked edit %d',length(interactiveEdits)+1), ...
             'Part',newPart,'LightType',newLightType,'FaceIndices',theseFaces(:)');
@@ -1036,6 +1092,9 @@ end
         vehicleMesh.FaceWheelIndex(lastChange.Faces) = lastChange.Wheel;
         vehicleMesh.FaceColors(lastChange.Faces,:) = lastChange.Colors;
         vehicleMesh.FaceAlpha(lastChange.Faces) = lastChange.Alpha;
+        if ~isempty(lastChange.Cover)
+            vehicleMesh.FaceCoverLamp(lastChange.Faces) = lastChange.Cover;
+        end
         interactiveEdits(end) = [];
         refresh();
         statusText.String = 'Undid the last label.';

@@ -260,6 +260,7 @@ if 1==0
     fcn_CarMesh3D_viewLabels(meshFile, Colors='rainbow');
 end
 
+assert(isempty(timerfindall), 'A timer was left running');   % (a window's timer must not outlive it)
 fprintf(1,'All tests of fcn_CarMesh3D_viewLabels passed\n');
 
 %% Functions follow

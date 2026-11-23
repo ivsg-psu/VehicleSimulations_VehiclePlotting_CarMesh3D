@@ -107,6 +107,17 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      type) that is also glass (FaceAlsoParts), so that
 %      fcn_CarMesh3D_plotVehicle draws it as glass while the lamp is off,
 %      the lenses showing through, and lit while the lamp is on.
+%      Last, fcn_CarMesh3D_findLampCovers looks behind each piece of
+%      glass (and each light that is also glass) for a lamp within
+%      LampCoverDistance: a cover that lies over a lamp becomes clear
+%      glass (15% opaque, untinted), recorded as a cover of that lamp
+%      in FaceCoverLamp, and fcn_CarMesh3D_plotVehicle tints it with the
+%      lamp's color while the lamp is lit. With LampCovers false,
+%      FaceCoverLamp is all zeros (no covers).
+%
+%      LampCoverDistance: how far behind a piece of glass to look for a
+%      lamp, in meters (fcn_CarMesh3D_findLampCovers Distance). Default
+%      is 0.05.
 %
 %      TextureColorParts: a cell array of part names whose faces take
 %      their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB
@@ -138,9 +149,15 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %               each face also belongs to (one column per part). A face is
 %               drawn as its own part (FacePartIndex: light always wins);
 %               a lamp's clear cover is a light that is also glass
+%               (until fcn_CarMesh3D_findLampCovers makes the ones over a
+%               lamp clear glass)
+%           FaceCoverLamp (M x 1): for each face that is a lamp's clear
+%               cover, the light type (index into LightTypeNames) of the
+%               lamp it covers; 0 for all other faces
 %
 % DEPENDENCIES:
 %
+%      fcn_CarMesh3D_findLampCovers
 %      fcn_CarMesh3D_plotVehicle (only if plotting)
 %
 % EXAMPLES:
@@ -197,6 +214,14 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % (the inner, or upper, one is the high beam), as a start to fix
 %   %   % in the label painter. 'headlight' is the low beam (or both
 %   %   % beams, when a vehicle has no high beams)
+%
+% 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * Clear lamp covers (Sean, 09:22, option A): at the end of labeling,
+%   %   % fcn_CarMesh3D_findLampCovers makes each cover lying over a lamp
+%   %   % clear glass, recorded in the new per-face field FaceCoverLamp
+%   %   % (the covered lamp's light type), which fcn_CarMesh3D_plotVehicle
+%   %   % tints while that lamp is lit. New option LampCoverDistance
 
 % TO-DO:
 %
@@ -224,6 +249,7 @@ arguments
     options.SeeThroughGlass = true  % Use .glb see-through marks for glass?
     options.LampCovers = true       % Glass pieces lying over a lamp become that lamp?
     options.AutoHighBeams = true    % Split each headlight into low and high beams by position?
+    options.LampCoverDistance = 0.05 % How far behind glass to look for a lamp it covers [m]
     options.TextureColorParts = {}  % Parts shown in their texture colors
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -337,6 +363,12 @@ if 0==flag_max_speed
         % Check the GlassAlpha input
         if ~isnumeric(options.GlassAlpha) || ~isscalar(options.GlassAlpha) || options.GlassAlpha<0 || options.GlassAlpha>1
             error('GlassAlpha must be a number from 0 to 1');
+        end
+
+        % Check the LampCoverDistance input
+        if ~isnumeric(options.LampCoverDistance) || ~isscalar(options.LampCoverDistance) ...
+                || ~isfinite(options.LampCoverDistance) || options.LampCoverDistance<=0
+            error('LampCoverDistance must be a positive number, in meters');
         end
     end
 end
@@ -545,6 +577,17 @@ vehicleMesh.FaceColors = faceColors;
 vehicleMesh.FaceAlpha = faceAlpha;
 vehicleMesh.TextureColorParts = textureColorParts;
 vehicleMesh.FaceAlsoParts = faceAlsoParts;
+
+% Clear lamp covers: glass (or a light that is also glass) lying over a
+% lamp becomes clear glass, recorded as a cover of that lamp
+% (FaceCoverLamp), which fcn_CarMesh3D_plotVehicle tints while the lamp
+% is lit. With LampCovers off, no face is a cover.
+if options.LampCovers
+    vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, Distance=options.LampCoverDistance, FigNum=-1);
+    facePartIndex = vehicleMesh.FacePartIndex;
+else
+    vehicleMesh.FaceCoverLamp = zeros(Nfaces,1);
+end
 
 if flag_do_debug
     for ith_part = 1:length(partNames)

@@ -264,6 +264,31 @@ painter.SetTool('');
 assert(isempty(paintGroup.SelectedObject.UserData));
 painter.OpenPanel('Modify Labels');
 
+%% TEST case: The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, photos)
+fprintf(1,'TEST case: the GUI test vehicle\n');
+guiTestID = '2026_CarMesh3D_Sample_GUITestVehicle';
+guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
+[~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, Visible=false);
+assert(all(ismember({'headlight','highbeam','turnsignal','running','tail','backup'}, testPainter.Viewer.LampTypes())));
+for panelName = {'Labels To Display', 'Lamps To Display'}
+    thisPanel = findall(testPainter.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
+    assert(isempty(findall(thisPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'A gray (no faces) name in %s', panelName{1});
+end
+testMesh = testPainter.EditedMesh();
+assert(all(ismember({'hidden','hard top'}, testMesh.HiddenSetNames)));
+flagHiddenFaces = testMesh.FaceHiddenSet(:) > 0;
+assert(all(testPainter.Patch.FaceVertexAlphaData(flagHiddenFaces) == 0));      % (hidden: out of view)
+testPainter.SetShowHidden(true);
+assert(all(testPainter.Patch.FaceVertexAlphaData(flagHiddenFaces) > 0));       % (shown, to unhide)
+testPainter.SetShowHidden(false);
+interiorIndex = find(strcmp(testMesh.PartNames, 'interior'));
+assert(any(testMesh.FacePartIndex == interiorIndex));
+assert(any(sum(testMesh.FaceLightFunctions, 2) > 1));                           % (a lamp with two functions)
+testPainter.SetPhotoAngle(95);
+assert(testPainter.PhotoAngle() == 90);                                         % (its own photos, every 30 degrees)
+testPainter.Close();
+assert(~isgraphics(testPainter.Figure));
+
 %% TEST case: The photo dial
 fprintf(1,'TEST case: the photo dial\n');
 if isfolder(fullfile(vehicleFiles.Folder, 'photos')) && ~isempty(dir(fullfile(vehicleFiles.Folder, 'photos', 'ViewInDegrees_090.jpg')))
@@ -296,6 +321,7 @@ if 1==0
     fcn_CarMesh3D_paintLabels(42);
 end
 
+assert(isempty(timerfindall), 'A timer was left running');   % (a window's timer must not outlive it)
 clear cleanupBackup cleanupVersions cleanupHistory cleanupPanel;   % (puts the vehicle's edits file back, and takes out the tests' timestamped copies)
 fprintf(1,'All tests of fcn_CarMesh3D_paintLabels passed\n');
 

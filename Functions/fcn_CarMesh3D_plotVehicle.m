@@ -133,6 +133,11 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      or fcn_CarMesh3D_editLabels. Turn signals are split into left and
 %      right by position. A light that is on is drawn unshaded, so it
 %      appears to glow. Default is [] (lights keep their plain colors).
+%      A lamp's clear cover (glass with a FaceCoverLamp, from
+%      fcn_CarMesh3D_findLampCovers) is clear glass while its lamp is off,
+%      and tinted with the lamp's lit color, partly see-through, while
+%      it is on (by day and at night). A mesh made before FaceCoverLamp
+%      existed has its covers found when it is drawn.
 %      WheelSpin, SteerAngle, WheelLift, BodyRoll, BodyPitch, BodyHeave,
 %      and LightStates can all be changed on the fast path (with PlotHandles)
 %      for animation.
@@ -203,6 +208,14 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               no change). A light that is also glass (FaceAlsoParts, a
 %               lamp's clear cover) is drawn as the vehicle's glass while
 %               off, so the lenses under it show, and opaque while on
+%           CoverPatches: a structure with, for each light group, the
+%               patch handles (or []) of the clear covers over its lamps
+%               (FaceCoverLamp), switched with the group
+%           CoverOffColors, CoverOffAlpha: for each group, a cell array
+%               of each cover patch's own colors and transparency (clear
+%               glass), used while the lamp is off
+%           CoverOnAlpha: the transparency of a cover while its lamp is
+%               lit (0.35)
 %           HiddenSetNames, HiddenPatches: each hidden set's name, and
 %               (a cell per set) its patches, switched on by ShowHidden
 %           LightEffects: [] or, with LightEffects=true, a structure with
@@ -211,7 +224,8 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %
 % DEPENDENCIES:
 %
-%      (none)
+%      fcn_CarMesh3D_findLampCovers (only for a labeled mesh with no
+%      FaceCoverLamp, made before it existed)
 %
 % EXAMPLES:
 %
@@ -297,6 +311,20 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % not drawn; each set in patches of its own, switched off, shown
 %   %   % by name with ShowHidden (also on the fast path: a hard top put
 %   %   % up in the rain); a hidden lamp does not light
+
+% 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Clear lamp covers (Sean, 09:22, option A): glass faces that cover
+%   %   % a lamp (FaceCoverLamp, from fcn_CarMesh3D_findLampCovers) are
+%   %   % drawn as clear glass in patches of their own, one per light
+%   %   % group, switched with the lamp under them: tinted with the lamp's
+%   %   % lit color, 35% opaque, while it is on (Sean, 15:23, option A:
+%   %   % the glass over a lit bulb glows with its color). A turn signal's
+%   %   % cover follows its own side. A labeled mesh without FaceCoverLamp
+%   %   % (made before it) has its covers found when it is drawn, so its
+%   %   % lamps' clear covers no longer glow opaque as lamps
+%   % * LightEffects: a lamp under a clear cover glows around its cover
+%   %   % (the glow shell around the lamp behind poked through the cover)
 
 % TO-DO:
 %
@@ -545,6 +573,16 @@ else
     % such as AnimateCar3D's, is not a new axes)
     flag_this_is_a_new_axes = isempty(allchild(axesHandle));
 
+    % Lamp covers: a labeled mesh made before FaceCoverLamp existed has
+    % its clear covers found now (fast mode), so they are drawn as clear
+    % glass over the lamps. (The mesh given is not changed: this is a
+    % copy inside this function.)
+    if isfield(vehicleMesh,'PartNames') && isfield(vehicleMesh,'FacePartIndex') ...
+            && isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames') ...
+            && (~isfield(vehicleMesh,'FaceCoverLamp') || numel(vehicleMesh.FaceCoverLamp) ~= size(vehicleMesh.Faces,1))
+        vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, FigNum=-1);
+    end
+
     % Get face colors and alphas
     [faceColors, faceAlpha] = fcn_INTERNAL_faceColorsAndAlpha(vehicleMesh);
     Nfaces = size(vehicleMesh.Faces,1);
@@ -583,6 +621,9 @@ else
     end
     flagHidden = faceHiddenSet > 0;
     faceLightGroup(flagHidden) = 0;
+    % (lamp covers: the light group of the lamp each one covers, 0 for
+    % faces that are not covers)
+    faceCoverGroup = fcn_INTERNAL_faceCoverGroups(vehicleMesh, faceLightGroup, lightGroupNames, flagHidden | faceWheel>0);
 
     % Two rigid frames under one transform for the whole vehicle:
     %   transformHandle      ground frame, moved by Pose
@@ -594,7 +635,7 @@ else
 
     % Body (everything that is not a wheel or a switchable light), one
     % patch per alpha level: opaque first, then each transparent level
-    flagBody = faceWheel==0 & faceLightGroup==0 & ~flagHidden;
+    flagBody = faceWheel==0 & faceLightGroup==0 & faceCoverGroup==0 & ~flagHidden;
     newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody), faceColors, faceAlpha, patchStyle, bodyTransform);
     patchHandles = [patchHandles; newPatches];
 
@@ -655,6 +696,30 @@ else
         patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
     end
 
+    % Lamp covers: clear glass over the lamps, in patches of their own,
+    % one per light group (one per opacity, if they differ), switched
+    % with the group's lamps: tinted while the lamp is lit
+    coverOnAlpha = 0.35;   % How see-through a cover is while its lamp is lit (0 clear, 1 solid)
+    coverPatches = struct;
+    coverOffColors = struct;
+    coverOffAlpha = struct;
+    for ith_group = 1:length(lightGroupNames)
+        thisName = lightGroupNames{ith_group};
+        coverPatches.(thisName) = [];
+        coverOffColors.(thisName) = {};
+        coverOffAlpha.(thisName) = {};
+        theseFaces = find(faceCoverGroup==ith_group);
+        if isempty(theseFaces)
+            continue;
+        end
+        newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, theseFaces, faceColors, faceAlpha, patchStyle, bodyTransform);
+        coverPatches.(thisName) = vertcat(newPatches{:});
+        coverOffColors.(thisName) = cellfun(@(h) h.FaceVertexCData, newPatches, 'UniformOutput', false);
+        coverOffAlpha.(thisName) = cellfun(@(h) h.FaceAlpha, newPatches, 'UniformOutput', false);
+        set(coverPatches.(thisName),'DisplayName',sprintf('Lamp cover: %s',thisName));
+        patchHandles = [patchHandles; newPatches]; %#ok<AGROW>
+    end
+
     % Hidden sets: patches of their own, switched off (shown by
     % ShowHidden); a hidden wheel's faces ride with its wheel
     hiddenPatches = cell(numel(hiddenSetNames),1);
@@ -702,7 +767,10 @@ else
     % Light effects (glows and ground pools), for night scenes
     lightEffects = [];
     if options.LightEffects
-        lightEffects = fcn_INTERNAL_makeLightEffects(vehicleMesh, faceLightGroup, lightGroupNames, transformHandle, bodyTransform);
+        % (a lamp under a clear cover glows around its cover, the glass
+        % it is seen through, so the glow does not poke through the cover)
+        faceEffectGroup = fcn_INTERNAL_effectGroups(vehicleMesh, faceLightGroup, faceCoverGroup);
+        lightEffects = fcn_INTERNAL_makeLightEffects(vehicleMesh, faceEffectGroup, lightGroupNames, transformHandle, bodyTransform);
     end
 
     % The point the body rolls and pitches about
@@ -726,6 +794,10 @@ else
     plotHandles.LightGroupNames = lightGroupNames;
     plotHandles.FaceLighting = faceLighting;
     plotHandles.LightEffects = lightEffects;
+    plotHandles.CoverPatches = coverPatches;
+    plotHandles.CoverOffColors = coverOffColors;
+    plotHandles.CoverOffAlpha = coverOffAlpha;
+    plotHandles.CoverOnAlpha = coverOnAlpha;
     plotHandles.HiddenSetNames = hiddenSetNames;
     plotHandles.HiddenPatches = hiddenPatches;
 
@@ -904,6 +976,94 @@ if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFuncti
 end
 end % Ends fcn_INTERNAL_faceLightGroups
 
+%% fcn_INTERNAL_faceCoverGroups
+function faceCoverGroup = fcn_INTERNAL_faceCoverGroups(vehicleMesh, faceLightGroup, lightGroupNames, flagSkip)
+% Returns, for each face that is a lamp's clear cover (glass with a
+% FaceCoverLamp), the light group it is switched with: the group of the
+% nearest lamp face of the type it covers (so a turn signal's cover goes
+% with the lamp on its own side, and a cover over a lamp with several
+% functions goes with that lamp's combined group). If no such lamp is
+% drawn, the group of its type (turn signals by side). 0 for all other
+% faces, and for the faces skipped (hidden faces, wheels).
+Nfaces = size(vehicleMesh.Faces,1);
+faceCoverGroup = zeros(Nfaces,1);
+if ~isfield(vehicleMesh,'FaceCoverLamp') || numel(vehicleMesh.FaceCoverLamp) ~= Nfaces ...
+        || ~isfield(vehicleMesh,'PartNames') || ~isfield(vehicleMesh,'FacePartIndex') || ~isfield(vehicleMesh,'LightTypeNames')
+    return;
+end
+glassIndex = find(strcmp(vehicleMesh.PartNames, 'glass'), 1);
+coverType = double(vehicleMesh.FaceCoverLamp(:));
+% (a cover is glass: a face painted as something else since is not one)
+flagCover = coverType > 0 & coverType <= numel(vehicleMesh.LightTypeNames) & ~flagSkip(:);
+if isempty(glassIndex)
+    return;
+end
+flagCover = flagCover & vehicleMesh.FacePartIndex(:)==glassIndex;
+if ~any(flagCover)
+    return;
+end
+faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+lampFaces = find(faceLightGroup > 0);
+faceLightType = double(vehicleMesh.FaceLightType(:));
+baseGroups = struct('headlight',1,'running',4,'tail',5,'backup',6,'highbeam',7);
+for thisType = unique(coverType(flagCover))'
+    theseCovers = find(flagCover & coverType==thisType);
+    sameType = lampFaces(faceLightType(lampFaces)==thisType);
+    if ~isempty(sameType)
+        nearest = fcn_INTERNAL_nearestPoint(faceCenters(sameType,:), faceCenters(theseCovers,:));
+        faceCoverGroup(theseCovers) = faceLightGroup(sameType(nearest));
+    else
+        typeName = vehicleMesh.LightTypeNames{thisType};
+        if strcmp(typeName, 'turnsignal')
+            faceCoverGroup(theseCovers) = 2 + (faceCenters(theseCovers,2) <= 0);   % (2 left, 3 right)
+        elseif isfield(baseGroups, typeName)
+            faceCoverGroup(theseCovers) = baseGroups.(typeName);
+        end
+    end
+end
+faceCoverGroup(faceCoverGroup > numel(lightGroupNames)) = 0;
+end % Ends fcn_INTERNAL_faceCoverGroups
+
+%% fcn_INTERNAL_effectGroups
+function faceEffectGroup = fcn_INTERNAL_effectGroups(vehicleMesh, faceLightGroup, faceCoverGroup)
+% The light group of each face for the light effects (glows and pools):
+% a lamp's clear cover is in its lamp's group, and the lamp faces under
+% a cover (within 10 cm of one of its group's cover faces) are left out,
+% so the glow is a shell around the cover, not around the lamp behind it
+% (which would poke through the cover)
+faceEffectGroup = faceLightGroup;
+if ~any(faceCoverGroup)
+    return;
+end
+underDistance = 0.10;   % How far behind its cover a lamp face can be [m]
+faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+for thisGroup = unique(faceCoverGroup(faceCoverGroup>0))'
+    coverFaces = find(faceCoverGroup==thisGroup);
+    lampFaces = find(faceLightGroup==thisGroup);
+    if ~isempty(lampFaces)
+        nearest = fcn_INTERNAL_nearestPoint(faceCenters(coverFaces,:), faceCenters(lampFaces,:));
+        flagUnder = vecnorm(faceCenters(lampFaces,:) - faceCenters(coverFaces(nearest),:), 2, 2) <= underDistance;
+        faceEffectGroup(lampFaces(flagUnder)) = 0;
+    end
+    faceEffectGroup(coverFaces) = thisGroup;
+end
+end % Ends fcn_INTERNAL_effectGroups
+
+%% fcn_INTERNAL_nearestPoint
+function nearest = fcn_INTERNAL_nearestPoint(fromPoints, toPoints)
+% The index of the nearest of fromPoints for each of toPoints (in blocks;
+% no toolbox needed)
+nearest = zeros(size(toPoints,1),1);
+blockSize = 400;
+for first = 1:blockSize:size(toPoints,1)
+    rows = first:min(size(toPoints,1), first+blockSize-1);
+    squaredDistance = sum(toPoints(rows,:).^2,2) + sum(fromPoints.^2,2)' - 2*toPoints(rows,:)*fromPoints';
+    [~, nearest(rows)] = min(squaredDistance, [], 2);
+end
+end % Ends fcn_INTERNAL_nearestPoint
+
 %% fcn_INTERNAL_updateBody
 function fcn_INTERNAL_updateBody(plotHandles, options)
 % Rolls, pitches, and heaves the body (sprung mass) relative to the
@@ -1014,6 +1174,30 @@ for ith_group = 1:length(lightGroupNames)
                 'FaceLighting','none');
             if numel(onAlpha) >= ith_patch && ~isempty(onAlpha{ith_patch})
                 set(thisPatch(ith_patch),'FaceAlpha',onAlpha{ith_patch});
+            end
+        end
+    end
+end
+
+% Lamp covers: clear glass while their lamp is off; tinted with the
+% lamp's lit color, partly see-through and unshaded, while it is on
+if isfield(plotHandles,'CoverPatches')   % (handles made before 2026_11_23 have no covers)
+    for ith_group = 1:length(lightGroupNames)
+        thisName = lightGroupNames{ith_group};
+        if ~isfield(plotHandles.CoverPatches, thisName) || isempty(plotHandles.CoverPatches.(thisName))
+            continue;
+        end
+        thisCover = plotHandles.CoverPatches.(thisName);
+        onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
+        offColors = plotHandles.CoverOffColors.(thisName);
+        offAlpha = plotHandles.CoverOffAlpha.(thisName);
+        for ith_patch = 1:numel(thisCover)
+            if isempty(onColor)
+                set(thisCover(ith_patch),'FaceVertexCData',offColors{ith_patch},...
+                    'FaceAlpha',offAlpha{ith_patch},'FaceLighting',plotHandles.FaceLighting);
+            else
+                set(thisCover(ith_patch),'FaceVertexCData',repmat(onColor,size(offColors{ith_patch},1),1),...
+                    'FaceAlpha',plotHandles.CoverOnAlpha,'FaceLighting','none');
             end
         end
     end

@@ -31,6 +31,14 @@
 %   % * Test: a light that is also glass (a lamp's clear cover) is drawn
 %   %   % as glass while off and opaque while on
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * Tests: clear lamp covers (FaceCoverLamp) are clear glass while
+%   %   % their lamp is off and tinted with its color while it is lit, a
+%   %   % turn signal's cover following its own side; a mesh without
+%   %   % FaceCoverLamp has its covers found when drawn, and one with no
+%   %   % covers draws as before
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -409,6 +417,95 @@ assert(abs(coverPatch.FaceAlpha - glassAlpha) < 1e-9);
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
 
+%% TEST case: Clear lamp covers: clear while the lamp is off, tinted with its color while it is lit
+figNum = 20016;
+titleString = sprintf('TEST case: Clear lamp covers: clear while the lamp is off, tinted while it is lit');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+% (a small mesh: a headlight with glass 2 cm in front of it, a left and
+% a right turn signal each with a cover marked the old way, a window,
+% and a body panel; its covers found by fcn_CarMesh3D_findLampCovers)
+[coverMesh, faceInfo] = fcn_INTERNAL_coverMesh;
+coverMesh = fcn_CarMesh3D_findLampCovers(coverMesh, FigNum=-1);
+plotHandles = fcn_CarMesh3D_plotVehicle(coverMesh, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+headCover = plotHandles.CoverPatches.headlight;
+leftCover = plotHandles.CoverPatches.turnLeft;
+rightCover = plotHandles.CoverPatches.turnRight;
+assert(isscalar(headCover) && isscalar(leftCover) && isscalar(rightCover));
+% (each cover in a patch of its own, under the body transform; the lamps'
+% patches hold only the lamps)
+assert(size(headCover.Faces,1)==numel(faceInfo.headCover) && headCover.Parent==plotHandles.BodyTransform);
+assert(size(plotHandles.LightPatches.headlight.Faces,1)==numel(faceInfo.headLamp));
+assert(size(plotHandles.LightPatches.turnLeft.Faces,1)==numel(faceInfo.leftTurnLamp));
+assert(mean(leftCover.Vertices(unique(leftCover.Faces(:)),2)) > 0 && mean(rightCover.Vertices(unique(rightCover.Faces(:)),2)) < 0);
+% (off: clear glass, 15% opaque, untinted, shaded)
+assert(abs(headCover.FaceAlpha - 0.15) < 1e-9 && all(abs(headCover.FaceVertexCData(:) - 0.90) < 1e-9));
+assert(~strcmp(headCover.FaceLighting,'none'));
+% (low beams on, on the fast path: tinted with the low beam's color, 35%
+% opaque, unshaded; the turn signals' covers stay clear)
+fcn_CarMesh3D_plotVehicle(coverMesh, PlotHandles=plotHandles, LightStates=struct('LowBeam',true), FigNum=-1);
+assert(abs(headCover.FaceAlpha - 0.35) < 1e-9 && strcmp(headCover.FaceLighting,'none'));
+assert(all(all(abs(headCover.FaceVertexCData - [1.00 0.96 0.78]) < 1e-12)));
+assert(abs(leftCover.FaceAlpha - 0.15) < 1e-9 && abs(rightCover.FaceAlpha - 0.15) < 1e-9);
+% (left turn signal on: only the left cover tints, amber)
+fcn_CarMesh3D_plotVehicle(coverMesh, PlotHandles=plotHandles, LightStates=struct('TurnLeft',true), FigNum=-1);
+assert(abs(leftCover.FaceAlpha - 0.35) < 1e-9 && all(all(abs(leftCover.FaceVertexCData - [1.00 0.55 0.00]) < 1e-12)));
+assert(abs(rightCover.FaceAlpha - 0.15) < 1e-9 && abs(headCover.FaceAlpha - 0.15) < 1e-9);
+% (right turn signal on: only the right cover)
+fcn_CarMesh3D_plotVehicle(coverMesh, PlotHandles=plotHandles, LightStates=struct('TurnRight',true), FigNum=-1);
+assert(abs(rightCover.FaceAlpha - 0.35) < 1e-9 && abs(leftCover.FaceAlpha - 0.15) < 1e-9);
+% (all off: back to clear glass, in their own colors)
+fcn_CarMesh3D_plotVehicle(coverMesh, PlotHandles=plotHandles, LightStates=struct('Headlights','off'), FigNum=-1);
+assert(isequal(headCover.FaceVertexCData, plotHandles.CoverOffColors.headlight{1}) && abs(headCover.FaceAlpha - 0.15) < 1e-9);
+assert(~strcmp(headCover.FaceLighting,'none') && abs(rightCover.FaceAlpha - 0.15) < 1e-9);
+% (with light effects, the lamp glows around its cover, not around the
+% lamp behind it, which would poke through the cover)
+plotHandles = fcn_CarMesh3D_plotVehicle(coverMesh, LightStates=struct('LowBeam',true), LightEffects=true, FigNum=figNum);
+headGlow = plotHandles.LightEffects.Glow.headlight;
+assert(strcmp(headGlow.Visible,'on') && size(headGlow.Faces,1)==numel(faceInfo.headCover));
+assert(min(headGlow.Vertices(unique(headGlow.Faces(:)),1)) > 1.02);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: A mesh made before FaceCoverLamp has its covers found when drawn; one with no covers draws as before
+figNum = 20017;
+titleString = sprintf('TEST case: A mesh made before FaceCoverLamp has its covers found when drawn');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+% (the small mesh as made before: its turn signals' covers are lights
+% that are also glass, and its headlight's glass is plain glass)
+[oldMesh, faceInfo] = fcn_INTERNAL_coverMesh;
+assert(~isfield(oldMesh,'FaceCoverLamp'));
+plotHandles = fcn_CarMesh3D_plotVehicle(oldMesh, LightStates=struct('TurnLeft',true), FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(~isempty(plotHandles.CoverPatches.headlight) && ~isempty(plotHandles.CoverPatches.turnLeft));
+assert(size(plotHandles.LightPatches.turnLeft.Faces,1)==numel(faceInfo.leftTurnLamp));   % (the cover is not a lamp)
+assert(abs(plotHandles.CoverPatches.turnLeft.FaceAlpha - 0.35) < 1e-9);
+assert(~isfield(oldMesh,'FaceCoverLamp'));   % (the mesh given is not changed)
+% (a mesh with no covers, such as the labeled sample, draws exactly as
+% before, with or without FaceCoverLamp: same patches, faces and colors)
+sampleMesh = fcn_INTERNAL_labeledSample;
+assert(isfield(sampleMesh,'FaceCoverLamp') && all(sampleMesh.FaceCoverLamp==0));
+handlesWith = fcn_CarMesh3D_plotVehicle(sampleMesh, FigNum=figNum);
+handlesWithout = fcn_CarMesh3D_plotVehicle(rmfield(sampleMesh,'FaceCoverLamp'), FigNum=figNum);
+assert(numel(handlesWith.Patches)==numel(handlesWithout.Patches));
+for ith_patch = 1:numel(handlesWith.Patches)
+    assert(isequal(handlesWith.Patches{ith_patch}.Faces, handlesWithout.Patches{ith_patch}.Faces));
+    assert(isequal(handlesWith.Patches{ith_patch}.FaceVertexCData, handlesWithout.Patches{ith_patch}.FaceVertexCData));
+    assert(isequal(handlesWith.Patches{ith_patch}.FaceAlpha, handlesWithout.Patches{ith_patch}.FaceAlpha));
+end
+assert(all(structfun(@isempty, handlesWithout.CoverPatches)));
+% (an unlabeled mesh: no covers looked for)
+plainHandles = fcn_CarMesh3D_plotVehicle(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=figNum);
+assert(all(structfun(@isempty, plainHandles.CoverPatches)));
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
 %% TEST case: Night light effects (glows and ground pools) follow the lights
 figNum = 20011;
 titleString = sprintf('TEST case: Night light effects (glows and ground pools) follow the lights');
@@ -618,6 +715,7 @@ bar(X,Y)
 ylabel('Time per frame (Milliseconds)')
 title('fcn_CarMesh3D_plotVehicle: time per animation frame','Interpreter','none');
 fprintf(1,'Average time per frame (ms): full redraw %.3f, pose update %.3f\n',Y(1),Y(2));
+close(373737);
 
 %% BUG cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -693,6 +791,57 @@ function vehicleMesh = fcn_INTERNAL_labeledSample
 vehicleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, FigNum=-1);
 end % Ends fcn_INTERNAL_labeledSample
+
+%% fcn_INTERNAL_coverMesh
+function [testMesh, faceInfo] = fcn_INTERNAL_coverMesh
+% A small labeled mesh, in meters (X forward, Y left, Z up), made of
+% flat squares facing forward (+X), two triangles each (the same mesh as
+% in script_test_fcn_CarMesh3D_findLampCovers):
+%   a headlight at x = 1.00, and plain glass 2 cm in front of it
+%   a glass "window" at x = 0.00, 1 m behind the lamps
+%   a left and a right turn signal at x = 1.00, each with a cover 2 cm in
+%   front of it marked the old way: a light that is also glass
+%   a body panel below the lamps
+partNames = {'body';'glass';'wheel';'light';'trim'};
+lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+squares = { ...   % x, [ymin ymax], [zmin zmax], part, light type, also glass, name
+    1.00, [ 0.40  0.60], [0.50 0.70], 4, 1, false, 'headLamp';
+    1.02, [ 0.38  0.62], [0.48 0.72], 2, 0, false, 'headCover';
+    0.00, [-0.50  0.50], [0.90 1.20], 2, 0, false, 'window';
+    1.00, [ 0.65  0.75], [0.50 0.60], 4, 2, false, 'leftTurnLamp';
+    1.02, [ 0.64  0.76], [0.49 0.61], 4, 2, true,  'leftTurnCover';
+    1.00, [-0.75 -0.65], [0.50 0.60], 4, 2, false, 'rightTurnLamp';
+    1.02, [-0.76 -0.64], [0.49 0.61], 4, 2, true,  'rightTurnCover';
+    1.00, [-0.80  0.80], [0.20 0.45], 1, 0, false, 'body'};
+vertices = zeros(0,3);
+faces = zeros(0,3);
+facePart = zeros(0,1);
+faceLightType = zeros(0,1);
+faceAlsoGlass = false(0,1);
+faceInfo = struct;
+for ith_square = 1:size(squares,1)
+    [x, yRange, zRange] = squares{ith_square,1:3};
+    % (corners in the order that makes the right-hand-rule normal +X)
+    corners = [x yRange(1) zRange(1); x yRange(2) zRange(1); x yRange(2) zRange(2); x yRange(1) zRange(2)];
+    base = size(vertices,1);
+    vertices = [vertices; corners]; %#ok<AGROW>
+    faces = [faces; base + [1 2 3; 1 3 4]]; %#ok<AGROW>
+    facePart = [facePart; squares{ith_square,4}*[1;1]]; %#ok<AGROW>
+    faceLightType = [faceLightType; squares{ith_square,5}*[1;1]]; %#ok<AGROW>
+    faceAlsoGlass = [faceAlsoGlass; squares{ith_square,6}&[true;true]]; %#ok<AGROW>
+    faceInfo.(squares{ith_square,7}) = size(faces,1) + [-1; 0];
+end
+Nfaces = size(faces,1);
+partColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20];
+faceAlpha = ones(Nfaces,1);
+faceAlpha(facePart==2) = 0.35;
+faceAlsoParts = false(Nfaces, numel(partNames));
+faceAlsoParts(faceAlsoGlass, 2) = true;
+testMesh = struct('Name','lamp cover test mesh', 'Units','m', 'Frame','ISO8855', ...
+    'Vertices',vertices, 'Faces',faces, 'PartNames',{partNames}, 'FacePartIndex',facePart, ...
+    'LightTypeNames',{lightTypeNames}, 'FaceLightType',faceLightType, 'FaceWheelIndex',zeros(Nfaces,1), ...
+    'FaceColors',partColors(facePart,:), 'FaceAlpha',faceAlpha, 'FaceAlsoParts',faceAlsoParts);
+end % Ends fcn_INTERNAL_coverMesh
 
 %% fcn_INTERNAL_checkPlotHandles
 function fcn_INTERNAL_checkPlotHandles(plotHandles, figNumExpected)

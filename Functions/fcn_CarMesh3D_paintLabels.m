@@ -230,6 +230,12 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % photo; Ctrl+Z and Ctrl+S; the open panel remembered. New hooks:
 %   %   % OpenPanel, Panel, SetMirror, Mirror, SetVersions, Versions,
 %   %   % SetShowHidden, ShowHidden.
+%   % * Picking faces with the mouse tests the line under the mouse against
+%   %   % each triangle (Sean, 16:12: clicks and strokes often found nothing:
+%   %   % faces were picked by their centers, which missed large faces)
+%   % * A save carries each face's lamp cover (FaceCoverLamp, from
+%   %   % fcn_CarMesh3D_findLampCovers), more parts and lamp functions into
+%   %   % the working mesh, not only its part, lamp type and colors
 
 % TO-DO:
 %
@@ -1287,10 +1293,13 @@ end
     end
 
     function faces = facesUnderMouse(flagSingle, flagErase)
-        % The faces under the mouse, nearest the camera: within a small
-        % brush, or the one face nearest the line (flagSingle). Hidden
-        % faces are skipped, and so is glass unless the glass tool is in
-        % use or paint is being erased.
+        % The faces under the mouse, nearest the camera: the face the line
+        % under the mouse hits first (flagSingle), or that face and the
+        % faces around it, within a small brush. Hidden faces are skipped,
+        % and so is glass unless the glass tool is in use or paint is being
+        % erased. (The line is tested against each triangle, so a large
+        % face is found wherever it is clicked: picking by the nearest face
+        % center missed large faces; Sean, 16:12.)
         faces = [];
         if ~isvalid(labelAxes)
             return;
@@ -1298,27 +1307,33 @@ end
         ray = labelAxes.CurrentPoint;   % (2 x 3: the front and back of the line under the mouse)
         direction = ray(2,:) - ray(1,:);
         direction = direction/norm(direction);
-        centers = fcn_INTERNAL_faceCenters(data.Mesh);
-        offsets = centers - ray(1,:);
-        depth = offsets*direction';
-        distance = vecnorm(offsets - depth.*direction, 2, 2);
-        vehicleLength = data.Geometry.Max(1) - data.Geometry.Min(1);
-        brush = 0.012*vehicleLength;
         eligible = ~hiddenFaces();
         if ~flagErase && ~strcmp(paintTool, 'glass')
             eligible = eligible & ~currentlyGlass();
         end
-        near = find(distance < brush & eligible);
-        if isempty(near)
+        candidates = find(eligible);
+        if isempty(candidates)
             return;
         end
-        front = min(depth(near));
-        near = near(depth(near) < front + 0.12);
-        if flagSingle
-            [~, nearest] = min(distance(near));
-            near = near(nearest);
+        hitDistance = fcn_INTERNAL_rayHits(ray(1,:), direction, data.Mesh.Vertices, data.Mesh.Faces(candidates,:));
+        [firstHit, hitIndex] = min(hitDistance);
+        if isinf(firstHit)
+            return;   % (the line misses the vehicle)
         end
-        faces = near;
+        hitFace = candidates(hitIndex);
+        if flagSingle
+            faces = hitFace;
+            return;
+        end
+        % (the brush: faces whose centers lie near the point hit, on the
+        % near side of the vehicle)
+        hitPoint = ray(1,:) + firstHit*direction;
+        centers = fcn_INTERNAL_faceCenters(data.Mesh);
+        vehicleLength = data.Geometry.Max(1) - data.Geometry.Min(1);
+        brush = 0.012*vehicleLength;
+        nearHit = candidates(vecnorm(centers(candidates,:) - hitPoint, 2, 2) < brush & ...
+            (centers(candidates,:) - ray(1,:))*direction' < firstHit + 0.05);
+        faces = unique([hitFace; nearHit(:)]);
     end
 
     function strokeStart(flagErase)
@@ -1328,7 +1343,7 @@ end
         strokeFaces = zeros(0,1);
         strokeBefore = strings(0,1);
         if ~strokeErase && isempty(paintTool)
-            setHint('<b>Pick a label first</b> (the row of buttons above the model), then Ctrl+drag to paint.');
+            setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left), then Ctrl+drag to paint.');
         end
         paintFaces(facesUnderMouse(false, strokeErase), strokeErase);
     end
@@ -1350,7 +1365,7 @@ end
         % tool (a double-click, the whole piece); a click on faces already
         % painted with this tool takes the paint off
         if isempty(paintTool)
-            setHint('<b>Pick a label first</b> (the row of buttons above the model), then click or Ctrl+drag to paint.');
+            setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left), then click or Ctrl+drag to paint.');
             return;
         end
         face = facesUnderMouse(true, false);
@@ -1551,11 +1566,21 @@ end
             workingMesh.FaceLightType(flagLight) = lightMap(workingMesh.FaceLightType(flagLight));
             workingMesh.FacePartIndex(baseIndex) = editedNow.FacePartIndex(flagMatch);
             workingMesh.FaceLightType(baseIndex) = editedNow.FaceLightType(flagMatch);
-            for fieldName = {'FaceColors', 'FaceAlpha'}
-                if isfield(editedNow, fieldName{1}) && size(editedNow.(fieldName{1}),1) == size(editedNow.Faces,1) && ...
-                        isfield(workingMesh, fieldName{1}) && size(workingMesh.(fieldName{1}),1) == numFaces
-                    workingMesh.(fieldName{1})(baseIndex,:) = editedNow.(fieldName{1})(flagMatch,:);
+            % (the other per-face label fields too: colors, see-through, a
+            % lamp's cover (FaceCoverLamp), more parts or lamp functions;
+            % a field the edits made, or made wider, is made to match)
+            for fieldName = {'FaceColors', 'FaceAlpha', 'FaceCoverLamp', 'FaceAlsoParts', 'FaceLightFunctions'}
+                name = fieldName{1};
+                if ~isfield(editedNow, name) || size(editedNow.(name),1) ~= size(editedNow.Faces,1)
+                    continue;
                 end
+                width = size(editedNow.(name),2);
+                if ~isfield(workingMesh, name) || size(workingMesh.(name),1) ~= numFaces
+                    workingMesh.(name) = zeros(numFaces, width, 'like', editedNow.(name));
+                elseif size(workingMesh.(name),2) < width
+                    workingMesh.(name)(:, end+1:width) = 0;
+                end
+                workingMesh.(name)(baseIndex,1:width) = editedNow.(name)(flagMatch,:);
             end
             data.Mesh = workingMesh;
             data.LabelColors(baseIndex,:) = editedLabels.FaceColors(flagMatch,:);
@@ -1937,6 +1962,28 @@ liftedVertices(2:3:end,:) = corner2 + lift*normals;
 liftedVertices(3:3:end,:) = corner3 + lift*normals;
 liftedFaces = reshape(1:3*numFaces, 3, [])';
 end % Ends fcn_INTERNAL_liftedFaces
+
+%% fcn_INTERNAL_rayHits
+function hitDistance = fcn_INTERNAL_rayHits(origin, direction, vertices, faces)
+% How far along the line (origin + t*direction) it hits each triangle; Inf
+% where it misses (the Moller-Trumbore test, for all triangles at once)
+numFaces = size(faces,1);
+corner1 = vertices(faces(:,1),:);
+edge1 = vertices(faces(:,2),:) - corner1;
+edge2 = vertices(faces(:,3),:) - corner1;
+directions = repmat(direction, numFaces, 1);
+pVector = cross(directions, edge2, 2);
+determinant = sum(edge1.*pVector, 2);
+flagValid = abs(determinant) > 1e-12;
+inverse = 1./determinant;
+tVector = origin - corner1;
+u = sum(tVector.*pVector, 2).*inverse;
+qVector = cross(tVector, edge1, 2);
+v = sum(directions.*qVector, 2).*inverse;
+hitDistance = sum(edge2.*qVector, 2).*inverse;
+flagHit = flagValid & u >= -1e-9 & v >= -1e-9 & u + v <= 1 + 1e-9 & hitDistance > 0;
+hitDistance(~flagHit) = Inf;
+end % Ends fcn_INTERNAL_rayHits
 
 %% fcn_INTERNAL_mirrorFaces
 function mirrorFace = fcn_INTERNAL_mirrorFaces(vehicleMesh)

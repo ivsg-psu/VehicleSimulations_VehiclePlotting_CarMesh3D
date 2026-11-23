@@ -1281,7 +1281,18 @@ end
 
     function onModelViewChanged()
         % If the model was rotated, move the arrow (and the photo) with it
-        if flagSyncingView || flagDialDragging || isempty(axesHandle) || ~isvalid(axesHandle)
+        if isempty(axesHandle) || ~isvalid(axesHandle) || ~isvalid(figureHandle)
+            % (the window is gone: the timer stops itself, so it cannot
+            % keep running in the background; one was found running on
+            % with no window, 2026-11-23 14:17; it is deleted once stopped)
+            if ~isempty(viewTimer) && isvalid(viewTimer)
+                viewTimer.StopFcn = @(timerObject,~) delete(timerObject);
+                stop(viewTimer);
+            end
+            viewTimer = [];
+            return;
+        end
+        if flagSyncingView || flagDialDragging
             return;
         end
         [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);

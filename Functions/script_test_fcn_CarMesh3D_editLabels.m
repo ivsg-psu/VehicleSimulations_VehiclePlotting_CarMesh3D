@@ -17,6 +17,12 @@
 % - In script_test_fcn_CarMesh3D_editLabels
 %   % * Test: AlsoParts (FaceAlsoParts), faces in more than one part
 
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_editLabels
+%   % * Test: lamp covers (FaceCoverLamp) stay valid: a cover given a new
+%   %   % label is no longer one; the field is padded, or left missing;
+%   %   % lights made also glass over a lamp become its cover
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -336,6 +342,59 @@ assert(size(editedMesh.FaceLightFunctions,2)==6 && editedMesh.FaceLightFunctions
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: Lamp covers (FaceCoverLamp) stay valid when labels are edited
+figNum = 20010;
+titleString = sprintf('TEST case: Lamp covers (FaceCoverLamp) stay valid when labels are edited');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (a small mesh with a headlight cover and a left and a right turn
+% signal cover, found by fcn_CarMesh3D_findLampCovers)
+[coverMesh, faceInfo] = fcn_INTERNAL_coverMesh;
+coveredMesh = fcn_CarMesh3D_findLampCovers(coverMesh, FigNum=-1);
+Nfaces = size(coveredMesh.Faces,1);
+headType = find(strcmp(coveredMesh.LightTypeNames,'headlight'));
+turnType = find(strcmp(coveredMesh.LightTypeNames,'turnsignal'));
+glassIndex = find(strcmp(coveredMesh.PartNames,'glass'));
+turnCovers = [faceInfo.leftTurnCover; faceInfo.rightTurnCover];
+assert(all(coveredMesh.FaceCoverLamp(faceInfo.headCover)==headType) && all(coveredMesh.FaceCoverLamp(turnCovers)==turnType));
+% (a cover painted as something else, or as a lamp, is no longer a cover;
+% the other covers stay)
+editedMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.headCover,'Part','trim')}, FigNum=-1);
+assert(all(editedMesh.FaceCoverLamp(faceInfo.headCover)==0) && all(editedMesh.FaceCoverLamp(turnCovers)==turnType));
+editedMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.leftTurnCover,'LightType','tail')}, FigNum=-1);
+assert(all(editedMesh.FaceCoverLamp(faceInfo.leftTurnCover)==0) && all(editedMesh.FaceCoverLamp(faceInfo.rightTurnCover)==turnType));
+% (painted as plain glass: tinted glass, not a cover...)
+glassMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.headCover,'Part','glass')}, FigNum=-1);
+assert(all(glassMesh.FaceCoverLamp(faceInfo.headCover)==0) && all(glassMesh.FacePartIndex(faceInfo.headCover)==glassIndex));
+assert(all(abs(glassMesh.FaceAlpha(faceInfo.headCover) - 0.35) < 1e-12));
+% (...and painted as a headlight that is also glass, it lies over the
+% headlight, so it is the headlight's clear cover again)
+againMesh = fcn_CarMesh3D_editLabels(glassMesh, Edits={struct('FaceIndices',faceInfo.headCover, ...
+    'LightType','headlight','AlsoParts',{{'glass'}})}, FigNum=-1);
+assert(all(againMesh.FaceCoverLamp(faceInfo.headCover)==headType) && all(againMesh.FacePartIndex(faceInfo.headCover)==glassIndex));
+assert(all(abs(againMesh.FaceAlpha(faceInfo.headCover) - 0.15) < 1e-12) && all(againMesh.FaceLightType(faceInfo.headCover)==0));
+% (a FaceCoverLamp that is short, as after faces were added, is padded
+% with zeros: one row per face)
+shortMesh = coveredMesh;
+shortMesh.FaceCoverLamp = shortMesh.FaceCoverLamp(1:end-2);
+editedMesh = fcn_CarMesh3D_editLabels(shortMesh, Edits={struct('FaceIndices',faceInfo.body,'Part','trim')}, FigNum=-1);
+assert(isequal(size(editedMesh.FaceCoverLamp),[Nfaces 1]) && all(editedMesh.FaceCoverLamp(end-1:end)==0));
+assert(isequal(editedMesh.FaceCoverLamp(1:end-2), shortMesh.FaceCoverLamp));
+% (a mesh made before FaceCoverLamp is left without it, so
+% fcn_CarMesh3D_plotVehicle still finds its covers when it is drawn)
+editedMesh = fcn_CarMesh3D_editLabels(coverMesh, Edits={struct('FaceIndices',faceInfo.body,'Part','trim')}, FigNum=-1);
+assert(~isfield(editedMesh,'FaceCoverLamp'));
+% (a mesh made before the 'highbeam' type: the covers' light types stay)
+oldTypesMesh = coveredMesh;
+oldTypesMesh.LightTypeNames = oldTypesMesh.LightTypeNames(1:5);
+editedMesh = fcn_CarMesh3D_editLabels(oldTypesMesh, Edits={struct('FaceIndices',faceInfo.headLamp,'LightType','highbeam')}, FigNum=-1);
+assert(strcmp(editedMesh.LightTypeNames{6},'highbeam') && isequal(editedMesh.FaceCoverLamp, coveredMesh.FaceCoverLamp));
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% TEST case: Interactive editor, driven from code
 figNum = 20007;
 titleString = sprintf('TEST case: Interactive editor, driven from code');
@@ -467,6 +526,7 @@ bar(X,Y)
 ylabel('Execution time (Milliseconds)')
 title('fcn_CarMesh3D_editLabels: time per call','Interpreter','none');
 fprintf(1,'Average time per call (ms): normal %.3f, checks off by environment variable %.3f, fast mode %.3f\n',Y(1),Y(2),Y(3));
+close(373737);   % (leave no figures behind)
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -530,6 +590,57 @@ function vehicleMesh = fcn_INTERNAL_labeledSample
 % A clean, labeled sample mesh (4 headlight faces and 4 tail light faces)
 vehicleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
 end % Ends fcn_INTERNAL_labeledSample
+
+%% fcn_INTERNAL_coverMesh
+function [testMesh, faceInfo] = fcn_INTERNAL_coverMesh
+% A small labeled mesh, in meters (X forward, Y left, Z up), made of
+% flat squares facing forward (+X), two triangles each (the same mesh as
+% in script_test_fcn_CarMesh3D_findLampCovers):
+%   a headlight at x = 1.00, and plain glass 2 cm in front of it
+%   a glass "window" at x = 0.00, 1 m behind the lamps
+%   a left and a right turn signal at x = 1.00, each with a cover 2 cm in
+%   front of it marked the old way: a light that is also glass
+%   a body panel below the lamps
+partNames = {'body';'glass';'wheel';'light';'trim'};
+lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+squares = { ...   % x, [ymin ymax], [zmin zmax], part, light type, also glass, name
+    1.00, [ 0.40  0.60], [0.50 0.70], 4, 1, false, 'headLamp';
+    1.02, [ 0.38  0.62], [0.48 0.72], 2, 0, false, 'headCover';
+    0.00, [-0.50  0.50], [0.90 1.20], 2, 0, false, 'window';
+    1.00, [ 0.65  0.75], [0.50 0.60], 4, 2, false, 'leftTurnLamp';
+    1.02, [ 0.64  0.76], [0.49 0.61], 4, 2, true,  'leftTurnCover';
+    1.00, [-0.75 -0.65], [0.50 0.60], 4, 2, false, 'rightTurnLamp';
+    1.02, [-0.76 -0.64], [0.49 0.61], 4, 2, true,  'rightTurnCover';
+    1.00, [-0.80  0.80], [0.20 0.45], 1, 0, false, 'body'};
+vertices = zeros(0,3);
+faces = zeros(0,3);
+facePart = zeros(0,1);
+faceLightType = zeros(0,1);
+faceAlsoGlass = false(0,1);
+faceInfo = struct;
+for ith_square = 1:size(squares,1)
+    [x, yRange, zRange] = squares{ith_square,1:3};
+    % (corners in the order that makes the right-hand-rule normal +X)
+    corners = [x yRange(1) zRange(1); x yRange(2) zRange(1); x yRange(2) zRange(2); x yRange(1) zRange(2)];
+    base = size(vertices,1);
+    vertices = [vertices; corners]; %#ok<AGROW>
+    faces = [faces; base + [1 2 3; 1 3 4]]; %#ok<AGROW>
+    facePart = [facePart; squares{ith_square,4}*[1;1]]; %#ok<AGROW>
+    faceLightType = [faceLightType; squares{ith_square,5}*[1;1]]; %#ok<AGROW>
+    faceAlsoGlass = [faceAlsoGlass; squares{ith_square,6}&[true;true]]; %#ok<AGROW>
+    faceInfo.(squares{ith_square,7}) = size(faces,1) + [-1; 0];
+end
+Nfaces = size(faces,1);
+partColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20];
+faceAlpha = ones(Nfaces,1);
+faceAlpha(facePart==2) = 0.35;
+faceAlsoParts = false(Nfaces, numel(partNames));
+faceAlsoParts(faceAlsoGlass, 2) = true;
+testMesh = struct('Name','lamp cover test mesh', 'Units','m', 'Frame','ISO8855', ...
+    'Vertices',vertices, 'Faces',faces, 'PartNames',{partNames}, 'FacePartIndex',facePart, ...
+    'LightTypeNames',{lightTypeNames}, 'FaceLightType',faceLightType, 'FaceWheelIndex',zeros(Nfaces,1), ...
+    'FaceColors',partColors(facePart,:), 'FaceAlpha',faceAlpha, 'FaceAlsoParts',faceAlsoParts);
+end % Ends fcn_INTERNAL_coverMesh
 
 %% fcn_INTERNAL_countLightType
 function count = fcn_INTERNAL_countLightType(vehicleMesh, typeName)
