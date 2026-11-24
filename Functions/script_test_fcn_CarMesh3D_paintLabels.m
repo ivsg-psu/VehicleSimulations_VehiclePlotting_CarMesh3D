@@ -18,6 +18,14 @@
 %   %   % and keys through the window's own handlers; random walks with
 %   %   % rules checked after each step; the layout at four window sizes;
 %   %   % the saved fixes the painter keeps; closing time
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_paintLabels
+%   % * Revert to a timestamped copy (T36): the copies listed newest first,
+%   %   % an older copy put back as applied, not saved; Save makes it stick
+%   % * Selection as a highlighter (T35): Ctrl+drag over faces already
+%   %   % carrying the label picked selects them; the label only previewed;
+%   %   % "original"; Undo of an Apply
 
 % TO-DO:
 %
@@ -191,6 +199,31 @@ assert(strcmp(painter.VersionFolder(), otherFolder) && strcmp(getpref('CarMesh3D
 versionFile = painter.SaveVersion();
 assert(strcmp(fileparts(versionFile), otherFolder) && isfile(versionFile));
 painter.SetVersionFolder(versionFolder);
+
+%% TEST case: Revert to a timestamped copy (T36, Sean 2026-11-24 15:14: Revert lists the saves to go back to)
+fprintf(1,'TEST case: revert to a timestamped copy\n');
+pause(1.1);
+copyA = painter.SaveVersion();
+paintA = painter.Layers().Paint;
+painter.SetMirror(false);
+painter.Paint('backup', centers(picks(3),:), false);   % (one more face, saved)
+pause(1.1);
+copyB = painter.SaveVersion();
+paintB = painter.Layers().Paint;
+assert(~isequal(paintA, paintB), '(set-up) the two copies differ');
+copies = painter.SavedCopies();
+assert(height(copies) >= 2 && issorted(copies.Saved, 'descend') && strcmp(copies.File{1}, copyB) && any(strcmp(copies.File, copyA)), ...
+    'The copies are listed, newest first');
+painter.RevertToCopy(copyA);
+assert(isequal(painter.Layers().Paint, paintA) && isequal(painter.Layers().Applied, paintA), 'Back to the older copy''s paint, applied');
+assert(painter.IsUnsaved() && ~painter.Status().Saved, 'A copy put back is not saved yet');
+painter.RevertToSaved();
+assert(isequal(painter.Layers().Paint, paintB) && ~painter.IsUnsaved(), 'Revert to the last save still works');
+painter.RevertToCopy(copyA);
+painter.Save();
+loaded = load(editsFile, 'labelEditsAfterSimplify');
+assert(isequal(painter.Layers().Saved, paintA) && ~isempty(loaded.labelEditsAfterSimplify), 'Saving makes the older copy stick');
+painter.SetMirror(true);
 
 %% TEST case: Hidden faces stay in the edited mesh, in a named set, out of view; unhide shows them again
 fprintf(1,'TEST case: hiding, and unhiding\n');
@@ -487,6 +520,30 @@ assert(layers.Applied(seen(2)) == "body");
 gp.DragAt([centers(seen(4),:); centers(seen(5),:)], {'control'});
 assert(gp.Layers().Paint(seen(4)) == "body", 'A Ctrl+drag after Apply paints');
 fcn_INTERNAL_checkRules(gp);
+% (T35, Sean 2026-11-24 15:14 to 15:24: selection is a highlighter, apart
+% from labels: a Ctrl+drag over faces that already carry the label picked
+% selects them; another label previews on them; Apply puts it on;
+% "original" puts back the label as downloaded)
+gp.Apply();
+appliedNow = find(gp.Layers().Applied == "body");
+assert(numel(appliedNow) >= 2 && gp.Status().Pending == 0, '(set-up) faces applied as body');
+gp.DragAt([centers(seen(4),:); centers(seen(5),:)], {'control'});
+assert(all(ismember(seen([4 5]), gp.Layers().Selected)) && gp.Status().Pending > 0, ...
+    'A Ctrl+drag over faces that already carry the label picked selects them (T35)');
+gp.SetTool('trim');
+assert(gp.Layers().Paint(seen(4)) == "trim" && gp.Layers().Applied(seen(4)) == "body", ...
+    'Another label is only previewed on the selection');
+gp.ClearPending();
+assert(gp.Layers().Paint(seen(4)) == "body", 'Unselected, the faces keep their label');
+gp.DragAt([centers(seen(4),:); centers(seen(5),:)], {'control'});
+gp.SetTool('original');
+gp.Apply();
+assert(gp.Layers().Applied(seen(4)) == "" && gp.Status().Pending == 0, '"original" puts back the label as downloaded');
+undoNow = gp.Status().UndoSteps;
+gp.Undo();
+assert(gp.Layers().Applied(seen(4)) == "body" && gp.Status().UndoSteps == undoNow - 1, 'Undo takes back the Apply');
+gp.SetTool('body');
+fcn_INTERNAL_checkRules(gp);
 gp.RevertToStart();
 glassIndex = find(strcmp(testMesh.PartNames, 'glass'));
 gp.SetTool('glass');
@@ -712,7 +769,7 @@ function message = fcn_INTERNAL_ruleStatus(painter)
 message = '';
 statusNow = painter.Status();
 text = painter.Layers().StatusText;
-expected = {sprintf('%d faces painted, not applied', statusNow.Pending), sprintf('%d changed (%d hidden)', statusNow.Applied, statusNow.Hidden), ...
+expected = {sprintf('%d faces selected, not applied', statusNow.Pending), sprintf('%d changed (%d hidden)', statusNow.Applied, statusNow.Hidden), ...
     sprintf('%d undo steps', statusNow.UndoSteps)};
 for ith = 1:numel(expected)
     if ~contains(text, expected{ith})

@@ -855,7 +855,22 @@ fcn_CarMesh3D_viewLabels('2009_Honda_Fit_Sport');      % look only
 
 `fcn_CarMesh3D_viewLabels` shows the mesh in label colors, with the vehicle's photos beside it (a dial picks the photo by angle; the photo can be resized from its bottom-left corner). The list beside the model shows each label in its color, with a **Show** box to take a label out of view (to reach faces behind it). **Show mesh boundaries** draws the face edges. The **lamp list** under the labels switches each lamp: by day the lamps are drawn lit on the model; with **Nighttime view**, the scene turns to night (as in the animator's light check) and each lamp throws its light on the ground. Lamps with no labeled faces are marked "(no faces)" and still show where their light would land.
 
-`fcn_CarMesh3D_paintLabels` adds a **Paint as** row: body, glass, trim, interior, wheel, low beam, high beam, tail, running, turn signal, backup, **hide**, and **unhide**. Ctrl+drag paints faces (Ctrl+Shift+drag erases), a click paints one face, and a double-click a whole connected piece; **Mirror to the other side** paints both sides at once. Paint is pending (yellow edges) until **Apply**; **Save** writes the edits to the vehicle's `labelEdits_<ID>.mat` (by face centers, `Points`, so they survive a rebuild), and the next build applies them after simplifying. **Undo**, **Revert to save**, **Revert to start**, and timestamped copies of each save are there too. Nothing is ever deleted: see [Hidden faces](#hidden-faces-never-deleted).
+`fcn_CarMesh3D_paintLabels` changes the labels. Its label list covers every label in the viewer: body, glass, trim, interior, wheel, the lamp types, **hide**, **unhide**, and **original**.
+
+**How painting works: select, pick a label, Apply** (Sean, 2026_11_24). Selecting faces is like a highlighter. It marks faces whatever their labels are now, and it changes no label by itself.
+1. **Select faces** (yellow edges): Ctrl+drag selects every face passed over, Ctrl+Shift+drag unselects, a click selects one face (click again to unselect), and a double-click selects a whole connected piece. **Mirror to the other side** selects the mirror-image faces too. Esc clears the selection.
+2. **Pick a label.** The selected faces are drawn in its color as a preview only; their labels do not change yet. Picking another label changes the preview. **original** means "the label this face had in the download" (its paint taken off).
+3. **Apply** puts the label on the selected faces and clears the selection.
+
+This is how a mistake is fixed: select the faces wrongly painted (say, roof faces painted as tail light), pick **body**, and Apply.
+
+**Save** writes the applied labels to the vehicle's `labelEdits_<ID>.mat`, and applies a selection still pending first. The edits are stored by face centers (`Points`), so they survive a rebuild, and the next build applies them after simplifying.
+
+**Undo** (Ctrl+Z) takes back the last selection step, or the last Apply.
+
+**Revert to a save…** lists the last save and each timestamped copy, newest first, to go back to. A copy comes back as applied labels, not saved until **Save**. **Revert to start** is in Settings.
+
+Nothing is ever deleted: see [Hidden faces](#hidden-faces-never-deleted).
 
 Each edit picks faces with any of these fields (a face must pass all of the ones given), then sets what the edit says:
 
@@ -2672,9 +2687,9 @@ A viewer for looking at a vehicle's labels next to its photos: the mesh with eac
 
 </details>
 
-<details><summary><b><code>fcn_CarMesh3D_paintLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_paintLabels.m</code>): A window for fixing a vehicle's labels by painting its faces: pick a label (body, glass, trim, interior, wheel, a light type), or hide or unhide, then paint the faces that should have it.</summary>
+<details><summary><b><code>fcn_CarMesh3D_paintLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_paintLabels.m</code>): A window for fixing a vehicle's labels: select faces, pick a label, then Apply.</summary>
 
-A window for fixing a vehicle's labels by painting its faces: pick a label (body, glass, trim, interior, wheel, a light type), or hide or unhide, then paint the faces that should have it. It works on its own (its own window), or inside another window, such as the Model Reviewer (fcn_CarMesh3D_reviewVehicle), which gives it a panel to build into.
+A window for fixing a vehicle's labels: select faces (a highlighter, whatever their labels), pick a label (body, glass, trim, interior, wheel, a light type, hide, unhide, or original, the label as downloaded), then Apply. It works on its own (its own window), or inside another window, such as the Model Reviewer (fcn_CarMesh3D_reviewVehicle), which gives it a panel to build into.
 
 ```matlab
 [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleInput,...

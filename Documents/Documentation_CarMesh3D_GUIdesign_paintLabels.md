@@ -8,22 +8,9 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-24 07:15. Almost everything is now tested by script (automated GUI tests, Q39: Agent B, 06:06 to 07:01; checked by Claude 07:10: all pass). T30 (Settings scrolls) is now checked by script at four window sizes: moved to the change log. What is left needs your eyes and hands.*
+*Updated 2026-11-24 15:58. Nothing to review: T49 to T52 passed (Sean, 15:53 to 15:57) and are in the change log.*
 
-**First:** close the painter and run `clear functions`, then open it from the demo menu.
-
-- **T34. Painting with the mouse** (the picking bug fixed: the 3D axes' "point under the mouse" was about 400 px off in this window): single clicks select or unselect the face under the pointer; Ctrl+drag paints every face passed over, and the yellow outlines follow the mouse; Ctrl+Shift+drag erases (on glass too); double-click a part (glass too) paints it all, a second double-click unpaints it.
-(Sean's result:)
-
-- **T35. After Apply, and the keys:** after Apply, faces can still be picked; Ctrl+Z undoes; Ctrl+S saves. (Click the model first, so the window has the keyboard.)
-(Sean's result:)
-
-- **T36. "Revert to save" in the top bar:** its place and wording; it asks before reverting.
-(Sean's result:)
-
-- **T37. Exit with unsaved paint:** the Save / Discard / Cancel question is easy to see (not hidden behind the window); with nothing unsaved, Exit closes at once. (The close hang you saw was not reproduced: 0.17 to 0.34 s every time; this question, or old code in memory, is the likely cause. Tell me if it hangs again, and what was on screen.)
-(Sean's result:)
-
+**Open issue (Sean, 15:49 to 15:50):** the first run of the setup after `clear functions` returned to the prompt with no window and no message; the second run opened the painter. To reproduce and fix (Claude).
 ---
 
 ## 1. What the window is for
@@ -550,3 +537,73 @@ As a process, please add this ruleset to the project: when working with MD files
   - **T30. Settings scrolls:** open Settings and make the window short: a scroll bar appears and every row can be reached, down to the edits file's path. (The path's row was a fixed 60 pixels, so a long path was cut off rather than scrolled; it now fits its text. Show ground? is no longer in Settings: T19.)
   (Sean's result:)
   (Checked by the automated layout test at 1500×900, 800×500, 640×400 and 1600×1000: every row reachable.)
+
+- 2026-11-24 15:14 to 15:45 (Sean, then Claude): **painter review.** T34 (painting with the mouse), T37 (Exit with unsaved paint) and T48 (the camera readout) **pass**. **T35 failed:** after Apply, Ctrl+drag over the faces just applied did not select them (a click did). Cause: a selected face took the picked label at once, so a stroke over faces that already had it changed nothing. Sean (15:19 to 15:24): "The selection process is intended to be a 'highlighter'... Selection is not a paint-specific process"; "It's a carried state associated with the mesh itself, not the mesh property"; "A selected face 'previews' the paint, but should not carry it." Q44 (A): a label "original" puts back the label as downloaded. Rebuilt 15:24 to 15:45: selection is a highlighter; the label is previewed on it; Apply puts it on and clears it (Save applies first); Undo takes back a selection step or an Apply; "original" added; the how-to text, tooltips, hints and README rewritten. **T36 failed:** Sean expected "Revert to save" to open the list of past saves (the timestamped copies) to pick from; it only went back to the last save. Rebuilt: "Revert to a save..." lists the last save and every timestamped copy. Both checked by the automated test (new cases) and by Claude with the real mouse on a demo copy (15:40: Ctrl+click after Apply selects; body, Apply; original, Apply; Ctrl+Z; the Revert list). New steps T49 to T52 in Review now. The steps as reviewed, with Sean's results:
+
+  **Setup for T34 to T48** (the exact commands; the painter opens on a temporary copy of the Fit, so painting and saving never touch the Fit itself; `clc` so any error shown belongs to this test):
+  
+  ```matlab
+  close all force; clear functions; clc
+  demoFiles = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport');
+  [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder);
+  ```
+  
+  Run the setup again before each test that needs a fresh copy (after a save, for example). The copy is in the temporary folder printed by `makeDemoCopy`.
+  
+  - **T34. Painting with the mouse** (the picking bug fixed: the 3D axes' "point under the mouse" was about 400 px off in this window): single clicks select or unselect the face under the pointer; Ctrl+drag paints every face passed over, and the yellow outlines follow the mouse; Ctrl+Shift+drag erases (on glass too); double-click a part (glass too) paints it all, a second double-click unpaints it.
+  (Sean's result:
+  * PASS: single clicks select or unselect the face under the pointer, works as expected
+  * PASS: Ctrl+drag paints every face passed over, and the yellow outlines follow the mouse. Tested with slow sweeps, fast sweeps, and sweeps that start/end on/off the mesh. All work smoothly and as expected.
+  * PASS: Ctrl+Shift+drag erases - works as expected for painting glass label as the "paint". Tested as well on glass, works as expected.
+  * PASS: double-click a part (glass too) paints it all, a second double-click unpaints it. Works.
+  )
+  
+  - **T35. After Apply, and the keys:** after Apply, faces can still be picked; Ctrl+Z undoes; Ctrl+S saves. (Click the model first, so the window has the keyboard.)
+  (Sean's result:
+  * FAIL: after Apply, faces can still be picked; Applied tail light to top of mesh, applied (it worked). Single click allows select again face by face, but control+drag won't select it now.
+  * PASS: Ctrl+Z undoes; 
+  * PASS: Ctrl+S saves
+  )
+  
+  - **T36. "Revert to save" in the top bar:** its place and wording; it asks before reverting.
+  (Sean's result:
+  * FAIL: expecting this to open a dialog box to the past save sequence (in the scratch folder as listed in settings) so that I could select which reversion to use. This only reverts to past save, which in this test was almost exactly the situation I was in before, which is not useful. I can't revert. This is not expected functionality.
+  )
+  
+  - **T37. Exit with unsaved paint:** the Save / Discard / Cancel question is easy to see (not hidden behind the window); with nothing unsaved, Exit closes at once. (The close hang you saw was not reproduced: 0.17 to 0.34 s every time; this question, or old code in memory, is the likely cause. Tell me if it hangs again, and what was on screen.)
+  (Sean's result:
+  * PASS
+  )
+  
+  - **T48. Camera readout, larger and in four lines** (moved from the viewer's T31, 2026-11-24 14:47, which passed in the viewer): in the painter's Overall Display, under Copy view call, at 13 points: `Camera view:` / `yaw angle: 60° (from the front, left)` / `altitude angle: -20° (down)` / `distance from center: 28 m` at Reset view. Turn the model (mouse and the dial): the yaw's words follow in eight 45° sectors (front, front left, left side, behind left, behind, ...); the altitude is negative looking down, "(level)" near 0, "(up)" from below.
+  (Sean's result:
+  * PASS: Works as expected. 
+  )
+
+- 2026-11-24 15:49 to 15:57 (Sean): **painter review closed: T49, T50, T51, T52 pass.** T51 ("original"): Sean's note (written under T52): "'Original source mesh label' is more descriptive, but very lengthy. This behavior is very clear to me, but only after using it once. A README entry here is helpful, and the tooltip is very clear. Let's leave the wording as is, since the tooltip explains it clearly." Sean asked where the status line is: the top bar, right of Exit. Open issue: the first setup run after `clear functions` returned with no window (see Review now). The steps as reviewed:
+
+  **Setup for T49 to T52** (a temporary copy of the Fit, so nothing touches the Fit itself):
+  
+  ```matlab
+  close all force; clear functions; clc
+  demoFiles = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport');
+  [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder);
+  ```
+  
+  - **T49. Ctrl+drag selects whatever the labels (your T35):** pick **tail light**, Ctrl+drag across the roof, Apply: the roof is tail light. With **tail light** still picked, Ctrl+drag across the same roof again: the faces are outlined in yellow (selected). (Claude's real-mouse run could only do Ctrl+clicks, not a Ctrl+drag: this step needs your drag.)
+  (Sean's result:
+  * PASS: works as expected.
+  )
+  
+  - **T50. A label is only previewed until Apply:** with the roof still selected, pick **body**, then **trim**, then **body** again: the selected faces change color each time, but nothing is applied (the status line still says "faces selected, not applied"). Apply: the roof is body. Select it again, press Esc: the selection is gone and the roof stays body.
+  (Sean's result:
+  * PASS: works as expected.
+  )
+  
+  - **T51. "original" and Undo:** select some faces you relabeled, pick **original** (under Main labeling), Apply: they take back the label they had in the download. Ctrl+Z: the Apply is taken back. Is "original" the right word and place?
+  (Sean's result:)
+  
+  - **T52. "Revert to a save..." (your T36):** Save twice, a few seconds apart, with something changed between. Press **Revert to a save...** in the top bar: a list shows the last save and each timestamped copy (newest first). Pick the older copy, Revert: its labels come back, not saved (the status line says so); Save makes it stick. Is the list what you expected?
+  (Sean's result:
+  * PASS: works as expected. "Original source mesh label" is more descriptive, but very lengthy. This behavior is very clear to me, but only after using it once. A README entry here is helpful, and the tooltip is very clear. Let's leave the wording as is, since the tooltip explains it clearly.
+  )

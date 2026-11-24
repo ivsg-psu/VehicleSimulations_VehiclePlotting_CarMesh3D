@@ -323,6 +323,25 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % * Fixed: Ctrl+Shift+drag over a stroke painted through a window
 %   %   % did not erase it (erasing stopped at the glass)
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * "Revert to a save..." (T36, Sean 15:14: it only went back to the
+%   %   % last save): a list of the saves to go back to, the last save and
+%   %   % each timestamped copy (newest first); a copy comes back as applied
+%   %   % paint, not saved. Hooks SavedCopies, RevertToCopy, PickRevert
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Selection is a highlighter, apart from labels (T35, Sean 15:19 to
+%   %   % 15:24): clicks, Ctrl+drag and double-clicks select faces whatever
+%   %   % their labels (Ctrl+Shift+drag unselects); the label picked is only
+%   %   % previewed on them; Apply puts it on and clears the selection (Save
+%   %   % applies first); Undo takes back a selection step, or an Apply
+%   %   % (with the selection steps that led to it).
+%   %   % Before, a selected face took the label at once, so Ctrl+drag over
+%   %   % faces that already had it did nothing
+%   % * New label "original" (Q44 (A)): back to the label as downloaded
+%
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -528,11 +547,18 @@ workingTarget = strings(numFaces,1);
 % (the click just before a double-click: taken back by it, 2026-11-24)
 lastClickTime = [];
 lastClickUndo = 0;
-undoStack = struct('Faces', {}, 'Before', {}, 'Applied', {});
+% (the selection: a highlighter on the faces, apart from their labels;
+% the label picked is only previewed on it, and Apply puts it on: Sean,
+% 2026-11-24 15:19 to 15:24, T35 and Q44 (A). paintTarget is the applied
+% paint with the preview on the selected faces)
+selectedFaces = false(numFaces,1);
+% (Undo: 'select' entries (Before: the faces' selection before) and
+% 'apply' entries (Before: their labels before; Applied true))
+undoStack = struct('Faces', {}, 'Before', {}, 'Applied', {}, 'BeforeSelected', {});
 strokeOpen = false;
 strokeErase = false;
 strokeFaces = zeros(0,1);
-strokeBefore = strings(0,1);
+strokeBefore = false(0,1);
 paintTool = '';
 mirrorFace = [];
 meshPieces = [];
@@ -587,14 +613,14 @@ uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize'
     'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
     'ButtonPushedFcn', @(~,~) toggleMenu());
 uibutton(topGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoEdit(), 'Tag', 'painterUndo', ...
-    'Tooltip', 'Take back the last click or stroke (press again to go further back, newest first). Ctrl+Z.');
+    'Tooltip', 'Take back the last selection step (click or stroke) or the last Apply (press again to go further back, newest first). Ctrl+Z.');
 uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], 'Tag', 'painterSave', ...
-    'Tooltip', ['Apply the pending paint and save the edits (the vehicle''s labelEdits file, used by its script). ' ...
-    'The saved mesh becomes the working mesh: painted faces take their new label''s look. Ctrl+S.']);
+    'Tooltip', ['Save the applied labels (the vehicle''s labelEdits file, used by its script); faces still selected take the label picked first. ' ...
+    'The saved mesh becomes the working mesh: relabeled faces take their new label''s look. Ctrl+S.']);
 % (Revert to prior save, in the top bar: agreed in section 9 of the design
 % file, P2; it asks first)
-uibutton(topGrid, 'Text', 'Revert to save', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'painterRevert', ...
-    'Tooltip', 'Go back to the last save: paint since then (pending and applied) is taken off. Asks first.');
+uibutton(topGrid, 'Text', 'Revert to a save...', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'painterRevert', ...
+    'Tooltip', 'Go back to an earlier save: pick the last save or one of the timestamped copies from a list (paint since then is taken off)');
 exitButton = uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closePainter(), 'Tag', 'painterExit', ...
     'Tooltip', 'Close the painter (it asks first when there are changes not saved)');
 if ~flagOwnWindow
@@ -701,7 +727,7 @@ labelViewer.PlacePhoto();   % (the photo filling its box, now the layout is sett
 % Saved edits
 loadEdits();
 showPaint();
-setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. Pick a label in Modify Labels (' char(9776) ' Menu), then Ctrl+drag to paint. ' ...
+setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. To relabel: select faces (Ctrl+drag, or click), pick a label in Modify Labels (' char(9776) ' Menu), then Apply. ' ...
     'Photos: drag the red arrow around the vehicle (or click on the dial).']);
 
 painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch, 'EditsFile', editsFile, ...
@@ -715,7 +741,7 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'ShowLabel', @showLabel, 'SetHidden', @setHidden, ...
     'EditedMesh', @getEditedMesh, 'Edits', @getEdits, 'NumPainted', @numPainted, 'IsUnsaved', @isUnsaved, 'Status', @getStatus, ...
     'Apply', @applyEdits, 'Undo', @undoEdit, 'Save', @() saveEdits(), 'SaveVersion', @saveVersion, ...
-    'LastVersionFile', @getLastVersionFile, 'VersionFolder', @getVersionFolder, 'SetVersionFolder', @setVersionFolder, 'WorkingMesh', @getWorkingMesh, 'RevertToSaved', @revertToSaved, 'RevertToStart', @revertToStart, ...
+    'LastVersionFile', @getLastVersionFile, 'VersionFolder', @getVersionFolder, 'SetVersionFolder', @setVersionFolder, 'WorkingMesh', @getWorkingMesh, 'RevertToSaved', @revertToSaved, 'RevertToStart', @revertToStart, 'SavedCopies', @listSavedCopies, 'RevertToCopy', @revertToCopy, 'PickRevert', @pickRevert, ...
     'SetTool', @setTool, 'Paint', @testPaint, 'SetPhotoAngle', labelViewer.SetPhotoAngle, 'PhotoAngle', labelViewer.PhotoAngle, 'Viewer', labelViewer, ...
     'StrokeStart', @strokeStart, 'MouseMove', @mouseMove, 'MouseUp', @mouseUp, 'Click', @click, ...
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
@@ -774,7 +800,7 @@ end
         % outline; a face whose paint was taken off but not yet applied
         % shows its own label's color, outlined)
         flagShown = ~hiddenFaces(labelViewer.Hidden());
-        pending = find(paintTarget ~= appliedTarget & flagShown);
+        pending = find(selectedFaces & flagShown);   % (the selection, outlined)
         applied = find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown);   % (in the working mesh: drawn as it)
         setOverlay(paintEdges, pending, paintTarget(pending));
         setOverlay(appliedPatch, applied, appliedTarget(applied));
@@ -936,7 +962,7 @@ end
         % hidden set's name, mirror and show-hidden switches, Apply, and
         % how to paint
         panelHandle = panelHandles(strcmp(panelNames, 'Modify Labels'));
-        groups = {'Main labeling:', {'body', 'glass', 'trim', 'interior', 'wheel'}; ...
+        groups = {'Main labeling:', {'body', 'glass', 'trim', 'interior', 'wheel', 'original'}; ...
             'Bulb labeling:', {'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
                 'fog', 'reflector', 'licenseplate', 'marker', 'warning'}; ...   % (the last five: Sean, task 8)
             'Visibility labeling:', {'hide', 'unhide', ''}};
@@ -948,7 +974,7 @@ end
         paintGroup = uibuttongroup(outer, 'BorderType', 'none', 'BackgroundColor', yellowBand, 'Tag', 'paintAs', ...
             'SelectionChangedFcn', @(~,event) pickTool(event.NewValue.UserData));
         y = groupHeight - rowHeight;
-        uilabel(paintGroup, 'Text', 'Paint as   (pick one)', 'FontWeight', 'bold', 'Position', [2 y 260 22]);
+        uilabel(paintGroup, 'Text', 'Label for the selection   (pick one)', 'FontWeight', 'bold', 'Position', [2 y 260 22]);
         for ith_group = 1:size(groups,1)
             y = y - rowHeight;
             uilabel(paintGroup, 'Text', groups{ith_group,1}, 'FontWeight', 'bold', 'FontColor', [0.45 0.3 0], ...
@@ -986,9 +1012,10 @@ end
             'Tooltip', 'Show the hidden faces (magenta), to unhide them; they cannot be painted while out of view');
         showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setShowHidden(value), 'showHidden');
         uibutton(outer, 'Text', 'Apply', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applyEdits(), 'Tag', 'paintApply', ...
-            'Tooltip', 'Make the pending paint part of the working mesh (hidden faces go out of view and reach)');
-        uilabel(outer, 'Text', ['How to paint: Ctrl+drag paints; Ctrl+Shift+drag erases; a click paints one face (click again ' ...
-            'to take it off); a double-click paints a whole piece. Paint is pending (yellow edges) until Apply or Save. ' ...
+            'Tooltip', 'Put the label picked on the selected faces, in the working mesh (hidden faces go out of view and reach)');
+        uilabel(outer, 'Text', ['How to label: select faces (Ctrl+drag; Ctrl+Shift+drag unselects; a click selects one face, ' ...
+            'click again to unselect; a double-click a whole piece), pick a label, then Apply (or Save). The selection (yellow edges) ' ...
+            'shows the label picked, but the faces keep their own until Apply. "original" puts back the label as downloaded. ' ...
             'Hiding takes faces out of view, never out of the mesh. To reach faces under others, set their label to ' ...
             'Shown? No (Labels To Display).'], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.45 0.3 0], 'Tag', 'paintHowTo', ...
             'VerticalAlignment', 'top');
@@ -997,10 +1024,11 @@ end
 
     function pickTool(name)
         paintTool = char(name);
+        refreshPreview();
         if isempty(paintTool)
-            setHint('No label picked: the mouse only turns, pans and zooms the view.');
+            setHint('No label picked: the selected faces keep their labels; pick one, then Apply.');
         else
-            setHint(sprintf('Painting as <b>%s</b>: Ctrl+drag paints, Ctrl+Shift+drag erases, a click paints one face, a double-click a piece.', ...
+            setHint(sprintf('Label <b>%s</b>: shown on the selected faces; Apply puts it on them. Ctrl+drag selects, Ctrl+Shift+drag unselects, a click selects one face, a double-click a piece.', ...
                 fcn_INTERNAL_paintText(paintTool)));
         end
     end
@@ -1054,8 +1082,8 @@ end
             'Tooltip', 'The folder for the timestamped copies (made if it does not exist); remembered for next time');
         versionBrowseButton = uibutton(folderGrid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browseVersionFolder(), 'Tag', 'versionBrowse');
         uilabel(grid, 'Text', 'Revert');
-        uibutton(grid, 'Text', 'Revert to save', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'revertToSave', ...
-            'Tooltip', 'Go back to the last save (pending and applied paint since then are taken off)');
+        uibutton(grid, 'Text', 'Revert to a save...', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'revertToSave', ...
+            'Tooltip', 'Go back to an earlier save: pick the last save or one of the timestamped copies from a list');
         uilabel(grid, 'Text', '');
         uibutton(grid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) askRevert('start'), 'Tag', 'revertToStart', ...
             'Tooltip', 'Go back to the mesh before any edits (Save to make it stick)');
@@ -1095,7 +1123,8 @@ end
         % (asks first, when on screen: a revert takes paint off)
         if strcmp(figureHandle.Visible, 'on')
             if strcmp(which, 'save')
-                question = 'Go back to the last save? Paint since then is taken off.';
+                pickRevert();   % (the list of saves to go back to: T36)
+                return;
             else
                 question = 'Go back to the mesh before any edits? (Save afterward to make it stick.)';
             end
@@ -1133,6 +1162,26 @@ end
     function setTool(name)
         paintTool = char(name);
         markPaintButtons();
+        refreshPreview();
+    end
+
+    function refreshPreview()
+        % The preview: the applied paint, with the label picked drawn on
+        % the selected faces (they do not take it until Apply)
+        paintTarget = appliedTarget;
+        if ~isempty(paintTool) && any(selectedFaces)
+            paintTarget(selectedFaces) = previewValue();
+        end
+        showPaint();
+    end
+
+    function value = previewValue()
+        % What Apply puts on the selected faces: the label picked;
+        % "original" takes the paint off (the label as downloaded)
+        value = paintValue();
+        if strcmp(paintTool, 'original')
+            value = "";
+        end
     end
 
     function markPaintButtons()
@@ -1158,10 +1207,10 @@ end
     end
 
     function paintFaces(faces, flagErase)
-        % Paints these faces (and their mirror images) with the tool's
-        % label, or erases their paint; remembered for Undo
+        % Selects these faces (and their mirror images), or unselects them
+        % (flagErase), whatever their labels; remembered for Undo
         faces = faces(:);
-        if isempty(faces) || (~flagErase && isempty(paintTool))
+        if isempty(faces)
             return;
         end
         if mirrorOn()
@@ -1174,16 +1223,12 @@ end
         if strokeOpen
             newFaces = setdiff(faces, strokeFaces);
             strokeFaces = [strokeFaces; newFaces];
-            strokeBefore = [strokeBefore; paintTarget(newFaces)];
+            strokeBefore = [strokeBefore; selectedFaces(newFaces)];
         else
-            undoStack(end+1) = struct('Faces', faces, 'Before', paintTarget(faces), 'Applied', false);
+            undoStack(end+1) = struct('Faces', faces, 'Before', strings(0,1), 'Applied', false, 'BeforeSelected', selectedFaces(faces));
         end
-        if flagErase
-            paintTarget(faces) = "";
-        else
-            paintTarget(faces) = paintValue();
-        end
-        showPaint();
+        selectedFaces(faces) = ~flagErase;
+        refreshPreview();
     end
 
     function faces = facesUnderMouse(flagSingle, flagErase)
@@ -1245,7 +1290,7 @@ end
                 % with none is seen through, as when painting, so a
                 % Ctrl+Shift+drag over a stroke painted through a window
                 % erases it; found by the script tests, 2026-11-24)
-                eligible = eligible & (~currentlyGlass() | strlength(paintTarget) > 0);
+                eligible = eligible & (~currentlyGlass() | selectedFaces);   % (unselecting: selected glass can be unselected)
             else
                 eligible = eligible & ~currentlyGlass();
             end
@@ -1258,11 +1303,8 @@ end
         strokeOpen = true;
         strokeErase = logical(flagErase);
         strokeFaces = zeros(0,1);
-        strokeBefore = strings(0,1);
+        strokeBefore = false(0,1);
         strokeLastPixel = figureHandle.CurrentPoint;
-        if ~strokeErase && isempty(paintTool)
-            setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left), then Ctrl+drag to paint.');
-        end
         paintFaces(facesUnderMouse(false, strokeErase), strokeErase);
     end
 
@@ -1295,12 +1337,12 @@ end
     function closeStroke()
         % A stroke is finished: its faces become one Undo entry
         if strokeOpen && ~isempty(strokeFaces)
-            undoStack(end+1) = struct('Faces', strokeFaces, 'Before', strokeBefore, 'Applied', false);
+            undoStack(end+1) = struct('Faces', strokeFaces, 'Before', strings(0,1), 'Applied', false, 'BeforeSelected', strokeBefore);
             notifyPaint();
         end
         strokeOpen = false;
         strokeFaces = zeros(0,1);
-        strokeBefore = strings(0,1);
+        strokeBefore = false(0,1);
         updateStatus();
     end
 
@@ -1308,10 +1350,6 @@ end
         % A click (no drag) on the model: paints the face under it with the
         % tool (a double-click, the whole piece); a click on faces already
         % painted with this tool takes the paint off
-        if isempty(paintTool)
-            setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left), then click or Ctrl+drag to paint.');
-            return;
-        end
         face = facesUnderMouse(true, false);
         if isempty(face)
             return;
@@ -1331,7 +1369,7 @@ end
             % 2026-11-24 02:24 and 02:49)
             clickEntry = undoStack(end);
             undoStack(end) = [];
-            paintTarget(clickEntry.Faces) = clickEntry.Before;
+            selectedFaces(clickEntry.Faces) = clickEntry.BeforeSelected;
         end
         lastClickTime = [];
         if flagPiece
@@ -1340,8 +1378,8 @@ end
             end
             face = find(meshPieces == meshPieces(face));
         end
-        flagAlreadyPainted = all(paintTarget(face) == paintValue());
-        paintFaces(face, flagAlreadyPainted);
+        flagAlreadySelected = all(selectedFaces(face));
+        paintFaces(face, flagAlreadySelected);   % (a click on selected faces unselects them)
         if ~flagPiece
             lastClickTime = tic;
             lastClickUndo = numel(undoStack);
@@ -1369,14 +1407,14 @@ end
         if strokeOpen
             closeStroke();
         end
-        faces = find(paintTarget ~= appliedTarget);
+        faces = find(selectedFaces);
         if isempty(faces)
             return;
         end
-        undoStack(end+1) = struct('Faces', faces, 'Before', paintTarget(faces), 'Applied', false);
-        paintTarget(faces) = appliedTarget(faces);
+        undoStack(end+1) = struct('Faces', faces, 'Before', strings(0,1), 'Applied', false, 'BeforeSelected', true(numel(faces),1));
+        selectedFaces(faces) = false;
         lastClickTime = [];
-        showPaint();
+        refreshPreview();
         setHint(sprintf('%d selected face(s) unselected (Esc). Undo puts them back.', numel(faces)));
     end
 
@@ -1402,14 +1440,30 @@ end
 
     %% Apply, Undo, Save, Revert
     function applyEdits()
-        % The pending paint becomes part of the temporary modified mesh
-        % (hidden faces go out of view, and out of reach)
-        appliedTarget = paintTarget;
-        for ith_entry = 1:numel(undoStack)
-            undoStack(ith_entry).Applied = true;
+        % The label picked goes on the selected faces, in the temporary
+        % modified mesh, and the selection is cleared (hidden faces go out
+        % of view, and out of reach); one Undo entry
+        if strokeOpen
+            closeStroke();
         end
+        faces = find(selectedFaces);
+        if isempty(faces)
+            setHint('Nothing selected: Ctrl+drag, or click, to select faces, then Apply.');
+            return;
+        end
+        if isempty(paintTool)
+            setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left): Apply puts it on the selected faces.');
+            return;
+        end
+        % (the selection steps that led here become this one Undo step)
+        if ~isempty(undoStack)
+            undoStack(~[undoStack.Applied]) = [];
+        end
+        undoStack(end+1) = struct('Faces', faces, 'Before', appliedTarget(faces), 'Applied', true, 'BeforeSelected', true(numel(faces),1));
+        appliedTarget(faces) = previewValue();
+        selectedFaces(:) = false;
         absorbTarget(appliedTarget);   % (applied paint in the working mesh: a lamp painted lights with the lamps)
-        showPaint();
+        refreshPreview();
         notifyChange();
     end
 
@@ -1423,12 +1477,15 @@ end
         end
         lastEntry = undoStack(end);
         undoStack(end) = [];
-        paintTarget(lastEntry.Faces) = lastEntry.Before;
         if lastEntry.Applied
+            % (an Apply taken back, with the selection that led to it: the
+            % labels before it)
             appliedTarget(lastEntry.Faces) = lastEntry.Before;
             absorbTarget(appliedTarget);
+        else
+            selectedFaces(lastEntry.Faces) = lastEntry.BeforeSelected;
         end
-        showPaint();
+        refreshPreview();
         if lastEntry.Applied
             notifyChange();
         end
@@ -1442,9 +1499,8 @@ end
         if nargin < 1
             flagVersion = versionsOn();
         end
-        appliedTarget = paintTarget;
-        for ith_entry = 1:numel(undoStack)
-            undoStack(ith_entry).Applied = true;
+        if any(selectedFaces) && ~isempty(paintTool)
+            applyEdits();   % (the selected faces take the label picked first)
         end
         labelEditsAfterSimplify = getEdits();   % (the kept fixes, then the paint)
         if ~isempty(editsFile)
@@ -1599,6 +1655,7 @@ end
 
     function revertToSaved()
         % Back to the last save
+        selectedFaces(:) = false;
         paintTarget = savedTarget;
         appliedTarget = savedTarget;
         undoStack(:) = [];
@@ -1609,6 +1666,7 @@ end
 
     function revertToStart()
         % Back to the mesh before any edits (Save to make it stick)
+        selectedFaces(:) = false;
         paintTarget = strings(numFaces,1);
         appliedTarget = paintTarget;
         undoStack(:) = [];
@@ -1632,19 +1690,103 @@ end
         if ~isfield(loaded, 'labelEditsAfterSimplify')
             return;
         end
+        paintTarget = targetFromEdits(loaded.labelEditsAfterSimplify, paintTarget);
+        appliedTarget = paintTarget;   % (what was saved is applied, and saved)
+        savedTarget = paintTarget;
+        absorbSaved();   % (and taken into the working mesh)
+    end
+
+    function targetOut = targetFromEdits(editsIn, targetOut)
+        % The paint a list of saved edits puts on the faces (each paint
+        % edit's points matched to the nearest face centers; kept fixes are
+        % already in the base mesh)
         centers = baseCenters;
-        for ith_edit = 1:numel(loaded.labelEditsAfterSimplify)
-            thisEdit = loaded.labelEditsAfterSimplify{ith_edit};
+        for ith_edit = 1:numel(editsIn)
+            thisEdit = editsIn{ith_edit};
             if ~fcn_INTERNAL_isPaintEdit(thisEdit)
                 continue;   % (a kept fix: already in the base mesh)
             end
             target = fcn_INTERNAL_editTarget(thisEdit);
             [nearestFace, nearestDistance] = fcn_INTERNAL_nearest(centers, thisEdit.Points);
-            paintTarget(nearestFace(nearestDistance <= 0.005)) = string(target);
+            targetOut(nearestFace(nearestDistance <= 0.005)) = string(target);
         end
-        appliedTarget = paintTarget;   % (what was saved is applied, and saved)
-        savedTarget = paintTarget;
-        absorbSaved();   % (and taken into the working mesh)
+    end
+
+    function copies = listSavedCopies()
+        % The timestamped copies of this mesh's saves, newest first: a
+        % table of File (full name) and Saved (the time in its name)
+        copies = table(cell(0,1), NaT(0,1), 'VariableNames', {'File', 'Saved'});
+        if isempty(versionName) || ~isfolder(versionFolder)
+            return;
+        end
+        listing = dir(fullfile(versionFolder, [versionName '_*.mat']));
+        for ith_file = 1:numel(listing)
+            stamp = regexp(listing(ith_file).name, ['^' regexptranslate('escape', versionName) '_(\d{14})\.mat$'], 'tokens', 'once');
+            if ~isempty(stamp)
+                copies(end+1, :) = {{fullfile(listing(ith_file).folder, listing(ith_file).name)}, ...
+                    datetime(stamp{1}, 'InputFormat', 'yyyyMMddHHmmss')}; %#ok<AGROW>
+            end
+        end
+        copies = sortrows(copies, 'Saved', 'descend');
+    end
+
+    function revertToCopy(copyFile)
+        % Back to one of the timestamped copies: its paint becomes the
+        % applied paint, not yet saved (Save to make it stick)
+        loaded = load(copyFile, 'labelEditsAfterSimplify');
+        if ~isfield(loaded, 'labelEditsAfterSimplify')
+            setHint(sprintf('<font color="#b03000"><b>Not reverted:</b> %s holds no label edits.</font>', copyFile));
+            return;
+        end
+        target = targetFromEdits(loaded.labelEditsAfterSimplify, strings(numFaces,1));
+        selectedFaces(:) = false;
+        paintTarget = target;
+        appliedTarget = target;
+        undoStack(:) = [];
+        absorbTarget(appliedTarget);
+        showPaint();
+        notifyChange();
+        [~, fileName, extension] = fileparts(copyFile);
+        setHint(sprintf('Reverted to the copy saved as %s%s. <b>Not saved yet:</b> Save to make it the vehicle''s edits.', fileName, extension));
+    end
+
+    function pickRevert()
+        % "Revert to a save...": a list of the saves to go back to (the
+        % last save, then each timestamped copy, newest first), as Sean
+        % expected (2026-11-24 15:14, T36): pick one, then Revert
+        copies = listSavedCopies();
+        items = {'The last save (the edits file)'};
+        if ~isempty(editsFile) && isfile(editsFile)
+            info = dir(editsFile);
+            items{1} = sprintf('The last save (the edits file, %s)', char(datetime(info.datenum, 'ConvertFrom', 'datenum', 'Format', 'yyyy-MM-dd HH:mm:ss')));
+        end
+        for ith_copy = 1:height(copies)
+            [~, fileName] = fileparts(copies.File{ith_copy});
+            items{end+1} = sprintf('%s   (%s.mat)', char(copies.Saved(ith_copy), 'yyyy-MM-dd HH:mm:ss'), fileName); %#ok<AGROW>
+        end
+        windowPosition = figureHandle.Position;
+        dialogSize = [560 360];
+        dialog = uifigure('Name', 'Revert to a save', 'WindowStyle', 'modal', 'Tag', 'revertDialog', ...
+            'Position', [windowPosition(1:2) + (windowPosition(3:4) - dialogSize)/2, dialogSize]);
+        dialogGrid = uigridlayout(dialog, [4 1], 'RowHeight', {'fit', '1x', 'fit', 30});
+        uilabel(dialogGrid, 'Text', {'Go back to which save? Paint since then is taken off.', ...
+            sprintf('Timestamped copies are in %s', versionFolder)}, 'WordWrap', 'on');
+        list = uilistbox(dialogGrid, 'Items', items, 'ItemsData', 0:height(copies), 'Value', 0, 'Tag', 'revertList');
+        uilabel(dialogGrid, 'Text', 'A copy is put back as applied paint, not saved: Save afterward to make it stick.', ...
+            'FontColor', [0.35 0.35 0.35], 'WordWrap', 'on');
+        buttonGrid = uigridlayout(dialogGrid, [1 3], 'ColumnWidth', {'1x', 100, 100}, 'Padding', [0 0 0 0]);
+        uilabel(buttonGrid, 'Text', '');
+        uibutton(buttonGrid, 'Text', 'Revert', 'FontWeight', 'bold', 'Tag', 'revertGo', 'ButtonPushedFcn', @(~,~) choose(list.Value));
+        uibutton(buttonGrid, 'Text', 'Cancel', 'Tag', 'revertCancel', 'ButtonPushedFcn', @(~,~) delete(dialog));
+        list.DoubleClickedFcn = @(~,~) choose(list.Value);
+        function choose(index)
+            delete(dialog);
+            if index == 0
+                revertToSaved();
+            else
+                revertToCopy(copies.File{index});
+            end
+        end
     end
 
     %% What the painter gives out
@@ -1683,7 +1825,7 @@ end
     end
 
     function statusOut = getStatus()
-        statusOut = struct('Pending', nnz(paintTarget ~= appliedTarget), 'Applied', nnz(strlength(appliedTarget) > 0), ...
+        statusOut = struct('Pending', nnz(selectedFaces), 'Applied', nnz(strlength(appliedTarget) > 0), ...
             'Hidden', nnz(startsWith(appliedTarget, "hide:")), 'Deleted', 0, 'Saved', isequal(appliedTarget, savedTarget) && isequal(paintTarget, savedTarget), ...
             'UndoSteps', numel(undoStack), 'Tool', paintTool);
     end
@@ -1704,7 +1846,7 @@ end
         else
             savedText = '<font color="#b03000"><b>not saved</b></font>';
         end
-        editStatusLabel.Text = sprintf('%d faces painted, not applied  |  %d changed (%d hidden) in the modified mesh  |  %s  |  %d undo steps', ...
+        editStatusLabel.Text = sprintf('%d faces selected, not applied  |  %d changed (%d hidden) in the modified mesh  |  %s  |  %d undo steps', ...
             statusNow.Pending, statusNow.Applied, statusNow.Hidden, savedText, statusNow.UndoSteps);
     end
 
@@ -1893,7 +2035,7 @@ end
         % The paint layers, and what is drawn (for tests' checks)
         flagShown = ~hiddenFaces();
         layers = struct('Paint', paintTarget, 'Applied', appliedTarget, 'Saved', savedTarget, 'Working', workingTarget, ...
-            'PendingFaces', find(paintTarget ~= appliedTarget & flagShown), ...
+            'PendingFaces', find(selectedFaces & flagShown), 'Selected', find(selectedFaces), ...
             'AppliedFaces', find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown), ...
             'PendingDrawn', size(paintEdges.Faces,1), 'AppliedDrawn', size(appliedPatch.Faces,1), ...
             'StatusText', editStatusLabel.Text, 'KeptEdits', numel(keptEdits));
@@ -2067,7 +2209,8 @@ function names = fcn_INTERNAL_paintNames()
 % The labels faces can be painted as (parts, light types), and hide and
 % unhide (never delete: Sean, 04:07)
 names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
-    'fog', 'reflector', 'licenseplate', 'marker', 'warning', 'hide', 'unhide'};
+    'fog', 'reflector', 'licenseplate', 'marker', 'warning', 'hide', 'unhide', 'original'};
+% ('original': back to the label as downloaded, Q44 (A), 2026-11-24)
 end % Ends fcn_INTERNAL_paintNames
 
 %% fcn_INTERNAL_paintText
@@ -2083,7 +2226,7 @@ function [color, alpha] = fcn_INTERNAL_paintColor(data, name)
 % that label have (in the labels view), else a standard one
 defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], 'interior', [0.85 0.65 0.40], ...
     'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'highbeam', [0.80 0.90 1.00], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
-    'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30]);
+    'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30], 'original', [0.60 0.60 0.60]);
 for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types: their label colors; Sean, task 8)
     if ~isfield(defaults, thisType.Name)
         defaults.(thisType.Name) = thisType.LabelColor;
@@ -2097,7 +2240,7 @@ alpha = 1;
 if strcmp(name, 'glass')
     alpha = 0.45;
 end
-if any(strcmp(name, {'hide', 'unhide'}))
+if any(strcmp(name, {'hide', 'unhide', 'original'}))
     return;
 end
 if any(strcmp(name, {'body', 'glass', 'trim', 'interior', 'wheel'}))
@@ -2212,7 +2355,7 @@ function edits = fcn_INTERNAL_paintEdits(vehicleMesh, paintTarget)
 % set (Hide)
 edits = {};
 centers = fcn_INTERNAL_faceCenters(vehicleMesh);
-names = setdiff(fcn_INTERNAL_paintNames(), {'hide', 'unhide'}, 'stable');
+names = setdiff(fcn_INTERNAL_paintNames(), {'hide', 'unhide', 'original'}, 'stable');
 hideTargets = unique(paintTarget(startsWith(paintTarget, "hide:")));
 targets = [string(names(:)); "unhide"; hideTargets(:)];
 for ith_target = 1:numel(targets)
@@ -2274,9 +2417,11 @@ switch name
         textOut = ['Hide faces (Ctrl+drag over them): they stay in the mesh, with their labels, in the set named in ' ...
             '"Hide as", and are not drawn or measured. Never deleted: the animator can show the set again.'];
     case 'unhide'
-        textOut = 'Show hidden faces again (tick "Show hidden faces" to see them, then Ctrl+drag over them)';
+        textOut = 'Show hidden faces again, on Apply (tick "Show hidden faces" to see them, then select them)';
+    case 'original'
+        textOut = 'Put back the label each selected face had in the download (the paint taken off), on Apply';
     otherwise
-        textOut = sprintf('Paint faces as %s (Ctrl+drag over them)', fcn_INTERNAL_paintText(name));
+        textOut = sprintf('Label the selected faces %s, on Apply (select them with Ctrl+drag or clicks)', fcn_INTERNAL_paintText(name));
 end
 end % Ends fcn_INTERNAL_paintTooltip
 

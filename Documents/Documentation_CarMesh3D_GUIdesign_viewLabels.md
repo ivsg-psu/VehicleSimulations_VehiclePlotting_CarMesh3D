@@ -8,21 +8,7 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-24 08:10. Almost everything is now tested by script (automated GUI tests, Q39: Agent C, 06:06 to 07:57; checked by Claude 08:05: all pass). T32 and T33 are now checked by script: moved to the change log. What is left needs your eyes.*
-
-**First:** close any viewer or painter window and run `clear functions`.
-
-- **T31. Camera readout, larger and in four lines** (Sean, 04:37): in Overall Display under Copy view call, at 13 points: `Camera view:` / `yaw angle: 60° (from the front, left)` / `altitude angle: -20° (down)` / `distance from center: 28 m` at Reset view on the Fit. Turn the model: the yaw's words follow in eight 45° sectors (front, front left, left side, behind left, behind, ...); the altitude is negative looking down, "(level)" near 0, "(up)" from below. Same in the painter.
-(Sean's result:)
-
-- **T42. Small windows:** with a panel open, below about 900 px wide the photo and dial are hidden (the model keeps the room) and come back when the window grows; above that the photo shrinks with the window. Is that what you want?
-(Sean's result:)
-
-- **T43. Tighter rows:** Colors? Labels / Vehicle buttons are closer together; the Colored? and Shown? columns in Labels To Display are narrower. Still easy to read and click?
-(Sean's result:)
-
-- **T44. Lamps header:** the Lamps To Display header now reads "Off On Brake" over its columns. Clear?
-(Sean's result:)
+*Updated 2026-11-24 14:58. Nothing to review: T31 and T42 to T44 passed (Sean, 14:58) and are in the change log. The painter's camera readout moved to the painter's design file as T48 (rule, Sean 14:47: a test for a function lives in that function's documentation only).*
 
 ---
 
@@ -532,3 +518,34 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
   - **T33. Resizing keeps the vehicle in view** (your T23 bug): make the window narrower, then shorter, then full screen again: the whole vehicle stays in view each time. Zoom in with the wheel first, then resize: it stays zoomed by the same amount. Reset view at any size shows the whole vehicle. Same in the painter.
   (Sean's result:)
     (Checked by script: framing and zoom kept at five window sizes; Reset view fits the window.)
+
+- 2026-11-24 14:40 to 14:58 (Sean): **viewer review closed: T31, T42, T43, T44 pass.** Sean asked (14:40, 14:43) that each test list start with its exact MATLAB setup commands, beginning with `close all force; clear functions; clc`; and (14:47) that a test for a function live only in that function's documentation (the painter part of T31 moved to the painter's file as T48). T42: Sean's wording correction: "...above that the model shrinks/grows with the window..." (the behavior seen and wanted). T43 meant narrower than the previous version (fixed widths), not columns that narrow as the window does. The steps as reviewed, with Sean's results:
+
+  **Setup for T31 to T44** (the exact commands, Sean 14:40; the Fit by name, since the demo vehicle may be set to another one):
+  
+  ```matlab
+  close all force; clear functions; clc
+  vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2009_Honda_Fit_Sport');
+  [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, Wait=false);
+  ```
+  
+  - **T31. Camera readout, larger and in four lines** (Sean, 04:37): in Overall Display under Copy view call, at 13 points: `Camera view:` / `yaw angle: 60° (from the front, left)` / `altitude angle: -20° (down)` / `distance from center: 28 m` at Reset view on the Fit. Turn the model: the yaw's words follow in eight 45° sectors (front, front left, left side, behind left, behind, ...); the altitude is negative looking down, "(level)" near 0, "(up)" from below.
+  (Sean's result:
+  * PASS: copy view call -->works as expected
+  * PASS: all measurements work as expected in both mouse rotations / elevations and spinner rotations
+  )
+  
+  - **T42. Small windows:** (the setup above) with a panel open, below about 900 px wide the photo and dial are hidden (the model keeps the room) and come back when the window grows; above that the photo shrinks with the window. Is that what you want?
+  (Sean's result:
+  * PASS: works as expected. This is desirable result. Reword test due to typo: as "...above that the model shrinks/grows with the window..." which is behavior observed and expected 
+  ) 
+  
+  - **T43. Tighter rows:** (the setup above) Colors? Labels / Vehicle buttons are closer together; the Colored? and Shown? columns in Labels To Display are narrower. Still easy to read and click?
+  (Sean's result:
+  * PASS: still very easy to read. 
+  )
+  
+  - **T44. Lamps header:** (the setup above) the Lamps To Display header now reads "Off On Brake" over its columns. Clear?
+  (Sean's result:
+  * PASS: very clear. 
+  )
