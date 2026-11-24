@@ -277,6 +277,11 @@ A mesh moves from `DataSomeday` into `Data` only when **all** of these hold. The
 7. **It is light enough to animate:** a sparse mesh with sensible face counts and its detail levels made (`vehicleLevels_<ID>.mat`). The goal is a good likeness, not photorealism.
 8. **Its license allows our use:** CC0 or Free Standard, written in `LICENSE.txt` in the standard format below.
 9. **Its checks have been looked at and pass:** the pictures and animations in `checks/`, and a review in the label viewer or the Model Reviewer.
+10. **It has a set of photos of the real vehicle all around** (Sean, 2026_11_24), in a `photos` folder in the vehicle's folder:
+    - **Names:** `ViewInDegrees_<angle>.jpg`. The angle is where the camera stands, in degrees around the vehicle, three digits from 000 to 359 (000 is the front, 090 the left side, 180 the rear, 270 the right side).
+    - **Coverage:** enough views to go all the way around; the angles need not be even.
+    - **Use:** the label viewer, the label painter and the Model Reviewer show the photo nearest to the view beside the mesh, so labels and colors can be checked against the real vehicle.
+    - **Other formats:** photos found on the web come in many formats (WebP, AVIF, PNG, HEIC ...). Name them `ViewInDegrees_<angle>.<extension>`, then run `fcn_CarMesh3D_convertPhotos(ID)`. It makes the standard `.jpg` for each angle, and when two photos share an angle, it keeps the one with more pixels. Other photos (close-ups of a lamp, the interior) may stay in the folder under other names: they are skipped, with a warning.
 
 A vehicle that cannot meet a requirement yet (no seats or no steering wheel in the download, say) stays in `DataSomeday` with a README.md in its folder saying what is missing. The [Someday vehicles](#someday-vehicles-datasomeday) section has more.
 
@@ -1076,7 +1081,7 @@ Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fas
 
 ## Tests
 
-Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (76 functions, 74 test scripts; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`, and `fcn_CarMesh3D_guiRandomWalk` with `fcn_CarMesh3D_guiDriver`). Run one by name, or all of them:
+Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (77 functions, 75 test scripts; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`, and `fcn_CarMesh3D_guiRandomWalk` with `fcn_CarMesh3D_guiDriver`). Run one by name, or all of them:
 
 ```matlab
 script_test_fcn_CarMesh3D_plotVehicle            % one function
@@ -3013,6 +3018,31 @@ A vehicle's mesh with the label fixes saved in its `labelEdits_<ID>.mat`: the me
 | `FigNum` | option | a figure to plot the mesh in; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
 | `vehicleMesh` | output | the mesh with the saved label fixes. | struct | 1 x 1 |
 | `info` | output | Source ('mesh file', 'stage-1 mesh with the saved edits', or 'mesh file (no stage-1 cache)'), NumEdits, EditsFile, MeshFile. | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_convertPhotos</code></b> (test: <code>script_test_fcn_CarMesh3D_convertPhotos.m</code>): Brings a folder of vehicle photos to the standard: one ViewInDegrees_&lt;angle&gt;.jpg per angle.</summary>
+
+For students' photo uploads, which come in many formats from many sources (Sean, 2026_11_24). Angle by angle:
+- **Which files:** it takes every file named `ViewInDegrees_<angle>.<extension>` (angle three digits, 000 to 359). Other files are skipped and named in a warning: other names, two-digit angles, angles over 359, and unsupported formats.
+- **Formats:** JPEG is already the standard. MATLAB reads PNG, BMP, TIFF, GIF and HEIC/HEIF. WebP and AVIF, which MATLAB cannot read, are decoded by Windows' own image codecs (Windows 10 and 11); on other systems, convert those by hand first.
+- **Ties:** the photo with the most pixels wins; on equal pixels a JPEG wins, then the larger file.
+- **Nothing is deleted:** a losing `.jpg`, `.jpeg` or `.png`, which the viewer would also list, is moved to `photos/originals`, and so is a converted `.png` or `.jpeg`. Other losers (`.webp`, `.avif` ...) stay where they are.
+- **Running it again changes nothing:** each JPEG it makes carries a comment naming its source and that source's size. Photos are compared by pixels and by that comment, never by file size, since a converted JPEG is a smaller file than its source.
+- **Tested** on the Transit Connect's mixed pile: JPEG and WebP, uneven angles, and two photos at 180 degrees.
+
+```matlab
+report = fcn_CarMesh3D_convertPhotos(photoFolderOrID, (DryRun=flag), (Quality=q), (Verbose=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `photoFolderOrID` | input | a photos folder, or a vehicle ID (its `photos` folder). | char or string | 1 x n |
+| `DryRun` | option | true to report only (nothing written or moved). Default false. | logical | 1 x 1 |
+| `Quality` | option | the JPEG quality, 1 to 100. Default 95. | double | 1 x 1 |
+| `Verbose` | option | print what was done, angle by angle. Default true. | logical | 1 x 1 |
+| `FigNum` | option | a figure for a contact sheet of the standard photos; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `report` | output | one row per file: File, Angle, Format, Width, Height, Action, Output. | table | n x 7 |
 
 </details>
 
