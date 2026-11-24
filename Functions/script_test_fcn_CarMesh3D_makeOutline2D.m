@@ -236,6 +236,58 @@ assert(nnz(isAdded) == 1 && nnz(isMirror) == 0);
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: Interior objects only: driver seat, passenger seat, steering wheel (2026-11-24)
+figNum = 20006;
+titleString = sprintf('TEST case: Interior objects only: the seats and the steering wheel');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); close(figNum);
+
+% (objects as fcn_CarMesh3D_findInteriorObjects gives them: the interior
+% part's faces on the left as the driver seat, on the right as the
+% passenger seat, and the added one-sided triangle as the steering wheel;
+% the rest of the interior part must NOT be outlined)
+faceCentersY = (oneSided.Vertices(oneSided.Faces(:,1),2) + oneSided.Vertices(oneSided.Faces(:,2),2) + oneSided.Vertices(oneSided.Faces(:,3),2))/3;
+isInterior = oneSided.FacePartIndex(:) == interiorPart;
+wheelFace = size(oneSided.Faces,1);
+found = struct( ...
+    'DriverSeat', struct('Found', true, 'Faces', setdiff(find(isInterior & faceCentersY > 0.15), wheelFace)), ...
+    'PassengerSeat', struct('Found', true, 'Faces', find(isInterior & faceCentersY < -0.15)), ...
+    'SteeringWheel', struct('Found', true, 'Faces', wheelFace));
+warningState = warning('off', 'CarMesh3D:asymmetricOutline');
+objectOutline = fcn_CarMesh3D_makeOutline2D(oneSided, InteriorObjects=found);
+% (the same objects stored in the mesh itself, as a build will store them)
+storedMesh = oneSided;
+storedMesh.FaceInteriorObject = zeros(size(storedMesh.Faces,1),1);
+storedMesh.FaceInteriorObject(found.DriverSeat.Faces) = 1;
+storedMesh.FaceInteriorObject(found.PassengerSeat.Faces) = 2;
+storedMesh.FaceInteriorObject(wheelFace) = 3;
+storedMesh.InteriorObjectNames = {'driver seat', 'passenger seat', 'steering wheel'};
+storedOutline = fcn_CarMesh3D_makeOutline2D(storedMesh);
+% (an object not found is left out)
+notFound = found;
+notFound.SteeringWheel.Found = false;
+noWheelOutline = fcn_CarMesh3D_makeOutline2D(oneSided, InteriorObjects=notFound);
+warning(warningState);
+
+% Check variable values
+assert(isequal({objectOutline.Interior.Name}, {'driver seat', 'passenger seat', 'steering wheel'}), 'One outline per object, in order');
+assert(isequal(storedOutline.Interior, objectOutline.Interior), 'Objects stored in the mesh give the same outlines');
+assert(isequal({noWheelOutline.Interior.Name}, {'driver seat', 'passenger seat'}), 'An object not found is left out');
+wheelPolygon = objectOutline.Interior(3).Polygon;
+assert(abs(polyarea(wheelPolygon(:,1), wheelPolygon(:,2)) - 0.02) < 1e-3 && mean(wheelPolygon(1:end-1,2)) > 0.3, 'The steering wheel outlined on its side, not mirrored');
+driverCenter = mean(objectOutline.Interior(1).Polygon(1:end-1,:),1);
+passengerCenter = mean(objectOutline.Interior(2).Polygon(1:end-1,:),1);
+assert(driverCenter(2) > 0 && passengerCenter(2) < 0, 'The seats on their own sides');
+bodyShape = polyshape(objectOutline.Body(1:end-1,:));
+for ith_piece = 1:numel(objectOutline.Interior)
+    piecePoints = objectOutline.Interior(ith_piece).Polygon;
+    assert(all(isinterior(polybuffer(bodyShape, 0.02), piecePoints(:,1), piecePoints(:,2))), 'Inside the body');
+end
+
+% Make sure plot did NOT open up
+figHandles = get(groot, 'Children');
+assert(~any(figHandles==figNum));
+
 %% Fast Mode Tests
 
 %% Basic example - NO FIGURE

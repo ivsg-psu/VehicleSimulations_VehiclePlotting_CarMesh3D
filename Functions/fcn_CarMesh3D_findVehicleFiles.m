@@ -13,6 +13,14 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %       Data\Samples\<ID>\              made-up vehicles (the sample car)
 %       Data\<ID>\                       (older layout, still found)
 %
+% SOMEDAY VEHICLES. New downloads, vehicles not fully processed, and
+% vehicles whose mesh lacks the front seats or the steering wheel are kept
+% in DataSomeday, a folder beside Data with the same layout (Sean,
+% 2026-11-24; see DataSomeday\README.md). Looked up by its ID, such a
+% vehicle is found there (IsSomeday is true), so its script runs; but
+% listing every vehicle (vehicleID '') lists Data only, so the library
+% browser, the body styles and the library rebuilds leave them out.
+%
 % THE NAMING CONVENTION. The vehicle's folder is named
 %
 %       YEAR_Make_Model_Trimline        for example   2013_Toyota_Prius_Four
@@ -77,6 +85,9 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %      element per vehicle folder) with fields:
 %           ID, Year (number), Make, Model, Trim, Name ('2013 Toyota Prius Four')
 %           Folder, ParametersFile, ScriptFile, MeshFile, LevelsFile,
+%           DownloadRoot: the folder a script's modelFile is relative to:
+%               the vehicle's folder in LargeData when its download is
+%               there, else the vehicle's own folder
 %           OutlineFile, ModelFolder, ChecksFolder: full paths, following
 %           the convention above (ModelFolder is the vehicle's folder
 %           itself when it has no model subfolder)
@@ -87,6 +98,7 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %               such as 'sedan' ('' if not under Data\BodyStyles)
 %           BodyStyleFolder: that folder's name, such as 'Sedan'
 %           IsSample: true for a vehicle under Data\Samples
+%           IsSomeday: true for a vehicle found in DataSomeday
 %           Found: true if the vehicle's folder exists
 %           HasParameters, HasScript, HasMesh, HasLevels, HasOutline: true
 %           if those files exist
@@ -146,6 +158,15 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %   % * vehicleID may be the full path of a vehicle's folder kept anywhere
 %   %   % (the demo's copy of a vehicle, so the demo saves nothing to the
 %   %   % real vehicle)
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * A vehicle looked up by ID and not found below Data is looked for in
+%   %   % DataSomeday (beside Data), so the scripts of new downloads and
+%   %   % unfinished vehicles kept there still run; listing (ID '') still
+%   %   % lists Data only. Added IsSomeday (Sean, 11:01 and 11:11)
+%   % * ModelFolder is the vehicle's folder in LargeData (beside Data, the
+%   %   % same layout) when the download is there (Sean, 13:17)
 
 % TO-DO:
 %
@@ -288,7 +309,22 @@ elseif fcn_INTERNAL_isFolderPath(vehicleID)
     vehicleFiles = fcn_INTERNAL_filesForID(folderID, vehicleFolder, dataFolder);
 else
     matches = find(strcmp(folderIDs, vehicleID));
-    if numel(matches) > 1
+    % (not below Data: a someday vehicle, in DataSomeday beside Data?)
+    somedayFolder = fullfile(fileparts(dataFolder), 'DataSomeday');
+    somedayPath = '';
+    if isempty(matches) && isempty(options.DataFolder) && isfolder(somedayFolder)
+        [somedayPaths, somedayIDs] = fcn_INTERNAL_findFolders(somedayFolder);
+        somedayMatches = find(strcmp(somedayIDs, vehicleID));
+        if numel(somedayMatches) > 1
+            error('The vehicle ID %s is used by more than one folder:\n%s', vehicleID, strjoin(somedayPaths(somedayMatches), newline));
+        elseif isscalar(somedayMatches)
+            somedayPath = somedayPaths{somedayMatches};
+        end
+    end
+    if ~isempty(somedayPath)
+        vehicleFolder = somedayPath;
+        dataFolder = somedayFolder;   % (so its body style is read from DataSomeday\BodyStyles)
+    elseif numel(matches) > 1
         error('The vehicle ID %s is used by more than one folder:\n%s', vehicleID, strjoin(folderPaths(matches), newline));
     elseif isscalar(matches)
         vehicleFolder = folderPaths{matches};
@@ -405,7 +441,20 @@ vehicleFiles.MeshFile = fullfile(vehicleFiles.Folder, ['vehicleMesh_' vehicleID 
 vehicleFiles.LevelsFile = fullfile(vehicleFiles.Folder, ['vehicleLevels_' vehicleID '.mat']);
 vehicleFiles.OutlineFile = fullfile(vehicleFiles.Folder, ['vehicleOutline_' vehicleID '.mat']);
 vehicleFiles.ModelFolder = fullfile(vehicleFiles.Folder, 'model');
-if isfolder(vehicleFiles.Folder) && ~isfolder(vehicleFiles.ModelFolder)
+% (the downloads live in LargeData, beside Data, in the same layout:
+% LargeData\Data\BodyStyles\<Style>\<ID>\model; Sean, 2026-11-24 13:17.
+% That folder is used when it is there; else the older places)
+repoFolder = fileparts(fileparts(fullfile(dataFolder, 'x')));
+if startsWith(vehicleFiles.Folder, [repoFolder filesep], 'IgnoreCase', true)
+    largeModelFolder = fullfile(repoFolder, 'LargeData', vehicleFiles.Folder(numel(repoFolder)+2:end), 'model');
+else
+    largeModelFolder = '';
+end
+vehicleFiles.DownloadRoot = vehicleFiles.Folder;   % (what a script's modelFile, such as model\source\x.glb, is relative to)
+if ~isempty(largeModelFolder) && isfolder(largeModelFolder)
+    vehicleFiles.ModelFolder = largeModelFolder;
+    vehicleFiles.DownloadRoot = fileparts(largeModelFolder);
+elseif isfolder(vehicleFiles.Folder) && ~isfolder(vehicleFiles.ModelFolder)
     vehicleFiles.ModelFolder = vehicleFiles.Folder;     % (a download left in the vehicle's folder)
 end
 vehicleFiles.ChecksFolder = fullfile(vehicleFiles.Folder, 'checks');
@@ -422,6 +471,8 @@ if strcmpi(grandName, 'BodyStyles') && strcmpi(fileparts(grandFolder), fileparts
     vehicleFiles.BodyStyle = [lower(parentName(1)) parentName(2:end)];
 end
 vehicleFiles.IsSample = strcmpi(parentName, 'Samples') && strcmpi(grandFolder, fileparts(fullfile(dataFolder, 'x')));
+[~, dataFolderName] = fileparts(fileparts(fullfile(dataFolder, 'x')));
+vehicleFiles.IsSomeday = strcmpi(dataFolderName, 'DataSomeday');
 
 vehicleFiles.Found = isfolder(vehicleFiles.Folder);
 vehicleFiles.HasParameters = isfile(vehicleFiles.ParametersFile);

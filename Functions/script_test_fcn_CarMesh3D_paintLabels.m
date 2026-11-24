@@ -6,6 +6,18 @@
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_paintLabels
 %   % * First write
+%
+% 2026_11_24 (Agent B) by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_paintLabels
+%   % * Runs on temporary copies of the vehicles (fcn_CarMesh3D_makeDemoCopy):
+%   %   % nothing is saved in a real vehicle's folder any more (it once
+%   %   % overwrote the Fit's edits when a run failed)
+%   %   % * The vehicles named by fcn_CarMesh3D_demoVehicle (Q35/Q36)
+%   %   % * Script-driven tests (Sean, 05:03): every panel and control set
+%   %   % through fcn_CarMesh3D_guiDriver; clicks, double-clicks, Ctrl+drags
+%   %   % and keys through the window's own handlers; random walks with
+%   %   % rules checked after each step; the layout at four window sizes;
+%   %   % the saved fixes the painter keeps; closing time
 
 % TO-DO:
 %
@@ -15,36 +27,29 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';
-vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
-% (the vehicle's edits file is backed up, and put back at the end)
-editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleID));
-backupFolder = tempname;
-mkdir(backupFolder);
-flagHadEdits = isfile(editsFile);
-if flagHadEdits
-    copyfile(editsFile, backupFolder);
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the 2009 Fit)
+guiTestID = fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1);       % (the GUI test vehicle: every feature)
+% (every vehicle used is a temporary copy: nothing is saved in a real
+% vehicle's folder; the copies are taken away at the end)
+demoRoot = tempname;
+cleanupDemo = onCleanup(@() fcn_INTERNAL_removeFolder(demoRoot));
+demoFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID, DemoFolder=fullfile(demoRoot, 'fit'), FigNum=-1);
+vehicleFiles = demoFiles;
+editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
+originalEdits = [];
+if isfile(editsFile)
+    originalEdits = load(editsFile, 'labelEditsAfterSimplify');   % (for the kept-fixes test below)
 end
-cleanupBackup = onCleanup(@() fcn_INTERNAL_restore(editsFile, backupFolder, flagHadEdits));
-% (the vehicle's change log is backed up too, and put back at the end:
-% the tests' saves add rows to it)
-historyFile = fullfile(vehicleFiles.Folder, sprintf('meshHistory_%s.csv', vehicleID));
-historyBackup = [tempname '.csv'];
-flagHadHistory = isfile(historyFile);
-if flagHadHistory
-    copyfile(historyFile, historyBackup);
-end
-cleanupHistory = onCleanup(@() fcn_INTERNAL_restoreHistory(historyFile, historyBackup, flagHadHistory));
 % (the timestamped copies the tests make go to a temporary folder: the folder
 % remembered for them is set to it, and put back at the end)
-versionFolder = fullfile(tempname, 'meshVersions');
+versionFolder = fullfile(demoRoot, 'versions', 'meshVersions');
 flagHadFolderPref = ispref('CarMesh3D', 'VersionFolder');
 folderPrefBefore = '';
 if flagHadFolderPref
     folderPrefBefore = getpref('CarMesh3D', 'VersionFolder');
 end
 setpref('CarMesh3D', 'VersionFolder', versionFolder);
-cleanupVersions = onCleanup(@() fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore, versionFolder));
+cleanupVersions = onCleanup(@() fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore));
 % (the panel the painter opens with is remembered: put back after the tests)
 flagHadPanelPref = ispref('CarMesh3D', 'PainterPanel');
 panelPrefBefore = '';
@@ -52,6 +57,11 @@ if flagHadPanelPref
     panelPrefBefore = getpref('CarMesh3D', 'PainterPanel');
 end
 cleanupPanel = onCleanup(@() fcn_INTERNAL_restorePanelPref(flagHadPanelPref, panelPrefBefore));
+% (the painter's own controls: every one has a Tag)
+painterTags = {'painterMenu', 'painterUndo', 'painterSave', 'painterRevert', 'painterExit', 'painterStatus', 'painterHint', ...
+    'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_ModifyLabels', 'menu_Settings', ...
+    'paintAs', 'hideAs', 'mirror', 'showHidden', 'paintApply', 'paintHowTo', ...
+    'saveVersion', 'versions', 'versionFolder', 'versionBrowse', 'revertToSave', 'revertToStart', 'editsFileText'};
 
 %% Code demos start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -65,12 +75,12 @@ cleanupPanel = onCleanup(@() fcn_INTERNAL_restorePanelPref(flagHadPanelPref, pan
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Demos%20Of%20Code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% DEMO case: The painter for the 2009 Honda Fit, in its own window (hidden)
-fprintf(1,'DEMO case: the painter for the 2009 Honda Fit, in its own window (hidden)\n');
+%% DEMO case: The painter for the demo vehicle (a copy), in its own window (hidden)
+fprintf(1,'DEMO case: the painter for the demo vehicle (a copy), in its own window (hidden)\n');
 if isfile(editsFile)
-    delete(editsFile);   % (start from no edits)
+    delete(editsFile);   % (start from no edits: the copy's file)
 end
-[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleID, Visible=false);
+[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Visible=false);
 assert(isgraphics(painter.Figure) && isgraphics(painter.Axes));
 assert(isempty(labelEdits));                              % (no edits yet)
 assert(size(editedMesh.Faces,1) == size(painter.Patch.Faces,1));
@@ -141,7 +151,7 @@ assert(max(abs(painter.Patch.FaceVertexCData(trimPick,:) - expected.FaceColors(e
 appliedOverlay = findobj(painter.Axes, 'Tag', 'appliedPaint');
 assert(isempty(appliedOverlay.Faces));                             % (saved: no overlay)
 % (the save is in the vehicle's change log, and the viewer's fine print)
-savedHistory = fcn_CarMesh3D_meshHistory(vehicleID);
+savedHistory = fcn_CarMesh3D_meshHistory(vehicleFiles.Folder);
 assert(strcmp(savedHistory.LastChange.Action, 'label edits saved'));
 finePrint = findobj(painter.Figure, 'Tag', 'finePrint');
 assert(contains(finePrint.Text, 'Last change: label edits saved') && contains(finePrint.Text, 'License'));
@@ -266,8 +276,7 @@ painter.OpenPanel('Modify Labels');
 
 %% TEST case: The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, photos)
 fprintf(1,'TEST case: the GUI test vehicle\n');
-guiTestID = '2026_CarMesh3D_Sample_GUITestVehicle';
-guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
+guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest1'), FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
 [~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, Visible=false);
 assert(all(ismember({'headlight','highbeam','turnsignal','running','tail','backup'}, testPainter.Viewer.LampTypes())));
 for panelName = {'Labels To Display', 'Lamps To Display'}
@@ -315,6 +324,293 @@ assert(changedMesh.FaceLightType(bodyFaces(50)) == tailType);
 embedded.Stop();
 delete(hostFigure);
 
+%% TEST case: Script-driven: every control of the painter's own has a Tag; the hooks drive the window
+fprintf(1,'TEST case: Tags, and the window driven by script\n');
+guiFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest2'), FigNum=-1);
+[~, ~, gp] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, Visible=false);
+state = gp.State();
+missingTags = setdiff(painterTags, state.Tags);
+assert(isempty(missingTags), 'Controls missing their Tags: %s', strjoin(missingTags, ', '));
+% (every clickable control in the painter's own parts has a Tag; the
+% display panels and the viewer are fcn_CarMesh3D_makeDisplayPanels' and
+% fcn_CarMesh3D_viewLabels')
+parts = gp.Parts();
+ownPanels = parts.Panels(ismember(parts.PanelNames, {'Modify Labels', 'Settings'}));
+untagged = {};
+for container = [{parts.TopBar, parts.MenuList}, num2cell(ownPanels)]
+    for control = reshape(findall(container{1}), 1, [])
+        flagClickable = isa(control, 'matlab.ui.control.Button') || isa(control, 'matlab.ui.container.ButtonGroup') ...
+            || isa(control, 'matlab.ui.control.EditField') || isa(control, 'matlab.ui.control.StateButton');
+        if flagClickable && isempty(control.Tag)
+            untagged{end+1} = sprintf('%s "%s"', class(control), char(string(control.Text))); %#ok<SAGROW>
+        end
+    end
+end
+assert(isempty(untagged), 'Untagged controls: %s', strjoin(untagged, '; '));
+problems = gp.CheckLayout();
+notes = problems(strcmp(problems.Severity, 'note'), :);
+fprintf(1, '    untagged controls the layout check notes (all outside the painter''s own parts): %d\n', height(notes));
+
+%% TEST case: Script-driven: the menu opens, each panel opens from it, and the panel opened again closes
+fprintf(1,'TEST case: the menu and every panel, through the menu''s buttons\n');
+for ith_panel = 1:numel(parts.PanelNames)
+    panelName = parts.PanelNames{ith_panel};
+    if ~gp.MenuOpen()
+        state = gp.Press('painterMenu');
+    end
+    assert(gp.MenuOpen(), 'The menu opened');
+    menuTag = ['menu_' strrep(panelName, ' ', '')];
+    assert(state.OnScreen.(menuTag), 'The menu''s %s is on screen', panelName);
+    state = gp.Press(menuTag);
+    assert(strcmp(gp.Panel(), panelName) && ~gp.MenuOpen(), 'The panel %s opened and the menu closed', panelName);
+    fcn_INTERNAL_checkPanels(gp);
+end
+% (the open panel picked again from the menu: it closes)
+gp.Press('painterMenu');
+gp.Press(['menu_' strrep(parts.PanelNames{end}, ' ', '')]);
+assert(isempty(gp.Panel()), 'Picking the open panel again closes it');
+fcn_INTERNAL_checkPanels(gp);
+% (the menu button twice: open, then closed)
+gp.Press('painterMenu');
+assert(gp.MenuOpen());
+gp.Press('painterMenu');
+assert(~gp.MenuOpen());
+gp.OpenPanel('Modify Labels');
+
+%% TEST case: Script-driven: every control of Modify Labels and Settings set to each value
+fprintf(1,'TEST case: every value of every control in Modify Labels and Settings\n');
+paintGroup = findall(gp.Figure, 'Tag', 'paintAs');
+radios = findall(paintGroup, 'Type', 'uiradiobutton');
+for ith_radio = 1:numel(radios)
+    value = radios(ith_radio).UserData;
+    if isempty(value)
+        gp.SetState('paintAs', radios(ith_radio).Text);   % ("none": by its text)
+    else
+        gp.SetState('paintAs', value);
+    end
+    assert(strcmp(gp.Status().Tool, value), 'Paint as %s', radios(ith_radio).Text);
+    fcn_INTERNAL_checkRules(gp);
+end
+for flagOn = [false true false true]
+    gp.SetState('mirror', flagOn);
+    assert(gp.Mirror() == flagOn);
+    gp.SetState('showHidden', flagOn);
+    assert(gp.ShowHidden() == flagOn);
+    fcn_INTERNAL_checkRules(gp);
+end
+gp.SetState('showHidden', false);
+gp.OpenPanel('Settings');
+for flagOn = [false true]
+    gp.SetState('versions', flagOn);
+    assert(gp.Versions() == flagOn);
+end
+otherFolder = fullfile(demoRoot, 'versions', 'typedFolder');
+gp.SetState('versionFolder', otherFolder);
+assert(strcmp(gp.VersionFolder(), otherFolder));
+gp.SetVersionFolder(versionFolder);
+gp.OpenPanel('Modify Labels');
+
+%% TEST case: Mouse (the window's own handlers): clicks, a click elsewhere fast, double-clicks
+fprintf(1,'TEST case: mouse clicks and double-clicks\n');
+gp.SetMirror(false);
+gp.SetTool('body');
+testMesh = gp.WorkingMesh();
+seen = fcn_INTERNAL_seenFaces(gp, testMesh);
+assert(numel(seen) >= 20, 'Enough faces in view to click');
+face = seen(1);
+gp.ClickAt(face);
+layers = gp.Layers();
+assert(layers.Paint(face) == "body" && any(layers.PendingFaces == face), 'A click paints the face under the mouse');
+fcn_INTERNAL_checkRules(gp);
+gp.ClickAt(face);
+assert(gp.Layers().Paint(face) == "", 'A second click takes it off');
+% (a quick second click on another piece: the system calls it a
+% double-click; it paints only the face clicked)
+pieceIndex = fcn_INTERNAL_pieceOf(testMesh);
+otherFace = seen(find(pieceIndex(seen) ~= pieceIndex(face), 1));
+gp.ClickAt(face);
+gp.MouseDownAt(otherFace, {}, 'open');
+gp.MouseUpAt(otherFace);
+layers = gp.Layers();
+assert(layers.Paint(otherFace) == "body" && nnz(layers.Paint ~= "") == 2, 'A fast click on another piece paints one face, not the piece');
+gp.ClearPending();
+% (a double-click paints the whole piece; another takes it off)
+gp.DoubleClickAt(face);
+piece = find(pieceIndex == pieceIndex(face));
+layers = gp.Layers();
+assert(all(layers.Paint(piece) == "body") && nnz(layers.Paint ~= "") == numel(piece), 'A double-click paints the whole piece');
+gp.DoubleClickAt(face);
+assert(nnz(gp.Layers().Paint ~= "") == 0, 'A second double-click takes it off');
+% (a click off the model paints nothing)
+gp.ClickAt(NaN);
+assert(nnz(gp.Layers().Paint ~= "") == 0);
+fcn_INTERNAL_checkRules(gp);
+
+%% TEST case: Mouse: Ctrl+drag paints every face passed over; Ctrl+Shift+drag erases them
+fprintf(1,'TEST case: Ctrl+drag and Ctrl+Shift+drag\n');
+centers = fcn_INTERNAL_centers(testMesh);
+[~, farthest] = max(vecnorm(centers(seen,:) - centers(face,:), 2, 2));
+endFace = seen(farthest);
+% (only two points: the drag's start and end; the faces between are painted
+% too, so a fast drag leaves no gaps)
+undoBefore = gp.Status().UndoSteps;
+gp.DragAt([centers(face,:); centers(endFace,:)], {'control'});
+painted = find(gp.Layers().Paint ~= "");
+assert(numel(painted) > 10, 'A Ctrl+drag paints along the drag (%d faces)', numel(painted));
+middleFace = gp.FaceAt((centers(face,:) + centers(endFace,:))/2);
+if ~isempty(middleFace)
+    assert(ismember(middleFace, painted), 'The face under the middle of the drag is painted');
+end
+statusNow = gp.Status();
+assert(statusNow.UndoSteps == undoBefore + 1, 'A stroke is one Undo step');
+gp.DragAt([centers(face,:); centers(endFace,:)], {'control', 'shift'});
+assert(nnz(gp.Layers().Paint ~= "") == 0, 'Ctrl+Shift+drag over the same faces erases them');
+gp.Undo();
+assert(isequal(sort(find(gp.Layers().Paint ~= "")), sort(painted)), 'Undo puts the erased stroke back');
+gp.ClearPending();
+% (a plain drag turns the model, and paints nothing)
+viewBefore = gp.Axes.CameraPosition;
+gp.DragAt([centers(face,:); centers(endFace,:)]);
+assert(~isequal(viewBefore, gp.Axes.CameraPosition) && nnz(gp.Layers().Paint ~= "") == 0, 'A drag turns the model');
+gp.Viewer.ResetView();
+seen = fcn_INTERNAL_seenFaces(gp, testMesh);
+fcn_INTERNAL_checkRules(gp);
+
+%% TEST case: Mouse: faces can be picked after Apply; glass with the glass tool
+fprintf(1,'TEST case: picking after Apply; glass\n');
+gp.ClickAt(seen(2));
+gp.Apply();
+gp.ClickAt(seen(3));
+layers = gp.Layers();
+assert(layers.Paint(seen(3)) == "body" && any(layers.PendingFaces == seen(3)), 'A click after Apply paints');
+assert(layers.Applied(seen(2)) == "body");
+gp.DragAt([centers(seen(4),:); centers(seen(5),:)], {'control'});
+assert(gp.Layers().Paint(seen(4)) == "body", 'A Ctrl+drag after Apply paints');
+fcn_INTERNAL_checkRules(gp);
+gp.RevertToStart();
+glassIndex = find(strcmp(testMesh.PartNames, 'glass'));
+gp.SetTool('glass');
+glassSeen = fcn_INTERNAL_seenFaces(gp, testMesh, find(testMesh.FacePartIndex == glassIndex));
+assert(~isempty(glassSeen), 'Glass in view');
+gp.DoubleClickAt(glassSeen(1));
+glassPiece = find(pieceIndex == pieceIndex(glassSeen(1)));
+assert(all(gp.Layers().Paint(glassPiece) == "glass"), 'A double-click on glass, with the glass tool, paints the window');
+gp.ClearPending();
+gp.SetTool('body');
+assert(~isequal(gp.FaceAt(glassSeen(1)), glassSeen(1)), 'Other tools see through glass (the design)');
+gp.ClearPending();
+
+%% TEST case: Keys: Ctrl+Z, Ctrl+S, Esc; the top bar's Revert to save
+fprintf(1,'TEST case: keys, and Revert to save\n');
+undoBefore = gp.Status().UndoSteps;
+gp.ClickAt(seen(1));
+gp.ClickAt(seen(6));
+assert(gp.Status().UndoSteps == undoBefore + 2);
+gp.Key('z', {'control'});
+assert(gp.Status().UndoSteps == undoBefore + 1 && gp.Layers().Paint(seen(6)) == "", 'Ctrl+Z undoes');
+gp.Key('s', {'control'});
+assert(gp.Status().Saved && ~gp.IsUnsaved(), 'Ctrl+S saves');
+savedStatus = gp.Status();
+gp.ClickAt(seen(7));
+gp.Key('escape');
+assert(gp.Status().Pending == 0, 'Esc unselects the pending paint');
+gp.ClickAt(seen(8));
+gp.Apply();
+gp.Press('painterRevert');   % (hidden: no question)
+statusNow = gp.Status();
+assert(statusNow.Applied == savedStatus.Applied && statusNow.Pending == 0 && statusNow.Saved, 'Revert to save, from the top bar');
+fcn_INTERNAL_checkRules(gp);
+
+%% TEST case: Random walks: every action, in random orders; the rules checked after every step
+fprintf(1,'TEST case: random walks\n');
+gp.RevertToStart();
+gp.Save();
+actions = fcn_INTERNAL_walkActions(gp, seen, centers, parts.PanelNames);
+rules = struct('Name', {'drawn paint matches the layers', 'status line matches', 'open panel matches', 'the window title'}, ...
+    'Check', {@() fcn_INTERNAL_ruleDrawn(gp), @() fcn_INTERNAL_ruleStatus(gp), @() fcn_INTERNAL_rulePanel(gp), @() fcn_INTERNAL_ruleTitle(gp)});
+for seed = [1 2 3]
+    report = fcn_CarMesh3D_guiRandomWalk(actions, rules, Steps=150, Seed=seed, Name='paintLabels', ...
+        LogFolder=fullfile(demoRoot, 'walks'), FigNum=-1);
+    if ~report.Passed
+        fprintf(1, '    seed %d failed at step %d (%s): %s\n', seed, report.Failures(1).Step, report.Failures(1).Action, report.Failures(1).Message);
+        fprintf(1, '    steps: %s\n', strjoin(report.Steps, ' | '));
+    end
+    assert(report.Passed, 'Random walk %d', seed);
+    % (save, then a new painter on the saved file: the same edited mesh)
+    gp.Save();
+    meshSaved = gp.EditedMesh();
+    [reloadedMesh, ~, reloaded] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, Visible=false);
+    assert(isequal(reloadedMesh.FacePartIndex, meshSaved.FacePartIndex) && isequal(reloadedMesh.FaceLightType, meshSaved.FaceLightType), ...
+        'Walk %d: the saved edits give the same mesh when loaded again', seed);
+    if isfield(meshSaved, 'FaceHiddenSet')
+        assert(isequal(reloadedMesh.FaceHiddenSet > 0, meshSaved.FaceHiddenSet > 0), 'Walk %d: the same hidden faces', seed);
+    end
+    reloaded.Close();
+end
+
+%% TEST case: Layout at four window sizes, every panel open
+fprintf(1,'TEST case: layout at four window sizes\n');
+sizes = [1500 900; 800 500; 640 400; 1600 1000];
+for ith_size = 1:size(sizes,1)
+    gp.SetSize(sizes(ith_size,1), sizes(ith_size,2));
+    for ith_panel = 1:numel(parts.PanelNames)
+        gp.OpenPanel(parts.PanelNames{ith_panel});
+        problems = gp.CheckLayout();
+        errors = problems(strcmp(problems.Severity, 'error'), :);
+        ownErrors = errors(fcn_INTERNAL_isOwn(errors.Control, painterTags), :);
+        if height(errors) > height(ownErrors)
+            fprintf(1, '    %dx%d, %s: %d layout errors outside the painter''s own parts (not this test''s to fix)\n', ...
+                sizes(ith_size,:), parts.PanelNames{ith_panel}, height(errors) - height(ownErrors));
+        end
+        if height(ownErrors) > 0
+            disp(ownErrors);
+        end
+        assert(height(ownErrors) == 0, 'Layout errors in the painter''s own parts at %dx%d, %s', sizes(ith_size,:), parts.PanelNames{ith_panel});
+    end
+end
+% (the panels the painter builds scroll, so their last rows can be reached)
+for panelName = {'Modify Labels', 'Settings'}
+    panelHandle = parts.Panels(strcmp(parts.PanelNames, panelName{1}));
+    grid = findall(panelHandle, 'Type', 'uigridlayout');
+    assert(strcmp(char(grid(end).Scrollable), 'on') || strcmp(char(panelHandle.Scrollable), 'on'), '%s scrolls', panelName{1});
+end
+gp.SetSize(1500, 900);
+
+%% TEST case: Closing: fast, and no timer left
+fprintf(1,'TEST case: closing\n');
+closeTimer = tic;
+gp.Close();
+closeTime = toc(closeTimer);
+fprintf(1, '    closed in %.2f s\n', closeTime);
+assert(closeTime < 1, 'Closing took %.2f s', closeTime);
+assert(~isgraphics(gp.Figure));
+
+%% TEST case: Saved fixes the painter cannot draw (Material, Color, ...) are kept exactly when it saves
+fprintf(1,'TEST case: saved fixes kept exactly\n');
+assert(~isempty(originalEdits) && numel(originalEdits.labelEditsAfterSimplify) >= 2, ...
+    'This test needs a demo vehicle with saved label fixes (the 2009 Fit has 13)');
+keptFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID, DemoFolder=fullfile(demoRoot, 'fitKept'), FigNum=-1);
+keptEditsFile = fullfile(keptFiles.Folder, sprintf('labelEdits_%s.mat', keptFiles.ID));
+before = load(keptEditsFile, 'labelEditsAfterSimplify');
+flagScripted = cellfun(@(e) any(ismember(fieldnames(e), {'Material', 'Color', 'AlsoLightTypes', 'AlsoParts', 'Region', 'FaceIndices'})), ...
+    before.labelEditsAfterSimplify);
+[meshBefore, ~, kp] = fcn_CarMesh3D_paintLabels(keptFiles.Folder, Visible=false);
+kp.SetMirror(false);
+bodyIndex = find(strcmp(meshBefore.PartNames, 'body'));
+bodyFace = find(meshBefore.FacePartIndex == bodyIndex, 1);
+kp.Paint('trim', fcn_INTERNAL_centers(meshBefore, bodyFace), false);   % (Paint saves)
+after = load(keptEditsFile, 'labelEditsAfterSimplify');
+keptAfter = after.labelEditsAfterSimplify(1:nnz(flagScripted));
+assert(isequaln(keptAfter, before.labelEditsAfterSimplify(flagScripted)), 'The scripted fixes are saved again exactly, first');
+meshAfter = kp.EditedMesh();
+others = setdiff(1:size(meshBefore.Faces,1), bodyFace);
+assert(isequal(meshAfter.FaceLightType(others), meshBefore.FaceLightType(others)) && isequal(meshAfter.FacePartIndex(others), meshBefore.FacePartIndex(others)), ...
+    'Only the painted face changed');
+if isfield(meshBefore, 'FaceColors')
+    assert(isequal(meshAfter.FaceColors(others,:), meshBefore.FaceColors(others,:)), 'The fixes'' colors are kept');
+end
+kp.Close();
+
 %% Fail conditions
 if 1==0
     %% FAIL case: not a vehicle ID or a mesh
@@ -322,30 +618,23 @@ if 1==0
 end
 
 assert(isempty(timerfindall), 'A timer was left running');   % (a window's timer must not outlive it)
-clear cleanupBackup cleanupVersions cleanupHistory cleanupPanel;   % (puts the vehicle's edits file back, and takes out the tests' timestamped copies)
+clear cleanupVersions cleanupPanel cleanupDemo;   % (puts the preferences back, and takes away the temporary copies)
 fprintf(1,'All tests of fcn_CarMesh3D_paintLabels passed\n');
 
 %% Functions follow
-function fcn_INTERNAL_restoreHistory(historyFile, historyBackup, flagHadHistory)
-% Puts the vehicle's change log back as it was
-if flagHadHistory
-    copyfile(historyBackup, historyFile);
-    delete(historyBackup);
-elseif isfile(historyFile)
-    delete(historyFile);
+function fcn_INTERNAL_removeFolder(folder)
+% Takes away the tests' temporary copies (in the computer's temp folder)
+if isfolder(folder)
+    rmdir(folder, 's');
 end
-end % Ends fcn_INTERNAL_restoreHistory
+end % Ends fcn_INTERNAL_removeFolder
 
-function fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore, versionFolder)
-% Puts back the folder remembered for timestamped copies, and takes out the
-% temporary one the tests used
+function fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore)
+% Puts back the folder remembered for timestamped copies
 if flagHadFolderPref
     setpref('CarMesh3D', 'VersionFolder', folderPrefBefore);
 elseif ispref('CarMesh3D', 'VersionFolder')
     rmpref('CarMesh3D', 'VersionFolder');
-end
-if isfolder(fileparts(versionFolder))
-    rmdir(fileparts(versionFolder), 's');
 end
 end % Ends fcn_INTERNAL_restoreFolderPref
 
@@ -358,15 +647,164 @@ elseif ispref('CarMesh3D', 'PainterPanel')
 end
 end % Ends fcn_INTERNAL_restorePanelPref
 
-function fcn_INTERNAL_restore(editsFile, backupFolder, flagHadEdits)
-% Puts the vehicle's edits file back as it was
-[~, name, extension] = fileparts(editsFile);
-if flagHadEdits
-    copyfile(fullfile(backupFolder, [name extension]), editsFile);
-elseif isfile(editsFile)
-    delete(editsFile);
+function centers = fcn_INTERNAL_centers(vehicleMesh, faceList)
+% Face centers (of the listed faces, or all)
+if nargin < 2
+    faceList = 1:size(vehicleMesh.Faces,1);
 end
-if isfolder(backupFolder)
-    rmdir(backupFolder, 's');
+corners = vehicleMesh.Faces(faceList,:);
+centers = (vehicleMesh.Vertices(corners(:,1),:) + vehicleMesh.Vertices(corners(:,2),:) + vehicleMesh.Vertices(corners(:,3),:))/3;
+end % Ends fcn_INTERNAL_centers
+
+function seen = fcn_INTERNAL_seenFaces(painter, vehicleMesh, candidates)
+% Faces a click on their center picks (in view, not behind others)
+if nargin < 3
+    candidates = 1:size(vehicleMesh.Faces,1);
 end
-end % Ends fcn_INTERNAL_restore
+candidates = candidates(:)';
+candidates = candidates(round(linspace(1, numel(candidates), min(numel(candidates), 300))));
+flagSeen = arrayfun(@(face) isequal(painter.FaceAt(face), face), candidates);
+seen = candidates(flagSeen);
+end % Ends fcn_INTERNAL_seenFaces
+
+function pieceIndex = fcn_INTERNAL_pieceOf(vehicleMesh)
+% Each face's piece, as the painter's double-click finds it: faces with
+% the same label that share a corner
+labelCode = double(vehicleMesh.FacePartIndex(:));
+flagLight = vehicleMesh.FaceLightType(:) > 0;
+labelCode(flagLight) = 100 + double(vehicleMesh.FaceLightType(flagLight));
+numFaces = size(vehicleMesh.Faces,1);
+faceList = repmat((1:numFaces)', 3, 1);
+vertexList = vehicleMesh.Faces(:);
+[vertexList, order] = sort(vertexList);
+faceList = faceList(order);
+flagPair = vertexList(2:end) == vertexList(1:end-1) & labelCode(faceList(2:end)) == labelCode(faceList(1:end-1));
+links = graph(faceList([false; flagPair]), faceList([flagPair; false]), [], numFaces);
+pieceIndex = conncomp(links)';
+end % Ends fcn_INTERNAL_pieceOf
+
+function fcn_INTERNAL_checkRules(painter)
+% Every rule of the random walks, now
+messages = {fcn_INTERNAL_ruleDrawn(painter), fcn_INTERNAL_ruleStatus(painter), fcn_INTERNAL_rulePanel(painter), fcn_INTERNAL_ruleTitle(painter)};
+messages = messages(~cellfun(@isempty, messages));
+assert(isempty(messages), strjoin(messages, '; '));
+end % Ends fcn_INTERNAL_checkRules
+
+function fcn_INTERNAL_checkPanels(painter)
+message = fcn_INTERNAL_rulePanel(painter);
+assert(isempty(message), message);
+end % Ends fcn_INTERNAL_checkPanels
+
+function message = fcn_INTERNAL_ruleDrawn(painter)
+% The yellow-edged (pending) and filled (applied) paint drawn: the faces
+% the layers say
+message = '';
+layers = painter.Layers();
+if layers.PendingDrawn ~= numel(layers.PendingFaces)
+    message = sprintf('%d pending faces drawn, %d pending', layers.PendingDrawn, numel(layers.PendingFaces));
+elseif layers.AppliedDrawn ~= numel(layers.AppliedFaces)
+    message = sprintf('%d applied faces drawn, %d applied and not in the working mesh', layers.AppliedDrawn, numel(layers.AppliedFaces));
+end
+end % Ends fcn_INTERNAL_ruleDrawn
+
+function message = fcn_INTERNAL_ruleStatus(painter)
+% The status line says what Status() says
+message = '';
+statusNow = painter.Status();
+text = painter.Layers().StatusText;
+expected = {sprintf('%d faces painted, not applied', statusNow.Pending), sprintf('%d changed (%d hidden)', statusNow.Applied, statusNow.Hidden), ...
+    sprintf('%d undo steps', statusNow.UndoSteps)};
+for ith = 1:numel(expected)
+    if ~contains(text, expected{ith})
+        message = sprintf('the status line "%s" does not say "%s"', text, expected{ith});
+        return;
+    end
+end
+if contains(text, 'not saved') == statusNow.Saved && ~contains(text, 'no edits file')
+    message = sprintf('the status line "%s" and Saved = %d disagree', text, statusNow.Saved);
+end
+end % Ends fcn_INTERNAL_ruleStatus
+
+function message = fcn_INTERNAL_rulePanel(painter)
+% The panel shown is the one Panel() names (or none)
+message = '';
+parts = painter.Parts();
+shown = parts.PanelNames(arrayfun(@(p) strcmp(char(p.Visible), 'on'), parts.Panels));
+if ~isequal(shown, cellstr(painter.Panel())) && ~(isempty(shown) && isempty(painter.Panel()))
+    message = sprintf('Panel() is "%s" but shown: %s', painter.Panel(), strjoin(shown, ', '));
+end
+end % Ends fcn_INTERNAL_rulePanel
+
+function message = fcn_INTERNAL_ruleTitle(painter)
+message = '';
+if ~contains(painter.Figure.Name, 'fcn_CarMesh3D_paintLabels')
+    message = sprintf('the window''s title is "%s"', painter.Figure.Name);
+end
+end % Ends fcn_INTERNAL_ruleTitle
+
+function flagOwn = fcn_INTERNAL_isOwn(controlNames, painterTags)
+% Layout problems in the painter's own parts (its Tags, or controls in
+% Modify Labels, Settings or the menu's list)
+flagOwn = ismember(controlNames, painterTags) | contains(controlNames, {'Modify Labels', 'Settings', 'painterMenuList'});
+end % Ends fcn_INTERNAL_isOwn
+
+function fcn_INTERNAL_openByMenu(painter, panelName)
+% A panel opened as a user does: the menu button, then the panel's name
+if ~painter.MenuOpen()
+    painter.Press('painterMenu');
+end
+painter.Press(['menu_' strrep(panelName, ' ', '')]);
+end % Ends fcn_INTERNAL_openByMenu
+
+function fcn_INTERNAL_undoCheck(painter, seen)
+% A click, then Undo: the layers and the status are as before the click
+statusBefore = painter.Status();
+layersBefore = painter.Layers();
+painter.ClickAt(seen(randi(numel(seen))));
+if painter.Status().UndoSteps > statusBefore.UndoSteps
+    painter.Undo();
+    statusAfter = painter.Status();
+    layersAfter = painter.Layers();
+    assert(isequal(statusAfter, statusBefore) && isequal(layersAfter.Paint, layersBefore.Paint) && isequal(layersAfter.Applied, layersBefore.Applied), ...
+        'Undo after a click did not restore the status before it');
+end
+end % Ends fcn_INTERNAL_undoCheck
+
+function actions = fcn_INTERNAL_walkActions(painter, seen, centers, panelNames)
+% Every kind of user action, for the random walks
+pick = @() seen(randi(numel(seen)));
+pickTwo = @() centers(seen(randi(numel(seen), 2, 1)),:);
+modifyOpen = @() strcmp(painter.Panel(), 'Modify Labels');
+list = cell(0,3);   % (name, what it does, when it can be done: [] for always)
+list(end+1,:) = {'click', @() painter.ClickAt(pick()), []};
+list(end+1,:) = {'double-click', @() painter.DoubleClickAt(pick()), []};
+list(end+1,:) = {'Ctrl+drag', @() painter.DragAt(pickTwo(), {'control'}), []};
+list(end+1,:) = {'Ctrl+Shift+drag', @() painter.DragAt(pickTwo(), {'control', 'shift'}), []};
+list(end+1,:) = {'click off the model', @() painter.ClickAt(NaN), []};
+list(end+1,:) = {'Apply', @() painter.Press('paintApply'), modifyOpen};
+list(end+1,:) = {'Undo button', @() painter.Press('painterUndo'), []};
+list(end+1,:) = {'Ctrl+Z', @() painter.Key('z', {'control'}), []};
+list(end+1,:) = {'Ctrl+S', @() painter.Key('s', {'control'}), []};
+list(end+1,:) = {'Save button', @() painter.Press('painterSave'), []};
+list(end+1,:) = {'Esc', @() painter.Key('escape'), []};
+list(end+1,:) = {'Revert to save button', @() painter.Press('painterRevert'), []};
+list(end+1,:) = {'Revert to start', @() painter.RevertToStart(), []};
+list(end+1,:) = {'a click, then Undo', @() fcn_INTERNAL_undoCheck(painter, seen), []};
+for tool = {'body', 'glass', 'trim', 'wheel', 'tail', 'headlight', 'hide', 'unhide'}
+    list(end+1,:) = {['paint as ' tool{1}], @() painter.SetState('paintAs', tool{1}), modifyOpen};
+end
+list(end+1,:) = {'paint as none', @() painter.SetState('paintAs', 'none (rotate only)'), modifyOpen};
+list(end+1,:) = {'mirror on', @() painter.SetState('mirror', true), modifyOpen};
+list(end+1,:) = {'mirror off', @() painter.SetState('mirror', false), modifyOpen};
+list(end+1,:) = {'show hidden on', @() painter.SetState('showHidden', true), modifyOpen};
+list(end+1,:) = {'show hidden off', @() painter.SetState('showHidden', false), modifyOpen};
+for ith_panel = 1:numel(panelNames)
+    panelName = panelNames{ith_panel};
+    list(end+1,:) = {['open ' panelName ' (menu)'], @() fcn_INTERNAL_openByMenu(painter, panelName), []};
+end
+list(end+1,:) = {'menu button', @() painter.Press('painterMenu'), []};
+names = list(:,1)'; dos = list(:,2)'; alloweds = list(:,3)';
+weights = ones(1, numel(names));
+weights(ismember(names, {'click', 'double-click', 'Ctrl+drag', 'paint as body', 'paint as tail', 'open Modify Labels (menu)'})) = 3;
+actions = struct('Name', names, 'Do', dos, 'Allowed', alloweds, 'Weight', num2cell(weights));
+end % Ends fcn_INTERNAL_walkActions

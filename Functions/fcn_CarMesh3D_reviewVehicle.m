@@ -85,8 +85,8 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Reviewer: the reviewer's name, saved with each answer. Default: the
-%      computer's user name.
+%      Reviewer: the reviewer's initials, saved with each answer. Default:
+%      'SBB' for now (Sean, 2026-11-24); the V&V GUI is to ask who is reviewing.
 %
 %      Visible: true (default) to show the window; false to build it
 %      without showing it (for tests).
@@ -327,10 +327,7 @@ end
 vehicleID = char(vehicleID);
 reviewerName = char(options.Reviewer);
 if isempty(reviewerName)
-    reviewerName = getenv('USERNAME');
-    if isempty(reviewerName)
-        reviewerName = getenv('USER');
-    end
+    reviewerName = 'SBB';   % (the default reviewer for now, Sean's initials: Sean, 2026-11-24 11:20; the V&V GUI will ask who is reviewing)
 end
 
 %% Main code

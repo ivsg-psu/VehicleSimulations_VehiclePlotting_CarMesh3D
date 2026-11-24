@@ -54,3 +54,15 @@ Data/answersSoFar_*.mat
 # Office lock files, made while a document is open in Word, Excel or
 # PowerPoint (one was committed by mistake on 2026-11-23)
 ~$*
+
+# CarMesh3D: the same for the someday vehicles (DataSomeday, beside Data; see
+# DataSomeday/README.md): caches, check figures and animations, downloads
+DataSomeday/**/cache/
+DataSomeday/**/checks/*.fig
+DataSomeday/**/checks/*.gif
+DataSomeday/**/model/
+
+# CarMesh3D: the large data (every vehicle's downloaded model, in the same
+# layout as Data and DataSomeday), kept in the IVSG large-file storage area
+# and copied in by each user (Sean, 2026-11-24; see README.md, "Large files")
+LargeData/

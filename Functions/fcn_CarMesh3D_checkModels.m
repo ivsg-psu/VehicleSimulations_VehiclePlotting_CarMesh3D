@@ -223,7 +223,11 @@ HasDownload = false(numVehicles, 1);
 HasRawMesh = false(numVehicles, 1);
 for k = 1:numVehicles
     ModelFile{k} = fcn_INTERNAL_modelFile(fullfile(scripts(k).folder, scripts(k).name));
-    HasDownload(k) = ~isempty(ModelFile{k}) && isfile(fullfile(Folder{k}, ModelFile{k}));
+    % (the download in the vehicle's folder, or in its folder in LargeData,
+    % beside Data in the same layout: Sean, 2026-11-24)
+    repoFolder = fileparts(dataFolder);
+    largeDataFolder = fullfile(repoFolder, 'LargeData', erase(Folder{k}, [repoFolder filesep]));
+    HasDownload(k) = ~isempty(ModelFile{k}) && (isfile(fullfile(Folder{k}, ModelFile{k})) || isfile(fullfile(largeDataFolder, ModelFile{k})));
     HasRawMesh(k) = isfile(fullfile(Folder{k}, sprintf('rawMesh_%s.mat', ID{k})));
 end
 CanBuild = HasDownload | HasRawMesh | cellfun(@isempty, ModelFile);

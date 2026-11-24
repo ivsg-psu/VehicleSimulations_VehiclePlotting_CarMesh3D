@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.LevelsFile, 'detailLevels');
 fitLevels = loaded.detailLevels;

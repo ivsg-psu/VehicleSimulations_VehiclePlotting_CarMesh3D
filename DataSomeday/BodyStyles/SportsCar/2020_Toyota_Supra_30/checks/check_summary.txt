@@ -1,0 +1,11 @@
+Standard checks for 2020 Toyota Supra 30
+Written 2026-11-24 10:30 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 14916 faces, 9938 vertices
+Dimensions: 13 of 13 within tolerance
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\SportsCar\2020_Toyota_Supra_30\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\SportsCar\2020_Toyota_Supra_30\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\SportsCar\2020_Toyota_Supra_30\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\BodyStyles\SportsCar\2020_Toyota_Supra_30\checks\check_03_labels.png

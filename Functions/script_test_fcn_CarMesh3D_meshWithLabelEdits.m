@@ -10,7 +10,8 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';   % (has label fixes and a stage-1 cache)
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: it has label fixes and a stage-1 cache)
+assert(isfile(fullfile(fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1).Folder, ['labelEdits_' vehicleID '.mat'])), 'These tests need a demo vehicle with saved label fixes (the 2009 Fit has 13): see fcn_CarMesh3D_demoVehicle');
 
 %% DEMO case: the mesh with its saved label fixes, plotted
 figNum = 10001;

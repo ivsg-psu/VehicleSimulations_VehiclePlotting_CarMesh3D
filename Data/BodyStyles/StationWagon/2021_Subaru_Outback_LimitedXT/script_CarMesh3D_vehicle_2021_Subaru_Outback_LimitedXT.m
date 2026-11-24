@@ -214,7 +214,13 @@ floorPanelMinOpen = 0.10;   % Only when more than this share of the floor is ope
 
 % Label the interior (seats, dash, steering wheel, door panels: the body and
 % trim faces seen only through the glass) as the part 'interior'
-labelInterior = true;
+labelInterior = false;   % (off for every vehicle: Sean, 2026-11-24 05:06, Q37: the voxel guess put the interior's seams in the wrong places; interior objects come with the painter's plan P5)
+% Find the interior objects: the two front seats and the steering wheel,
+% by fitting templates to the mesh (fcn_CarMesh3D_findInteriorObjects;
+% 1 to 4 minutes, done once and cached). They are drawn in the 2D outline
+% and turn with the steering (Sean, 2026-11-24 09:19).
+findInteriorObjects = true;
+interiorTemplates = struct();   % this vehicle's own sizes when known, e.g. interiorTemplates.SteeringWheel.Diameter = 0.368;
 
 % What to run
 flag_firstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
@@ -304,13 +310,13 @@ else
     % (a raw mesh over 5 MB is kept in the model folder, the large-file
     % area, rather than in the repository)
     rawMeshFile = fullfile(vehicleFiles.Folder, sprintf('rawMesh_%s.mat', vehicleID));
-    rawMeshLargeFile = fullfile(vehicleFiles.Folder, 'model', sprintf('rawMesh_%s.mat', vehicleID));
-    flag_haveDownload = isfile(fullfile(thisFolder, modelFile));
+    rawMeshLargeFile = fullfile(vehicleFiles.DownloadRoot, 'model', sprintf('rawMesh_%s.mat', vehicleID));
+    flag_haveDownload = isfile(fullfile(vehicleFiles.DownloadRoot, modelFile));
     if ~flag_haveDownload && ~isfile(rawMeshFile) && isfile(rawMeshLargeFile)
         rawMeshFile = rawMeshLargeFile;
     end
     if flag_haveDownload
-        stage1Files{end+1} = fullfile(thisFolder, modelFile);
+        stage1Files{end+1} = fullfile(vehicleFiles.DownloadRoot, modelFile);
     elseif isfile(rawMeshFile)
         stage1Files{end+1} = rawMeshFile;
         fprintf(1,['The download (%s) is not here: the vehicle is rebuilt from its imported mesh, %s.\n' ...
@@ -318,7 +324,7 @@ else
             modelFile, rawMeshFile);
     else
         error(['Neither the download (%s) nor the imported mesh (%s) is here. Copy the IVSG large-file area''s ' ...
-            'Data folder into this one (see README.md, "Large files").'], fullfile(thisFolder, modelFile), rawMeshFile);
+            'Data folder into this one (see README.md, "Large files").'], fullfile(vehicleFiles.DownloadRoot, modelFile), rawMeshFile);
     end
 end
 stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodyStyleMesh.m', 'fcn_CarMesh3D_loadBodyStyles.m', ...
@@ -326,7 +332,7 @@ stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodySty
     'fcn_CarMesh3D_transferTextureColors.m', 'fcn_CarMesh3D_normalizeMesh.m', 'fcn_CarMesh3D_labelParts.m', ...
     'fcn_CarMesh3D_editLabels.m', 'fcn_CarMesh3D_fitMeshToSpec.m', 'fcn_CarMesh3D_simplifyMesh.m', ...
     'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
-    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_labelInterior.m'};
+    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_labelInterior.m', 'fcn_CarMesh3D_findInteriorObjects.m'};
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
     'FirstLook',logical(flag_firstLook), 'Compare',logical(flag_compareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
@@ -374,7 +380,7 @@ else
         if isfile(licenseFile)
             modelLicense = strtrim(fileread(licenseFile));
         end
-        modelPath = fullfile(thisFolder, modelFile);
+        modelPath = fullfile(vehicleFiles.DownloadRoot, modelFile);
         % (a .glb: its texture colors and see-through marks, read directly)
         [~,~,modelExtension] = fileparts(modelPath);
         if strcmpi(modelExtension,'.glb')
@@ -457,7 +463,7 @@ else
             if ~isempty(textureMesh)
                 originalMesh = textureMesh;   % (the .glb, read directly)
             else
-                originalMesh = fcn_CarMesh3D_importMesh(fullfile(thisFolder, modelFile), Name=vehicleFiles.Name, License=modelLicense);
+                originalMesh = fcn_CarMesh3D_importMesh(fullfile(vehicleFiles.DownloadRoot, modelFile), Name=vehicleFiles.Name, License=modelLicense);
             end
             originalMesh = fcn_INTERNAL_removeFaces(originalMesh, removeFaces);
             originalMesh = fcn_CarMesh3D_normalizeMesh(originalMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, Yaw=importYaw, FigNum=-1);
@@ -553,6 +559,18 @@ else
         fprintf(1,'Labeled %d faces interior\n', interiorInfo.NumInterior);
         if ~isempty(originalMesh)
             originalMesh = fcn_CarMesh3D_labelInterior(originalMesh, FigNum=-1);
+        end
+    end
+    if findInteriorObjects
+        % (the seats and steering wheel, stored in the mesh as FaceInteriorObject,
+        % InteriorObjectNames and InteriorObjects; a failure only warns)
+        try
+            [interiorObjects, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=interiorTemplates, FigNum=-1);
+            fprintf(1,'Interior objects found: driver seat %d, passenger seat %d, steering wheel %d (drive side %s, from the %s)\n', ...
+                interiorObjects.DriverSeat.Found, interiorObjects.PassengerSeat.Found, interiorObjects.SteeringWheel.Found, ...
+                interiorObjects.DriveSide, interiorObjects.DriveSideSource);
+        catch interiorError
+            warning('CarMesh3D:interiorObjects', 'The interior objects were not found: %s', interiorError.message);
         end
     end
     fcn_CarMesh3D_saveCache(stage1File, stage1Inputs, struct('vehicleMesh',vehicleMesh, 'originalMesh',originalMesh), FigNum=-1);

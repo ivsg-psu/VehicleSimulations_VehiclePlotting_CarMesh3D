@@ -8,10 +8,14 @@
 % 2026_11_24 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_makeDisplayPanels
 %   % * First write
+%   % * Driven by script (fcn_CarMesh3D_guiDriver; Sean, 05:03): every
+%   %   % control tagged (no layout notes or errors), each radio group set
+%   %   % to each value with the viewer followed, the photo options grayed
+%   %   % with no photos, the readout after Reset view
 
 %% Set up the workspace
 close all;
-vehicleID = '2026_CarMesh3D_Sample_GUITestVehicle';   % (every lamp type, covers, interior, hidden sets)
+vehicleID = fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1);   % (every lamp type, covers, interior, hidden sets)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
 
@@ -76,6 +80,38 @@ assert(isequal(lowBeam.SelectedObject.UserData, true), 'Low beams marked On');
 allLamps = findall(lampsPanel, 'Tag', 'lamp_All');
 assert(isnan(allLamps.SelectedObject.UserData), 'All lamps mixed');
 viewer.SetBoundaries(false);
+
+%% TEST case: driven by script (fcn_CarMesh3D_guiDriver): every control tagged, each value set, the viewer follows
+figNum = 20005;
+fprintf(1,'Figure %.0f: TEST case: driven by script\n', figNum);
+for panelHandle = [overallPanel, labelsPanel, lampsPanel]
+    problems = fcn_CarMesh3D_guiDriver(panelHandle, 'checkLayout');
+    assert(~any(strcmp(problems.Severity, 'note')), 'Untagged controls in %s: %s', panelHandle.Title, strjoin(problems.Control(strcmp(problems.Severity, 'note')), '; '));
+    assert(~any(strcmp(problems.Severity, 'error')), 'Layout errors in %s', panelHandle.Title);
+end
+state = fcn_CarMesh3D_guiDriver(overallPanel, 'state');
+assert(all(isfield(state.Values, {'overallResetView', 'overallCopyViewCall', 'overallPhotoBrowse', 'overallPhotoFolder', 'cameraReadout'})), 'The Overall Display''s Tags');
+assert(~state.Enabled.turnWithPhoto && ~state.Enabled.photoSize, 'No photos given: the photo options grayed');
+% (each radio group set to each of its values; the panels then show the viewer's state)
+for panelHandle = [overallPanel, labelsPanel, lampsPanel]
+    groups = findall(panelHandle, 'Type', 'uibuttongroup');
+    for ith_group = 1:numel(groups)
+        radios = findobj(groups(ith_group).Children, 'flat', 'Type', 'uiradiobutton', 'Visible', 'on', 'Enable', 'on');
+        for ith_radio = 1:numel(radios)
+            fcn_CarMesh3D_guiDriver(panelHandle, 'set', groups(ith_group).Tag, radios(ith_radio).UserData);
+            stateNow = fcn_CarMesh3D_guiDriver(hostFigure, 'state');
+            assert(isequal(stateNow.Values.overallNight, viewer.NightView()) && isequal(stateNow.Values.overallColors, viewer.Colors()) ...
+                && isequal(stateNow.Values.lamp_Hazards, logical(viewer.NightLights().TurnLeft) && logical(viewer.NightLights().TurnRight)) ...
+                && isequal(stateNow.Values.shown_part_glass, ~any(strcmp(viewer.Hidden(), 'part_glass'))), ...
+                'After %s = %s the panels differ from the viewer', groups(ith_group).Tag, mat2str(radios(ith_radio).UserData));
+        end
+    end
+end
+fcn_CarMesh3D_guiDriver(overallPanel, 'set', 'overallNight', false);
+fcn_CarMesh3D_guiDriver(overallPanel, 'press', 'overallResetView');
+camera = viewer.CameraInfo();
+readout = cellstr(fcn_CarMesh3D_guiDriver(overallPanel, 'state').Values.cameraReadout);
+assert(numel(readout) == 4 && strcmp(readout{1}, 'Camera view:') && contains(readout{2}, sprintf('yaw angle: %.0f', camera.DialAngle)), 'The readout after Reset view');
 
 %% TEST case: a host keeps the hidden faces' setting (as the painter does)
 figNum = 20004;

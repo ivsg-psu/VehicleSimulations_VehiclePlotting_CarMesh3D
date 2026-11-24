@@ -9,7 +9,7 @@
 
 %% Set up the workspace
 close all;
-testVehicleID = '2009_Honda_Fit_Sport';
+testVehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 testRoot = tempname;    % (a folder of its own, so the tests touch nothing else)
 cleanupTestRoot = onCleanup(@() rmdir(testRoot, 's')); %#ok<NASGU>
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(testVehicleID);

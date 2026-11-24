@@ -19,6 +19,10 @@
 %   % * Tests for vehicles filed by body style (Data\BodyStyles\<Style>\<ID>)
 %   %   % and samples (Data\Samples\<ID>), model files left in the
 %   %   % vehicle's folder, a new vehicle's BodyStyle, and a repeated ID
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_findVehicleFiles
+%   % * A someday vehicle (DataSomeday) is found by its ID, not listed
 
 % TO-DO:
 %
@@ -156,6 +160,23 @@ rmdir(testData, 's');
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
+
+%% TEST case: A someday vehicle (in DataSomeday, beside Data) is found by its ID but not listed
+% (the 2020 Supra, moved to DataSomeday on 2026_11_24 for its missing
+% steering wheel; if it is ever moved back, use another someday vehicle)
+fig_num = 20004;
+somedayID = '2020_Toyota_Supra_30';
+somedayFiles = fcn_CarMesh3D_findVehicleFiles(somedayID, FigNum=-1);
+assert(somedayFiles.Found && somedayFiles.IsSomeday && somedayFiles.HasScript, 'A someday vehicle is found by its ID');
+assert(contains(somedayFiles.Folder, fullfile('DataSomeday','BodyStyles','SportsCar',somedayID)));
+assert(strcmp(somedayFiles.BodyStyle, 'sportsCar'), 'Its body style is read from DataSomeday\BodyStyles');
+listedNow = fcn_CarMesh3D_findVehicleFiles('', FigNum=-1);
+assert(~any(strcmp({listedNow.ID}, somedayID)) && ~any([listedNow.IsSomeday]), 'Listing all vehicles lists Data only');
+priusAgain = fcn_CarMesh3D_findVehicleFiles('2013_Toyota_Prius_Four', FigNum=-1);
+assert(~priusAgain.IsSomeday);
+% (with a DataFolder given, DataSomeday is not searched)
+noSomeday = fcn_CarMesh3D_findVehicleFiles(somedayID, DataFolder=fileparts(priusAgain.Folder), FigNum=-1);
+assert(~noSomeday.Found);
 
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

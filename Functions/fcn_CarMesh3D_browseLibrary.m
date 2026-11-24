@@ -87,8 +87,8 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      Default {}.
 %
 %      DefaultVehicle: the vehicle copied and returned when none is
-%      selected. Default '2009_Honda_Fit_Sport' (the demo menu's test
-%      vehicle).
+%      selected. Default '': the demo vehicle (fcn_CarMesh3D_demoVehicle:
+%      the user's own choice, else the repo's).
 %
 %      Wait: true to wait until the window is closed, and return the
 %      selection then. Default: true when Visible, else false.
@@ -134,6 +134,28 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %           Result(): what closing the window returns (makes the default
 %               vehicle's copy when none is selected)
 %           Close(): close the window
+%           (hooks for automated tests, 2026-11-24; each acts as a user's
+%           click would, through the control's own callback)
+%           State(): every tagged control's value, enabled and on-screen
+%               flags (fcn_CarMesh3D_guiDriver 'state'), plus a field
+%               Browser: TableRows (the vehicle ID on each table row, ''
+%               for a group row), SelectedRow (the table row highlighted,
+%               [] for none), Previewed, Selected, Filters, DemoVehicle
+%               (the demo vehicle now) and DemoSource ('repo' or
+%               'preference')
+%           SetState(tag, value) or SetState(struct): set controls by Tag,
+%               as clicks would (fcn_CarMesh3D_guiDriver 'set')
+%           Press(tagOrText): press a button (guiDriver 'press')
+%           Key(key, (modifiers)): a key press (guiDriver 'key')
+%           CheckLayout(): the layout problems (guiDriver 'checkLayout')
+%           SelectRow(rowOrID): click a table row (a row number, or a
+%               vehicle ID shown), through the table's own callback
+%           TickRow(rowOrID, flag): tick or untick a row's Select box in
+%               the table, through the table's own callback
+%           SetSize(width, height): resize the window, then lay it out
+%               for that size (as dragging the window's corner would)
+%           UseAsDemo(), UseRepoDemo(): the "Use as demo vehicle" and
+%               "Back to the repo's demo vehicle" buttons
 %
 %      nextStep: the step asked for with the View, Edit labels or Review
 %      button (which also closes the window): a structure with Tool
@@ -146,7 +168,8 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      fcn_CarMesh3D_browseVehicles, fcn_CarMesh3D_findVehicleFiles,
 %      fcn_CarMesh3D_meshHistory, fcn_CarMesh3D_loadBodyStyles,
 %      fcn_CarMesh3D_plotLabels, fcn_CarMesh3D_plotVehicle,
-%      fcn_CarMesh3D_makeDemoCopy
+%      fcn_CarMesh3D_makeDemoCopy, fcn_CarMesh3D_demoVehicle,
+%      fcn_CarMesh3D_guiDriver
 %
 % EXAMPLES:
 %
@@ -209,6 +232,41 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %   %   % return the step (a third output, nextStep), which the demo menu
 %   %   % opens with fcn_CarMesh3D_openTool. Open() returns the step
 %   % * The preview panel scrolls (every panel scrolls; Sean, 00:58)
+%   % * Drivable by script for automated tests (Sean, 05:03; Q39): every
+%   %   % control has a Tag; new hooks State, SetState, Press, Key,
+%   %   % CheckLayout (through fcn_CarMesh3D_guiDriver), SelectRow,
+%   %   % TickRow, SetSize, UseAsDemo, UseRepoDemo
+%   % * "Use as demo vehicle" and "Back to the repo's demo vehicle"
+%   %   % buttons in the preview (Q35/Q36 A): they save or clear this
+%   %   % user's own demo vehicle (fcn_CarMesh3D_demoVehicle); a vehicle
+%   %   % that cannot be the demo vehicle gets the reason in the preview's
+%   %   % hint line, in red; the demo vehicle has a star in the table's
+%   %   % Demo column
+%   % * Fixed (found by the new tests): the highlighted table row did not
+%   %   % follow the preview: after a re-sort, a filter or Preview(), the
+%   %   % highlight stayed on the old row number, which now held another
+%   %   % vehicle (or a group row); clicking a group row moved the
+%   %   % highlight off the vehicle shown. Now the highlight is always on
+%   %   % the previewed vehicle's row
+%   % * Fixed: View, Edit labels, Review and the preview's Select were
+%   %   % clickable with no vehicle in the preview (they did nothing)
+%   % * DefaultVehicle defaults to the demo vehicle
+%   %   % (fcn_CarMesh3D_demoVehicle, the user's own choice, else the
+%   %   % repo's), no longer the Fit by name
+%   % * Fixed: in a small window the table was squeezed to a sliver (the
+%   %   % preview kept 470 px and the top row's boxes 820 px): the widths
+%   %   % now follow the window's size
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * One Status column instead of two star columns (Sean, 11:20: the
+%   %   % exemplar star column and the Demo star column were confusing):
+%   %   % D = the demo vehicle (a red, bold D), E = an exemplar of its
+%   %   % class, or "D, E"; a key above the table explains it, one
+%   %   % indented line per letter (T46)
+%   % * New columns: Reviewer (initials, right of the Review score;
+%   %   % SBB when a review has no name) and Author (the download's
+%   %   % author, to spot good authors quickly)
 
 % TO-DO:
 %
@@ -277,7 +335,7 @@ arguments
     options.Order = ''                % The order within each group, in the drop-down's words; '' for the sort's default
     options.Descending = []           % (older way) true for Z to A / newest / longest / highest first; [] for the sort's default
     options.Selected = {}             % Names ticked at the start
-    options.DefaultVehicle = '2009_Honda_Fit_Sport'   % Returned (as a fresh copy) when none is selected
+    options.DefaultVehicle = ''       % Returned (as a fresh copy) when none is selected; '' for the demo vehicle
     options.Wait = []                 % Wait for the window to close; [] for "when visible"
     options.Visible = true            % false to build the window hidden
     options.DataFolder = []           % The Data folder; [] for the one next to Functions
@@ -373,6 +431,15 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 functionName = 'fcn_CarMesh3D_browseLibrary';
+% (no default vehicle given: the demo vehicle, which follows the user's
+% own choice; the repo's if that cannot be read)
+if isempty(char(options.DefaultVehicle))
+    try
+        options.DefaultVehicle = fcn_CarMesh3D_demoVehicle(FigNum=-1);
+    catch
+        options.DefaultVehicle = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+    end
+end
 flagWait = options.Wait;
 if isempty(flagWait)
     flagWait = logical(options.Visible);
@@ -423,6 +490,9 @@ flagResultFixed = false;
 defaultCopyNames = {};   % (the default vehicle's demo copy, made once)
 lastFilterTime = -inf;   % (when Enter last tried a filter)
 lastFilterText = '';     % (and the text it tried)
+[demoID, demoSource] = fcn_INTERNAL_currentDemo();   % (the demo vehicle now, and whose choice it is)
+demoMessage = '';        % (the last "Use as demo vehicle" message, shown in the preview's hint line)
+demoMessageIndex = 0;    % (the vehicle that message is about)
 
 % Row 1: the three ways to arrange the list, each in a box of its own,
 % in the order they are used, left to right: group, then sort within the
@@ -432,43 +502,45 @@ lastFilterText = '';     % (and the text it tried)
 controlGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {220, 400, '1x', 175}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 8);
 
-groupPanel = uipanel(controlGrid, 'Title', '1. Group by', 'FontWeight', 'bold');
+groupPanel = uipanel(controlGrid, 'Title', '1. Group by', 'FontWeight', 'bold', 'Tag', 'groupPanel');
 groupGrid = uigridlayout(groupPanel, [1 1], 'Padding', [6 4 6 4]);
 groupLabels = {'Class (body style)','Make','Year','Review status','Exemplars first','License','(no groups)'};
 % (callbacks take the control's value from the control itself: an
 % anonymous function made before a control exists cannot name it)
-groupDropdown = uidropdown(groupGrid, 'Items', groupLabels, 'ItemsData', groupKeys, 'Value', groupKey, ...
+groupDropdown = uidropdown(groupGrid, 'Items', groupLabels, 'ItemsData', groupKeys, 'Value', groupKey, 'Tag', 'groupBy', ...
     'Tooltip', 'The headings the list is divided under', ...
     'ValueChangedFcn', @(source,~) setGroup(source.Value));
 
-sortPanel = uipanel(controlGrid, 'Title', '2. Sort within each group by', 'FontWeight', 'bold');
+sortPanel = uipanel(controlGrid, 'Title', '2. Sort within each group by', 'FontWeight', 'bold', 'Tag', 'sortPanel');
 sortGrid = uigridlayout(sortPanel, [1 3], 'ColumnWidth', {'1x', 48, 150}, 'Padding', [6 4 6 4], 'ColumnSpacing', 4);
 sortLabels = {'Make','Year','Class (body style)','Length','Score','Review (% approved)','Date built','Date reviewed'};
-sortDropdown = uidropdown(sortGrid, 'Items', sortLabels, 'ItemsData', sortKeys, 'Value', sortKey, ...
+sortDropdown = uidropdown(sortGrid, 'Items', sortLabels, 'ItemsData', sortKeys, 'Value', sortKey, 'Tag', 'sortBy', ...
     'Tooltip', 'The order of the vehicles under each heading', ...
     'ValueChangedFcn', @(source,~) onSortKeyChanged(source.Value));
 % (the order within each group, in words that fit the sort chosen:
 % Sean, C2S 6, 21:22; "Descending" was an odd word for alphabetical order)
-uilabel(sortGrid, 'Text', 'Order?', 'HorizontalAlignment', 'right');
+orderLabel = uilabel(sortGrid, 'Text', 'Order?', 'HorizontalAlignment', 'right', 'Tag', 'orderLabel');
 orderDropdown = uidropdown(sortGrid, 'Items', orderWords, 'ItemsData', double(orderDescending), ...
-    'Value', double(flagDescending), ...
+    'Value', double(flagDescending), 'Tag', 'sortOrder', ...
     'Tooltip', 'The order of the vehicles under each heading (the headings keep their own order)', ...
     'ValueChangedFcn', @(source,~) onOrderChanged(source.Value));
 
-filterPanel = uipanel(controlGrid, 'Title', '3. Filter: keep the vehicles shown whose name, MATLAB name or class holds', 'FontWeight', 'bold');
+filterPanel = uipanel(controlGrid, 'Title', '3. Filter: keep the vehicles shown whose name, MATLAB name or class holds', 'FontWeight', 'bold', ...
+    'Tag', 'filterPanel');
 filterGrid = uigridlayout(filterPanel, [1 3], 'ColumnWidth', {'1x', 90, 90}, 'Padding', [6 4 6 4]);
-filterField = uieditfield(filterGrid, 'text', 'Placeholder', 'part of a name, year, make, class', ...
+filterField = uieditfield(filterGrid, 'text', 'Placeholder', 'part of a name, year, make, class', 'Tag', 'filterText', ...
     'Tooltip', 'Type, then press Enter or Apply filter: each filter narrows what is shown; Clear filters shows them all again', ...
     'ValueChangedFcn', @(source,~) onFilterEnter(source.Value));
-uibutton(filterGrid, 'Text', 'Apply filter', ...
+applyButton = uibutton(filterGrid, 'Text', 'Apply filter', 'Tag', 'applyFilter', ...
     'Tooltip', 'Keep, of the vehicles shown, those whose name, MATLAB name or class holds every word typed. A filter that matches none is not applied.', ...
     'ButtonPushedFcn', @(~,~) onApplyButton());
-uibutton(filterGrid, 'Text', 'Clear filters', 'Tooltip', 'Remove every filter: show all the vehicles again', ...
+clearFiltersButton = uibutton(filterGrid, 'Text', 'Clear filters', 'Tag', 'clearFilters', 'Tooltip', 'Remove every filter: show all the vehicles again', ...
     'ButtonPushedFcn', @(~,~) clearFilters());
 
 doneGrid = uigridlayout(controlGrid, [2 1], 'RowHeight', {'1x', 30}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
-countLabel = uilabel(doneGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'WordWrap', 'on', 'VerticalAlignment', 'bottom');
-uibutton(doneGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', ...
+countLabel = uilabel(doneGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'WordWrap', 'on', 'VerticalAlignment', 'bottom', ...
+    'Tag', 'count');
+doneButton = uibutton(doneGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', 'Tag', 'done', ...
     'Tooltip', 'Close this window and return the selected vehicles'' MATLAB names (with none selected: a fresh copy of the default test vehicle)', ...
     'ButtonPushedFcn', @(~,~) closeWindow());
 
@@ -477,14 +549,15 @@ uibutton(doneGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', ...
 % this is only what will be returned; Sean, 23:35)
 selectionGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {215, '1x', 110, 120, 120}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-uilabel(selectionGrid, 'Text', {'Returned when closed:', 'the selected, in the order shown'}, 'FontWeight', 'bold');
+selectionHeading = uilabel(selectionGrid, 'Text', {'Returned when closed:', 'the selected, in the order shown'}, 'FontWeight', 'bold', ...
+    'Tag', 'selectionHeading');
 selectionArea = uilabel(selectionGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 12, 'WordWrap', 'on', ...
-    'VerticalAlignment', 'center', 'FontColor', [0.10 0.25 0.55]);
-copyButton = uibutton(selectionGrid, 'Text', 'Copy names', 'Tooltip', 'Copy the line shown, a MATLAB cell array, to the clipboard', ...
+    'VerticalAlignment', 'center', 'FontColor', [0.10 0.25 0.55], 'Tag', 'selection');
+copyButton = uibutton(selectionGrid, 'Text', 'Copy names', 'Tag', 'copyNames', 'Tooltip', 'Copy the line shown, a MATLAB cell array, to the clipboard', ...
     'ButtonPushedFcn', @(~,~) clipboard('copy', selectionArea.Text));
-uibutton(selectionGrid, 'Text', 'Select all shown', 'Tooltip', 'Tick Select on every vehicle shown (not on those the filters hide)', ...
+uibutton(selectionGrid, 'Text', 'Select all shown', 'Tag', 'selectAllShown', 'Tooltip', 'Tick Select on every vehicle shown (not on those the filters hide)', ...
     'ButtonPushedFcn', @(~,~) selectShown(true));
-uibutton(selectionGrid, 'Text', 'Clear selection', 'Tooltip', 'Untick Select on every vehicle shown', ...
+uibutton(selectionGrid, 'Text', 'Clear selection', 'Tag', 'clearSelection', 'Tooltip', 'Untick Select on every vehicle shown', ...
     'ButtonPushedFcn', @(~,~) selectShown(false));
 
 % Row 3: a text table of the vehicles (left) and a preview of the one
@@ -492,40 +565,75 @@ uibutton(selectionGrid, 'Text', 'Clear selection', 'Tooltip', 'Untick Select on 
 % the window's drawing stall for about 60 s; a text table stays fast for
 % thousands of vehicles, and only one vehicle's pictures are on screen)
 bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {'1x', 470}, 'Padding', [0 0 0 0], 'ColumnSpacing', 8);
-vehicleTable = uitable(bodyGrid, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', ...
+% (the table, with a key line above it for the Status column: Sean, 11:20)
+% (one line per letter, indented, so a narrow window cuts off only the
+% ends of the explanations, never the E line: Sean, 13:08, T46)
+tableGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {54, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
+statusIndent = repmat('&nbsp;', 1, 6);
+uilabel(tableGrid, 'Interpreter', 'html', 'Tag', 'statusKey', 'VerticalAlignment', 'top', 'Text', ...
+    ['<b>Status:</b><br>' statusIndent '<b><font color="#cc0000">D</font></b> = the demo vehicle ' ...
+    '(the demos and tools use it when no vehicle is named)<br>' statusIndent '<b>E</b> = an exemplar of its class ' ...
+    '(the finished vehicle a body style is refit from)']);
+vehicleTable = uitable(tableGrid, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', 'Tag', 'vehicleTable', ...
     'FontSize', 13, 'Tooltip', 'Click a vehicle to see it on the right; tick Select on the ones to return', ...
     'CellEditCallback', @(~, event) onTableEdit(event), ...
     'SelectionChangedFcn', @(source, ~) onTableSelection(source.Selection));
 tableRowVehicle = zeros(0, 1);   % (the vehicle on each table row; 0 for a group row)
 previewIndex = 0;   % (the vehicle in the preview; the first one shown, once the table is filled)
 
-previewPanel = uipanel(bodyGrid, 'BackgroundColor', [1 1 1]);
-previewGrid = uigridlayout(previewPanel, [7 1], 'RowHeight', {30, 18, 'fit', '1x', 'fit', 30, 30}, ...
+previewPanel = uipanel(bodyGrid, 'BackgroundColor', [1 1 1], 'Tag', 'previewPanel');
+% (the rows: name, MATLAB name, pictures, details, Select, a hint line,
+% the tool buttons, the demo vehicle buttons. Every row is fixed or 'fit',
+% so in a small window the panel scrolls rather than squeezing the
+% details to nothing)
+previewGrid = uigridlayout(previewPanel, [8 1], 'RowHeight', {30, 18, 'fit', 'fit', 'fit', 'fit', 30, 30}, ...
     'Padding', [10 8 10 8], 'RowSpacing', 6, 'BackgroundColor', [1 1 1], 'Scrollable', 'on');
-previewName = uilabel(previewGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', 'WordWrap', 'on');
-previewID = uilabel(previewGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 13, 'FontColor', [0.35 0.35 0.35]);
+previewName = uilabel(previewGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', 'WordWrap', 'on', 'Tag', 'previewName');
+previewID = uilabel(previewGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 13, 'FontColor', [0.35 0.35 0.35], ...
+    'Tag', 'previewID');
 pictureGrid = uigridlayout(previewGrid, [1 2], 'RowHeight', {160}, 'ColumnWidth', {'1x', '1x'}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 6, 'BackgroundColor', [1 1 1]);
-picture3D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The labeled 3D mesh, from the front left');
-picture2D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The 2D overhead outline, front to the right');
+picture3D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The labeled 3D mesh, from the front left', 'Tag', 'picture3D');
+picture2D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The 2D overhead outline, front to the right', 'Tag', 'picture2D');
 previewDetails = uilabel(previewGrid, 'Text', '', 'Interpreter', 'html', 'VerticalAlignment', 'top', ...
-    'WordWrap', 'on', 'FontSize', 12);
-previewSelect = uicheckbox(previewGrid, 'Text', 'Select', 'FontSize', 15, 'FontWeight', 'bold', ...
+    'WordWrap', 'on', 'FontSize', 12, 'Tag', 'previewDetails');
+previewSelect = uicheckbox(previewGrid, 'Text', 'Select', 'FontSize', 15, 'FontWeight', 'bold', 'Tag', 'previewSelect', ...
     'Tooltip', 'Return this vehicle''s MATLAB name when the window is closed (the same as its Select in the table)', ...
     'ValueChangedFcn', @(source, ~) onPreviewSelect(source.Value));
-previewSpacer = uilabel(previewGrid, 'Text', ''); %#ok<NASGU>
+% (a hint line: whether this is the demo vehicle, or why it cannot be)
+previewHint = uilabel(previewGrid, 'Text', '', 'WordWrap', 'on', 'FontSize', 12, 'Tag', 'previewHint');
 toolGrid = uigridlayout(previewGrid, [1 3], 'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0], ...
     'BackgroundColor', [1 1 1]);
-uibutton(toolGrid, 'Text', 'View', 'Tooltip', 'Open in fcn_CarMesh3D_viewLabels (changes nothing)', ...
+viewButton = uibutton(toolGrid, 'Text', 'View', 'Tag', 'view', 'Tooltip', 'Open in fcn_CarMesh3D_viewLabels (changes nothing)', ...
     'ButtonPushedFcn', @(~,~) openPreviewed('view'));
-uibutton(toolGrid, 'Text', 'Edit labels', 'Tooltip', 'Open in the label painter, fcn_CarMesh3D_paintLabels (asks: the vehicle or a demo copy)', ...
+editButton = uibutton(toolGrid, 'Text', 'Edit labels', 'Tag', 'editLabels', ...
+    'Tooltip', 'Open in the label painter, fcn_CarMesh3D_paintLabels (asks: the vehicle or a demo copy)', ...
     'ButtonPushedFcn', @(~,~) openPreviewed('edit'));
-uibutton(toolGrid, 'Text', 'Review', 'Tooltip', 'Open in the Model Reviewer, fcn_CarMesh3D_reviewVehicle (asks: the vehicle or a demo copy)', ...
+reviewButton = uibutton(toolGrid, 'Text', 'Review', 'Tag', 'review', ...
+    'Tooltip', 'Open in the Model Reviewer, fcn_CarMesh3D_reviewVehicle (asks: the vehicle or a demo copy)', ...
     'ButtonPushedFcn', @(~,~) openPreviewed('review'));
+% (the demo vehicle: the one the demos and tools use when no vehicle is
+% named; Q35/Q36 A. Saved on this computer only, by fcn_CarMesh3D_demoVehicle)
+demoGrid = uigridlayout(previewGrid, [1 2], 'ColumnWidth', {'1x', '1x'}, 'Padding', [0 0 0 0], ...
+    'BackgroundColor', [1 1 1]);
+useDemoButton = uibutton(demoGrid, 'Text', [char(9733) ' Use as demo vehicle'], 'Tag', 'useAsDemo', ...
+    'Tooltip', ['Make this vehicle your demo vehicle: the one the demos and tools use when no vehicle is named ' ...
+    '(saved on this computer only; it needs its script, finished mesh and photos)'], ...
+    'ButtonPushedFcn', @(~,~) useAsDemo());
+repoDemoButton = uibutton(demoGrid, 'Text', 'Back to the repo''s demo', 'Tag', 'useRepoDemo', ...
+    'Tooltip', 'Forget your own demo vehicle: the demos and tools use the repo''s choice again', ...
+    'ButtonPushedFcn', @(~,~) useRepoDemo());
 previewSelect.Layout.Row = 5;
+previewHint.Layout.Row = 6;
 toolGrid.Layout.Row = 7;
+demoGrid.Layout.Row = 8;
 
 figureHandle.CloseRequestFcn = @(~,~) closeWindow();
+% (the widths follow the window's size: in a small window the preview and
+% the top row's boxes shrink, so the table keeps a usable width)
+figureHandle.AutoResizeChildren = 'off';
+figureHandle.SizeChangedFcn = @(~,~) layoutForSize();
+layoutForSize();
 arrangeList();
 
 % The browser's handles and functions
@@ -535,7 +643,14 @@ browser = struct('Figure', figureHandle, 'Vehicles', vehicles, ...
     'ApplyFilter', @applyFilter, 'ClearFilters', @clearFilters, 'Filters', @getFilters, ...
     'Select', @(names) setSelected(names, true), 'Deselect', @(names) setSelected(names, false), ...
     'Selected', @getSelected, 'Result', @getResult, 'Close', @closeWindow, ...
-    'Table', vehicleTable, 'Preview', @previewByName, 'Previewed', @getPreviewed, 'NextStep', @getNextStep);
+    'Table', vehicleTable, 'Preview', @previewByName, 'Previewed', @getPreviewed, 'NextStep', @getNextStep, ...
+    'State', @getState, ...
+    'SetState', @(varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'set', varargin{:}), ...
+    'Press', @(varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'press', varargin{:}), ...
+    'Key', @(key, varargin) fcn_INTERNAL_key(figureHandle, key, varargin{:}), ...
+    'CheckLayout', @() fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout'), ...
+    'SelectRow', @selectRow, 'TickRow', @tickRow, 'SetSize', @setSize, ...
+    'UseAsDemo', @useAsDemo, 'UseRepoDemo', @useRepoDemo);
 
 if flagWait && options.Visible
     uiwait(figureHandle);
@@ -578,12 +693,14 @@ end
         currentOrder = fcn_INTERNAL_order(vehicles, sortKey, groupKey, flagDescending);
         flagShown = fcn_INTERNAL_matchesFilter(vehicles, filterTerms);
         shownOrder = currentOrder(flagShown(currentOrder));
-        [tableData, columnNames, tableRowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey);
+        [tableData, columnNames, tableRowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey, demoID);
         vehicleTable.Data = tableData;
         vehicleTable.ColumnName = columnNames;
         vehicleTable.ColumnEditable = [true, false(1, numel(columnNames) - 1)];
         vehicleTable.ColumnWidth = fcn_INTERNAL_columnWidths(columnNames);
         removeStyle(vehicleTable);
+        % (the Status column's red, bold D: its cells are HTML)
+        addStyle(vehicleTable, uistyle('Interpreter', 'html'), 'column', find(strcmp(columnNames, 'Status'), 1));
         groupRows = find(tableRowVehicle == 0);
         if ~isempty(groupRows)
             addStyle(vehicleTable, uistyle('BackgroundColor', [0.25 0.35 0.5], 'FontColor', [1 1 1], ...
@@ -601,6 +718,7 @@ end
             previewIndex = shownOrder(1);
         end
         showPreview();
+        highlightPreviewRow();
         if isempty(filterTerms)
             countLabel.Text = sprintf('%d of %d vehicles shown', numel(shownOrder), numVehicles);
         else
@@ -620,7 +738,192 @@ end
         if thisVehicle > 0
             previewIndex = thisVehicle;
             showPreview();
+        else
+            % (a group row: the preview keeps its vehicle, so the
+            % highlight goes back to that vehicle's row; found by the
+            % random-walk test: the highlight and the preview disagreed)
+            highlightPreviewRow();
         end
+    end
+
+    function highlightPreviewRow()
+        % The table's highlighted row: the previewed vehicle's row (none
+        % when nothing is previewed). Setting Selection in code does not
+        % run SelectionChangedFcn, so this cannot loop
+        tableRow = find(tableRowVehicle == previewIndex & previewIndex > 0, 1);
+        if isempty(tableRow)
+            vehicleTable.Selection = [];
+        elseif ~isequal(vehicleTable.Selection, tableRow)
+            vehicleTable.Selection = tableRow;
+        end
+    end
+
+    function selectRow(rowOrID)
+        % (hook) A table row clicked, as a mouse click does: the table's
+        % Selection, then its own SelectionChangedFcn. rowOrID: a table row
+        % number, or the vehicle ID of a row shown
+        tableRow = rowOrID;
+        if ischar(rowOrID) || isstring(rowOrID)
+            tableRow = rowOfVehicle(char(rowOrID));
+            if isempty(tableRow)
+                error('CarMesh3D:notShown', '%s: "%s" is not on a table row now.', functionName, char(rowOrID));
+            end
+        end
+        if ~isnumeric(tableRow) || ~isscalar(tableRow) || tableRow < 1 || tableRow > numel(tableRowVehicle) || tableRow ~= round(tableRow)
+            error('CarMesh3D:badInput', '%s: the table has rows 1 to %d.', functionName, numel(tableRowVehicle));
+        end
+        oldSelection = vehicleTable.Selection;
+        vehicleTable.Selection = tableRow;
+        vehicleTable.SelectionChangedFcn(vehicleTable, struct('Selection', tableRow, 'PreviousSelection', oldSelection, ...
+            'Source', vehicleTable, 'EventName', 'SelectionChanged'));
+        drawnow;
+    end
+
+    function tickRow(rowOrID, flagValue)
+        % (hook) A row's Select box in the table ticked or unticked, as a
+        % click does: the cell's value, then the table's CellEditCallback
+        tableRow = rowOrID;
+        if ischar(rowOrID) || isstring(rowOrID)
+            tableRow = rowOfVehicle(char(rowOrID));
+            if isempty(tableRow)
+                error('CarMesh3D:notShown', '%s: "%s" is not on a table row now.', functionName, char(rowOrID));
+            end
+        end
+        if ~isnumeric(tableRow) || ~isscalar(tableRow) || tableRow < 1 || tableRow > numel(tableRowVehicle) || tableRow ~= round(tableRow)
+            error('CarMesh3D:badInput', '%s: the table has rows 1 to %d.', functionName, numel(tableRowVehicle));
+        end
+        oldValue = vehicleTable.Data{tableRow, 1};
+        vehicleTable.Data{tableRow, 1} = logical(flagValue);
+        vehicleTable.CellEditCallback(vehicleTable, struct('Indices', [tableRow 1], 'PreviousData', oldValue, ...
+            'NewData', logical(flagValue), 'EditData', logical(flagValue), 'Error', [], ...
+            'Source', vehicleTable, 'EventName', 'CellEdit'));
+        drawnow;
+    end
+
+    function tableRow = rowOfVehicle(vehicleID)
+        % The table row of a vehicle ID ([] if it is not on a row now)
+        tableRow = [];
+        index = find(strcmp({vehicles.ID}, vehicleID), 1);
+        if ~isempty(index)
+            tableRow = find(tableRowVehicle == index, 1);
+        end
+    end
+
+    function setSize(newWidth, newHeight)
+        % (hook) The window resized, as dragging its corner does
+        % (a window already that size is nudged by a pixel and back, so a
+        % hidden window, which is laid out only when resized, is laid out)
+        if isequal(figureHandle.Position(3:4), [newWidth newHeight])
+            figureHandle.Position(3:4) = [newWidth newHeight] + 1;
+            drawnow;
+        end
+        figureHandle.Position(3:4) = [newWidth newHeight];
+        layoutForSize();
+        drawnow;
+    end
+
+    function layoutForSize()
+        % Widths that follow the window's size. In a wide window: the
+        % sizes of the design; in a narrow one, the preview and the top
+        % row's boxes shrink so the table stays usable
+        if ~isvalid(figureHandle)
+            return;
+        end
+        windowWidth = figureHandle.Position(3);
+        previewWidth = min(470, max(240, round(0.40*(windowWidth - 30))));
+        bodyGrid.ColumnWidth = {'1x', previewWidth};
+        if windowWidth >= 1200
+            controlGrid.ColumnWidth = {220, 400, '1x', 175};
+            sortGrid.ColumnWidth = {'1x', 48, 150};
+            filterGrid.ColumnWidth = {'1x', 90, 90};
+        elseif windowWidth >= 900
+            controlGrid.ColumnWidth = {'1x', '1.75x', '2.6x', 150};
+            sortGrid.ColumnWidth = {'1x', 48, '1x'};
+            filterGrid.ColumnWidth = {'1x', 90, 90};
+        else
+            % (narrow: the Order? label is left out below 760 px, and the
+            % buttons are narrower, with shorter words, so every control
+            % keeps a usable width down to a 640 px window)
+            controlGrid.ColumnWidth = {'1x', '1.75x', '2.6x', 100};
+            if windowWidth >= 760
+                sortGrid.ColumnWidth = {'1x', 48, '1x'};
+            else
+                sortGrid.ColumnWidth = {'1x', 0, '1x'};
+            end
+            filterGrid.ColumnWidth = {'1x', 68, 68};
+        end
+        orderLabel.Visible = fcn_INTERNAL_onOff(windowWidth >= 760);
+        % (the buttons' words: in full when there is room, else short; the
+        % tooltips keep the full meaning)
+        flagNarrow = windowWidth < 900;
+        applyButton.Text = fcn_INTERNAL_pick(flagNarrow, 'Apply', 'Apply filter');
+        clearFiltersButton.Text = fcn_INTERNAL_pick(flagNarrow, 'Clear', 'Clear filters');
+        doneButton.Text = fcn_INTERNAL_pick(flagNarrow, 'Done', 'Done: close and return');
+        flagNarrowPreview = previewWidth < 400;
+        editButton.Text = fcn_INTERNAL_pick(previewWidth < 300, 'Edit', 'Edit labels');
+        useDemoButton.Text = fcn_INTERNAL_pick(flagNarrowPreview, [char(9733) ' Use as demo'], [char(9733) ' Use as demo vehicle']);
+        repoDemoButton.Text = fcn_INTERNAL_pick(flagNarrowPreview, 'Repo''s demo', 'Back to the repo''s demo');
+        if windowWidth >= 1100
+            selectionGrid.ColumnWidth = {215, '1x', 110, 120, 120};
+            selectionHeading.Text = {'Returned when closed:', 'the selected, in the order shown'};
+        else
+            selectionGrid.ColumnWidth = {150, '1x', 95, 115, 110};
+            selectionHeading.Text = {'Returned when', 'closed:'};
+        end
+    end
+
+    function stateOut = getState()
+        % (hook) Every tagged control's state, plus what the driver cannot
+        % read: the vehicle on each table row, the highlighted row, the
+        % preview, the selection, the filters and the demo vehicle
+        stateOut = fcn_CarMesh3D_guiDriver(figureHandle, 'state');
+        rowIDs = repmat({''}, numel(tableRowVehicle), 1);
+        for ith_row = 1:numel(tableRowVehicle)
+            if tableRowVehicle(ith_row) > 0
+                rowIDs{ith_row} = vehicles(tableRowVehicle(ith_row)).ID;
+            end
+        end
+        selectedRow = vehicleTable.Selection;
+        if ~isempty(selectedRow)
+            selectedRow = selectedRow(1);
+        end
+        stateOut.Browser = struct('TableRows', {rowIDs}, 'SelectedRow', selectedRow, ...
+            'Previewed', getPreviewed(), 'Selected', {getSelected()}, 'Filters', {filterTerms}, ...
+            'DemoVehicle', demoID, 'DemoSource', demoSource);
+    end
+
+    function useAsDemo()
+        % "Use as demo vehicle": this user's own demo vehicle becomes the
+        % previewed one (fcn_CarMesh3D_demoVehicle saves it). A vehicle
+        % that cannot be the demo vehicle (no finished mesh, script or
+        % photos) is refused there; its reason is shown in the hint line,
+        % in red, and nothing changes
+        if previewIndex == 0
+            return;
+        end
+        thisID = vehicles(previewIndex).ID;
+        try
+            fcn_CarMesh3D_demoVehicle(Set=thisID, FigNum=-1);
+            [demoID, demoSource] = fcn_INTERNAL_currentDemo();
+            demoMessage = '';
+        catch ME
+            demoMessage = ME.message;
+        end
+        demoMessageIndex = previewIndex;
+        arrangeList();   % (the star moves to the new demo vehicle's row)
+    end
+
+    function useRepoDemo()
+        % "Back to the repo's demo": forget this user's own choice
+        try
+            fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);
+            demoMessage = '';
+        catch ME
+            demoMessage = ME.message;
+            demoMessageIndex = previewIndex;
+        end
+        [demoID, demoSource] = fcn_INTERNAL_currentDemo();
+        arrangeList();
     end
 
     function onTableEdit(event)
@@ -644,6 +947,10 @@ end
             previewDetails.Text = '';
             previewSelect.Enable = 'off';
             previewSelect.Value = false;
+            % (no vehicle: nothing to view, edit, review or make the demo)
+            set([viewButton, editButton, reviewButton, useDemoButton], 'Enable', 'off');
+            previewHint.Text = '';
+            repoDemoButton.Enable = fcn_INTERNAL_onOff(strcmp(demoSource, 'preference'));
             return;
         end
         vehicle = vehicles(previewIndex);
@@ -660,6 +967,23 @@ end
         previewDetails.Text = fcn_INTERNAL_detailsHTML(vehicle);
         previewSelect.Enable = 'on';
         previewSelect.Value = flagSelected(previewIndex);
+        set([viewButton, editButton, reviewButton], 'Enable', 'on');
+        % (the demo vehicle: its hint, and the two demo buttons)
+        flagIsDemo = strcmp(vehicle.ID, demoID);
+        useDemoButton.Enable = fcn_INTERNAL_onOff(~flagIsDemo);
+        repoDemoButton.Enable = fcn_INTERNAL_onOff(strcmp(demoSource, 'preference'));
+        if ~isempty(demoMessage) && demoMessageIndex == previewIndex
+            previewHint.Text = demoMessage;
+            previewHint.FontColor = [0.75 0 0];
+        elseif flagIsDemo && strcmp(demoSource, 'preference')
+            previewHint.Text = [char(9733) ' Your demo vehicle: the demos and tools use it when no vehicle is named.'];
+            previewHint.FontColor = [0.6 0.4 0];
+        elseif flagIsDemo
+            previewHint.Text = [char(9733) ' The repo''s demo vehicle: the demos and tools use it when no vehicle is named.'];
+            previewHint.FontColor = [0.6 0.4 0];
+        else
+            previewHint.Text = '';
+        end
     end
 
     function previewByName(name)
@@ -670,10 +994,7 @@ end
         end
         previewIndex = index;
         showPreview();
-        tableRow = find(tableRowVehicle == index, 1);
-        if ~isempty(tableRow)
-            vehicleTable.Selection = tableRow;
-        end
+        highlightPreviewRow();
     end
 
     function onPreviewSelect(flagValue)
@@ -1201,17 +1522,19 @@ end
 end % Ends fcn_INTERNAL_fill
 
 %% fcn_INTERNAL_tableData
-function [tableData, columnNames, rowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey)
+function [tableData, columnNames, rowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey, demoID)
 % The table's rows: a row per group (when grouped) and a row per vehicle
-% shown. Columns (Sean, C2S 11 (A)): Select, the exemplar star, Vehicle,
-% Year, Make, Class (left out when grouped by class), Length, Score,
-% Review, License. rowVehicle: the vehicle on each row, 0 for a group row
+% shown. Columns (Sean, C2S 11 (A); 2026-11-24 11:20): Select, Status
+% (D = the demo vehicle, in red bold HTML; E = an exemplar of its class),
+% Vehicle, Year, Make, Class (left out when grouped by class), Length,
+% Score, Review, Reviewer (initials), Author (of the download), License.
+% rowVehicle: the vehicle on each row, 0 for a group row
 flagClass = ~strcmp(groupKey, 'class');
-columnNames = {'Select', char(9733), 'Vehicle', 'Year', 'Make'};
+columnNames = {'Select', 'Status', 'Vehicle', 'Year', 'Make'};
 if flagClass
     columnNames{end+1} = 'Class';
 end
-columnNames = [columnNames, {'Length (m)', 'Score', 'Review', 'License'}];
+columnNames = [columnNames, {'Length (m)', 'Score', 'Review', 'Reviewer', 'Author', 'License'}];
 numColumns = numel(columnNames);
 tableData = cell(0, numColumns);
 rowVehicle = zeros(0, 1);
@@ -1229,21 +1552,29 @@ for ith_shown = 1:numel(shownOrder)
         rowVehicle(end+1, 1) = 0; %#ok<AGROW>
         lastGroup = thisGroup;
     end
-    star = '';
-    if vehicle.IsExemplar
-        star = char(9733);
+    statusParts = {};
+    if strcmp(vehicle.ID, demoID)
+        statusParts{end+1} = '<b><font color="#cc0000">D</font></b>'; %#ok<AGROW>
     end
-    row = {logical(flagSelected(thisVehicle)), star, vehicle.Name, fcn_INTERNAL_numberText(vehicle.Year, '%d'), ...
+    if vehicle.IsExemplar
+        statusParts{end+1} = 'E'; %#ok<AGROW>
+    end
+    row = {logical(flagSelected(thisVehicle)), strjoin(statusParts, ', '), vehicle.Name, fcn_INTERNAL_numberText(vehicle.Year, '%d'), ...
         char(vehicle.Make)};
     if flagClass
         row{end+1} = char(vehicle.ClassName); %#ok<AGROW>
     end
     review = '';
+    reviewer = '';
     if ~isnan(vehicle.ReviewPercent)
         review = sprintf('%.0f %%', vehicle.ReviewPercent);
+        reviewer = char(vehicle.Reviewers);
+        if isempty(reviewer)
+            reviewer = 'SBB';   % (the default reviewer for now: Sean, 2026-11-24 11:20)
+        end
     end
     row = [row, {fcn_INTERNAL_numberText(vehicle.Length, '%.2f'), fcn_INTERNAL_numberText(vehicle.Score, '%.1f'), ...
-        review, fcn_INTERNAL_shortLicense(vehicle.License)}]; %#ok<AGROW>
+        review, reviewer, char(vehicle.LicenseAuthor), fcn_INTERNAL_shortLicense(vehicle.License)}]; %#ok<AGROW>
     tableData(end+1, :) = row; %#ok<AGROW>
     rowVehicle(end+1, 1) = thisVehicle; %#ok<AGROW>
 end
@@ -1256,7 +1587,7 @@ widths = cell(1, numel(columnNames));
 for k = 1:numel(columnNames)
     switch columnNames{k}
         case 'Select',     widths{k} = 55;
-        case char(9733),   widths{k} = 30;
+        case 'Status',     widths{k} = 60;
         case 'Vehicle',    widths{k} = 'auto';
         case 'Year',       widths{k} = 55;
         case 'Make',       widths{k} = 100;
@@ -1264,6 +1595,8 @@ for k = 1:numel(columnNames)
         case 'Length (m)', widths{k} = 85;
         case 'Score',      widths{k} = 60;
         case 'Review',     widths{k} = 65;
+        case 'Reviewer',   widths{k} = 75;
+        case 'Author',     widths{k} = 120;
         case 'License',    widths{k} = 130;
         otherwise,         widths{k} = 'auto';
     end
@@ -1501,6 +1834,38 @@ screen = get(groot, 'ScreenSize');
 windowSize = [min(1400, screen(3)-80), min(900, screen(4)-120)];
 position = [max(20, (screen(3)-windowSize(1))/2), max(40, (screen(4)-windowSize(2))/2), windowSize];
 end % Ends fcn_INTERNAL_windowPosition
+
+%% fcn_INTERNAL_currentDemo
+function [demoID, demoSource] = fcn_INTERNAL_currentDemo()
+% The demo vehicle now (this user's own choice, else the repo's), and
+% whose choice it is: 'repo' or 'preference'. '' if it cannot be found
+demoID = '';
+demoSource = 'repo';
+try
+    [demoID, info] = fcn_CarMesh3D_demoVehicle(FigNum=-1);
+    demoSource = info.Source;
+catch
+end
+end % Ends fcn_INTERNAL_currentDemo
+
+%% fcn_INTERNAL_key
+function stateNow = fcn_INTERNAL_key(figureHandle, key, modifiers)
+% (hook) A key press sent to the window, with modifier keys if given
+if nargin < 3
+    modifiers = {};
+end
+stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, 'Modifier', modifiers);
+end % Ends fcn_INTERNAL_key
+
+%% fcn_INTERNAL_pick
+function text = fcn_INTERNAL_pick(flagFirst, firstText, secondText)
+% firstText when flagFirst is true, else secondText
+if flagFirst
+    text = firstText;
+else
+    text = secondText;
+end
+end % Ends fcn_INTERNAL_pick
 
 %% fcn_INTERNAL_onOff
 function text = fcn_INTERNAL_onOff(flagValue)

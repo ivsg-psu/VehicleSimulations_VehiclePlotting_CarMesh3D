@@ -160,6 +160,26 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           OpenPanel(name), Panel(), Panels(): its own window's panels
 %               (Panels: fcn_CarMesh3D_makeDisplayPanels' functions)
 %           Stop() (its timer), Close()
+%           PhotoCount(): how many photos the dial has (0: no photo side)
+%           For tests (fcn_CarMesh3D_guiDriver on this window; inside a
+%           host, on the panel it was built into):
+%           State(), SetState(tag, value) or SetState(struct),
+%               Press(tagOrText), Key(key), CheckLayout(), Controls()
+%           MouseDrag(button, fromPoint, toPoint, numSteps): a drag on
+%               the model through the mouse's own code ('left' turns,
+%               'right' pans; points in the window's pixels, [] from the
+%               model's middle)
+%           Scroll(count, point): the wheel (negative zooms in)
+%           DialDrag(angles, flagRelease): the dial's arrow pressed at
+%               the first angle and dragged through the rest, let go at
+%               the end (false with no photos, or the dial left out of a
+%               small window)
+%           Resize([width height]): the window resized, the view checked
+%           Tick(): the view timer's check, at once
+%           Settle(): waits until the window has laid itself out, then
+%               Tick (a hidden window lays out a little after drawnow)
+%           FitInfo(): Zoom (1: the whole vehicle just fits; larger is
+%               zoomed in), FitTan, AxesSize
 %
 % DEPENDENCIES:
 %
@@ -301,6 +321,49 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % under the photo, in its own window); the camera's angles and
 %   %   % distance shown in Overall Display (hook CameraInfo, option OnView;
 %   %   % the view timer runs with no photos too)
+%   % * Sean's T22 and T23 (2026-11-24 04:53): the camera readout follows
+%   %   % a turn by the photo dial too; the vehicle fits the window when it
+%   %   % is resized (the view angle refitted to the axes' shape, the
+%   %   % user's zoom kept), and Reset view fits it to the window now
+%   % * A label whose part the mesh does not have (interior, since the
+%   %   % voxel interior labeling was switched off, Q37, 2026-11-24 05:06)
+%   %   % has no faces, instead of an error
+%   % * Drivable by script for automated tests (Sean, 05:03): every
+%   %   % control a user clicks or reads has a Tag (Exit viewerExit, the
+%   %   % menu's items menu_<panel>, GUI settings' startViewDial,
+%   %   % startViewDown, resetSettings, the photo's photoName and
+%   %   % photoGrip, ...); new hooks State, SetState, Press, Key,
+%   %   % CheckLayout, Controls (fcn_CarMesh3D_guiDriver), MouseDrag,
+%   %   % Scroll, DialDrag (through the mouse's own code), Resize, Tick,
+%   %   % Settle, FitInfo, PhotoCount; the menu's list hidden while closed
+%   %   % * Bug fixed (found by the tests): in GUI settings, typing the
+%   %   % dial angle put the angle down back to its starting value (and
+%   %   % the other way round): each field's callback had kept the other's
+%   %   % value from when it was made
+%   %   % * Bug fixed: a change made through a hook (ShowLabel, SetColors,
+%   %   % SetHidden, SetNightView, ...) left its own window's panels and
+%   %   % status line showing the old state; they follow every change now
+%   %   % * OpenPanel with a name that is not a panel is an error (it
+%   %   % opened an empty column)
+%   %   % * Bug fixed: a view opened from view settings (a shared view
+%   %   % call) could open at a slightly different zoom from the one given:
+%   %   % the view timer refitted it while the window was being laid out;
+%   %   % the timer now waits until the window is built
+%   %   % * Bug fixed: in a small window the photo and dial kept their
+%   %   % size: a Large photo was cut off at the bottom of an 800 x 500
+%   %   % window, and at 640 x 400 they took all the width, leaving the
+%   %   % model none. The photo now shrinks to the room there is (its
+%   %   % chosen size kept for when the window grows), and in a window too
+%   %   % small for a small photo, the photo and dial are left out
+%   %   % * Bug fixed: Reset view at night went to where the camera was
+%   %   % when night first fell (after the starting view was changed),
+%   %   % not to the starting view: the night view kept that camera as the
+%   %   % starting view
+%   %   % * Bug fixed: after a turn or pan, resizing the window could cut
+%   %   % off a vehicle that was fully in view: the zoom kept was measured
+%   %   % against the fit made at the last resize, not from the camera now
+%   %   % * Bug fixed: at night, All labels Shown? No (every label out of
+%   %   % view) stopped with an error in nightEdges (no vehicle patches)
 
 % TO-DO:
 %
@@ -551,6 +614,8 @@ settingsControls = struct();
 flagDialDragging = false;
 flagSyncingView = false;
 lastLabelView = [NaN NaN];
+lastAxesSize = [NaN NaN];   % (the model's axes' size when the view was last fitted to it)
+fitTanLast = NaN;           % (the fit then: tan of half the view angle that just fits the vehicle)
 bodySeeThrough = 0;   % (how see-through the body is drawn: 0 solid, 0.9 nearly clear)
 seeThroughSlider = [];
 viewTimer = [];
@@ -559,6 +624,7 @@ closedSettings = [];
 mouseMode = '';
 mouseStart = [0 0];
 mouseLast = [0 0];
+flagBuilt = false;   % (true once the window is built: the view timer refits the view only then)
 
 %%%% The window (or the parent given)
 flagOwnWindow = isempty(options.Parent);
@@ -584,12 +650,14 @@ if flagOwnWindow
     uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
         'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
         'ButtonPushedFcn', @(~,~) toggleMenu());
-    uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closeViewer(), ...
+    uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closeViewer(), 'Tag', 'viewerExit', ...
         'Tooltip', 'Close the viewer (it returns the view settings; nothing is saved)');
     statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'viewerStatus');
     bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
     leftGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
-    menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1]);
+    % (the menu's list: hidden while closed, so a test sees it as off the
+    % screen, as a person does)
+    menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Visible', 'off', 'Tag', 'viewerMenuList');
     menuGrid = uigridlayout(menuPanel, [numel(panelNames) 1], 'RowHeight', repmat({28}, 1, numel(panelNames)), ...
         'Padding', [4 4 4 4], 'RowSpacing', 2, 'BackgroundColor', [1 1 1], 'Scrollable', 'on');
     blueBand = [0.93 0.95 1];     % (viewing work, as in the painter)
@@ -599,6 +667,7 @@ if flagOwnWindow
     for ith_panel = 1:numel(panelNames)
         menuItems(ith_panel) = uibutton(menuGrid, 'Text', panelNames{ith_panel}, 'HorizontalAlignment', 'left', ...
             'BackgroundColor', panelColors{ith_panel}, 'UserData', panelNames{ith_panel}, ...
+            'Tag', ['menu_' strrep(panelNames{ith_panel}, ' ', '')], ...
             'ButtonPushedFcn', @(source,~) pickPanel(source.UserData));
     end
     holderGrid = uigridlayout(leftGrid, [1 1], 'Padding', [0 0 0 0]);
@@ -616,6 +685,7 @@ if flagOwnWindow
 else
     parent = options.Parent;
     figureHandle = ancestor(parent, 'figure');
+    menuPanel = [];
 end
 toolHeight = 0;
 if options.ShowTools && ~flagOwnWindow
@@ -642,26 +712,26 @@ mainGrid = uigridlayout(parent, [4 1], 'RowHeight', {toolHeight, '1x', hintHeigh
 toolGrid = uigridlayout(mainGrid, [1 10], 'ColumnWidth', {60, 210, 100, 130, 175, 120, 130, 150, '1x', 80}, 'Padding', [4 2 4 2], ...
     'ColumnSpacing', 6, 'BackgroundColor', [0.93 0.95 1]);
 uilabel(toolGrid, 'Text', 'Colors:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
-colorsGroup = uibuttongroup(toolGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.95 1], ...
+colorsGroup = uibuttongroup(toolGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.95 1], 'Tag', 'toolColors', ...
     'SelectionChangedFcn', @(~,event) setColors(event.NewValue.UserData));
 labelsRadio = uiradiobutton(colorsGroup, 'Text', 'Labels', 'Position', [4 4 70 22], 'UserData', 'labels');
 vehicleRadio = uiradiobutton(colorsGroup, 'Text', 'Vehicle colors', 'Position', [80 4 120 22], 'UserData', 'vehicle');
-uibutton(toolGrid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) resetView());
-uibutton(toolGrid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) copyViewCall(), ...
+uibutton(toolGrid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) resetView(), 'Tag', 'toolResetView');
+uibutton(toolGrid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) copyViewCall(), 'Tag', 'toolCopyViewCall', ...
     'Tooltip', 'Put the MATLAB call that opens exactly this view on the clipboard, to send to someone');
-boundaryBox = uicheckbox(toolGrid, 'Text', 'Show mesh boundaries', 'Value', flagBoundaries, ...
+boundaryBox = uicheckbox(toolGrid, 'Text', 'Show mesh boundaries', 'Value', flagBoundaries, 'Tag', 'toolBoundaries', ...
     'Tooltip', 'Draw the edge of every face (the mesh''s triangles)', ...
     'ValueChangedFcn', @(source,~) setBoundaries(source.Value));
-nightBox = uicheckbox(toolGrid, 'Text', 'Nighttime view', 'Value', flagNight, ...
+nightBox = uicheckbox(toolGrid, 'Text', 'Nighttime view', 'Value', flagNight, 'Tag', 'toolNight', ...
     'Tooltip', 'A night scene: the vehicle in its own colors, its lamps lit, and the light they throw on the ground. The lamp list switches the lamps.', ...
     'ValueChangedFcn', @(source,~) setNightView(source.Value));
 uilabel(toolGrid, 'Text', 'See-through body:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold', ...
     'Tooltip', 'Makes the body see-through, to look at (and click) what is inside it');
-seeThroughSlider = uislider(toolGrid, 'Limits', [0 90], 'Value', 100*bodySeeThrough, 'MajorTicks', [0 45 90], ...
+seeThroughSlider = uislider(toolGrid, 'Limits', [0 90], 'Value', 100*bodySeeThrough, 'MajorTicks', [0 45 90], 'Tag', 'toolSeeThrough', ...
     'MajorTickLabels', {'0','45','90%'}, 'MinorTicks', [], 'FontSize', 9, ...
     'ValueChangedFcn', @(source,~) setSeeThrough(source.Value/100));
 uilabel(toolGrid, 'Text', '');
-closeButton = uibutton(toolGrid, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) closeViewer());
+closeButton = uibutton(toolGrid, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) closeViewer(), 'Tag', 'toolClose');
 if ~flagOwnWindow
     closeButton.Visible = 'off';
 end
@@ -696,7 +766,7 @@ layout.Layout.Row = 2;
 modelHolder = uipanel(layout, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
 modelHolder.Layout.Row = 1;
 modelHolder.Layout.Column = 1;
-axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]));
+axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]), 'Tag', 'modelAxes');
 hold(axesHandle, 'on');
 axis(axesHandle, 'off');
 axesHandle.Color = [1 1 1];
@@ -721,22 +791,26 @@ if ~isempty(photoSet)
     photoPanel = uipanel(photoColumn, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
     photoPanel.Layout.Row = 1;
     photoPanel.AutoResizeChildren = 'off';
-    photoImage = uiimage(photoPanel, 'ImageSource', photoSet(1).File, 'ScaleMethod', 'fit', ...
+    photoImage = uiimage(photoPanel, 'ImageSource', photoSet(1).File, 'ScaleMethod', 'fit', 'Tag', 'photoImage', ...
         'Position', [1 1 photoHeight*photoAspect photoHeight]);
-    photoLabel = uilabel(photoPanel, 'Text', '', 'FontSize', 13, 'FontWeight', 'bold', 'HorizontalAlignment', 'center', ...
+    photoLabel = uilabel(photoPanel, 'Text', '', 'FontSize', 13, 'FontWeight', 'bold', 'HorizontalAlignment', 'center', 'Tag', 'photoName', ...
         'BackgroundColor', [1 1 1], 'FontColor', [0.15 0.15 0.15]);
     % (a corner mark: pressing on it is found from the mouse's position,
     % in the window's mouse-down, so it works in a host window too)
     photoGrip = uilabel(photoPanel, 'Text', char(9699), 'FontSize', 22, 'FontColor', [0.15 0.15 0.15], ...
         'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'Position', [2 2 26 26], ...
-        'Tooltip', 'Drag this corner to resize the photo');
+        'Tooltip', 'Drag this corner to resize the photo', 'Tag', 'photoGrip');
+    % (the name and the corner sit on the photo on purpose: marked so the
+    % layout check of fcn_CarMesh3D_guiDriver does not call them overlaps)
+    setappdata(photoLabel, 'guiDriverOverlay', true);
+    setappdata(photoGrip, 'guiDriverOverlay', true);
     photoPanel.SizeChangedFcn = @(~,~) placePhoto();
     % The dial, beside the photo, level with its middle
     dialGrid = uigridlayout(layout, [3 1], 'RowHeight', {max(0,(photoHeight - dialSize)/2), dialSize, '1x'}, ...
         'Padding', [0 0 0 0], 'RowSpacing', 0, 'BackgroundColor', [1 1 1]);
     dialGrid.Layout.Row = 1;
     dialGrid.Layout.Column = 2;
-    dialAxes = uiaxes(dialGrid);
+    dialAxes = uiaxes(dialGrid, 'Tag', 'photoDial');
     dialAxes.Layout.Row = 2;
     [dialArrow, dialDots] = fcn_INTERNAL_drawDial(dialAxes, data, [photoSet.Angle]);
     dialAxes.ButtonDownFcn = @onDialDown;
@@ -747,7 +821,7 @@ if ~isempty(photoSet)
 end
 hintLabel = [];
 if flagHasHint
-    hintLabel = uilabel(mainGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35]);
+    hintLabel = uilabel(mainGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35], 'Tag', 'viewerHint');
     hintLabel.Layout.Row = 3;
 end
 % (the fine print: license, build, last change, review)
@@ -769,7 +843,7 @@ if ~isempty(listParent)
     % one shown at a time)
     listInner = uigridlayout(listParent, [2 1], 'RowHeight', {'1x', 350}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
     labelGroup = uibuttongroup(listInner, ...
-        'Title', 'Labels', 'Scrollable', 'on', ...
+        'Title', 'Labels', 'Scrollable', 'on', 'Tag', 'labelList', ...
         'SelectionChangedFcn', @(~,event) showLabel(event.NewValue.UserData));
     labelGroup.AutoResizeChildren = 'off';   % (else its SizeChangedFcn is never called)
     labelGroup.SizeChangedFcn = @(~,~) placeLabelRows();
@@ -816,8 +890,16 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'PhotoFolder', @getPhotoFolder, 'PlacePhoto', @placePhoto, ...
     'LabelColor', @getLabelColor, 'SetGround', @setGround, 'Ground', @getGround, 'CameraInfo', @getCameraInfo, ...
     'SetStartView', @setStartView, 'StartView', @getStartView, ...
-    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'Panels', @getPanels, ...
-    'Stop', @stopTimer, 'Close', @closeViewer);
+    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'Panels', @getPanels, 'PhotoCount', @getPhotoCount, ...
+    'Stop', @stopTimer, 'Close', @closeViewer, ...
+    'State', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'state'), ...
+    'SetState', @(varargin) fcn_CarMesh3D_guiDriver(driverRoot(), 'set', varargin{:}), ...
+    'Press', @(varargin) fcn_CarMesh3D_guiDriver(driverRoot(), 'press', varargin{:}), ...
+    'Key', @(varargin) fcn_CarMesh3D_guiDriver(driverRoot(), 'key', varargin{:}), ...
+    'CheckLayout', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'checkLayout'), ...
+    'Controls', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'controls'), ...
+    'MouseDrag', @mouseDrag, 'Scroll', @scrollHook, 'DialDrag', @dialDrag, 'Resize', @resizeWindow, ...
+    'Tick', @onModelViewChanged, 'Settle', @settle, 'FitInfo', @getFitInfo);
 if flagOwnWindow
     % (the panels, made once the hooks are: the display panels shared
     % with the painter, fcn_CarMesh3D_makeDisplayPanels, and GUI
@@ -830,6 +912,21 @@ if flagOwnWindow
     figureHandle.UserData = viewer;
 end
 
+% (built: a camera given, as in a shared view, measured against "just
+% fits" at the window's final layout, so it opens exactly as given; the
+% view timer had refitted it at a size the window passed through while
+% being built, and the view call opened at a slightly different zoom:
+% found by the tests, 2026-11-24)
+drawnow;
+if fitPhotoToWindow()   % (the photo fitted to the window first, so the model's size is final)
+    drawnow;
+    placePhoto();
+end
+flagBuilt = true;
+if isfinite(fitTanLast) || isequal(lastAxesSize, [-1 -1])
+    noteFit();
+end
+onModelViewChanged();   % (a view not given: fitted to the window now)
 viewSettings = getView();
 if flagOwnWindow && flagWait && options.Visible
     uiwait(figureHandle);
@@ -862,6 +959,7 @@ end
             end
         end
         redraw();
+        refreshOwn();
     end
 
     function setHistory(historyIn)
@@ -922,6 +1020,7 @@ end
             seeThroughSlider.Value = 100*bodySeeThrough;
         end
         redraw();
+        refreshOwn();
     end
 
     function fraction = getSeeThrough()
@@ -940,6 +1039,7 @@ end
             % (the night scene drawn again without the hidden faces)
             buildNight();
         end
+        refreshOwn();
     end
 
     function setColors(colorsIn)
@@ -953,6 +1053,7 @@ end
             colorsGroup.SelectedObject = labelsRadio;
         end
         redraw();
+        refreshOwn();
     end
 
     function redraw()
@@ -1092,6 +1193,7 @@ end
             uncoloredKeys = reshape(cellstr(keysIn), 1, []);
         end
         redraw();
+        refreshOwn();
     end
 
     % (getters as nested functions: an anonymous function would keep the
@@ -1173,18 +1275,18 @@ end
         optionsGrid = uigridlayout(optionsPanel, [4 3], 'RowHeight', {24, 24, 24, '1x'}, 'ColumnWidth', {150, '1x', 80}, ...
             'Padding', [6 6 6 6], 'RowSpacing', 6, 'BackgroundColor', blue, 'Scrollable', 'on');
         uilabel(optionsGrid, 'Text', 'Photo folder', 'Tooltip', 'Where the ViewInDegrees_<angle> photos are');
-        photoFolderLabel = uilabel(optionsGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3]);
-        uibutton(optionsGrid, 'Text', 'Browse...', 'Tooltip', 'Pick another folder of ViewInDegrees_<angle> photos', ...
+        photoFolderLabel = uilabel(optionsGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'Tag', 'photoOptionsFolder');
+        uibutton(optionsGrid, 'Text', 'Browse...', 'Tooltip', 'Pick another folder of ViewInDegrees_<angle> photos', 'Tag', 'photoOptionsBrowse', ...
             'ButtonPushedFcn', @(~,~) browsePhotoFolder());
         uilabel(optionsGrid, 'Text', 'Turn model with photo', ...
             'Tooltip', 'On: picking a photo on the dial turns the model to the same side');
-        turnGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'turnWithPhoto', ...
+        turnGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'photoOptionsTurn', ...
             'SelectionChangedFcn', @(~,event) setTurnWithPhoto(strcmp(event.NewValue.Text, 'On')));
         turnGroup.Layout.Column = [2 3];
-        uiradiobutton(turnGroup, 'Text', 'Off', 'Position', [2 1 52 22]);
-        uiradiobutton(turnGroup, 'Text', 'On', 'Position', [54 1 52 22]);
+        uiradiobutton(turnGroup, 'Text', 'Off', 'Position', [2 1 52 22], 'UserData', false);
+        uiradiobutton(turnGroup, 'Text', 'On', 'Position', [54 1 52 22], 'UserData', true);
         uilabel(optionsGrid, 'Text', 'Photo size', 'Tooltip', 'The photo''s height (its corner can also be dragged)');
-        sizeGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'photoSize', ...
+        sizeGroup = uibuttongroup(optionsGrid, 'BorderType', 'none', 'BackgroundColor', blue, 'Tag', 'photoOptionsSize', ...
             'SelectionChangedFcn', @(~,event) setPhotoHeight(event.NewValue.UserData));
         sizeGroup.Layout.Column = [2 3];
         uiradiobutton(sizeGroup, 'Text', 'Small', 'Position', [2 1 64 22], 'UserData', 220);
@@ -1214,13 +1316,13 @@ end
         [~, vehicleLeaf] = fileparts(parentFolder);
         photoFolderLabel.Text = ['...' filesep vehicleLeaf filesep leaf];
         photoFolderLabel.Tooltip = photoFolder;
-        turnGroup = findobj(photoColumn, 'Tag', 'turnWithPhoto');
+        turnGroup = findobj(photoColumn, 'Tag', 'photoOptionsTurn');
         onOffText = 'Off';
         if flagTurnWithPhoto
             onOffText = 'On';
         end
         turnGroup.SelectedObject = findobj(turnGroup.Children, 'Text', onOffText);
-        sizeGroup = findobj(photoColumn, 'Tag', 'photoSize');
+        sizeGroup = findobj(photoColumn, 'Tag', 'photoOptionsSize');
         radios = sizeGroup.Children;
         match = arrayfun(@(radio) isequal(radio.UserData, photoHeight), radios);
         if ~any(match)
@@ -1301,6 +1403,8 @@ end
             drawnow;
             [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);
             lastLabelView = [azimuth elevation];
+            noteFit();
+            notifyView();
         end
         if ~isempty(pendingNight)
             setNightView(pendingNight);
@@ -1338,6 +1442,59 @@ end
         else
             fcn_INTERNAL_setView(axesHandle, startView);
         end
+        fitToWindow(false);   % (the whole vehicle, at the window's size now)
+        notifyView();
+    end
+
+    function fitToWindow(flagKeepZoom)
+        % The view angle set so the whole vehicle fits the model's axes at
+        % their size now (Sean's T23, 2026-11-24: made narrower, the
+        % window cut the vehicle off, since MATLAB's view angle spans the
+        % axes' shorter side and was fitted to the first shape). With
+        % flagKeepZoom, the user's zoom is kept: the vehicle stays as much
+        % larger or smaller than "just fits" as it was.
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        axesSize = axesHandle.InnerPosition(3:4);
+        if any(axesSize < 20)
+            return;   % (not laid out yet)
+        end
+        fitTan = fcn_INTERNAL_fitTan(axesHandle, data.Mesh.Vertices, axesSize);
+        zoomRatio = 1;
+        if flagKeepZoom && all(lastAxesSize >= 20)
+            % (the zoom measured from the camera as it is now, at the size
+            % the axes had: measured against the fit made at the last
+            % resize, a turn or pan since then was counted as zoom, and a
+            % vehicle fully in view could be cut off by the next resize;
+            % found by the random walks, 2026-11-24)
+            fitTanBefore = fcn_INTERNAL_fitTan(axesHandle, data.Mesh.Vertices, lastAxesSize);
+            if isfinite(fitTanBefore) && fitTanBefore > 0
+                zoomRatio = tand(axesHandle.CameraViewAngle/2)/fitTanBefore;
+            end
+        elseif flagKeepZoom && isfinite(fitTanLast) && fitTanLast > 0
+            zoomRatio = tand(axesHandle.CameraViewAngle/2)/fitTanLast;
+        end
+        if isfinite(fitTan) && fitTan > 0
+            axesHandle.CameraViewAngle = 2*atand(fitTan*zoomRatio);
+        end
+        fitTanLast = fitTan;
+        lastAxesSize = axesSize;
+    end
+
+    function noteFit()
+        % (a camera set as given, such as a shared view: its zoom kept as
+        % is, and measured against "just fits" for later resizing)
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        axesSize = axesHandle.InnerPosition(3:4);
+        if any(axesSize < 20)
+            lastAxesSize = [-1 -1];   % (not laid out yet: noted at the first size, not refitted)
+            return;
+        end
+        fitTanLast = fcn_INTERNAL_fitTan(axesHandle, data.Mesh.Vertices, axesSize);
+        lastAxesSize = axesSize;
     end
 
     function setHint(textIn)
@@ -1350,19 +1507,26 @@ end
 
     %% The photo dial
     function onDialDown(~, ~)
-        flagDialDragging = true;
-        setDialAngle(pointerAngle(), flagTurnWithPhoto, false);
+        dialDownAt(figureHandle.CurrentPoint);
     end
 
-    function angle = pointerAngle()
+    function dialDownAt(point)
+        % (the mouse pressed on the dial at this point of the window)
+        flagDialDragging = true;
+        setDialAngle(pointerAngle(point), flagTurnWithPhoto, false);
+    end
+
+    function angle = pointerAngle(point)
         % The mouse's angle around the dial's center, from the mouse in the
         % window and the dial's place on the screen (the dial's limits are
         % centered on 0 and its scale is equal, so its center is the
         % middle of its box). Not from the axes' CurrentPoint: after the
         % window is resized, that can lag behind (Sean, 14:02: the arrow
         % moved, but the photo did not change).
-        windowHandle = ancestor(dialAxes, 'figure');
-        point = windowHandle.CurrentPoint;
+        if nargin < 1
+            windowHandle = ancestor(dialAxes, 'figure');
+            point = windowHandle.CurrentPoint;
+        end
         box = getpixelposition(dialAxes, true);
         center = box(1:2) + box(3:4)/2;
         angle = atan2d(point(2) - center(2), point(1) - center(1));
@@ -1414,6 +1578,7 @@ end
             [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);
             lastLabelView = [azimuth elevation];
             flagSyncingView = false;
+            notifyView();   % (the readout follows a turn by the dial too: Sean's T22, 2026-11-24)
         end
     end
 
@@ -1437,8 +1602,22 @@ end
             viewTimer = [];
             return;
         end
-        if flagSyncingView || flagDialDragging
-            return;
+        if flagSyncingView || flagDialDragging || ~flagBuilt
+            return;   % (not while the window is still being built: see the end of the build)
+        end
+        % (the window resized: the photo fitted to the room there is, then
+        % the vehicle kept in view, at the same zoom)
+        if fitPhotoToWindow()
+            drawnow;
+            placePhoto();
+        end
+        axesSize = axesHandle.InnerPosition(3:4);
+        if all(axesSize >= 20) && ~isequal(round(axesSize), round(lastAxesSize))
+            if isequal(lastAxesSize, [-1 -1])
+                noteFit();   % (a given camera, now laid out: its zoom kept)
+            else
+                fitToWindow(isfinite(fitTanLast));
+            end
         end
         [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);
         if isequal(round([azimuth elevation],3), round(lastLabelView,3))
@@ -1522,10 +1701,47 @@ end
             return;
         end
         photoHeight = newHeight;
-        layout.ColumnWidth{3} = photoHeight*photoAspect;
-        photoColumn.RowHeight{1} = photoHeight;
-        dialGrid.RowHeight{1} = max(0, (photoHeight - dialSize)/2);
+        fitPhotoToWindow();
         markPhotoOptions();
+    end
+
+    function flagChanged = fitPhotoToWindow()
+        % The photo shown at the height asked for (photoHeight), but no
+        % taller than the window has room for, and no wider than leaves
+        % the model 220 pixels; in a window too small for even a small
+        % photo, the photo and the dial are left out until it is larger.
+        % (Found by the layout tests, 2026-11-24: a Large photo in an
+        % 800 x 500 window was cut off at the bottom, and in a 640 x 400
+        % window the photo and dial took all the width, leaving the model
+        % none.) The height asked for is kept, for when the window grows.
+        flagChanged = false;
+        if isempty(photoColumn) || ~isvalid(photoColumn) || isempty(layout) || ~isvalid(layout)
+            return;
+        end
+        layoutBox = layout.Position;
+        if layoutBox(3) < 50 || layoutBox(4) < 50
+            return;   % (not laid out yet: fitted at the next check)
+        end
+        shownHeight = min([photoHeight, layoutBox(4), (layoutBox(3) - dialWidth - 2*layout.ColumnSpacing - 220)/photoAspect]);
+        if shownHeight < 120
+            % (no room: the photo and the dial left out)
+            newWidths = {'1x', 0, 0};
+            shownHeight = max(0, min(120, layoutBox(4) - 1));
+        else
+            newWidths = {'1x', dialWidth, shownHeight*photoAspect};
+        end
+        shownDial = min(dialSize, shownHeight);
+        newDialRows = {max(0, (shownHeight - shownDial)/2), shownDial, '1x'};
+        flagShown = ~isequal(newWidths{2}, 0);
+        if ~isequal(layout.ColumnWidth, newWidths) || ~isequal(photoColumn.RowHeight{1}, shownHeight) || ~isequal(dialGrid.RowHeight, newDialRows)
+            layout.ColumnWidth = newWidths;
+            photoColumn.RowHeight{1} = shownHeight;
+            dialGrid.RowHeight = newDialRows;
+            % (left out: hidden too, so nothing of them is drawn squeezed)
+            photoColumn.Visible = matlab.lang.OnOffSwitchState(flagShown);
+            dialGrid.Visible = matlab.lang.OnOffSwitchState(flagShown);
+            flagChanged = true;
+        end
     end
 
     function placePhoto()
@@ -1556,9 +1772,7 @@ end
         else
             leaveNight();
         end
-        if ~isempty(displayPanels)
-            displayPanels.MarkOverall();   % (Colors? and see-through: by day only)
-        end
+        refreshOwn();   % (Colors? and see-through: by day only; the status line)
     end
 
     function enterNight()
@@ -1571,10 +1785,11 @@ end
         if isempty(axesHandle) || ~isvalid(axesHandle)
             return;
         end
-        if isempty(startView)
-            fcn_INTERNAL_freezeCamera(axesHandle);
-            startView = fcn_INTERNAL_getView(axesHandle);
-        end
+        % (the camera frozen where it is, so the night scene does not move
+        % it; NOT kept as the starting view: Reset view at night then went
+        % to where the camera was when night fell, not to the starting
+        % view; found by a random walk, 2026-11-24)
+        fcn_INTERNAL_freezeCamera(axesHandle);
         if ~flagLampsSet
             % (the first night, with no lamps set: every lamp on)
             nightStates = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
@@ -1650,6 +1865,9 @@ end
             return;
         end
         vehiclePatches = [nightHandles.Patches{:}];
+        if isempty(vehiclePatches)
+            return;   % (every label set Shown? No at night: no vehicle drawn; found by the tests, 2026-11-24)
+        end
         vehiclePatches = vehiclePatches(isvalid(vehiclePatches));
         if flagBoundaries
             set(vehiclePatches, 'EdgeColor', [0.6 0.6 0.65], 'EdgeAlpha', 0.35, 'LineWidth', 0.25);
@@ -1760,35 +1978,35 @@ end
         % scrolls and the bottom rows were cut off; rule: every panel
         % scrolls up and down, Sean, 2026_11_24 00:58)
         uilabel(lampGrid, 'Text', 'Headlights', 'FontWeight', 'bold');
-        nightControls.LowBeam = uicheckbox(lampGrid, 'Text', 'Low beams', ...
+        nightControls.LowBeam = uicheckbox(lampGrid, 'Tag', 'nightLamp_LowBeam', 'Text', 'Low beams', ...
             'ValueChangedFcn', @(source,~) setNightLamp('LowBeam', source.Value));
-        nightControls.HighBeam = uicheckbox(lampGrid, 'Text', 'High beams', ...
+        nightControls.HighBeam = uicheckbox(lampGrid, 'Tag', 'nightLamp_HighBeam', 'Text', 'High beams', ...
             'ValueChangedFcn', @(source,~) setNightLamp('HighBeam', source.Value));
-        nightControls.Running = uicheckbox(lampGrid, 'Text', 'Running lights', ...
+        nightControls.Running = uicheckbox(lampGrid, 'Tag', 'nightLamp_Running', 'Text', 'Running lights', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Running', source.Value));
-        nightControls.TurnLeft = uicheckbox(lampGrid, 'Text', 'Left turn signal', ...
+        nightControls.TurnLeft = uicheckbox(lampGrid, 'Tag', 'nightLamp_TurnLeft', 'Text', 'Left turn signal', ...
             'ValueChangedFcn', @(source,~) setNightLamp('TurnLeft', source.Value));
-        nightControls.TurnRight = uicheckbox(lampGrid, 'Text', 'Right turn signal', ...
+        nightControls.TurnRight = uicheckbox(lampGrid, 'Tag', 'nightLamp_TurnRight', 'Text', 'Right turn signal', ...
             'ValueChangedFcn', @(source,~) setNightLamp('TurnRight', source.Value));
-        nightControls.Hazards = uicheckbox(lampGrid, 'Text', 'Hazards', 'Tooltip', 'Both turn signals at once', ...
+        nightControls.Hazards = uicheckbox(lampGrid, 'Tag', 'nightLamp_Hazards', 'Text', 'Hazards', 'Tooltip', 'Both turn signals at once', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Hazards', source.Value));
         tailLabel = uilabel(lampGrid, 'Text', 'Tail lights', 'FontWeight', 'bold');
-        nightControls.Tail = uibuttongroup(lampGrid, 'BorderType', 'none', ...
+        nightControls.Tail = uibuttongroup(lampGrid, 'BorderType', 'none', 'Tag', 'nightLamp_Tail', ...
             'SelectionChangedFcn', @(~,event) setNightLamp('Tail', event.NewValue.UserData));
         uiradiobutton(nightControls.Tail, 'Text', 'Off', 'Position', [2 3 50 22], 'UserData', 'off');
         uiradiobutton(nightControls.Tail, 'Text', 'On', 'Position', [56 3 50 22], 'UserData', 'on');
         uiradiobutton(nightControls.Tail, 'Text', 'Brake', 'Position', [110 3 70 22], 'UserData', 'brake');
-        nightControls.Backup = uicheckbox(lampGrid, 'Text', 'Backup lights', ...
+        nightControls.Backup = uicheckbox(lampGrid, 'Tag', 'nightLamp_Backup', 'Text', 'Backup lights', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Backup', source.Value));
         % (fog lamps, and reflectors lit by outside light: Sean, task 8)
-        nightControls.FogLights = uicheckbox(lampGrid, 'Text', 'Fog lamps', ...
+        nightControls.FogLights = uicheckbox(lampGrid, 'Tag', 'nightLamp_FogLights', 'Text', 'Fog lamps', ...
             'ValueChangedFcn', @(source,~) setNightLamp('FogLights', source.Value));
-        nightControls.Reflectors = uicheckbox(lampGrid, 'Text', 'Reflectors lit (outside light)', ...
+        nightControls.Reflectors = uicheckbox(lampGrid, 'Tag', 'nightLamp_Reflectors', 'Text', 'Reflectors lit (outside light)', ...
             'Tooltip', 'The reflectors as another car''s headlights light them', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Reflectors', source.Value));
         buttonGrid = uigridlayout(lampGrid, [1 2], 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-        uibutton(buttonGrid, 'Text', 'All on', 'ButtonPushedFcn', @(~,~) setNightLamp('All', true));
-        uibutton(buttonGrid, 'Text', 'All off', 'ButtonPushedFcn', @(~,~) setNightLamp('All', false));
+        uibutton(buttonGrid, 'Text', 'All on', 'ButtonPushedFcn', @(~,~) setNightLamp('All', true), 'Tag', 'nightLampsAllOn');
+        uibutton(buttonGrid, 'Text', 'All off', 'ButtonPushedFcn', @(~,~) setNightLamp('All', false), 'Tag', 'nightLampsAllOff');
         nightControls.Note = uilabel(lampGrid, 'Text', ['Lit on the model by day; at night, with their light. ' ...
             'Marker lamps light with the running lights, the license plate lamp with the tail lights, ' ...
             'warning lamps with the hazards. "no faces": none labeled; its light still shows.'], ...
@@ -1836,6 +2054,7 @@ end
         end
         redraw();
         nightEdges();
+        refreshOwn();
     end
 
     %% Its own window: the label list, the mouse, and closing
@@ -1859,6 +2078,7 @@ end
                 'Position', [8 8 160 22], 'UserData', allKeys{ith_label});
             if ith_label > 1
                 labelShowBoxes(end+1) = uicheckbox(labelGroup, 'Text', '', 'Value', ~any(strcmp(hiddenKeys, allKeys{ith_label})), ...
+                    'Tag', ['labelShow_' allKeys{ith_label}], ...
                     'UserData', allKeys{ith_label}, 'Position', [180 8 22 22], 'ValueChangedFcn', @(~,~) onShowBox(), ...
                     'Tooltip', 'Show these faces (untick to hide them, to see the faces under them)'); %#ok<AGROW>
                 % (the label's color, as on the model, beside its box)
@@ -1930,22 +2150,33 @@ end
         if gripDown()
             return;
         end
-        clicked = figureHandle.CurrentObject;
+        mouseDownAt(figureHandle.CurrentPoint, figureHandle.CurrentObject, figureHandle.SelectionType);
+    end
+
+    function mouseDownAt(point, clicked, selectionType)
+        % (the mouse pressed at this point of the window, on this object,
+        % with this button: 'alt' is the right button)
+        mouseMode = '';
         if isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), axesHandle)
             return;
         end
-        if strcmp(figureHandle.SelectionType, 'alt')
+        if strcmp(selectionType, 'alt')
             mouseMode = 'pan';
         else
             mouseMode = 'rotate';
         end
-        mouseStart = figureHandle.CurrentPoint;
+        mouseStart = point;
         mouseLast = mouseStart;
     end
 
     function flagUsed = dialMove()
         % (the dial's arrow dragged: it follows the mouse, and the model
         % turns with it; or the photo's handle dragged: the photo resized)
+        flagUsed = dialMoveAt(figureHandle.CurrentPoint);
+    end
+
+    function flagUsed = dialMoveAt(point)
+        % (the mouse moved to this point of the window)
         if flagPhotoResizing
             resizePhoto();
             flagUsed = true;
@@ -1953,7 +2184,7 @@ end
         end
         flagUsed = flagDialDragging && ~isempty(dialAxes) && isvalid(dialAxes);
         if flagUsed
-            setDialAngle(pointerAngle(), flagTurnWithPhoto, false);
+            setDialAngle(pointerAngle(point), flagTurnWithPhoto, false);
         end
     end
 
@@ -1975,10 +2206,15 @@ end
         if dialMove()
             return;
         end
+        mouseMoveTo(figureHandle.CurrentPoint);
+    end
+
+    function mouseMoveTo(point)
+        % (the mouse moved to this point of the window: the model turned
+        % or panned by the move)
         if isempty(mouseMode)
             return;
         end
-        point = figureHandle.CurrentPoint;
         delta = point - mouseLast;
         mouseLast = point;
         if strcmp(mouseMode, 'rotate')
@@ -1995,10 +2231,15 @@ end
     end
 
     function onOwnScroll(~, event)
-        point = figureHandle.CurrentPoint;
+        scrollAt(figureHandle.CurrentPoint, event.VerticalScrollCount);
+    end
+
+    function scrollAt(point, scrollCount)
+        % (the wheel turned with the mouse at this point: zooms when it is
+        % over the model)
         box = getpixelposition(axesHandle, true);
         if point(1) >= box(1) && point(1) <= box(1)+box(3) && point(2) >= box(2) && point(2) <= box(2)+box(4)
-            camzoom(axesHandle, 1.15^(-event.VerticalScrollCount));
+            camzoom(axesHandle, 1.15^(-scrollCount));
         end
     end
 
@@ -2011,9 +2252,11 @@ end
         end
         if leftGrid.RowHeight{1} == 0
             leftGrid.RowHeight{1} = numel(panelNames)*30 + 10;
+            menuPanel.Visible = 'on';
             bodyGrid.ColumnWidth{1} = 320;
         else
             leftGrid.RowHeight{1} = 0;
+            menuPanel.Visible = 'off';
             if isempty(openPanelName)
                 bodyGrid.ColumnWidth{1} = 0;
             end
@@ -2027,6 +2270,9 @@ end
             return;
         end
         name = char(name);
+        if ~isempty(name) && ~any(strcmp(panelNames, name))
+            error('CarMesh3D:badInput', 'No panel named ''%s'': the panels are %s.', name, strjoin(panelNames, ', '));
+        end
         if strcmp(name, openPanelName) && leftGrid.RowHeight{1} > 0
             name = '';
         end
@@ -2041,6 +2287,7 @@ end
             menuItems(ith_item).Text = [mark panelNames{ith_item}];
         end
         leftGrid.RowHeight{1} = 0;
+        menuPanel.Visible = 'off';
         if isempty(openPanelName)
             bodyGrid.ColumnWidth{1} = 0;
         else
@@ -2071,11 +2318,14 @@ end
         heading = uilabel(grid, 'Text', 'Starting view (and Reset view)', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
         heading.Layout.Column = [1 2];
         uilabel(grid, 'Text', 'On the dial (degrees)', 'Tooltip', 'Where the camera starts, as the photo dial reads it: 0 is the front');
-        settingsControls.Dial = uieditfield(grid, 'numeric', 'Limits', [-360 360], 'Value', startDial, ...
-            'ValueChangedFcn', @(source,~) setStartView(source.Value, startDown));
+        % (each field's callback reads the other angle as it is now: an
+        % anonymous function would keep the value it was made with, so
+        % setting one field put the other back to its starting value)
+        settingsControls.Dial = uieditfield(grid, 'numeric', 'Limits', [-360 360], 'Value', startDial, 'Tag', 'startViewDial', ...
+            'ValueChangedFcn', @(source,~) onStartDial(source.Value));
         uilabel(grid, 'Text', 'Looking down (degrees)', 'Tooltip', 'How far above the vehicle the camera starts');
-        settingsControls.Down = uieditfield(grid, 'numeric', 'Limits', [-89 89], 'Value', startDown, ...
-            'ValueChangedFcn', @(source,~) setStartView(startDial, source.Value));
+        settingsControls.Down = uieditfield(grid, 'numeric', 'Limits', [-89 89], 'Value', startDown, 'Tag', 'startViewDown', ...
+            'ValueChangedFcn', @(source,~) onStartDown(source.Value));
         defaultsNote = uilabel(grid, 'Text', '(default is 60 and 20; the painter uses the same)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
         defaultsNote.Layout.Column = [1 2];
         groundNote = uilabel(grid, 'Text', '(Show ground? is in Overall Display)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
@@ -2086,14 +2336,24 @@ end
         if isempty(meshText)
             meshText = '(a mesh variable)';
         end
-        meshLabel = uilabel(grid, 'Text', meshText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'Tooltip', meshText);
+        meshLabel = uilabel(grid, 'Text', meshText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'Tooltip', meshText, 'Tag', 'meshFileText');
         meshLabel.Layout.Column = [1 2];
         uilabel(grid, 'Text', '');
-        resetButton = uibutton(grid, 'Text', 'Reset to defaults', 'ButtonPushedFcn', @(~,~) resetSettings(), ...
+        resetButton = uibutton(grid, 'Text', 'Reset to defaults', 'ButtonPushedFcn', @(~,~) resetSettings(), 'Tag', 'resetSettings', ...
             'Tooltip', 'The starting view at 60 and 20, and the ground shown');
         resetButton.Layout.Row = 9;
         resetButton.Layout.Column = [1 2];
         markSettings();
+    end
+
+    function onStartDial(dialAngle)
+        % (the dial angle typed in GUI settings; the angle down kept as it is now)
+        setStartView(dialAngle, startDown);
+    end
+
+    function onStartDown(downAngle)
+        % (the angle down typed in GUI settings; the dial angle kept as it is now)
+        setStartView(startDial, downAngle);
     end
 
     function markSettings()
@@ -2198,6 +2458,131 @@ end
         statusLabel.Text = sprintf('<b>%s</b> | %s, %s%s', vehicleName, colorsText, timeText, hiddenText);
     end
 
+    %% Hooks for tests (Sean, 2026-11-24 05:03: "the code could pass in
+    %% debugging state requests, and the GUI must go to that state")
+    function rootOut = driverRoot()
+        % (what fcn_CarMesh3D_guiDriver drives: its own window, or, inside
+        % a host, the panel it was built into)
+        if flagOwnWindow
+            rootOut = figureHandle;
+        else
+            rootOut = parent;
+        end
+    end
+
+    function mouseDrag(button, fromPoint, toPoint, numSteps)
+        % A drag on the model, through the same code as the mouse's:
+        % button 'left' (turn) or 'right' (pan), from and to points in the
+        % window's pixels ([] from: the model's middle), in numSteps moves
+        if nargin < 4 || isempty(numSteps)
+            numSteps = 5;
+        end
+        box = getpixelposition(axesHandle, true);
+        if isempty(fromPoint)
+            fromPoint = box(1:2) + box(3:4)/2;
+        end
+        selectionType = 'normal';
+        if strcmp(char(button), 'right')
+            selectionType = 'alt';
+        end
+        mouseDownAt(fromPoint, axesHandle, selectionType);
+        for ith_step = 1:numSteps
+            mouseMoveTo(fromPoint + ith_step/numSteps*(toPoint - fromPoint));
+        end
+        onOwnUp();
+        drawnow;
+    end
+
+    function scrollHook(scrollCount, point)
+        % The wheel turned scrollCount clicks (negative zooms in) with the
+        % mouse at this point ([] or none: the model's middle)
+        if nargin < 2 || isempty(point)
+            box = getpixelposition(axesHandle, true);
+            point = box(1:2) + box(3:4)/2;
+        end
+        scrollAt(point, scrollCount);
+        drawnow;
+    end
+
+    function flagDone = dialDrag(angles, flagRelease)
+        % The dial's arrow pressed at the first angle and dragged through
+        % the others (degrees, as the dial reads them), through the same
+        % code as the mouse's; let go at the end unless flagRelease is
+        % false. One angle is a click on the dial (on a photo's dot, say).
+        % False when there is no dial (no photos).
+        flagDone = false;
+        if isempty(dialAxes) || ~isvalid(dialAxes) || strcmp(dialGrid.Visible, 'off')
+            return;   % (no dial, or left out of a window too small for it)
+        end
+        if nargin < 2
+            flagRelease = true;
+        end
+        box = getpixelposition(dialAxes, true);
+        center = box(1:2) + box(3:4)/2;
+        radius = 0.35*min(box(3:4));
+        pointOf = @(angle) center + radius*[cosd(angle) sind(angle)];
+        dialDownAt(pointOf(angles(1)));
+        for ith_angle = 2:numel(angles)
+            dialMoveAt(pointOf(angles(ith_angle)));
+        end
+        if flagRelease
+            dialUp();
+        end
+        drawnow;
+        flagDone = true;
+    end
+
+    function resizeWindow(sizeIn)
+        % The window made this size ([width height] in pixels), then the
+        % view checked at once (as the view timer would, within 0.25 s)
+        figureHandle.Position(3:4) = sizeIn;
+        settle();
+    end
+
+    function settle()
+        % Waits (up to 3 s) until the window has laid itself out, then
+        % runs the view timer's check at once, twice (the photo fitted to
+        % the room, then the view refitted to the model's new size). A
+        % hidden window lays itself out a little after drawnow (measured
+        % 2026-11-24: its grids reported their old size for up to 0.3 s),
+        % so a test reads the layout only once it has settled.
+        for ith_pass = 1:2
+            fcn_INTERNAL_waitForLayout(figureHandle, modelHolder);
+            placePhoto();
+            onModelViewChanged();
+        end
+        drawnow;
+    end
+
+    function fit = getFitInfo()
+        % The view's zoom against "the whole vehicle just fits": Zoom 1
+        % just fits, larger is zoomed in (for tests of the framing)
+        fit = struct('Zoom', NaN, 'FitTan', NaN, 'AxesSize', [NaN NaN]);
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        axesSize = axesHandle.InnerPosition(3:4);
+        fit.AxesSize = axesSize;
+        fit.FitTan = fcn_INTERNAL_fitTan(axesHandle, data.Mesh.Vertices, axesSize);
+        fit.Zoom = fit.FitTan/tand(axesHandle.CameraViewAngle/2);
+    end
+
+    function countOut = getPhotoCount()
+        % (how many photos the dial has: none means no photo side)
+        countOut = numel(photoSet);
+    end
+
+    function refreshOwn()
+        % (its own window's panels and status line showing the state now,
+        % after a change made through a hook, not only through the
+        % panels: found by the random walks, 2026-11-24)
+        if isempty(displayPanels)
+            return;
+        end
+        displayPanels.MarkAll();
+        updateStatus();
+    end
+
     function closeViewer()
         % The view settings kept, to be returned; then the window closed
         if ~isempty(axesHandle) && isvalid(axesHandle)
@@ -2221,6 +2606,31 @@ end % Ends main function
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_waitForLayout
+function fcn_INTERNAL_waitForLayout(figureHandle, probe)
+% Waits until a window's layout has settled: at least 0.3 s (a hidden
+% window starts laying itself out up to about 0.3 s after drawnow), and
+% the probe's place on the screen the same at three checks in a row, 30
+% ms apart (at most 3 s)
+lastBox = [];
+numSame = 0;
+startTime = tic;
+while toc(startTime) < 3 && isvalid(figureHandle) && isvalid(probe)
+    drawnow;
+    box = getpixelposition(probe, true);
+    if isequal(box, lastBox)
+        numSame = numSame + 1;
+        if numSame >= 2 && toc(startTime) >= 0.3
+            return;
+        end
+    else
+        numSame = 0;
+    end
+    lastBox = box;
+    pause(0.03);
+end
+end % Ends fcn_INTERNAL_waitForLayout
 
 %% fcn_INTERNAL_loadMesh
 function vehicleMesh = fcn_INTERNAL_loadMesh(meshFile)
@@ -2526,6 +2936,42 @@ groundPatch = patch(axesHandle, 'Faces', groundFaces, 'Vertices', groundVertices
     'FaceLighting', 'none', 'Clipping', 'off', 'HitTest', 'off', 'PickableParts', 'none', 'Tag', tag);
 end % Ends fcn_INTERNAL_ground
 
+function fitTan = fcn_INTERNAL_fitTan(axesHandle, vertices, axesSize)
+% The tangent of half the view angle at which the vehicle's box just fits
+% axes of this size (in pixels), from the camera as it is, with 8% to
+% spare. MATLAB's CameraViewAngle spans the axes' shorter side (measured
+% 2026-11-24), so the longer side sees proportionally more.
+lowCorner = min(vertices, [], 1);
+highCorner = max(vertices, [], 1);
+[cornerX, cornerY, cornerZ] = ndgrid([lowCorner(1) highCorner(1)], [lowCorner(2) highCorner(2)], [lowCorner(3) highCorner(3)]);
+corners = [cornerX(:) cornerY(:) cornerZ(:)];
+cameraPosition = axesHandle.CameraPosition;
+forward = axesHandle.CameraTarget - cameraPosition;
+distance = norm(forward);
+forward = forward/distance;
+rightward = cross(forward, axesHandle.CameraUpVector);
+rightward = rightward/norm(rightward);
+upward = cross(rightward, forward);
+offsets = corners - cameraPosition;
+across = abs(offsets*rightward(:));
+up = abs(offsets*upward(:));
+if strcmp(axesHandle.Projection, 'perspective')
+    depth = max(offsets*forward(:), 0.1*distance);
+else
+    depth = distance;
+end
+tanAcross = max(across./depth);
+tanUp = max(up./depth);
+width = axesSize(1);
+height = axesSize(2);
+if height <= width
+    fitTan = max(tanUp, tanAcross*height/width);
+else
+    fitTan = max(tanAcross, tanUp*width/height);
+end
+fitTan = 1.08*fitTan;
+end % Ends fcn_INTERNAL_fitTan
+
 function fcn_INTERNAL_frameVehicle(axesHandle, vertices)
 % The axes' limits around the vehicle (5% to spare), so the camera frames
 % the vehicle and not the ground drawn around it (which is unclipped), with
@@ -2562,7 +3008,10 @@ function flagFaces = fcn_INTERNAL_labelFaces(vehicleMesh, labelKey)
 flagFaces = false(size(vehicleMesh.Faces,1),1);
 if startsWith(labelKey, 'part_')
     partIndex = find(strcmp(vehicleMesh.PartNames, labelKey(6:end)), 1);
-    flagFaces = vehicleMesh.FacePartIndex==partIndex;
+    if isempty(partIndex)
+        return;   % (a part the mesh does not have, such as interior since Q37: no faces)
+    end
+    flagFaces = vehicleMesh.FacePartIndex(:)==partIndex;
     % (and the faces that also belong to it: a lamp's clear cover is a
     % light that is also glass)
     if ~isempty(partIndex) && isfield(vehicleMesh,'FaceAlsoParts') ...
@@ -2575,10 +3024,16 @@ elseif strcmp(labelKey, 'hidden')
     end
 elseif strcmp(labelKey, 'light_none')
     lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
-    flagFaces = vehicleMesh.FacePartIndex==lightPart & vehicleMesh.FaceLightType==0;
+    if isempty(lightPart)
+        return;
+    end
+    flagFaces = vehicleMesh.FacePartIndex(:)==lightPart & vehicleMesh.FaceLightType(:)==0;
 elseif startsWith(labelKey, 'light_')
     typeIndex = find(strcmp(vehicleMesh.LightTypeNames, labelKey(7:end)), 1);
-    flagFaces = vehicleMesh.FaceLightType==typeIndex;
+    if isempty(typeIndex)
+        return;
+    end
+    flagFaces = vehicleMesh.FaceLightType(:)==typeIndex;
 end
 end % Ends fcn_INTERNAL_labelFaces
 

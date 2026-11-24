@@ -8,12 +8,23 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-24 04:04. Test numbers are unique across the design files from now on (Sean, 03:43): this file's T14 to T18 of 02:55 are renumbered T25 to T29 (T14 and T15 had been used in the chat); your results for T26 to T29 are in the change log. The viewer's round (T19 to T24, in its design file) covers the painter too: Show ground? and the photo options moved to Overall Display, the 1 m ground, the camera readout.*
+*Updated 2026-11-24 07:15. Almost everything is now tested by script (automated GUI tests, Q39: Agent B, 06:06 to 07:01; checked by Claude 07:10: all pass). T30 (Settings scrolls) is now checked by script at four window sizes: moved to the change log. What is left needs your eyes and hands.*
 
 **First:** close the painter and run `clear functions`, then open it from the demo menu.
 
-- **T30. Settings scrolls:** open Settings and make the window short: a scroll bar appears and every row can be reached, down to the edits file's path. (The path's row was a fixed 60 pixels, so a long path was cut off rather than scrolled; it now fits its text. Show ground? is no longer in Settings: T19.)
+- **T34. Painting with the mouse** (the picking bug fixed: the 3D axes' "point under the mouse" was about 400 px off in this window): single clicks select or unselect the face under the pointer; Ctrl+drag paints every face passed over, and the yellow outlines follow the mouse; Ctrl+Shift+drag erases (on glass too); double-click a part (glass too) paints it all, a second double-click unpaints it.
 (Sean's result:)
+
+- **T35. After Apply, and the keys:** after Apply, faces can still be picked; Ctrl+Z undoes; Ctrl+S saves. (Click the model first, so the window has the keyboard.)
+(Sean's result:)
+
+- **T36. "Revert to save" in the top bar:** its place and wording; it asks before reverting.
+(Sean's result:)
+
+- **T37. Exit with unsaved paint:** the Save / Discard / Cancel question is easy to see (not hidden behind the window); with nothing unsaved, Exit closes at once. (The close hang you saw was not reproduced: 0.17 to 0.34 s every time; this question, or old code in memory, is the likely cause. Tell me if it hangs again, and what was on screen.)
+(Sean's result:)
+
+---
 
 ## 1. What the window is for
 
@@ -524,3 +535,18 @@ As a process, please add this ruleset to the project: when working with MD files
   * All pass
 
   BUG: the settings panel does not have a scroll bar if made too small. It needs one.
+- 2026-11-24 06:06 to 07:10 (Agent B, for Claude; Sean offline; Q39, Q40 A): **the painter made fully drivable and tested by script, and its mouse bugs fixed.**
+  - **The main cause of the mouse bugs:** the painter took the line under the mouse from the 3D axes' `CurrentPoint`, which in this window was about 400 px off the pointer (found by driving a visible window with real mouse and key events, java.awt.Robot: of 221 real clicks, the axes' line hit nothing on the vehicle; the new line, from the window's pointer position and the camera, `fcn_INTERNAL_rayAtPixel`, agreed on all 221). This explains the open bugs of section 9: unreliable single clicks, Ctrl+drag painting only the first face, double-click on glass doing nothing, nothing pickable after Apply, and Ctrl+Z / Ctrl+S looking dead (nothing to undo or save). With real events and the new code, all work.
+  - **Other bugs fixed:** saving the Fit dropped the `Material`, `Color` and `AlsoLightTypes` fields of its 12 scripted lamp fixes (13 fixes became 7): fixes the painter cannot draw are now kept and written back unchanged (side effect: "Revert to start" goes back to the mesh WITH those scripted fixes); the status line said "saved" with paint pending (found by a random walk); Ctrl+Shift+drag did not erase paint applied through a window, and stopped at the glass; fast Ctrl+drags left gaps (faces between move events now painted); a quick click on another piece counted as a double-click; closing during the build raised an error; **"Revert to save" added to the top bar** (P2; asks first).
+  - **Not reproduced:** the close hang (0.17 to 0.34 s, visible or hidden, both vehicles); the ☰ Menu not working (works with real clicks, old and new code).
+  - **Hooks and Tags:** State, SetState, Press, Key, CheckLayout (through `fcn_CarMesh3D_guiDriver`); mouse hooks running the window's own handlers (MouseDownAt, MouseMoveAt, MouseUpAt, ClickAt, DoubleClickAt, DragAt, FaceAt); Layers, ToggleMenu, MenuOpen, SetSize, Parts. Old hooks kept. Every control of the painter's own parts has a unique Tag.
+  - **Automated** (temporary copies only; the real Fit never written, its 13 fixes checked unchanged after): every panel through the menu, every control to each value; clicks, double-clicks, Ctrl and Ctrl+Shift drags, picking after Apply, glass, Ctrl+Z, Ctrl+S, Esc; 3 random walks of 150 steps with rules after each step; save and reload give the same edited mesh; layout at 1500×900, 800×500, 640×400, 1600×1000; close under 1 s; no leaked timer; the Fit's scripted fixes saved back exactly.
+  - **Not done:** painted edits are still stored by face center, so on layered lamp faces they may land on both layers; random-walk replays repeat the action names but not the randomly picked faces.
+  - Layout problems in the viewer's parts seen inside the painter (the Overall Display "Vehicle" button partly outside its group at 800×500; the photo column cut off at 640×400) passed to Agent C.
+  - Report: `Desktop\Claude\Project_CarMesh3D\agents\B\REPORT_paintLabels.md`. T34 to T37 in Review now.
+
+  **Closed by script (2026-11-24 07:10):**
+
+  - **T30. Settings scrolls:** open Settings and make the window short: a scroll bar appears and every row can be reached, down to the edits file's path. (The path's row was a fixed 60 pixels, so a long path was cut off rather than scrolled; it now fits its text. Show ground? is no longer in Settings: T19.)
+  (Sean's result:)
+  (Checked by the automated layout test at 1500×900, 800×500, 640×400 and 1600×1000: every row reachable.)

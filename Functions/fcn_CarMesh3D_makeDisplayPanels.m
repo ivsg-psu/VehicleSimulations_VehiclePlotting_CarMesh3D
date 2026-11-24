@@ -98,6 +98,23 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %   %   % distance under Copy view call (MarkCamera); the photos' folder,
 %   %   % Turn model with photo? and Photo size? (moved here from under the
 %   %   % photo); Colors? and the see-through body grayed out at night
+%   % * The camera readout larger and in four lines (Sean, 2026-11-24
+%   %   % 04:37): yaw angle with the side it looks from, altitude angle
+%   %   % (negative looking down), distance from the center
+%   % * Drivable by script for automated tests (Sean, 05:03): Tags on
+%   %   % Reset view (overallResetView), Copy view call
+%   %   % (overallCopyViewCall), Browse... (overallPhotoBrowse) and the
+%   %   % photo folder's text (overallPhotoFolder); the photo options are
+%   %   % grayed when the folder has no ViewInDegrees_<angle> photos
+%   %   % (the viewer's PhotoCount), not only when there is no folder
+%   %   % (and the groups themselves grayed, not only their buttons)
+%   % * Bug fixed: Colors? Vehicle stuck out past its button group (radio
+%   %   % buttons sized at 8 px a letter; worse when the panel shows its
+%   %   % scroll bar, in a short window); now 6 px a letter
+%   % * Text cut off in a short window (seen by the layout check in a
+%   %   % visible window, 800 x 500): long label names in Labels To Display
+%   %   % (the Colored? and Shown? columns are 62 px now, 70 before), and the
+%   %   % Lamps header "Off On 3rd state" (now "Off On Brake")
 
 % TO-DO:
 %
@@ -288,13 +305,13 @@ end
         % (with the camera's angles and distance), the see-through body,
         % and the photos (their folder, turning the model with them, their
         % size: moved here from under the photo, Sean 2026-11-24 03:43)
-        rowHeights = {22, 24, 24, 24, 24, 28, 28, 36, 22, 50, 22, 28, 30, 24, 22, 24};
+        rowHeights = {22, 24, 24, 24, 24, 28, 28, 'fit', 22, 50, 22, 28, 30, 24, 22, 24};   % (row 8, the camera readout: four lines)
         grid = uigridlayout(options.Overall, [numel(rowHeights) 2], 'RowHeight', rowHeights, 'ColumnWidth', {150, '1x'}, ...
             'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');
         fcn_INTERNAL_heading(grid, 1, 'Mesh display', '');
         fcn_INTERNAL_gridText(grid, 2, 1, 'Colors?', 'normal', ...
             'Labels: each face in its label''s color. Vehicle: the colors the animator draws.');
-        overallControls.Colors = fcn_INTERNAL_radioRow(grid, {'Labels', 'Vehicle'}, {'labels', 'vehicle'}, 66, ...
+        overallControls.Colors = fcn_INTERNAL_radioRow(grid, {'Labels', 'Vehicle'}, {'labels', 'vehicle'}, 56, ...
             @(value) setOverallColors(value), 'overallColors');
         fcn_INTERNAL_place(overallControls.Colors, 2, 2);
         fcn_INTERNAL_gridText(grid, 3, 1, 'Show mesh boundaries?', 'normal', 'Draw the edge of every face (the mesh''s triangles)');
@@ -312,17 +329,17 @@ end
             @(value) setOverallGround(value), 'showGround');
         fcn_INTERNAL_place(overallControls.Ground, 5, 2);
         fcn_INTERNAL_gridText(grid, 6, 1, 'View', 'normal', '');
-        resetButton = uibutton(grid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) onResetView(), ...
+        resetButton = uibutton(grid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) onResetView(), 'Tag', 'overallResetView', ...
             'Tooltip', 'Back to the starting view (set in GUI settings)');
         fcn_INTERNAL_place(resetButton, 6, 2);
-        copyButton = uibutton(grid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) onCopyViewCall(), ...
+        copyButton = uibutton(grid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) onCopyViewCall(), 'Tag', 'overallCopyViewCall', ...
             'Tooltip', 'Put the MATLAB call that opens exactly this view (in fcn_CarMesh3D_viewLabels) on the clipboard');
         fcn_INTERNAL_place(copyButton, 7, 2);
         overallControls.Camera = fcn_INTERNAL_gridText(grid, 8, 1, '', 'normal', ...
             ['The camera now: its angle on the photo dial (0 is the front, 90 the left side), how far it looks down, ' ...
             'and its distance from the center of the view']);
         overallControls.Camera.Layout.Column = [1 2];
-        set(overallControls.Camera, 'FontColor', [0.3 0.3 0.3], 'FontSize', 11, 'WordWrap', 'on', 'Tag', 'cameraReadout');
+        set(overallControls.Camera, 'FontColor', [0.15 0.15 0.15], 'FontSize', 13, 'WordWrap', 'off', 'Tag', 'cameraReadout');
         fcn_INTERNAL_heading(grid, 9, 'See-through body', 'Makes the body see-through, to look at what is inside it (by day)');
         overallControls.SeeThrough = uislider(grid, 'Limits', [0 90], 'Value', 0, 'Tag', 'overallSeeThrough', 'MajorTicks', [0 45 90], ...
             'MajorTickLabels', {'0', '45', '90%'}, 'MinorTicks', [], 'FontSize', 9, ...
@@ -330,12 +347,12 @@ end
         fcn_INTERNAL_place(overallControls.SeeThrough, 10, [1 2]);
         fcn_INTERNAL_heading(grid, 11, 'Photos', '');
         fcn_INTERNAL_gridText(grid, 12, 1, 'Photo folder', 'normal', 'Where the ViewInDegrees_<angle> photos are');
-        overallControls.PhotoBrowse = uibutton(grid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browsePhotoFolder(), ...
+        overallControls.PhotoBrowse = uibutton(grid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browsePhotoFolder(), 'Tag', 'overallPhotoBrowse', ...
             'Tooltip', 'Pick another folder of ViewInDegrees_<angle> photos');
         fcn_INTERNAL_place(overallControls.PhotoBrowse, 12, 2);
         overallControls.PhotoFolder = fcn_INTERNAL_gridText(grid, 13, 1, '', 'normal', '');
         overallControls.PhotoFolder.Layout.Column = [1 2];
-        set(overallControls.PhotoFolder, 'FontColor', [0.3 0.3 0.3], 'FontSize', 11, 'WordWrap', 'on');
+        set(overallControls.PhotoFolder, 'FontColor', [0.3 0.3 0.3], 'FontSize', 11, 'WordWrap', 'on', 'Tag', 'overallPhotoFolder');
         fcn_INTERNAL_gridText(grid, 14, 1, 'Turn model with photo?', 'normal', ...
             'On: picking a photo on the dial turns the model to the same side');
         overallControls.TurnWithPhoto = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
@@ -430,6 +447,7 @@ end
         % 2026-11-24, found them doing nothing at night)
         dayOnly = matlab.lang.OnOffSwitchState(~flagNightNow);
         set(overallControls.Colors.Children, 'Enable', dayOnly);
+        overallControls.Colors.Enable = dayOnly;   % (the group too, so a test's click on it is refused, as a person's is)
         overallControls.SeeThrough.Enable = dayOnly;
         nightTip = '';
         if flagNightNow
@@ -440,6 +458,11 @@ end
         % (the photos: their folder, and whether there are any)
         photoFolderNow = viewer.PhotoFolder();
         flagPhotos = ~isempty(photoFolderNow) && isfolder(photoFolderNow);
+        if isfield(viewer, 'PhotoCount')
+            % (a folder with no ViewInDegrees_<angle> photos in it: no
+            % photos either, so the options are grayed)
+            flagPhotos = flagPhotos && viewer.PhotoCount() > 0;
+        end
         if flagPhotos
             overallControls.PhotoFolder.Text = photoFolderNow;
             overallControls.PhotoFolder.Tooltip = photoFolderNow;
@@ -448,6 +471,7 @@ end
         end
         photoState = matlab.lang.OnOffSwitchState(flagPhotos);
         set([overallControls.TurnWithPhoto.Children; overallControls.PhotoSize.Children], 'Enable', photoState);
+        set([overallControls.TurnWithPhoto, overallControls.PhotoSize], 'Enable', photoState);
         fcn_INTERNAL_selectRadio(overallControls.TurnWithPhoto, logical(viewer.TurnWithPhoto()));
         photoHeightNow = viewer.PhotoHeight();
         if ~any(photoHeightNow == [220 300 420])
@@ -464,8 +488,27 @@ end
             return;
         end
         camera = viewer.CameraInfo();
-        overallControls.Camera.Text = sprintf('Camera: %.0f%s on the dial, %.0f%s down, %.2f m from the center of view', ...
-            camera.DialAngle, char(176), camera.DownAngle, char(176), camera.Distance);
+        % (in four lines, larger, Sean 04:37: the yaw angle is the photo
+        % dial's angle, with the side it looks from; the altitude angle is
+        % negative when the camera looks down)
+        altitude = -camera.DownAngle;
+        if altitude < -0.5
+            upDown = 'down';
+        elseif altitude > 0.5
+            upDown = 'up';
+        else
+            upDown = 'level';
+        end
+        if camera.Distance < 10
+            distanceText = sprintf('%.1f m', camera.Distance);
+        else
+            distanceText = sprintf('%.0f m', camera.Distance);
+        end
+        overallControls.Camera.Text = { ...
+            'Camera view:', ...
+            sprintf('   yaw angle: %.0f%s (%s)', camera.DialAngle, char(176), fcn_INTERNAL_sideWords(camera.DialAngle)), ...
+            sprintf('   altitude angle: %.0f%s (%s)', altitude, char(176), upDown), ...
+            sprintf('   distance from center: %s', distanceText)};
     end
 
     %% Labels To Display
@@ -494,18 +537,18 @@ end
         numLabelRows = numel([groups{:,2}]);
         numRows = 3 + size(groups,1) + numLabelRows + 2 + 1;   % (headings, All, groups, labels, visibility and hidden, note)
         grid = uigridlayout(options.Labels, [numRows 4], 'RowHeight', [repmat({22}, 1, numRows-1), {36}], ...
-            'ColumnWidth', {16, '1x', 70, 70}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
+            'ColumnWidth', {16, '1x', 62, 62}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
             'BackgroundColor', band, 'Scrollable', 'on');
         fcn_INTERNAL_gridText(grid, 1, 3, 'Colored?', 'bold', 'Yes: drawn in its label color. No: plain gray, so the others stand out.');
         fcn_INTERNAL_gridText(grid, 1, 4, 'Shown?', 'bold', 'No: taken out of view (not out of the mesh), to reach the faces under it');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Yes   No', 'normal', '');
-        fcn_INTERNAL_gridText(grid, 2, 4, 'Yes   No', 'normal', '');
+        fcn_INTERNAL_gridText(grid, 2, 3, 'Yes  No', 'normal', '');
+        fcn_INTERNAL_gridText(grid, 2, 4, 'Yes  No', 'normal', '');
         labelRows = struct('Key', {}, 'Colored', {}, 'Shown', {});
         % (All labels: sets every row)
         fcn_INTERNAL_gridText(grid, 3, 2, 'All labels', 'bold', 'Sets every label''s row at once');
-        allColored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setColoredKey('all', value), 'allColored', true);
+        allColored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setColoredKey('all', value), 'allColored', true);
         fcn_INTERNAL_place(allColored, 3, 3);
-        allShown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShownKey('all', value), 'allShown', true);
+        allShown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setShownKey('all', value), 'allShown', true);
         fcn_INTERNAL_place(allShown, 3, 4);
         labelRows(1) = struct('Key', 'all', 'Colored', allColored, 'Shown', allShown);
         row = 3;
@@ -526,9 +569,9 @@ end
                 if ~flagPresent
                     set(nameLabel, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic', 'Tooltip', 'No faces have this label yet');
                 end
-                colored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setColoredKey(key, value), ['colored_' key]);
+                colored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setColoredKey(key, value), ['colored_' key]);
                 fcn_INTERNAL_place(colored, row, 3);
-                shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShownKey(key, value), ['shown_' key]);
+                shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setShownKey(key, value), ['shown_' key]);
                 fcn_INTERNAL_place(shown, row, 4);
                 labelRows(end+1) = struct('Key', key, 'Colored', colored, 'Shown', shown); %#ok<AGROW>
             end
@@ -542,7 +585,7 @@ end
         box = uipanel(grid, 'BackgroundColor', labelColor('hide'), 'BorderType', 'line');
         fcn_INTERNAL_place(box, row, 1);
         fcn_INTERNAL_gridText(grid, row, 2, 'hidden (not drawn)', 'normal', 'Faces hidden in the mesh (hide, never delete)');
-        shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShowHidden(value), 'shown_hidden');
+        shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setShowHidden(value), 'shown_hidden');
         fcn_INTERNAL_place(shown, row, 4);
         labelRows(end+1) = struct('Key', 'hidden', 'Colored', [], 'Shown', shown);
         note = fcn_INTERNAL_gridText(grid, numRows, 1, 'Gray names: no faces have this label yet.', 'normal', '');
@@ -663,7 +706,7 @@ end
             'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
             'BackgroundColor', band, 'Scrollable', 'on');
         fcn_INTERNAL_gridText(grid, 1, 3, 'Status?', 'bold', 'Which lamps are switched on');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Off     On      3rd state', 'normal', '');
+        fcn_INTERNAL_gridText(grid, 2, 3, 'Off     On     Brake', 'normal', '');
         lampGroups = struct();
         for ith_row = 1:size(rows,1)
             row = ith_row + 2;
@@ -760,7 +803,11 @@ x = 2;
 for ith_button = 1:numel(texts)
     buttonWidth = width;
     if numel(texts{ith_button}) > 3
-        buttonWidth = max(width, 8*numel(texts{ith_button}) + 26);
+        % (wide enough for its words; 6 px a letter keeps Colors? Labels /
+        % Vehicle inside its column even when the panel shows its scroll
+        % bar (about 130 px): at 8 px a letter, Vehicle stuck out past its
+        % group, found by the layout check, 2026-11-24)
+        buttonWidth = max(width, 6*numel(texts{ith_button}) + 22);
     end
     uiradiobutton(group, 'Text', texts{ith_button}, 'Position', [x 1 buttonWidth 22], 'UserData', values{ith_button});
     x = x + buttonWidth;
@@ -824,3 +871,17 @@ function fcn_INTERNAL_place(component, row, column)
 component.Layout.Row = row;
 component.Layout.Column = column;
 end % Ends fcn_INTERNAL_place
+
+%% fcn_INTERNAL_sideWords
+function words = fcn_INTERNAL_sideWords(dialAngle)
+% Where the camera looks from, in words, for a photo-dial angle (0 the
+% front, 90 the left side, 180 behind, 270 the right side), in eight
+% 45-degree sectors
+names = {'from the front', 'from the front, left', 'from the left side', 'from behind, left', ...
+    'from behind', 'from behind, right', 'from the right side', 'from the front, right'};
+if ~isfinite(dialAngle)
+    words = 'unknown';
+    return;
+end
+words = names{mod(round(mod(dialAngle, 360)/45), 8) + 1};
+end % Ends fcn_INTERNAL_sideWords

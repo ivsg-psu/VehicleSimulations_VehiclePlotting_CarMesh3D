@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.OutlineFile, 'vehicleOutline');
 fitOutline = loaded.vehicleOutline;
@@ -61,8 +61,15 @@ assert(~isvalid(viewer.Figure));
 fprintf(1,'TEST case: the interior is an element\n');
 viewer = fcn_CarMesh3D_viewOutline(fitOutline, Mesh=fitMesh, Visible=false);
 interiorIndex = find(strcmp({viewer.Elements.Key}, 'interior'));
-assert(isscalar(interiorIndex));
-assert(numel(viewer.Elements(interiorIndex).Polygons) == numel(fitOutline.Interior));
+% (since the voxel interior labeling was switched off, Q37 2026-11-24, a vehicle may have
+% no interior pieces until its seats and steering wheel are found; then there is no element)
+if isfield(fitOutline, 'Interior') && ~isempty(fitOutline.Interior)
+    assert(isscalar(interiorIndex));
+    assert(numel(viewer.Elements(interiorIndex).Polygons) == numel(fitOutline.Interior));
+else
+    assert(isempty(interiorIndex), 'No interior element when the outline has no interior pieces');
+    fprintf(1, '    (this vehicle''s outline has no interior pieces: none shown)\n');
+end
 
 %% TEST case: An element filled in orange, then none
 fprintf(1,'TEST case: an element filled, then none\n');

@@ -1,7 +1,7 @@
 Standard checks for 2014 Nissan Leaf SL
-Written 2026-11-23 04:48 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:23 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 24945 faces, 29598 vertices
+Mesh: 24945 faces, 27684 vertices
 Dimensions: 12 of 12 within tolerance
 
 Files:

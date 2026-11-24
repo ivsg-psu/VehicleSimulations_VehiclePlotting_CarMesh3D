@@ -115,7 +115,7 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     exampleName
-    options.VehicleID = '2009_Honda_Fit_Sport'   % The vehicle the examples use
+    options.VehicleID = fcn_CarMesh3D_demoVehicle(FigNum=-1)   % The vehicle the examples use: the demo vehicle (fcn_CarMesh3D_demoVehicle)
     options.Run = true        % false to only print the commands
     options.FigNum = []       % Not used; -1 for fast mode (nothing printed)
 end

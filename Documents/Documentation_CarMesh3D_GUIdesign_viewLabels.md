@@ -8,27 +8,23 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-24 04:02 from your T1 to T8 results (those, with your words, are now in the change log). Tested by Claude (hidden, by script; all pass): the viewer, the painter, the shared panels, the lights check, openTool and the browser; the Fit's files unchanged.*
+*Updated 2026-11-24 08:10. Almost everything is now tested by script (automated GUI tests, Q39: Agent C, 06:06 to 07:57; checked by Claude 08:05: all pass). T32 and T33 are now checked by script: moved to the change log. What is left needs your eyes.*
 
 **First:** close any viewer or painter window and run `clear functions`.
 
-- **T19. Show ground? in Overall Display:** it is under Nighttime view?, in both the viewer and the painter; GUI settings (viewer) and Settings (painter) no longer have it.
+- **T31. Camera readout, larger and in four lines** (Sean, 04:37): in Overall Display under Copy view call, at 13 points: `Camera view:` / `yaw angle: 60° (from the front, left)` / `altitude angle: -20° (down)` / `distance from center: 28 m` at Reset view on the Fit. Turn the model: the yaw's words follow in eight 45° sectors (front, front left, left side, behind left, behind, ...); the altitude is negative looking down, "(level)" near 0, "(up)" from below. Same in the painter.
 (Sean's result:)
 
-- **T20. The ground, day and night:** squares of exactly 1 m on whole-meter lines, 10 m past the vehicle on every side; the same squares and extent by day (light) and at night (dark). The painter shows the same ground.
+- **T42. Small windows:** with a panel open, below about 900 px wide the photo and dial are hidden (the model keeps the room) and come back when the window grows; above that the photo shrinks with the window. Is that what you want?
 (Sean's result:)
 
-- **T21. Night graying:** with Nighttime view? On, Colors? and the see-through slider are grayed, and their tooltip says why (at night the vehicle is drawn solid, in its own colors); Off brings them back. (Your T3 bugs: these controls did nothing at night by design, which is why they now say so.)
+- **T43. Tighter rows:** Colors? Labels / Vehicle buttons are closer together; the Colored? and Shown? columns in Labels To Display are narrower. Still easy to read and click?
 (Sean's result:)
 
-- **T22. Camera readout:** under Copy view call, "Camera: <dial>° on the dial, <down>° down, <distance> m from the center of view"; it follows as you turn the model with the mouse (within a quarter second), in both windows. Reset view at the defaults reads 60 and 20. See Q34 below on your 105° reading. The distance is large (about 28 m for the Fit) because MATLAB places the camera far away with a narrow lens; the picture is the same as a near camera with a wide lens.
+- **T44. Lamps header:** the Lamps To Display header now reads "Off On Brake" over its columns. Clear?
 (Sean's result:)
 
-- **T23. Framing:** at open and at Reset view, the vehicle fills the view (the 10 m of ground runs past the edges, not shrinking the vehicle).
-(Sean's result:)
-
-- **T24. Photo options in Overall Display:** a "Photos" heading with the photo folder (Browse...), Turn model with photo? and Photo size?; none under the photo any more, in either window; with no photos they are grayed. Shrink the window: the photo may go, but its options stay reachable in the panel.
-(Sean's result:)
+---
 
 ## 1. What the window is for
 
@@ -340,15 +336,7 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
 
 **(Claude to Sean)**
 
-**Q34. Your T7 reading of "about 105°" for Reset view.** Measured in MATLAB (hidden), Reset view at the defaults puts the camera at 60° on the dial (from the front, toward the left side), 20° down, and the dial's arrow and the new readout agree. What did you compare against?
-- (A) *Recommended.* The photo dial's arrow or the nearest photo: then please read the new camera readout (T22) at Reset view and tell me the numbers; if it says 60 but looks wrong, the dial's 0 or direction is what to fix.
-- (B) By eye, from the model (it looked more side-on than 60°): the readout will settle it.
-- (C) Something else (please say).
-
-*Sean, 04:08 (chat): (A), the dial's arrow or the nearest photo.*
-
-*Claude, 04:09:* checked the Fit in MATLAB (hidden): at Reset view the readout says 60° on the dial and 20° down, the photo shown is `ViewInDegrees_060.jpg`, and the camera sits toward the front-left, 60° from straight ahead (the front is +x). So the code, the dial and the photo's name agree. If the view still looks like about 105° next to that photo, the likely cause is the photo itself: the 060 picture may not have been taken from 60° (a mislabeled photo, or the photo set's 0° is not the front). Stays open until Sean reads T22's numbers at Reset view; then (if the photo is the cause) the photo set gets fixed, not the code.
-
+*(None open in this file; Q34 closed 2026-11-24 04:38, see the change log. Q37 (the interior) and Q38 (the ground and the beams) are open in the chat.)*
 
 **(Sean to Claude)**
 
@@ -466,3 +454,81 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
   (Sean's result:)
   * All panels scroll, this works
   * Photo panel disappears if shrink vertical path too much (as expected). Since photos are rarely changed, let's absorb the photo panel's options into the Overall Display, unless that breaks other GUIs (then, let's discuss). The photo panel itself would then be no longer needed. That willl also give a very clean look to the GUI where all visual attention goes to the mesh and photos, where it should be.
+- 2026-11-24 04:37 to 04:40 (Sean 04:37; Claude): **the camera readout larger and in four lines**, as Sean wrote it: "Camera view:", then yaw angle (the photo dial's angle, with the side it looks from), altitude angle (negative looking down) and distance from center, at 13 points (in `fcn_CarMesh3D_makeDisplayPanels`, so both windows). Tests pass (hidden). T31.
+- 2026-11-24 04:38: **Q34 closed** (Sean, chat: "It's working now as expected. If I see a glitch, we'll reopen another investigation."). The question and its thread:
+
+  **Q34. Your T7 reading of "about 105°" for Reset view.** Measured in MATLAB (hidden), Reset view at the defaults puts the camera at 60° on the dial (from the front, toward the left side), 20° down, and the dial's arrow and the new readout agree. What did you compare against?
+  - (A) *Recommended.* The photo dial's arrow or the nearest photo: then please read the new camera readout (T22) at Reset view and tell me the numbers; if it says 60 but looks wrong, the dial's 0 or direction is what to fix.
+  - (B) By eye, from the model (it looked more side-on than 60°): the readout will settle it.
+  - (C) Something else (please say).
+
+  *Sean, 04:08 (chat): (A), the dial's arrow or the nearest photo.*
+
+  *Claude, 04:09:* checked the Fit in MATLAB (hidden): at Reset view the readout says 60° on the dial and 20° down, the photo shown is `ViewInDegrees_060.jpg`, and the camera sits toward the front-left, 60° from straight ahead (the front is +x). So the code, the dial and the photo's name agree. If the view still looks like about 105° next to that photo, the likely cause is the photo itself: the 060 picture may not have been taken from 60° (a mislabeled photo, or the photo set's 0° is not the front). Stays open until Sean reads T22's numbers at Reset view; then (if the photo is the cause) the photo set gets fixed, not the code.
+
+  *Sean, 4:26:
+  Ran the commands:
+
+  ```matlab
+  clear functions
+  % A fresh, temporary copy of the vehicle: changes are NOT saved to the vehicle
+  demoFiles = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport', FigNum=1);
+  % The view sent: the tail lights alone, seen from behind
+  sharedView = struct('Label', 'light_tail', 'PhotoAngle', 180);
+  viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView)
+  ```
+
+  * Labels to display were all off to start, seems wrong
+  * Interior mesh is visible, this is definitely wrong. Is this an old version?
+
+  *Claude, 04:58, on Sean's 4:26 notes:*
+  - *Labels all off at the start:* that view call asks for one label alone (`'Label','light_tail'`), and the agreed rule for old view calls (C2S 3 (A), 2026-11-23) opens it as "that label Colored? Yes, every other label Colored? No". Checked in MATLAB: tail lights Yes, the other 15 rows No. So it is as designed, but if it reads wrong in use, the rule can change (for example, the others Colored? Yes but drawn faint); Claude will ask once Q37 and Q38 are answered.
+  - *Interior visible, "is this an old version?":* no, the mesh is current (built 01:12). The interior label is still made by the build's voxel step (`labelInterior = true` in the Fit's script): 1,413 of the download's own faces relabeled `interior`. The agreed fix (the painter's P5, C2S 7) is not built yet; Q37 (chat, 04:33) asks whether to switch the voxel step off for the Fit now.
+- 2026-11-24 04:53 to 04:58 (Sean's results for T19 to T24, as written; Claude's fixes):
+  - **T22's bug** ("If rotating with the spinner, it does not update"): a turn by the photo dial moved the camera without telling the readout (the dial's own turn is not counted as a mouse turn, so the timer never saw it). Now it does: T32.
+  - **T23's bug** (the vehicle cut off when the window is made smaller): MATLAB's view angle spans the axes' shorter side, and it was fitted once, to the first shape. Now the angle is refitted whenever the model's area changes size, keeping the user's zoom, and Reset view fits the vehicle to the window as it is: T33.
+  - **T20's notes:** the headlights reaching past the ground is Q38 (chat, 04:43). The grid size and extent controls (a snap slider 0.5, 1, 2, 5, 10 m; extent per direction 5, 10, 20, 50, 100 m) go on the Someday list.
+  - Tests pass (hidden): makeDisplayPanels, viewLabels, paintLabels, animateChecks; the Fit's files unchanged.
+  - Note: Claude's 04:40 edit of this file (T31, Q34 closed) was overwritten when Sean saved his copy, opened before it; both are put back here. Claude writes to this file only after Sean says he is done with it.
+
+  **Review round T19 to T24 (2026-11-24 04:02), with Sean's results as written:**
+
+  - **T19. Show ground? in Overall Display:** it is under Nighttime view?, in both the viewer and the painter; GUI settings (viewer) and Settings (painter) no longer have it.
+  (Sean's result: Works as expected)
+
+  - **T20. The ground, day and night:** squares of exactly 1 m on whole-meter lines, 10 m past the vehicle on every side; the same squares and extent by day (light) and at night (dark). The painter shows the same ground.
+  (Sean's result: Works, with issues)
+  * headlights on night scene go off the ground plane. Not critical.
+  Someday option: allow user to set grid size (1 meter) in the overall display. We could add a slider bar that allows 0.5 m, 1m, 2m, 5m, 10m grids as snap-to locations from the slider. Should also allow user to specify grid extent in each direction (5m, 10m, 20m, 50m, 100m). This is mosly for visuals and illustrations.
+
+  - **T21. Night graying:** with Nighttime view? On, Colors? and the see-through slider are grayed, and their tooltip says why (at night the vehicle is drawn solid, in its own colors); Off brings them back. (Your T3 bugs: these controls did nothing at night by design, which is why they now say so.)
+  (Sean's result: works as expected)
+
+  - **T22. Camera readout:** under Copy view call, "Camera: <dial>° on the dial, <down>° down, <distance> m from the center of view"; it follows as you turn the model with the mouse (within a quarter second), in both windows. Reset view at the defaults reads 60 and 20. See Q34 below on your 105° reading. The distance is large (about 28 m for the Fit) because MATLAB places the camera far away with a narrow lens; the picture is the same as a near camera with a wide lens.
+  (Sean's result: Works, partially)
+  * If rotating with a mouse, it works and updates quickly.
+  * BUG: If rotating with the spinner, it does not update, but it should. This was the cause of the bug earlier and why it didn't appear each time. The method of rotation changed the outcome.
+
+  - **T23. Framing:** at open and at Reset view, the vehicle fills the view (the 10 m of ground runs past the edges, not shrinking the vehicle).
+  (Sean's result:)
+  * It works if the GUI is full-screen, but cuts off the vehicleif GUI is reduced. See snipped screen-shot pasted into CLI.
+
+  - **T24. Photo options in Overall Display:** a "Photos" heading with the photo folder (Browse...), Turn model with photo? and Photo size?; none under the photo any more, in either window; with no photos they are grayed. Shrink the window: the photo may go, but its options stay reachable in the panel.
+  (Sean's result: works as expected)
+- 2026-11-24 06:06 to 08:05 (Agent C, for Claude; Sean offline; Q39, Q40 A): **the viewer and the shared display panels made fully drivable and tested by script.**
+  - **Hooks:** State, SetState, Press, Key, CheckLayout, Controls (through `fcn_CarMesh3D_guiDriver`); MouseDrag, Scroll, DialDrag, Resize (through the real handlers); Tick (the view timer's check at once), Settle (a hidden window reports its old layout for up to about 0.3 s after drawnow), FitInfo (zoom against "the whole vehicle just fits"), PhotoCount. Old hooks kept. Every clickable or readable control tagged (viewer and shared panels); the photo's name and corner marked as overlays.
+  - **Automated**, with rules after every step (the readout equals CameraInfo; Colors? and see-through grayed exactly at night, the photo options exactly with no photos; the day and night grounds as set; every label and lamp row matches the viewer, Hazards exactly when both turn signals; one panel open and marked in the menu; the status line; exactly one timer): every radio group to each value; all 32 combinations of night × colors × see-through × ground × boundaries; the menu, GUI settings, Reset view at the defaults (60 on the dial, 20 down); mouse, wheel and dial turns; framing and zoom kept at five window sizes with no layout errors; random walks (3 × 200 steps on the GUI test vehicle, 150 on the Fit, 29 kinds of action); close under 1 s with no timer left.
+  - **Bugs found and fixed (10):** in GUI settings, typing one start angle put the other back to its old value; changes made through a hook (a host or a view call) left the panels and status line showing the old state; at night, All labels Shown? No stopped with an error; a shared view call opened at a slightly different zoom; Colors? "Vehicle" stuck out of its group at 800×500 (also seen in the painter); in small windows the photo was cut off, or the photo and dial left the model no room (also in the painter); after a turn or pan, a resize could cut off a vehicle that had been fully in view; label names and the Lamps header cut off in a short window; photo options enabled for a folder with no photos; Reset view at night went to where the camera was when night fell, not to the starting view (found by a random walk on the Fit).
+  - **Not fixed:** the title bar's version line cut off at 640×400 (`fcn_CarMesh3D_addTitleBar`, also in the browser); Browse... says "No folder" when the viewer opened with no photos (known).
+  - The viewer reads the pointer from the window, not the axes' CurrentPoint (the cause of the painter's picking bug), so it does not have that bug.
+  - Report: `Desktop\Claude\Project_CarMesh3D\agents\C\REPORT_viewLabels.md`. T42 to T44 in Review now.
+
+  **Closed by script (2026-11-24 08:05):**
+
+  - **T32. Readout follows the dial** (your T22 bug): turn the model with the photo dial (drag its arrow or click a photo dot, with Turn model with photo? On): the readout follows, as it does for the mouse.
+  (Sean's result:)
+    (Checked by script: dial turns update the readout, as a rule after every step of the random walks.)
+
+  - **T33. Resizing keeps the vehicle in view** (your T23 bug): make the window narrower, then shorter, then full screen again: the whole vehicle stays in view each time. Zoom in with the wheel first, then resize: it stays zoomed by the same amount. Reset view at any size shows the whole vehicle. Same in the painter.
+  (Sean's result:)
+    (Checked by script: framing and zoom kept at five window sizes; Reset view fits the window.)

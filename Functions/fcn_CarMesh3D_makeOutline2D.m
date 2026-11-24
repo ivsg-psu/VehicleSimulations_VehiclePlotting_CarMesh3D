@@ -26,11 +26,17 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %       separate pieces (a lens, a reflector, a bulb) is one outline, while
 %       a turn signal's front, rear, and mirror lamps stay separate.
 %
-%   Interior: each connected piece of the 'interior' part (seats, steering
-%       wheel, dash; fcn_CarMesh3D_labelInterior) seen from above, as
-%       authored in the download (faces join where their corners touch),
-%       front to rear. Interior outlines are NOT made symmetric: the
-%       steering wheel is on one side.
+%   Interior: the interior OBJECTS seen from above, one outline each:
+%       the driver's seat, the passenger's seat and the steering wheel
+%       (found by fcn_CarMesh3D_findInteriorObjects; stored in the mesh as
+%       FaceInteriorObject and InteriorObjectNames, or given with
+%       InteriorObjects=). Only these objects are outlined (Sean,
+%       2026-11-24 09:20: "update the 2D views accordingly using only the
+%       seats and steering wheel as the interior objects"). A mesh with no
+%       interior objects but an 'interior' part (the older voxel labeling,
+%       fcn_CarMesh3D_labelInterior) gets each connected piece of that
+%       part instead, front to rear. Interior outlines are NOT made
+%       symmetric: the steering wheel is on one side.
 %
 % SYMMETRY. Vehicles are (nearly always) mirror images about their
 % centerline (the XZ plane), but downloaded models are not always: a
@@ -55,7 +61,8 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %           (SliceSpacing=meters), (Tolerance=meters),...
 %           (MinWindowArea=squareMeters), (Symmetric=flag),...
 %           (SymmetryTolerance=fraction), (LampGap=meters),...
-%           (MinInteriorArea=squareMeters), (FigNum=figNum))
+%           (MinInteriorArea=squareMeters), (InteriorObjects=found),...
+%           (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -88,6 +95,12 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %      MinInteriorArea: square meters; smaller interior pieces (seen from
 %      above) are dropped. Default 0.01.
 %
+%      InteriorObjects: the interior objects found in this mesh, as
+%      fcn_CarMesh3D_findInteriorObjects returns them (DriverSeat,
+%      PassengerSeat, SteeringWheel, each with Found and Faces: face
+%      numbers of this mesh). Used in place of the mesh's own
+%      FaceInteriorObject. Default [] (the mesh's own, if any).
+%
 %      FigNum: a figure to plot the outlines, in two panels: alone (as a
 %      2D plot would draw them) and over the mesh seen from above
 %      (faded). If empty or omitted, no plot is made. If set to -1, input
@@ -105,9 +118,11 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %               Center [x y], Length (diameter), Width, Steers (true for
 %               the front wheels), and Rectangle (5 x 2, closed, around
 %               [0 0]: add the center after turning it by the steer angle)
-%           Interior: a structure array with Name ('interior 1', ...
-%               front to rear) and Polygon (closed, counterclockwise);
-%               empty if the mesh has no 'interior' part
+%           Interior: a structure array with Name ('driver seat',
+%               'passenger seat', 'steering wheel'; or, for a mesh with
+%               only an 'interior' part, 'interior 1', ... front to rear)
+%               and Polygon (closed, counterclockwise); empty if the mesh
+%               has neither
 %           Lights: a structure array with Type ('headlight', 'turnsignal',
 %               'running', 'tail', 'backup', 'highbeam', or 'other'), Side ('left' or
 %               'right'), and Polygon (closed, counterclockwise)
@@ -183,6 +198,15 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %   % * The check plot colors the newer lamp types (fcn_CarMesh3D_lampTypes;
 %   %   % Sean, task 8)
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeOutline2D
+%   % * Interior: only the interior objects, one outline each (driver
+%   %   % seat, passenger seat, steering wheel), from the mesh's
+%   %   % FaceInteriorObject or the new option InteriorObjects (the
+%   %   % result of fcn_CarMesh3D_findInteriorObjects); the older
+%   %   % 'interior' part pieces only for a mesh without objects (Sean,
+%   %   % 2026-11-24 09:20)
+
 % TO-DO:
 %
 % 2026_11_20 by Sean Brennan, sbrennan@psu.edu
@@ -204,6 +228,7 @@ arguments
     options.MinWindowArea = 0.05   % square meters: smaller upward glass is dropped
     options.LampGap = 0.02         % meters: lamp pieces closer than this are one lamp
     options.MinInteriorArea = 0.01 % square meters: smaller interior pieces are dropped
+    options.InteriorObjects = []   % Found interior objects (fcn_CarMesh3D_findInteriorObjects); [] for the mesh's own
     options.Symmetric = true       % true: make every outline symmetric about the centerline
     options.SymmetryTolerance = 0.05   % fraction: warn about outlines changed more than this
     options.FigNum = []            % Figure to plot into; [] for no plot, -1 for fast mode
@@ -297,6 +322,11 @@ end
 
 % (the vehicle as it is shown: hidden faces never count here;
 % fcn_CarMesh3D_visibleMesh)
+% (interior objects given as an option become the mesh's per-face labels
+% first, so they are kept or dropped with their faces just below)
+if ~isempty(options.InteriorObjects)
+    vehicleMesh = fcn_INTERNAL_labelInteriorObjects(vehicleMesh, options.InteriorObjects);
+end
 vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
 
 vertices = vehicleMesh.Vertices;
@@ -492,7 +522,38 @@ end
 % wheel is on one side)
 interior = struct('Name',{}, 'Polygon',{});
 interiorPart = find(strcmp(vehicleMesh.PartNames, 'interior'), 1);
-if ~isempty(interiorPart) && any(vehicleMesh.FacePartIndex==interiorPart)
+flagObjects = isfield(vehicleMesh, 'FaceInteriorObject') && isfield(vehicleMesh, 'InteriorObjectNames') ...
+    && numel(vehicleMesh.FaceInteriorObject) == size(faces,1) && any(vehicleMesh.FaceInteriorObject(:) > 0);
+if flagObjects
+    % (the interior objects only, one outline each, in their own order:
+    % driver seat, passenger seat, steering wheel; all their pieces seen
+    % from above are joined, and holes filled)
+    for ith_object = 1:numel(vehicleMesh.InteriorObjectNames)
+        objectFaces = find(vehicleMesh.FaceInteriorObject(:) == ith_object);
+        if isempty(objectFaces)
+            continue;
+        end
+        objectShape = fcn_INTERNAL_union(vertices, faces(objectFaces,:));
+        if objectShape.NumRegions == 0 || area(objectShape) < options.MinInteriorArea
+            continue;
+        end
+        if objectShape.NumRegions > 1
+            % (pieces that do not touch seen from above, such as a
+            % headrest's posts: one outline around them all)
+            objectPoints = objectShape.Vertices(~any(isnan(objectShape.Vertices),2), :);
+            hullIndices = convhull(objectPoints(:,1), objectPoints(:,2));
+            outline = objectPoints(hullIndices(1:end-1), :);
+        else
+            outline = rmholes(objectShape).Vertices;
+            outline = outline(~any(isnan(outline),2), :);
+        end
+        if fcn_INTERNAL_signedArea(outline) < 0
+            outline = flipud(outline);
+        end
+        interior(end+1) = struct('Name', vehicleMesh.InteriorObjectNames{ith_object}, ...
+            'Polygon', fcn_INTERNAL_thin([outline; outline(1,:)], options.Tolerance)); %#ok<AGROW>
+    end
+elseif ~isempty(interiorPart) && any(vehicleMesh.FacePartIndex==interiorPart)
     interiorFaces = find(vehicleMesh.FacePartIndex==interiorPart);
     [~, ~, positionIDs] = unique(round(vertices(faces(interiorFaces,:),:)/1e-5), 'rows');
     interiorPieces = fcn_INTERNAL_connectedPieces(reshape(positionIDs, [], 3));
@@ -863,6 +924,29 @@ function faceNormals = fcn_INTERNAL_faceNormals(vertices, faces)
 crossed = cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), vertices(faces(:,3),:) - vertices(faces(:,1),:), 2);
 faceNormals = crossed./max(sqrt(sum(crossed.^2, 2)), eps);
 end % Ends fcn_INTERNAL_faceNormals
+
+%% fcn_INTERNAL_labelInteriorObjects
+function vehicleMesh = fcn_INTERNAL_labelInteriorObjects(vehicleMesh, found)
+% The interior objects found by fcn_CarMesh3D_findInteriorObjects as the
+% mesh's per-face labels: FaceInteriorObject (0 none, else the object's
+% number in InteriorObjectNames)
+objectFields = {'DriverSeat', 'PassengerSeat', 'SteeringWheel'};
+objectNames = {'driver seat', 'passenger seat', 'steering wheel'};
+numFaces = size(vehicleMesh.Faces,1);
+faceObject = zeros(numFaces,1);
+for ith_object = 1:numel(objectFields)
+    if isfield(found, objectFields{ith_object})
+        thisObject = found.(objectFields{ith_object});
+        if isfield(thisObject, 'Found') && thisObject.Found && isfield(thisObject, 'Faces')
+            objectFaces = thisObject.Faces(:);
+            objectFaces = objectFaces(objectFaces >= 1 & objectFaces <= numFaces);
+            faceObject(objectFaces) = ith_object;
+        end
+    end
+end
+vehicleMesh.FaceInteriorObject = faceObject;
+vehicleMesh.InteriorObjectNames = objectNames;
+end % Ends fcn_INTERNAL_labelInteriorObjects
 
 %% fcn_INTERNAL_connectedPieces
 function pieceIndex = fcn_INTERNAL_connectedPieces(faces)

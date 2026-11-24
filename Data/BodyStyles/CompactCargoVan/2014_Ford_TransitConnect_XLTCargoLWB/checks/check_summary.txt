@@ -1,7 +1,7 @@
 Standard checks for 2014 Ford TransitConnect XLTCargoLWB
-Written 2026-11-23 04:43 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:01 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 36062 faces, 23500 vertices
+Mesh: 36062 faces, 23494 vertices
 Dimensions: 12 of 12 within tolerance
 
 Files:

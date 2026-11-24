@@ -11,7 +11,7 @@ fullSizeSUV,Full-size SUV,Body-on-frame: tall and boxy and long,1,Chevrolet Taho
 minivan,Minivan,Tall with sliding doors and a short hood,1,Honda Odyssey; Chrysler Pacifica; Toyota Sienna,
 pickupCrewCab,Full-size pickup (crew cab),A four-door cab and an open bed,1,Ford F-150 SuperCrew,2015_Ford_F150_Lariat
 compactCargoVan,Compact cargo van,A small van with no rear side windows,1,Ford Transit Connect,2014_Ford_TransitConnect_XLTCargoLWB
-fullSizeCargoVan,Full-size cargo van,A tall long van (high roof),1,Ford Transit; Mercedes Sprinter; Ram ProMaster,2005_Toyota_HiAce_H200DX
+fullSizeCargoVan,Full-size cargo van,A tall long van (high roof),1,Ford Transit; Mercedes Sprinter; Ram ProMaster,
 midsizeSUV,Midsize three-row SUV,A taller and longer crossover with a third row,0,Ford Explorer; Toyota Highlander,
 pickupMidsize,Midsize pickup,A smaller cab and bed than a full-size pickup,0,Toyota Tacoma,
 passengerVan,Passenger van,A full-size van with windows and 12 to 15 seats,0,Ford Transit passenger van,

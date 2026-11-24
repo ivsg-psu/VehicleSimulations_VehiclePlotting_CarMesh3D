@@ -1,7 +1,7 @@
 Standard checks for 2006 Ford Mustang GT
-Written 2026-11-23 04:45 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:10 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 21394 faces, 30474 vertices
+Mesh: 21394 faces, 27602 vertices
 Dimensions: 12 of 12 within tolerance
 
 Files:

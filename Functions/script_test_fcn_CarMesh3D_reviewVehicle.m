@@ -31,7 +31,7 @@
 close all
 
 % (a vehicle with a finished mesh, cache, levels, and outline)
-vehicleID = '2009_Honda_Fit_Sport';
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 % (a temporary copy of the vehicle, with no saved label fixes: the test
 % paints and saves, and must never change the vehicle itself; 2026_11_24,
 % after a stopped run overwrote the Fit's fixes)

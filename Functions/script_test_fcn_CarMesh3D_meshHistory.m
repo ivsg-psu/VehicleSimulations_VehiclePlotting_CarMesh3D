@@ -97,7 +97,7 @@ assert(strcmp(copyHistory.Built.Date, '2026-11-22 05:54'));
 
 %% TEST case: The vehicles' own (read only): every one has a license and a status
 fprintf(1,'TEST case: the Fit''s history (read only)\n');
-fitHistory = fcn_CarMesh3D_meshHistory('2009_Honda_Fit_Sport');
+fitHistory = fcn_CarMesh3D_meshHistory(fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1));   % (the repo's demo vehicle)
 assert(~isempty(fitHistory.License.Name) && ~isempty(fitHistory.FinePrint));
 
 %% Fail conditions

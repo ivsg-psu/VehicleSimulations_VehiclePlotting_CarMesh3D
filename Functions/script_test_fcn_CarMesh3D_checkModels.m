@@ -68,7 +68,7 @@ assert(contains(printed, 'In the large-file area?'));
 fig_num = 10003;
 libraryReport = fcn_CarMesh3D_checkModels(FigNum=fig_num);
 assert(height(libraryReport) > 0);
-assert(any(strcmp(libraryReport.ID, '2009_Honda_Fit_Sport')));
+assert(any(strcmp(libraryReport.ID, fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1))));   % (the repo's demo vehicle is in the library)
 sampleRow = libraryReport(strcmp(libraryReport.ID, '2026_CarMesh3D_Sample_GenericSedan'), :);
 assert(isempty(sampleRow) || (isempty(sampleRow.ModelFile{1}) && sampleRow.CanBuild));   % (the built-in sample car)
 

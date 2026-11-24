@@ -15,6 +15,13 @@
 %   %   % time, the panels driving the viewer, GUI settings, the ground
 %   %   % plane by day and night (Q33 (A)); "Show mesh boundaries" set in
 %   %   % Overall Display; GUI settings put back at the end
+%   % * Driven by script (Sean, 05:03; fcn_CarMesh3D_guiDriver and
+%   %   % fcn_CarMesh3D_guiRandomWalk): every control set to each value,
+%   %   % the night x colors x see-through x ground x boundaries
+%   %   % permutations, the menu, GUI settings, the mouse, wheel and dial,
+%   %   % resizing (framing and zoom kept), layout at several sizes, random
+%   %   % walks with the rules checked after every step, closing time and
+%   %   % the timer; on a copy of the GUI test vehicle
 
 % TO-DO:
 %
@@ -24,7 +31,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the Fit)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 meshFile = vehicleFiles.MeshFile;   % (the viewer is given the file to show)
 flagPhotos = ~isempty(dir(fullfile(fileparts(meshFile), 'photos', 'ViewInDegrees_*')));
@@ -347,7 +354,9 @@ camera = viewer.CameraInfo();
 assert(all(isfield(camera, {'DialAngle','DownAngle','Distance'})) && camera.Distance > 0, 'CameraInfo');
 cameraReadout = findall(viewer.Figure, 'Tag', 'cameraReadout');
 panels.MarkCamera();
-assert(isscalar(cameraReadout) && contains(cameraReadout.Text, sprintf('%.0f', camera.DialAngle)), 'Camera readout');
+readoutText = strjoin(cellstr(cameraReadout.Text), newline);
+assert(isscalar(cameraReadout) && contains(readoutText, sprintf('yaw angle: %.0f', camera.DialAngle)) && ...
+    contains(readoutText, sprintf('altitude angle: %.0f', -camera.DownAngle)) && contains(readoutText, 'distance from center'), 'Camera readout');
 % (Sean's T8: the photo options in Overall Display, none under the photo)
 assert(isscalar(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'turnWithPhoto')), 'Turn model with photo? once, in Overall Display');
 assert(isscalar(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'photoSize')), 'Photo size? once, in Overall Display');
@@ -366,6 +375,306 @@ xLimits = viewer.Axes.XLim;
 assert(xLimits(1) > min(meshNow(:,1)) - 1 && xLimits(2) < max(meshNow(:,1)) + 1, 'The view framed on the vehicle');
 viewer.Close();
 clear cleanupPrefs;   % (the GUI settings put back)
+
+%% TEST case: driven by script, as a person would (Sean, 2026-11-24 05:03: "the GUI must go to that state")
+% (fcn_CarMesh3D_guiDriver through the viewer's hooks State, SetState,
+% Press, CheckLayout, and the mouse, dial and resize hooks; on a fresh copy
+% of the GUI test vehicle, which has every label, lamp and hidden set, so
+% nothing is written to a real vehicle; GUI settings put back at the end)
+fprintf(1,'TEST case: driven by script: every control, permutations, random walks, layout\n');
+prefsBefore = struct();
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+    if ispref('CarMesh3D', prefName{1})
+        prefsBefore.(prefName{1}) = getpref('CarMesh3D', prefName{1});
+    end
+end
+cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
+demoRoot = tempname;
+testFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
+[~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, Visible=false, Wait=false);
+assert(all(isfield(viewer, {'State','SetState','Press','Key','CheckLayout','Controls','MouseDrag','Scroll','DialDrag','Resize','Tick','FitInfo','PhotoCount'})), 'The test hooks');
+assert(viewer.PhotoCount() > 0, 'The GUI test vehicle has photos');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), message);
+
+% (every control a user can click has a Tag, in every panel: no 'note'; no 'error')
+for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
+    viewer.OpenPanel(panelName{1});
+    viewer.Settle();
+    problems = viewer.CheckLayout();
+    assert(~any(strcmp(problems.Severity, 'note')), 'Untagged controls in %s: %s', panelName{1}, strjoin(problems.Control(strcmp(problems.Severity, 'note')), '; '));
+    assert(~any(strcmp(problems.Severity, 'error')), 'Layout errors in %s: %s', panelName{1}, strjoin(strcat(problems.Control(strcmp(problems.Severity, 'error')), ': ', problems.Problem(strcmp(problems.Severity, 'error'))), '; '));
+end
+
+% (the menu: one panel at a time, through the menu's own buttons)
+for panelName = {'Labels To Display', 'Lamps To Display', 'GUI settings', 'Overall Display'}
+    state = viewer.Press('viewerMenu');
+    assert(state.OnScreen.viewerMenuList, 'The menu''s list opens');
+    state = viewer.Press(['menu_' strrep(panelName{1}, ' ', '')]);
+    assert(~state.OnScreen.viewerMenuList, 'The menu''s list closes when a panel is picked');
+    assert(strcmp(viewer.Panel(), panelName{1}));
+    message = fcn_INTERNAL_invariants(viewer);
+    assert(isempty(message), message);
+end
+% (the open panel picked again closes the column; picked again, it opens)
+viewer.Press('viewerMenu');
+viewer.Press('menu_OverallDisplay');
+assert(isempty(viewer.Panel()), 'The open panel picked again closes it');
+viewer.Press('viewerMenu');
+viewer.Press('menu_OverallDisplay');
+assert(strcmp(viewer.Panel(), 'Overall Display'));
+try
+    viewer.OpenPanel('No Such Panel');
+    error('test:noError', 'An unknown panel was opened');
+catch caughtError
+    assert(contains(caughtError.message, 'No panel named'), caughtError.message);
+end
+
+% (every radio group in every panel set to each of its values, as clicks; the rules after each)
+for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display'}
+    viewer.OpenPanel(panelName{1});
+    panelHandle = findall(viewer.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
+    groups = findall(panelHandle, 'Type', 'uibuttongroup');
+    for ith_group = 1:numel(groups)
+        group = groups(ith_group);
+        radios = findobj(group.Children, 'flat', 'Type', 'uiradiobutton', 'Visible', 'on');
+        for ith_radio = numel(radios):-1:1
+            if ~strcmp(radios(ith_radio).Enable, 'on') || ~strcmp(group.Enable, 'on')
+                continue;   % (grayed: a person cannot click it; checked by the rules)
+            end
+            viewer.SetState(group.Tag, radios(ith_radio).UserData);
+            message = fcn_INTERNAL_invariants(viewer);
+            assert(isempty(message), 'After %s = %s: %s', group.Tag, mat2str(radios(ith_radio).UserData), message);
+        end
+    end
+end
+
+% (permutations that interact: night x colors x see-through x ground x boundaries)
+viewer.OpenPanel('Overall Display');
+viewer.SetState('overallNight', false);
+for flagNight = [false true]
+    for colorsName = {'labels', 'vehicle'}
+        for seeThroughValue = [0 60]
+            for flagGround = [false true]
+                for flagEdges = [false true]
+                    viewer.SetState('overallNight', false);   % (Colors? and see-through are set by day)
+                    viewer.SetState(struct('overallColors', colorsName{1}, 'overallSeeThrough', seeThroughValue, ...
+                        'showGround', flagGround, 'overallBoundaries', flagEdges));
+                    viewer.SetState('overallNight', flagNight);
+                    caseText = sprintf('night %d, %s, see-through %d, ground %d, edges %d', flagNight, colorsName{1}, seeThroughValue, flagGround, flagEdges);
+                    message = fcn_INTERNAL_invariants(viewer);
+                    assert(isempty(message), '%s: %s', caseText, message);
+                    assert(viewer.NightView() == flagNight && strcmp(viewer.Colors(), colorsName{1}) && ...
+                        abs(viewer.SeeThrough() - seeThroughValue/100) < 1e-9 && viewer.Ground() == flagGround && viewer.Boundaries() == flagEdges, caseText);
+                    if flagNight
+                        assert(strcmp(viewer.Patch.Visible, 'off'), '%s: the label patch hidden', caseText);
+                        % (grayed at night: a person cannot click Colors? or the see-through slider)
+                        try
+                            viewer.SetState('overallSeeThrough', 30);
+                            error('test:noError', 'The see-through slider was clicked at night');
+                        catch caughtError
+                            assert(contains(caughtError.message, 'disabled'), caughtError.message);
+                        end
+                    else
+                        assert(strcmp(viewer.Patch.Visible, 'on'), caseText);
+                        assert(strcmp(char(viewer.Patch.EdgeColor), 'none') ~= flagEdges, '%s: the edges', caseText);
+                    end
+                end
+            end
+        end
+    end
+end
+viewer.SetState('overallNight', false);
+viewer.SetState(struct('overallSeeThrough', 0, 'showGround', true, 'overallBoundaries', false, 'overallColors', 'labels'));
+
+% (one label alone, as Label= or a view call gives it: that label Colored? Yes, the others No)
+kinds = viewer.LabelKinds();
+for ith_key = 1:numel(kinds.Keys)
+    viewer.ShowLabel(kinds.Keys{ith_key});
+    message = fcn_INTERNAL_invariants(viewer);
+    assert(isempty(message), 'Label %s alone: %s', kinds.Keys{ith_key}, message);
+end
+viewer.ShowLabel('all');
+
+% (Hazards and the two turn signals)
+viewer.OpenPanel('Lamps To Display');
+viewer.SetState('lamp_All', false);
+viewer.SetState('lamp_TurnLeft', true);
+assert(~viewer.NightLights().Hazards, 'One turn signal: no hazards');
+viewer.SetState('lamp_TurnRight', true);
+assert(viewer.NightLights().Hazards, 'Both turn signals: hazards');
+viewer.SetState('lamp_TurnLeft', false);
+assert(~viewer.NightLights().Hazards && viewer.NightLights().TurnRight, 'One off again: no hazards');
+viewer.SetState('lamp_Hazards', true);
+assert(viewer.NightLights().TurnLeft && viewer.NightLights().TurnRight, 'Hazards: both turn signals');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), message);
+
+% (GUI settings: the starting view; Reset to defaults gives 60 and 20; Reset view goes there)
+viewer.OpenPanel('GUI settings');
+viewer.SetState('startViewDial', 120);
+viewer.SetState('startViewDown', 35);
+assert(isequal(viewer.StartView(), [120 35]), 'Both angles kept (each field once put the other back)');
+viewer.SetState('startViewDial', 100);
+assert(isequal(viewer.StartView(), [100 35]), 'The angle down kept when the dial angle is typed');
+viewer.OpenPanel('Overall Display');
+viewer.Press('overallResetView');
+camera = viewer.CameraInfo();
+assert(abs(camera.DialAngle - 100) < 0.01 && abs(camera.DownAngle - 35) < 0.01, 'Reset view at the starting view');
+viewer.OpenPanel('GUI settings');
+viewer.SetState('showGround', false, Force=true);   % (in Overall Display, closed now: forced)
+viewer.Press('resetSettings');
+assert(isequal(viewer.StartView(), [60 20]) && viewer.Ground(), 'Reset to defaults');
+viewer.OpenPanel('Overall Display');
+viewer.Press('overallResetView');
+camera = viewer.CameraInfo();
+assert(abs(camera.DialAngle - 60) < 0.01 && abs(camera.DownAngle - 20) < 0.01, 'Reset view at the defaults: 60 on the dial, 20 down');
+assert(fcn_INTERNAL_vehicleInView(viewer), 'Reset view: the whole vehicle in view');
+% (BUG case, found by a random walk: a new starting view, the model turned,
+% night on, Reset view went to where the camera was when night fell)
+viewer.SetStartView(90, 30);
+viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + [150 0], 5);
+viewer.SetState('overallNight', true);
+viewer.Press('overallResetView');
+camera = viewer.CameraInfo();
+assert(abs(camera.DialAngle - 90) < 0.01 && abs(camera.DownAngle - 30) < 0.01, 'Reset view at night: the starting view (got %.2f, %.2f)', camera.DialAngle, camera.DownAngle);
+viewer.SetState('overallNight', false);
+viewer.SetStartView(60, 20);
+viewer.Press('overallResetView');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), message);
+
+% (the mouse, the wheel and the dial, through their own code: the readout follows each)
+cameraBefore = viewer.CameraInfo();
+viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + [80 0], 6);
+cameraAfter = viewer.CameraInfo();
+assert(abs(mod(cameraAfter.DialAngle - cameraBefore.DialAngle + 180, 360) - 180) > 5, 'A left drag turns the model');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), 'After a mouse turn: %s', message);
+targetBefore = viewer.Axes.CameraTarget;
+viewer.MouseDrag('right', [], fcn_INTERNAL_axesCenter(viewer) + [40 30], 3);
+assert(norm(viewer.Axes.CameraTarget - targetBefore) > 1e-6, 'A right drag pans');
+zoomBefore = viewer.FitInfo().Zoom;
+viewer.Scroll(-2);
+assert(viewer.FitInfo().Zoom > 1.2*zoomBefore, 'The wheel zooms in');
+viewer.Scroll(2);
+assert(viewer.DialDrag([30 60 100 150]), 'The dial dragged');
+camera = viewer.CameraInfo();
+assert(abs(mod(camera.DialAngle - viewer.PhotoAngle() + 180, 360) - 180) < 0.5, 'Let go: the model at the photo''s angle (Turn model with photo? On)');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), 'After a dial turn (T32): %s', message);
+viewer.SetState('turnWithPhoto', false);
+cameraBefore = viewer.CameraInfo();
+viewer.DialDrag(250);
+assert(abs(viewer.CameraInfo().DialAngle - cameraBefore.DialAngle) < 1e-6, 'Turn model with photo? Off: the model stays');
+viewer.SetState('turnWithPhoto', true);
+
+% (resizing keeps the whole vehicle in view, and keeps a zoom: T33)
+for windowSize = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]}
+    viewer.Resize(windowSize{1});
+    viewer.Press('overallResetView');
+    assert(fcn_INTERNAL_vehicleInView(viewer), 'Reset view at %s: the whole vehicle in view', mat2str(windowSize{1}));
+    for otherSize = {[900 600], [1500 860]}
+        viewer.Resize(otherSize{1});
+        assert(fcn_INTERNAL_vehicleInView(viewer), 'Resized from %s to %s: the whole vehicle in view', mat2str(windowSize{1}), mat2str(otherSize{1}));
+    end
+    viewer.Scroll(-3);
+    zoomBefore = viewer.FitInfo().Zoom;
+    viewer.Resize(windowSize{1});
+    assert(abs(viewer.FitInfo().Zoom/zoomBefore - 1) < 0.01, 'Zoomed in, resized to %s: the zoom kept (%.3f, was %.3f)', mat2str(windowSize{1}), viewer.FitInfo().Zoom, zoomBefore);
+    message = fcn_INTERNAL_invariants(viewer);
+    assert(isempty(message), message);
+    % (layout: no errors at this size, in every panel)
+    for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
+        viewer.OpenPanel(panelName{1});
+        viewer.Settle();
+        problems = viewer.CheckLayout();
+        flagErrors = strcmp(problems.Severity, 'error');
+        assert(~any(flagErrors), 'Layout at %s, %s: %s', mat2str(windowSize{1}), panelName{1}, strjoin(strcat(problems.Control(flagErrors), ': ', problems.Problem(flagErrors)), '; '));
+    end
+    viewer.OpenPanel('Overall Display');
+end
+viewer.Resize([1500 860]);
+
+% (random walks: seeded sequences of every action, the rules after each step; failures saved to replay)
+for seed = 1:3
+    if ~strcmp(viewer.Panel(), 'Overall Display')   % (picked when open, with the menu's list open, it would close)
+        viewer.OpenPanel('Overall Display');
+    end
+    viewer.Press('overallResetView');
+    [actions, invariants] = fcn_INTERNAL_walkActions(viewer, seed);
+    report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, Steps=200, Seed=seed, Name='viewLabelsWalk', LogFolder=fullfile(demoRoot, 'walks'), FigNum=-1);
+    if ~report.Passed
+        fprintf(1, '    walk seed %d failed at step %d (%s, %s): %s\n    saved: %s\n    steps: %s\n', seed, report.Failures(1).Step, ...
+            report.Failures(1).Action, report.Failures(1).Kind, report.Failures(1).Message, report.FailureFile, strjoin(report.Steps, ', '));
+        error('test:walk', 'Random walk %d: %s', seed, report.Failures(1).Message);
+    end
+    fprintf(1, '    walk seed %d: %d steps, every rule held\n', seed, numel(report.Steps));
+end
+
+% (close: quick, the timer gone)
+tic;
+viewer.Press('viewerExit');
+closeTime = toc;
+assert(~isvalid(viewer.Figure), 'Exit closes the window');
+assert(closeTime < 1, 'Closing took %.2f s', closeTime);
+assert(isempty(timerfindall), 'The view timer stopped with its window');
+
+% (a random walk on the demo vehicle too: a real mesh, with its photos)
+fitFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
+[~, viewer] = fcn_CarMesh3D_viewLabels(fitFiles.MeshFile, Outline=fitFiles.OutlineFile, Visible=false, Wait=false);
+[actions, invariants] = fcn_INTERNAL_walkActions(viewer, 4);
+report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, Steps=150, Seed=4, Name='viewLabelsWalkDemo', LogFolder=fullfile(demoRoot, 'walks'), FigNum=-1);
+if ~report.Passed
+    fprintf(1, '    demo vehicle walk failed at step %d (%s, %s): %s\n    steps: %s\n', report.Failures(1).Step, ...
+        report.Failures(1).Action, report.Failures(1).Kind, report.Failures(1).Message, strjoin(report.Steps, ', '));
+    error('test:walk', 'Random walk on the demo vehicle: %s', report.Failures(1).Message);
+end
+fprintf(1, '    demo vehicle walk: %d steps, every rule held\n', numel(report.Steps));
+tic;
+viewer.Press('viewerExit');
+assert(toc < 1 && ~isvalid(viewer.Figure) && isempty(timerfindall), 'The demo vehicle''s viewer closed quickly, its timer gone');
+
+% (a mesh with no photos: the photo options grayed, the dial hook says so)
+loaded = load(testFiles.MeshFile, 'vehicleMesh');
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Visible=false, Wait=false);
+state = viewer.State();
+assert(viewer.PhotoCount() == 0 && ~state.Enabled.turnWithPhoto && ~state.Enabled.photoSize, 'No photos: the photo options grayed');
+assert(~viewer.DialDrag(90), 'No dial with no photos');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), message);
+viewer.Close();
+emptyPhotos = fullfile(demoRoot, 'noPhotosHere');
+mkdir(emptyPhotos);
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, PhotoFolder=emptyPhotos, Visible=false, Wait=false);
+state = viewer.State();
+assert(~state.Enabled.turnWithPhoto, 'A folder with no ViewInDegrees photos: the photo options grayed');
+viewer.Close();
+
+% (in a visible window: the text checks and the layout as drawn, at several
+% sizes; run when CARMESH3D_TEST_VISIBLE is set, since a window shows)
+if ~isempty(getenv('CARMESH3D_TEST_VISIBLE'))
+    [~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, Visible=true, Wait=false);
+    cleanupWindow = onCleanup(@() fcn_INTERNAL_closeViewer(viewer));
+    for windowSize = {[1500 860], [800 500], [640 400], [1600 1000]}
+        viewer.Resize(windowSize{1});
+        pause(0.5);
+        for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
+            viewer.OpenPanel(panelName{1});
+            pause(0.3);
+            problems = viewer.CheckLayout();
+            for ith_problem = 1:height(problems)
+                fprintf(1, '    visible %s, %s: %s | %s | %s\n', mat2str(windowSize{1}), panelName{1}, problems.Severity{ith_problem}, ...
+                    problems.Control{ith_problem}, problems.Problem{ith_problem});
+            end
+            assert(~any(strcmp(problems.Severity, 'error')), 'Visible layout errors at %s in %s', mat2str(windowSize{1}), panelName{1});
+        end
+        viewer.Press('overallResetView');
+        assert(fcn_INTERNAL_vehicleInView(viewer), 'Visible, %s: the whole vehicle in view', mat2str(windowSize{1}));
+    end
+    clear cleanupWindow;
+end
+clear cleanupPrefs;   % (the GUI settings put back; the copy is in the temporary folder)
 
 %% Fail conditions
 if 1==0
@@ -419,3 +728,283 @@ for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
     end
 end
 end % Ends fcn_INTERNAL_restorePrefs
+
+function message = fcn_INTERNAL_invariants(viewer)
+% The rules that must hold after any action in the viewer's own window
+% ('' when all hold, else what is wrong): the camera readout, the panels
+% mirroring the viewer, the graying at night, the ground, one panel at a
+% time, the status line, one timer
+viewer.Tick();   % (the view timer's check, at once: it runs every 0.25 s)
+state = viewer.State();
+values = state.Values;
+problems = {};
+% (the camera readout: four lines, equal to CameraInfo)
+camera = viewer.CameraInfo();
+altitude = -camera.DownAngle;
+if altitude < -0.5
+    upDown = 'down';
+elseif altitude > 0.5
+    upDown = 'up';
+else
+    upDown = 'level';
+end
+sideNames = {'from the front', 'from the front, left', 'from the left side', 'from behind, left', ...
+    'from behind', 'from behind, right', 'from the right side', 'from the front, right'};
+side = sideNames{mod(round(mod(camera.DialAngle, 360)/45), 8) + 1};
+if camera.Distance < 10
+    distanceText = sprintf('%.1f m', camera.Distance);
+else
+    distanceText = sprintf('%.0f m', camera.Distance);
+end
+expectedReadout = {'Camera view:', sprintf('   yaw angle: %.0f%s (%s)', camera.DialAngle, char(176), side), ...
+    sprintf('   altitude angle: %.0f%s (%s)', altitude, char(176), upDown), sprintf('   distance from center: %s', distanceText)};
+if ~isequal(cellstr(values.cameraReadout)', expectedReadout) && ~isequal(cellstr(values.cameraReadout), expectedReadout)
+    problems{end+1} = sprintf('the readout says "%s" but the camera is "%s"', strjoin(cellstr(values.cameraReadout), ' / '), strjoin(expectedReadout, ' / '));
+end
+% (Overall Display mirrors the viewer; Colors? and see-through grayed exactly at night)
+flagNight = viewer.NightView();
+if ~isequal(values.overallColors, viewer.Colors()), problems{end+1} = 'Colors? differs from the viewer'; end
+if ~isequal(values.overallBoundaries, viewer.Boundaries()), problems{end+1} = 'Show mesh boundaries? differs'; end
+if ~isequal(values.overallNight, flagNight), problems{end+1} = 'Nighttime view? differs'; end
+if ~isequal(values.showGround, viewer.Ground()), problems{end+1} = 'Show ground? differs'; end
+if abs(values.overallSeeThrough - 100*viewer.SeeThrough()) > 1e-6, problems{end+1} = 'the see-through slider differs'; end
+colorsRadios = findall(viewer.Figure, 'Type', 'uiradiobutton', 'Parent', findall(viewer.Figure, 'Tag', 'overallColors'));
+if any(strcmp({colorsRadios.Enable}, 'on') == flagNight) || state.Enabled.overallColors == flagNight || state.Enabled.overallSeeThrough == flagNight
+    problems{end+1} = sprintf('Colors? or see-through not grayed exactly at night (night %d)', flagNight);
+end
+flagPhotos = viewer.PhotoCount() > 0;
+if state.Enabled.turnWithPhoto ~= flagPhotos || state.Enabled.photoSize ~= flagPhotos
+    problems{end+1} = 'the photo options not grayed exactly when there are no photos';
+end
+if ~isequal(values.turnWithPhoto, viewer.TurnWithPhoto()), problems{end+1} = 'Turn model with photo? differs'; end
+% (the ground: by day the light one, at night the dark one, each only when shown)
+dayGround = findall(viewer.Axes, 'Tag', 'dayGround');
+nightGround = findall(viewer.Axes, 'Tag', 'nightGround');
+if strcmp(dayGround.Visible, 'on') ~= (viewer.Ground() && ~flagNight)
+    problems{end+1} = 'the day ground shown when it should not be, or not shown';
+end
+if numel(nightGround) ~= double(viewer.Ground() && flagNight)
+    problems{end+1} = sprintf('%d night grounds (ground %d, night %d)', numel(nightGround), viewer.Ground(), flagNight);
+end
+% (Labels To Display mirrors Hidden, Uncolored and Label: one label alone is that label colored)
+hidden = viewer.Hidden();
+kinds = viewer.LabelKinds();
+labelTags = state.Tags(startsWith(state.Tags, 'colored_') & ~strcmp(state.Tags, 'colored_'));
+rowKeys = erase(labelTags, 'colored_');
+if strcmp(viewer.Label(), 'all')
+    uncolored = viewer.Uncolored();
+else
+    uncolored = setdiff(rowKeys, {viewer.Label()});
+end
+coloredFlags = [];
+shownFlags = [];
+for ith_key = 1:numel(rowKeys)
+    key = rowKeys{ith_key};
+    colored = values.(matlab.lang.makeValidName(['colored_' key]));
+    shown = values.(matlab.lang.makeValidName(['shown_' key]));
+    if ~isequal(colored, ~any(strcmp(uncolored, key)))
+        problems{end+1} = sprintf('Colored? of %s differs', key); %#ok<AGROW>
+    end
+    if ~isequal(shown, ~any(strcmp(hidden, key)))
+        problems{end+1} = sprintf('Shown? of %s differs', key); %#ok<AGROW>
+    end
+    coloredFlags(end+1) = ~any(strcmp(uncolored, key)); %#ok<AGROW>
+    shownFlags(end+1) = ~any(strcmp(hidden, key)); %#ok<AGROW>
+end
+if ~isequal(values.shown_hidden, ~any(strcmp(hidden, 'hidden'))), problems{end+1} = 'Shown? of hidden faces differs'; end
+if ~fcn_INTERNAL_sameCommon(values.allColored, coloredFlags), problems{end+1} = 'All labels Colored? differs'; end
+if ~fcn_INTERNAL_sameCommon(values.allShown, shownFlags), problems{end+1} = 'All labels Shown? differs'; end
+if ~all(ismember(setdiff(kinds.Keys, {'hidden'}), rowKeys)), problems{end+1} = 'a label of the mesh has no row'; end
+% (Lamps To Display mirrors NightLights; Hazards exactly when both turn signals)
+lamps = viewer.NightLights();
+for lampName = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
+    if ~isequal(values.(['lamp_' lampName{1}]), logical(lamps.(lampName{1})))
+        problems{end+1} = sprintf('the %s row differs', lampName{1}); %#ok<AGROW>
+    end
+end
+if ~isequal(values.lamp_Tail, lower(char(lamps.Tail))), problems{end+1} = 'the tail lights row differs'; end
+if ~isequal(values.lamp_Reflectors, lamps.Reflectors > 0), problems{end+1} = 'the reflectors row differs'; end
+if ~isequal(values.lamp_Hazards, logical(lamps.TurnLeft) && logical(lamps.TurnRight)) || ...
+        logical(lamps.Hazards) ~= (logical(lamps.TurnLeft) && logical(lamps.TurnRight))
+    problems{end+1} = 'Hazards is not exactly both turn signals';
+end
+% (one panel at a time, the one the viewer says; the menu's mark on it)
+panelNames = {'OverallDisplay', 'LabelsToDisplay', 'LampsToDisplay', 'GUIsettings'};
+panelTitles = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'};
+openNow = {};
+for ith_panel = 1:numel(panelNames)
+    if values.(matlab.lang.makeValidName(panelTitles{ith_panel}))
+        openNow{end+1} = panelTitles{ith_panel}; %#ok<AGROW>
+    end
+    menuButton = findall(viewer.Figure, 'Tag', ['menu_' panelNames{ith_panel}]);
+    menuText = char(menuButton.Text);
+    if startsWith(menuText, char(10003)) ~= strcmp(viewer.Panel(), panelTitles{ith_panel})
+        problems{end+1} = sprintf('the menu''s mark on %s is wrong', panelTitles{ith_panel}); %#ok<AGROW>
+    end
+end
+if numel(openNow) > 1 || (isempty(openNow) ~= isempty(viewer.Panel())) || (~isempty(openNow) && ~strcmp(openNow{1}, viewer.Panel()))
+    problems{end+1} = sprintf('panels open: %s; the viewer says "%s"', strjoin(openNow, ', '), viewer.Panel());
+end
+% (the status line: the colors, day or night, the labels not shown)
+statusText = values.viewerStatus;
+colorsText = 'label colors';
+if strcmp(viewer.Colors(), 'vehicle'), colorsText = 'vehicle colors'; end
+timeText = 'by day';
+if flagNight, timeText = 'at night'; end
+numHidden = numel(setdiff(hidden, {'hidden'}));
+if ~contains(statusText, [colorsText ', ' timeText]) || (numHidden > 0) ~= contains(statusText, sprintf('| %d label(s) not shown', numHidden))
+    problems{end+1} = sprintf('the status line "%s" is not %s, %s, %d not shown', statusText, colorsText, timeText, numHidden);
+end
+% (one timer: the view timer of this window)
+if numel(timerfindall) ~= 1
+    problems{end+1} = sprintf('%d timers running', numel(timerfindall));
+end
+message = strjoin(problems, '; ');
+end % Ends fcn_INTERNAL_invariants
+
+function flagSame = fcn_INTERNAL_sameCommon(value, flags)
+% An "All" row's value: true or false when every row agrees, else the
+% unseen mixed button (NaN)
+if all(flags)
+    flagSame = isequal(value, true);
+elseif ~any(flags)
+    flagSame = isequal(value, false);
+else
+    flagSame = isnumeric(value) && isscalar(value) && isnan(value);
+end
+end % Ends fcn_INTERNAL_sameCommon
+
+function flagIn = fcn_INTERNAL_vehicleInView(viewer)
+% Whether the vehicle's box, as the camera projects it, is inside the
+% model's axes (orthographic or perspective; MATLAB's view angle spans
+% the axes' shorter side, measured 2026-11-24)
+axesHandle = viewer.Axes;
+vertices = viewer.Patch.Vertices;
+lowCorner = min(vertices, [], 1);
+highCorner = max(vertices, [], 1);
+[cornerX, cornerY, cornerZ] = ndgrid([lowCorner(1) highCorner(1)], [lowCorner(2) highCorner(2)], [lowCorner(3) highCorner(3)]);
+corners = [cornerX(:) cornerY(:) cornerZ(:)];
+forward = axesHandle.CameraTarget - axesHandle.CameraPosition;
+distance = norm(forward);
+forward = forward/distance;
+rightward = cross(forward, axesHandle.CameraUpVector);
+rightward = rightward/norm(rightward);
+upward = cross(rightward, forward);
+offsets = corners - axesHandle.CameraPosition;
+if strcmp(axesHandle.Projection, 'perspective')
+    depth = offsets*forward(:);
+else
+    depth = distance*ones(size(corners,1),1);
+end
+halfShort = tand(axesHandle.CameraViewAngle/2);
+axesSize = axesHandle.InnerPosition(3:4);
+halfAcross = halfShort*max(1, axesSize(1)/axesSize(2));
+halfUp = halfShort*max(1, axesSize(2)/axesSize(1));
+% (measured from the view's center: the line from the camera to its target)
+across = offsets*rightward(:)./depth;
+up = offsets*upward(:)./depth;
+flagIn = all(abs(across) <= halfAcross*1.001) && all(abs(up) <= halfUp*1.001) && all(axesSize > 20);
+end % Ends fcn_INTERNAL_vehicleInView
+
+function [actions, invariants] = fcn_INTERNAL_walkActions(viewer, seed)
+% Every kind of user action in the viewer's own window, for random walks:
+% each with the rule of when a person could do it (its panel open, the
+% control not grayed)
+randomStream = RandStream('mt19937ar', 'Seed', 1000 + seed);
+pick = @(list) list{randi(randomStream, numel(list))};
+state = viewer.State();
+labelTags = state.Tags(startsWith(state.Tags, {'colored_', 'shown_'}));
+lampTags = state.Tags(startsWith(state.Tags, 'lamp_') & ~strcmp(state.Tags, 'lamp_Tail'));
+kinds = viewer.LabelKinds();
+isOpen = @(name) strcmp(viewer.Panel(), name);
+isDay = @() ~viewer.NightView();
+hasPhotos = @() viewer.PhotoCount() > 0;
+sizes = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]};
+actionList = {
+    'colors labels',      @() viewer.SetState('overallColors', 'labels'),        @() isOpen('Overall Display') && isDay(), 1
+    'colors vehicle',     @() viewer.SetState('overallColors', 'vehicle'),       @() isOpen('Overall Display') && isDay(), 1
+    'boundaries on',      @() viewer.SetState('overallBoundaries', true),        @() isOpen('Overall Display'), 1
+    'boundaries off',     @() viewer.SetState('overallBoundaries', false),       @() isOpen('Overall Display'), 1
+    'night on',           @() viewer.SetState('overallNight', true),             @() isOpen('Overall Display'), 1
+    'night off',          @() viewer.SetState('overallNight', false),            @() isOpen('Overall Display'), 2
+    'ground on',          @() viewer.SetState('showGround', true),               @() isOpen('Overall Display'), 1
+    'ground off',         @() viewer.SetState('showGround', false),              @() isOpen('Overall Display'), 1
+    'see-through',        @() viewer.SetState('overallSeeThrough', 90*rand(randomStream)), @() isOpen('Overall Display') && isDay(), 1
+    'reset view',         @() fcn_INTERNAL_resetAndCheck(viewer),                @() isOpen('Overall Display'), 1
+    'turn with photo on', @() viewer.SetState('turnWithPhoto', true),            @() isOpen('Overall Display') && hasPhotos(), 0.5
+    'turn with photo off',@() viewer.SetState('turnWithPhoto', false),           @() isOpen('Overall Display') && hasPhotos(), 0.5
+    'photo size',         @() viewer.SetState('photoSize', pick({220, 300, 420})), @() isOpen('Overall Display') && hasPhotos(), 0.5
+    'label row',          @() viewer.SetState(pick(labelTags), rand(randomStream) > 0.5), @() isOpen('Labels To Display'), 4
+    'all colored',        @() viewer.SetState('allColored', rand(randomStream) > 0.5), @() isOpen('Labels To Display'), 1
+    'all shown',          @() viewer.SetState('allShown', rand(randomStream) > 0.5),   @() isOpen('Labels To Display'), 1
+    'lamp row',           @() viewer.SetState(pick(lampTags), rand(randomStream) > 0.5), @() isOpen('Lamps To Display'), 4
+    'tail lights',        @() viewer.SetState('lamp_Tail', pick({'off', 'on', 'brake'})), @() isOpen('Lamps To Display'), 1
+    'start view',         @() viewer.SetState(pick({'startViewDial', 'startViewDown'}), round(80*rand(randomStream))), @() isOpen('GUI settings'), 1
+    'reset settings',     @() viewer.Press('resetSettings'),                     @() isOpen('GUI settings'), 0.5
+    'menu',               @() viewer.Press('viewerMenu'),                        [], 2
+    'menu pick',          @() viewer.Press(pick({'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_GUIsettings'})), ...
+                                                                                 @() fcn_INTERNAL_onScreen(viewer, 'viewerMenuList'), 3
+    'one label alone',    @() viewer.ShowLabel(pick([{'all'}, kinds.Keys])),     [], 1
+    'mouse turn',         @() viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + 120*(rand(randomStream,1,2) - 0.5), 4), [], 2
+    'mouse pan',          @() viewer.MouseDrag('right', [], fcn_INTERNAL_axesCenter(viewer) + 60*(rand(randomStream,1,2) - 0.5), 2), [], 1
+    'wheel',              @() viewer.Scroll(pick({-2, -1, 1, 2})),               [], 1
+    'dial drag',          @() viewer.DialDrag(360*rand(randomStream,1,3)),       hasPhotos, 2
+    'resize',             @() fcn_INTERNAL_resizeAndCheck(viewer, pick(sizes)),  [], 1
+    'copy view call',     @() fcn_INTERNAL_copyQuietly(viewer),                  [], 0.2
+    };
+actions = struct('Name', actionList(:,1)', 'Do', actionList(:,2)', 'Allowed', actionList(:,3)', 'Weight', actionList(:,4)');
+invariants = struct('Name', {'viewer rules'}, 'Check', {@() fcn_INTERNAL_invariants(viewer)});
+end % Ends fcn_INTERNAL_walkActions
+
+function center = fcn_INTERNAL_axesCenter(viewer)
+% The model's middle, in the window's pixels (where a drag starts)
+box = getpixelposition(viewer.Axes, true);
+center = box(1:2) + box(3:4)/2;
+end % Ends fcn_INTERNAL_axesCenter
+
+function flagOn = fcn_INTERNAL_onScreen(viewer, tag)
+state = viewer.State();
+flagOn = state.OnScreen.(tag);
+end % Ends fcn_INTERNAL_onScreen
+
+function fcn_INTERNAL_resetAndCheck(viewer)
+% Reset view: the starting view, the whole vehicle in view
+viewer.Press('overallResetView');
+camera = viewer.CameraInfo();
+startView = viewer.StartView();
+expectedDown = min(max(startView(2), -89), 89);
+if abs(mod(camera.DialAngle - startView(1) + 180, 360) - 180) > 0.01 || abs(camera.DownAngle - expectedDown) > 0.01
+    error('test:resetView', 'Reset view went to %.2f, %.2f, not the starting view %.2f, %.2f', camera.DialAngle, camera.DownAngle, startView(1), startView(2));
+end
+if ~fcn_INTERNAL_vehicleInView(viewer)
+    error('test:resetView', 'Reset view does not show the whole vehicle (window %s)', mat2str(viewer.Figure.Position(3:4)));
+end
+end % Ends fcn_INTERNAL_resetAndCheck
+
+function fcn_INTERNAL_resizeAndCheck(viewer, windowSize)
+% Resized: the zoom kept (against "the whole vehicle just fits" from the
+% camera now); if the whole vehicle was in view, it still is
+viewer.Settle();   % (measured once the window has laid itself out)
+flagInBefore = fcn_INTERNAL_vehicleInView(viewer);
+zoomBefore = viewer.FitInfo().Zoom;
+viewer.Resize(windowSize);
+zoomAfter = viewer.FitInfo().Zoom;
+if flagInBefore && ~fcn_INTERNAL_vehicleInView(viewer)
+    error('test:resize', 'Resized to %s: the whole vehicle was in view, and is not now', mat2str(windowSize));
+end
+if abs(zoomAfter/zoomBefore - 1) > 0.01
+    error('test:resize', 'Resized to %s: the zoom went from %.3f to %.3f', mat2str(windowSize), zoomBefore, zoomAfter);
+end
+end % Ends fcn_INTERNAL_resizeAndCheck
+
+function fcn_INTERNAL_copyQuietly(viewer)
+% Copy view call, with the call it prints kept out of the test's output
+evalc('viewer.CopyViewCall()');
+end % Ends fcn_INTERNAL_copyQuietly
+
+function fcn_INTERNAL_closeViewer(viewer)
+% (a viewer window closed, if still open)
+if isvalid(viewer.Figure)
+    viewer.Close();
+end
+end % Ends fcn_INTERNAL_closeViewer

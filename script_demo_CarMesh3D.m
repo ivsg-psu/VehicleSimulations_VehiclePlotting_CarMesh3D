@@ -148,7 +148,7 @@ disp('Welcome to the demo code for the CarMesh3D library!')
 % a mesh from a downloaded model). The menu remembers which examples were
 % shown (in Data\answersSoFar_CarMesh3D_demo.mat); s clears the marks.
 
-demoVehicleID = '2009_Honda_Fit_Sport';   % The vehicle the examples copy
+demoVehicleID = fcn_CarMesh3D_demoVehicle();   % The vehicle the examples copy: the repo's demo vehicle, or your own (fcn_CarMesh3D_demoVehicle)
 flag_runStepByStepDemo = false;           % (set by the menu's p option)
 demoExamples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=demoVehicleID);
 
@@ -550,6 +550,25 @@ for ith_folder = 1:length(this_project_folders)
 	thisFolder = fullfile(pwd, this_project_folders{ith_folder});
 	fprintf(1,'\t\tAdding subfolder: %s\n',this_project_folders{ith_folder});
 	addpath(thisFolder);
+end
+
+%% The large data (the downloaded models), if this computer has it
+% Every vehicle's downloaded 3D model is kept out of git, in the folder
+% LargeData beside Data (the same layout: LargeData\Data\BodyStyles\<Style>\<ID>\model).
+% It is copied in from the IVSG large-file storage area (see README.md,
+% "Large files"). Plotting and animating the finished meshes do not need
+% it; rebuilding a vehicle from its download, and the comparison checks, do.
+largeDataFolder = fullfile(pwd, 'LargeData');
+largeFileArea = 'IVSG:\\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\LargeData';
+if isfolder(largeDataFolder)
+	fprintf(1,'\tAdding the large data folder to the path: LargeData\n');
+	addpath(largeDataFolder);
+else
+	warning('CarMesh3D:noLargeData', ['The LargeData folder (the downloaded 3D models) was not found:\n    %s\n' ...
+		'Some functions need it: rebuilding a vehicle from its download, and the comparison checks.\n' ...
+		'Plotting and animating the finished meshes do not. To get it, copy this folder from the IVSG\n' ...
+		'large-file storage area (the IVSG OneDrive) into the repository:\n    %s\n' ...
+		'(see README.md, "Large files")'], largeDataFolder, largeFileArea);
 end
 
 %% Set environment flags for input checking in CarMesh3D library

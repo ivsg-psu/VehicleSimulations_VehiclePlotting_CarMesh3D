@@ -1,7 +1,7 @@
 Standard checks for 2026 CarMesh3D Generic Crossover
-Written 2026-11-23 04:52 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:33 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 11313 faces, 10747 vertices
+Mesh: 11313 faces, 10541 vertices
 Dimensions: 12 of 12 within tolerance
 
 Files:

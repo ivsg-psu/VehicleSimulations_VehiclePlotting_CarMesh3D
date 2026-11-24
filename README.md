@@ -187,7 +187,7 @@ Flow 1 writes each finished vehicle (mesh, detail levels, 2D outline, check pict
 2. Open MATLAB (R2021a or newer; written for 2025a/2025b) and run `script_demo_CarMesh3D.m` from this folder.
 3. The demo walks through every step for a 2013 Toyota Prius Four and ends with an animation. Its starting example is a downloaded low-poly 2010 Prius model (`Data/BodyStyles/Liftback/2013_Toyota_Prius_Four/model/source/2010 Toyota Prius.glb`), which needs Blender (see below). If the model or Blender isn't available, the demo uses the built-in sample car instead.
 
-There are no MATLAB toolbox dependencies. The one repository dependency is [DebugTools](https://github.com/ivsg-psu/Errata_Tutorials_DebugTools) (the vehicle browser uses its menu). The demo installs it with the standard IVSG installer, as AnimateCar3D does: `Installer/fcn_DebugTools_autoInstallRepos.m` puts the latest DebugTools release in `Utilities` (ignored by git) and adds it to the path; offline, it uses the release already there. The demo then adds `Functions` and `Data` to the path.
+There are no MATLAB toolbox dependencies. **Scope** (2026_11_24, Q42): *using* finished meshes (viewing, plotting, animating, the GUIs, and the "does this look right?" checks students help with) needs base MATLAB only; *making* meshes (the build steps, done by the repository's maintainers) may use toolboxes, and a build step that needs one says which. The one repository dependency is [DebugTools](https://github.com/ivsg-psu/Errata_Tutorials_DebugTools) (the vehicle browser uses its menu). The demo installs it with the standard IVSG installer, as AnimateCar3D does: `Installer/fcn_DebugTools_autoInstallRepos.m` puts the latest DebugTools release in `Utilities` (ignored by git) and adds it to the path; offline, it uses the release already there. The demo then adds `Functions` and `Data` to the path.
 
 **For FBX, glTF, GLB, or .blend models**, also install [Blender](https://www.blender.org) (free). CarMesh3D finds it in the usual install folders. If Blender is installed somewhere else, run `setenv('CARMESH3D_BLENDER_PATH','<full path to blender.exe>')` once per MATLAB session, or pass `BlenderPath=...`. The converted `.obj` is saved next to the original as `<name>_converted.obj` and reused on later calls.
 
@@ -231,9 +231,54 @@ fcn_CarMesh3D_browseVehicles(SortBy='score');    % best first
 fcn_CarMesh3D_showVehicle('2013_Toyota_Prius_Four', View='materials', FigNum=3);   % one vehicle, directly
 ```
 
+### Someday vehicles (`DataSomeday`)
+
+**`DataSomeday`, a folder beside `Data` with the same layout, holds every vehicle not yet ready for the working library** (Sean, 2026_11_24):
+- new downloads;
+- meshes still being processed;
+- meshes that miss a [core requirement](#what-makes-a-good-mesh-the-core-requirements), above all **any whose download lacks a front seat or the steering wheel**.
+
+Listing every vehicle (`fcn_CarMesh3D_findVehicleFiles('')`, which the library browser, the body styles and the rebuilds use) covers `Data` only, so these vehicles are not listed, built or tested with the library. Looked up by its ID, a vehicle in `DataSomeday` is still found (`IsSomeday` is true), so its own script runs.
+- **The reason:** such downloads will likely need more work by hand and score low in verification, so they are kept out of the repeated processing pipeline until someone takes them up.
+- **The test:** the seats and wheel are found by `fcn_CarMesh3D_findInteriorObjects`, a build step in every vehicle script.
+- **Moved on 2026_11_24:**
+  - six finished vehicles missing interior objects: the 2010 Camry XV40 (no seats or wheel), and five with no wheel (the 2005 HiAce, the 1996 Caravan, the 2020 Supra, the 2023 Accord SE, and the generic full-size van refit from the HiAce);
+  - all 30 downloads not yet processed (no finished mesh), among them the first-look scripts of the 2023 Civic Type R, the 2002 Camry XV30 and the 2017 Accord LX.
+- **The `fullSizeCargoVan` style** has no exemplar until a van with a wheel is added.
+
+`DataSomeday/README.md` has the decision in full. Each vehicle's folder has a README.md saying what it is missing and how to bring it back: fix it, move the folder back under `Data`, and run its script.
+
 ## Adding a vehicle
 
-Every vehicle gets its own folder in `Data` and its own copy of one standard script. Student contributors: please follow this convention exactly, so that every vehicle can be found by its name.
+Every vehicle gets its own folder and its own copy of one standard script. Student contributors: please follow this convention exactly, so that every vehicle can be found by its name.
+
+**A new vehicle starts in `DataSomeday`, not in `Data`** (Sean, 2026_11_24). `DataSomeday` sits beside `Data` and has the same layout. It holds new downloads, meshes still being processed, and meshes that miss a requirement below. A vehicle moves into `Data` only when its mesh meets every core requirement. `Data` is the working library: the browser lists it, the tests use it, and the library rebuilds go over it again and again. Unfinished vehicles would slow that pipeline down and lower its verification scores. Scripts run in either folder, because `fcn_CarMesh3D_findVehicleFiles(ID)` finds a vehicle by its ID in `Data` or, failing that, in `DataSomeday`.
+
+### What makes a good mesh: the core requirements
+
+A mesh moves from `DataSomeday` into `Data` only when **all** of these hold. The vehicle's script and its checks show each one.
+
+1. **It has the interior objects: both front seats and a steering wheel.** This requirement has no exceptions. The animator uses them:
+   - the seats place the driver's eye for the driver's view;
+   - the steering wheel turns with the steering (`fcn_CarMesh3D_turnSteeringWheel`);
+   - the 2D outlines draw both as the vehicle's interior.
+
+   The build finds them by fitting templates to the mesh (`fcn_CarMesh3D_findInteriorObjects`, `findInteriorObjects = true` in the script). The script prints `Interior objects found: driver seat 1, passenger seat 1, steering wheel 1`. Many free downloads are empty shells or have no wheel modeled. **Check the interior before spending time on a download** (look through the windows on the download page): a model with no seats or no steering wheel stays in `DataSomeday`.
+2. **It is left-hand drive.** A right-hand-drive download is mirrored at import (`importMirror = true` in its script; `fcn_CarMesh3D_mirrorMesh`). Check where the steering wheel is, not the download's title.
+3. **It is the right size.** It is fit to the vehicle's published dimensions in its `vehicleParameters` file: length, width, height, wheelbase, track and wheel size. Every dimension check passes (`check_02_dimensions.png`).
+4. **It is in the vehicle frame:** x forward, y left, z up, in meters, with the origin on the ground below the rear axle (`check_00_orientation.png`: the red arrow points at the front bumper).
+5. **Its faces point outward,** with no holes to see through (a floor panel is added under the body), so it shades correctly.
+6. **Every face is labeled** body, glass, wheel, light or trim (`check_03_labels.png`):
+   - the four wheels are separate, so they turn and steer;
+   - the lamps are labeled by type (headlight, tail, brake, turn signal and so on), so they light up;
+   - the glass is see-through.
+
+   Fix labels in the label painter, `fcn_CarMesh3D_paintLabels(ID)`.
+7. **It is light enough to animate:** a sparse mesh with sensible face counts and its detail levels made (`vehicleLevels_<ID>.mat`). The goal is a good likeness, not photorealism.
+8. **Its license allows our use:** CC0 or Free Standard, written in `LICENSE.txt` in the standard format below.
+9. **Its checks have been looked at and pass:** the pictures and animations in `checks/`, and a review in the label viewer or the Model Reviewer.
+
+A vehicle that cannot meet a requirement yet (no seats or no steering wheel in the download, say) stays in `DataSomeday` with a README.md in its folder saying what is missing. The [Someday vehicles](#someday-vehicles-datasomeday) section has more.
 
 ### Folder names: `YEAR_Make_Model_Trimline`
 
@@ -255,7 +300,7 @@ Every vehicle gets its own folder in `Data` and its own copy of one standard scr
 |---|---|---|
 | `vehicleParameters_<ID>.mat` | you | The IVSG `vehicleParameters` structure (see [Vehicle specification files](#vehicle-specification-files)). Keep notes on where each value came from in `vehicleParameters_sources.md`. |
 | `LICENSE.txt` | you | The model's license, written in the [standard license format](#the-licensetxt-file). It stays in the repository. |
-| `model/` | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` (or directly in `model/`). Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. **Not kept in git** (see [Large files](#large-files)). |
+| `model/` (in `LargeData`) | you | The downloaded 3D model, as downloaded (zip and all), with the model in `model/source/` (or directly in `model/`). It goes in the vehicle's folder in **`LargeData`** (`LargeData\DataSomeday\BodyStyles\<Style>\<ID>\model\`), not in the repository. Keep the original download, including its textures: later versions of CarMesh3D may use assets that the current workflow ignores, such as texture maps. **Not kept in git** (see [Large files](#large-files)). |
 | `rawMesh_<ID>.mat` | the script | The model as imported (`rawMesh`), before it is labeled and fit. It stays in the repository, so the script runs without the download (see [Large files](#large-files)). |
 | `script_CarMesh3D_vehicle_<ID>.m` | you, from the template | The standard script, with this vehicle's settings |
 | `vehicleMesh_<ID>.mat` | the script | The finished mesh (`vehicleMesh`, `vehicleSpec`) |
@@ -296,11 +341,12 @@ The whole file becomes the mesh's `License` field. The [Vehicles available](#veh
 
 ### Steps
 
-1. Make the folder `Data/BodyStyles/<Style>/<ID>` (the style folders are listed in `Data/bodyStyles.csv`; for example `Data/BodyStyles/Sedan/2025_Toyota_Camry_XV80`), and put the parameters file and the model in it as above. `fcn_CarMesh3D_findVehicleFiles(ID)` finds the folder wherever it is filed, so scripts and functions only need the ID. A download left directly in the vehicle folder (not yet moved into `model/`) is found too (`ModelFiles`).
+1. Make the folder `DataSomeday/BodyStyles/<Style>/<ID>` (new vehicles start in `DataSomeday`; the style folders are listed in `Data/bodyStyles.csv`; for example `DataSomeday/BodyStyles/Sedan/2025_Toyota_Camry_XV80`), and put the parameters file and the model in it as above. `fcn_CarMesh3D_findVehicleFiles(ID)` finds the folder wherever it is filed, so scripts and functions only need the ID. A download left directly in the vehicle folder (not yet moved into `model/`) is found too (`ModelFiles`).
 2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, any faces to delete (`removeFaces`: stray pieces that would spoil the fit, such as a lone point above the roof), the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
 3. Run it, and look at the checks it writes (`check_00_orientation.png`, `check_02_dimensions.png`, `check_03_labels.png`; see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run)), or open the vehicle in the Model Reviewer, `fcn_CarMesh3D_reviewVehicle(ID)`. The first run usually shows something to fix: the orientation, the labels, or the lamps (`fcn_CarMesh3D_viewLabels`, "Nighttime view").
 4. Fix the settings and run again. Most fixes are label fixes, painted in the label painter (`fcn_CarMesh3D_paintLabels(ID)`; saved in `labelEdits_<ID>.mat` and applied by every later build), or written as regions in the script (`labelEditsAfterFit`: meters, with the origin on the ground below the rear axle). Pieces that should not be seen are **hidden, not deleted** (see [Hidden faces](#hidden-faces-never-deleted)); `removeFaces` is only for stray pieces that would spoil the fit (a lone point above the roof, a ground plane). Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
-5. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more (this also makes its drive GIF). This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
+5. **When the mesh meets every [core requirement](#what-makes-a-good-mesh-the-core-requirements)**, move its folder from `DataSomeday/BodyStyles/<Style>/<ID>` to `Data/BodyStyles/<Style>/<ID>` and run its script once more. From then on it is part of the working library.
+6. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more (this also makes its drive GIF). This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
 
 ### No model of the vehicle? Use its body style
 
@@ -333,7 +379,7 @@ The styles are the folders of `Data/BodyStyles`; their names and descriptions ar
 | `minivan` | Minivan | (none yet) | Honda Odyssey, Chrysler Pacifica, Toyota Sienna |
 | `pickupCrewCab` | Full-size pickup (crew cab) | 2015 Ford F-150 Lariat | Ford F-150 SuperCrew |
 | `compactCargoVan` | Compact cargo van | 2014 Ford Transit Connect XLT Cargo LWB |  |
-| `fullSizeCargoVan` | Full-size cargo van (high roof) | 2005 Toyota HiAce H200 DX | Ford Transit, Mercedes Sprinter, Ram ProMaster |
+| `fullSizeCargoVan` | Full-size cargo van (high roof) | (none yet: the 2005 HiAce, which has no steering wheel, moved to `DataSomeday` on 2026_11_24) | Ford Transit, Mercedes Sprinter, Ram ProMaster |
 | `midsizeSUV` | Midsize three-row SUV (optional) | (none yet) | Ford Explorer, Toyota Highlander |
 | `pickupMidsize` | Midsize pickup (optional) | (none yet) | Toyota Tacoma |
 | `passengerVan` | Passenger van (optional) | (none yet) | Ford Transit passenger van |
@@ -410,34 +456,43 @@ That machine draws about 27 million faces per second, so 25 frames per second ho
 | (root) | `script_demo_CarMesh3D.m`, the main overview script (making meshes); `script_demo_CarMesh3D_animation.m` (animation, lights, cameras, night scenes, motion from CSV files, GIFs); this README |
 | `Functions` | Core functions `fcn_CarMesh3D_<name>.m`, each with a test script `script_test_fcn_CarMesh3D_<name>.m` |
 | `Data` | One folder per vehicle, filed by body style: `Data/BodyStyles/<Style>/YEAR_Make_Model_Trimline`, and made-up vehicles in `Data/Samples` (see [Adding a vehicle](#adding-a-vehicle)); the template script `script_CarMesh3D_vehicle_TEMPLATE.m`; the reference list `referenceVehicles.csv`; the body styles, `bodyStyles.csv` |
+| `DataSomeday` | Vehicles not yet in the working library: new downloads, meshes still being processed, and meshes missing a [core requirement](#what-makes-a-good-mesh-the-core-requirements) such as the seats or the steering wheel (see [Someday vehicles](#someday-vehicles-datasomeday) and `DataSomeday/README.md`); same layout as `Data` |
+| `LargeData` | The downloaded 3D models (`model/` folders), in the same layout as `Data` and `DataSomeday`; **not in git**: copied from the IVSG large-file storage area (see [Large files](#large-files)) |
 | `Installer` | `fcn_DebugTools_autoInstallRepos.m`, the standard IVSG installer used by the demo |
 | `Utilities` | Installed dependencies (DebugTools), made by the installer; ignored by git |
 | `Images` | Images for this README; `Images/animations` holds the GIFs made by the animation demo; `Images/vehicles` holds each reference vehicle's animation; `Images/detailLevels` holds the pictures of the detail-level design; `Images/functions` holds each function's sample output for the [Function reference](#function-reference) |
 
 ## Large files
 
-The downloaded models are large (about 4 GB for the library), so they are not kept in git. Each vehicle's download sits in its `model/` folder, which `.gitignore` leaves out; the IVSG large-file storage area (a OneDrive folder) holds a copy of the whole `Data` folder with every `model/` folder in it. The check figures and animations (`checks/*.fig`, `checks/*.gif`), which each script remakes, are left out too; the check pictures (`.png`) stay.
+The downloaded models are large (about 3 GB for the library), so they are not kept in git. **They live in the folder `LargeData`, beside `Data`, in the same layout** (Sean, 2026_11_24):
 
-Everything else stays in the repository, including each vehicle's imported mesh, `rawMesh_<ID>.mat` (0.1 to 2 MB each). So a clone without the downloads still works:
+```
+LargeData\Data\BodyStyles\<Style>\<ID>\model\         (a vehicle in the working library)
+LargeData\DataSomeday\BodyStyles\<Style>\<ID>\model\  (a someday vehicle)
+```
+
+`.gitignore` leaves out the whole `LargeData` folder. Each vehicle's script finds its download there by itself: `fcn_CarMesh3D_findVehicleFiles(ID)` returns the vehicle's `ModelFolder` in `LargeData` and `DownloadRoot`, the folder that a script's `modelFile` (such as `model\source\x.glb`) is relative to. An older clone with a `model\` folder inside the vehicle's own folder still works. The check figures and animations (`checks/*.fig`, `checks/*.gif`), which each script remakes, are left out of git too; the check pictures (`.png`) stay.
+
+**Getting `LargeData`.** The IVSG large-file storage area (the IVSG OneDrive) holds it at `IVSG:\\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\LargeData`. OneDrive is mounted at a different place on each computer. Copy that folder into your clone as `LargeData`, for example with rclone:
+
+```
+rclone copy "<the large-file area's LargeData folder>" "<your clone>\LargeData" --progress
+```
+
+The main demo, `script_demo_CarMesh3D.m`, adds `LargeData` to the path when it is there. When it is missing, the demo warns that some functions need it and prints where to get it.
+
+Everything else stays in the repository, including each vehicle's imported mesh, `rawMesh_<ID>.mat` (0.1 to 2 MB each). So a clone without `LargeData` still works:
 
 - the finished meshes, detail levels and outlines are all there, for plotting and animation;
-- a vehicle's script still runs: when its download is not in `model/`, it rebuilds the vehicle from `rawMesh_<ID>.mat` (it says so when it starts) and skips only the comparison with the download (`check_04_compare_*`).
+- a vehicle's script still runs: when its download is missing, it rebuilds the vehicle from `rawMesh_<ID>.mat` (it says so when it starts) and skips only the comparison with the download (`check_04_compare_*`).
 
-The large-file area is the IVSG OneDrive folder `IVSG:\\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D` (the same path as the repository, inside the IVSG OneDrive). It is mounted at a different place on each computer, so below, `<your large-file Data folder>` is that folder's `Data` folder as it is found on yours.
-
-To get the downloads, copy that folder into the repository's `Data` folder with rclone (it adds the `model/` folders and leaves everything else alone):
-
-```
-rclone copy "<your large-file Data folder>" "<your clone>\Data" --progress
-```
-
-`fcn_CarMesh3D_checkModels` lists which vehicles have their downloads here, which can be rebuilt without them, and which of the missing ones are in the large-file area, and prints these copy commands (for every vehicle, or for one at a time):
+`fcn_CarMesh3D_checkModels` lists which vehicles have their downloads (in `LargeData` or the vehicle's folder) and which can be rebuilt without them:
 
 ```matlab
-report = fcn_CarMesh3D_checkModels(LargeFileFolder='<your large-file Data folder>', FigNum=1);
+report = fcn_CarMesh3D_checkModels(FigNum=1);
 ```
 
-When you add a vehicle, put its download in `model/` as usual and run its script once: that makes `rawMesh_<ID>.mat`. Then copy the vehicle's `model/` folder to the large-file area (the same command, with the two folders swapped), so that others can get it.
+**When you add a vehicle,** put its download in `LargeData\DataSomeday\BodyStyles\<Style>\<ID>\model\` and run its script once: that makes `rawMesh_<ID>.mat`. Then copy the new `model\` folder to the large-file area's `LargeData`, so that others can get it. When the vehicle moves from `DataSomeday` into `Data`, move its `LargeData` folder the same way, in your clone and in the large-file area.
 
 ## The workflow
 
@@ -1021,7 +1076,7 @@ Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fas
 
 ## Tests
 
-Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (68 pairs; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`). Run one by name, or all of them:
+Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (76 functions, 74 test scripts; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`, and `fcn_CarMesh3D_guiRandomWalk` with `fcn_CarMesh3D_guiDriver`). Run one by name, or all of them:
 
 ```matlab
 script_test_fcn_CarMesh3D_plotVehicle            % one function
@@ -1036,6 +1091,10 @@ Each test script runs as a plain script, top to bottom: its sections share varia
 **Known failures** (on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check), and `script_test_fcn_CarMesh3D_reviewVehicle` at its Differences case (hiding part of the roof makes no difference spot, since hidden faces are not deleted; waits on the reviewer's redesign).
 
 **Run tests the way a user does**, in MATLAB's base workspace (as above): some tests use the base workspace or the current figure, and fail falsely when run from inside a function. **Tests never write to a real vehicle's files:** a test that saves works on a temporary copy (`fcn_CarMesh3D_makeDemoCopy`) and puts anything it changes back through `onCleanup`, so the put-back runs even if the test stops.
+
+**GUI tests are automated** (2026_11_24, Q39): the GUIs are driven by script through `fcn_CarMesh3D_guiDriver` (read every control's state, set controls through their real callbacks, press buttons and keys, check the layout) and `fcn_CarMesh3D_guiRandomWalk` (long random sequences of user actions with rules checked after every step; a failing sequence is saved to replay). Each GUI has hooks for it (`State`, `SetState`, `Press`, `Key`, `CheckLayout`, and its own, such as the painter's mouse hooks). The browser's, viewer's and painter's tests cover every panel and control value, random walks, and the layout at several window sizes, so what is left for a person is only how things look and feel.
+
+**The demo vehicle** (2026_11_24): tests use `fcn_CarMesh3D_demoVehicle(UsePreference=false)` (the repository's demo vehicle, set in one line of that function; now the 2009 Fit) and its GUI test vehicle, not a vehicle named in each test. Tests that need a fact of the Fit (its saved label fixes) say so if the demo vehicle is changed.
 
 These tests check the code. The checks of a *vehicle* (is its mesh right?) are the pictures its build writes: see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run).
 
@@ -1546,6 +1605,22 @@ vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh,...
 
 </details>
 
+<details><summary><b><code>fcn_CarMesh3D_mirrorMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_mirrorMesh.m</code>): Mirrors a mesh left to right, for a right-hand-drive download.</summary>
+
+Every CarMesh3D mesh is left-hand drive (Sean, 2026_11_24). A download of a right-hand-drive vehicle is mirrored right after `fcn_CarMesh3D_normalizeMesh`, before labeling and fitting, by setting `importMirror = true` in its script (no download in the library needs it yet; the 2006 Frontier's script has the setting, false, and its folder's README.md tells how it was checked). The mirror negates y and reverses each face's corner order, so the faces still point outward; stored normals are mirrored too, and labels stay with their faces. Writing in textures reads backward afterward (only badge shapes show it).
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_mirrorMesh(vehicleMesh, (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a mesh in the vehicle frame (x forward, y left, z up). | struct | 1 x 1 |
+| `FigNum` | option | a figure to show before (gray) and after (blue), from above; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mirrored mesh, with `MirrorInfo` (Mirrored, Date, Note). | struct | 1 x 1 |
+
+</details>
+
 <details><summary><b><code>fcn_CarMesh3D_fillSampleMesh</code></b> (test: <code>script_test_fcn_CarMesh3D_fillSampleMesh.m</code>): Builds a simple, low-poly sample car mesh directly from a vehicle specification.</summary>
 
 Builds a simple, low-poly sample car mesh directly from a vehicle specification. The sample has a body extruded from a side profile with wheel arches, glass panes (windshield, rear window, side windows), head and tail lights, and four wheels made of tire and rim materials. Materials and groups are named the way downloaded models often name them, so the sample can be used to test every step of the CarMesh3D workflow without downloading anything.
@@ -1957,6 +2032,32 @@ Labels a vehicle's interior (seats, steering wheel, dash, door panels): the face
 **Assumptions:** Glass is labeled; the interior is found from the shape (voxels), since downloads rarely name interior materials.
 
 ![fcn_CarMesh3D_labelInterior sample output](Images/functions/fcn_CarMesh3D_labelInterior.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_findInteriorObjects</code></b> (test: <code>script_test_fcn_CarMesh3D_findInteriorObjects.m</code>): Finds the two front seats and the steering wheel by fitting templates to the mesh.</summary>
+
+A build step in every vehicle script (`findInteriorObjects = true`; run once before the stage-1 cache is saved and cached with it; a failure only warns), replacing the voxel interior labeling (off since Q37). The method (Sean's, from his past work, with Claude's refinements):
+- **Templates:** a seat is a cushion box and a backrest box, with a "must be empty" zone where the occupant sits; the steering wheel is a ring of known outer diameter (0.38 m by default; a vehicle's own in `interiorTemplates`, such as the Fit's 0.368 m). Orientations are limited (seats level, backrest in a range of angles; the wheel facing the driver, tilted in a range).
+- **Points:** the mesh resampled into nearly evenly spaced points, so the count measures surface, not how finely a part was modeled.
+- **Search:** 3000 random poses near the expected places, ranked by a smooth score (each point weighted by how deep inside the template it is, with penalties for points in the empty zone or outside the vehicle); the best are refined by `fminsearch`. The passenger seat mirrors the driver's. The drive side is read from where the wheel is (or given).
+- **Found:** a seat counts at a score of 1.5 or more (real seats scored 1.83 to 3.16; a Camry's door openings about 1.0).
+
+Base MATLAB only. Vehicles missing a seat or the wheel are moved to `DataSomeday` (see [Someday vehicles](#someday-vehicles-datasomeday)). On the library (2026_11_24, before that move): seats on 35 of 36 vehicles (not the 2010 Camry: only its door openings scored, below the 1.5 needed), the wheel on 31 (not modeled in the HiAce, Supra and the full-size van exemplar; too weak in the Caravan). (The 2006 Frontier first looked right-hand drive: its committed mesh, from an older symmetric build, had a second wheel copied onto the right. Rebuilt, it has one wheel, on the left; see its folder's README.md.)
+
+```matlab
+[result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, (Seats=flag), (SteeringWheel=flag), (Templates=templates), (DriveSide=side), (PointSpacing=m), (SearchSpacing=m), (NumHypotheses=n), (NumRefine=n), (RandomSeed=s), (Verbose=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a finished or stage-1 mesh in the vehicle frame. | struct | 1 x 1 |
+| `Templates` | option | the template sizes to change, such as `Templates.SteeringWheel.Diameter = 0.368`. Default: the built-in templates. | struct | 1 x 1 |
+| `DriveSide` | option | 'auto' (default: from the wheel found), 'left' or 'right'. | char | 1 x n |
+| `RandomSeed` | option | the search's seed, so a run repeats exactly. | double | 1 x 1 |
+| `FigNum` | option | a figure showing the mesh with the objects found; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `result` | output | DriverSeat, PassengerSeat, SteeringWheel (each: Found, Score, pose, Faces; a seat's HipPointEstimate; the wheel's Center, Normal toward the driver, Diameter), DriveSide, DriveSideSource. | struct | 1 x 1 |
+| `vehicleMesh` | output | the mesh with `FaceInteriorObject` (0 none, 1 driver seat, 2 passenger seat, 3 steering wheel), `InteriorObjectNames` and `InteriorObjects` (the result). | struct | 1 x 1 |
 
 </details>
 
@@ -2915,6 +3016,63 @@ A vehicle's mesh with the label fixes saved in its `labelEdits_<ID>.mat`: the me
 
 </details>
 
+<details><summary><b><code>fcn_CarMesh3D_demoVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_demoVehicle.m</code>): The vehicle the demos, tools and tests use when none is named.</summary>
+
+The repository's demo vehicle is set in ONE place (the EDIT HERE line of this function; now `2009_Honda_Fit_Sport`), so switching every demo, tool and test to another vehicle is a one-line change. A user may pick their own demo vehicle (the browser's "★ Use as demo vehicle" button, or `Set=`), saved as a preference on their computer only and used by demos and tools; tests always use the repository's choice. It also gives the GUI test vehicle's ID.
+
+```matlab
+[vehicleID, info] = fcn_CarMesh3D_demoVehicle((Which=which), (UsePreference=flag), (Set=newID), (Reset=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Which` | option | 'demo' (default) or 'guiTest' (the GUI test vehicle). | char | 1 x n |
+| `UsePreference` | option | true (default) to use the user's own choice if any; false for the repository's (tests). | logical | 1 x 1 |
+| `Set` | option | a vehicle ID to save as the user's own demo vehicle; refused (with the reason) unless it has a finished mesh, its script and photos. | char | 1 x n |
+| `Reset` | option | true to remove the user's own choice. | logical | 1 x 1 |
+| `FigNum` | option | if given, the choice is printed; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleID` | output | the vehicle ID. | char | 1 x n |
+| `info` | output | ID, Source ('repo', 'preference' or 'guiTest'), RepoDemoID, GUITestID, Files (as `fcn_CarMesh3D_findVehicleFiles`). | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_guiDriver</code></b> (test: <code>script_test_fcn_CarMesh3D_guiDriver.m</code>): Drives a GUI as a user would, for automated GUI tests.</summary>
+
+Reads every tagged control's state, puts controls into a given state through the same callbacks a click runs (refusing controls that are disabled or not on screen, as a user could not click them), presses buttons, sends keys, and checks the layout: controls off their container or overlapping (a control placed on another on purpose is marked with `setappdata(control,'guiDriverOverlay',true)`), rows a grid cannot scroll to, '1x' rows squeezed, text likely cut off (visible windows only), clickable controls with no Tag, repeated Tags. Controls are named by their Tag.
+
+```matlab
+state    = fcn_CarMesh3D_guiDriver(figureHandle, 'state')
+stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'set', tag, value)   % or a struct of Tag = value; (Force=true)
+stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'press', tagOrText)
+stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, (Modifier={'control'}))
+problems = fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout')
+controls = fcn_CarMesh3D_guiDriver(figureHandle, 'controls')
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `figureHandle` | input | the app's uifigure (or a container in it). | uifigure | 1 x 1 |
+| `state` | output | Values, Enabled and OnScreen (each Tag = value), and Tags. | struct | 1 x 1 |
+| `problems` | output | Severity ('error', 'warning', 'note'), Control, Problem. | table | n x 3 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_guiRandomWalk</code></b> (tested in: <code>script_test_fcn_CarMesh3D_guiDriver.m</code>): Random sequences of user actions, with rules checked after every step.</summary>
+
+Finds the bugs that come from an unusual order of actions. Each action is a name and a function; each rule (invariant) returns '' when it holds or a message. A failing sequence is saved (`<Name>_failure_seed<Seed>.mat` and `.txt`) and can be replayed step by step with `Replay=`.
+
+```matlab
+report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, (Steps=n), (Seed=s), (Replay=steps), (Name=name), (LogFolder=folder), (StopOnFailure=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `actions` | input | Name, Do (function handle), optional Allowed (function handle) and Weight. | struct | 1 x n |
+| `invariants` | input | Name, Check (function handle returning '' or a message). | struct | 1 x n |
+| `report` | output | Passed, Steps, Failures (Step, Action, Message, Kind), FailureFile, ActionCounts. | struct | 1 x 1 |
+
+</details>
+
 ### Draw and animate
 
 <details><summary><b><code>fcn_CarMesh3D_plotVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_plotVehicle.m</code>): Plots a CarMesh3D vehicle mesh as a small number of patch objects: one patch for the opaque body, one for each level of transparency (typically the glass), one per wheel, and one per group of switchable lights.</summary>
@@ -3210,6 +3368,27 @@ fcn_CarMesh3D_saveGifFrame(figureHandle, fileName, frameNumber,...
 </details>
 
 
+<details><summary><b><code>fcn_CarMesh3D_turnSteeringWheel</code></b> (test: <code>script_test_fcn_CarMesh3D_turnSteeringWheel.m</code>): Turns the steering wheel for a road wheel angle, for animation.</summary>
+
+The handwheel angle is the steering ratio (default 15) times the road wheel angle; the wheel turns about its own axis (from `fcn_CarMesh3D_findInteriorObjects`: `vehicleMesh.InteriorObjects.SteeringWheel`), counterclockwise as the driver sees it for a left steer (positive), held at its lock if `MaxTurns` is given. Written to move as it is into AnimateCar3D (Sean, 2026_11_24): base MATLAB only, no other CarMesh3D function.
+
+```matlab
+[turnedVertices, handwheelAngleDeg] = fcn_CarMesh3D_turnSteeringWheel(vertices, steeringWheel, roadWheelAngleDeg, (SteeringRatio=ratio), (MaxTurns=turns), (FacesOfMesh=faces), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vertices` | input | the mesh's vertices. | double | N x 3 |
+| `steeringWheel` | input | Center, Normal (toward the driver), and VertexIndices or Faces. | struct | 1 x 1 |
+| `roadWheelAngleDeg` | input | the road wheels' steer angle, degrees, positive to the left. | double | 1 x 1 |
+| `SteeringRatio` | option | handwheel degrees per road wheel degree. Default 15. | double | 1 x 1 |
+| `MaxTurns` | option | turns from center to either lock. Default Inf. | double | 1 x 1 |
+| `FacesOfMesh` | option | the mesh's faces, when `steeringWheel` gives Faces. | double | M x 3 |
+| `turnedVertices` | output | the vertices, the wheel's turned. | double | N x 3 |
+| `handwheelAngleDeg` | output | the steering wheel's turn, degrees. | double | 1 x 1 |
+
+</details>
+
 ## TO-DO
 
 Six lists, kept in step with the project's work queue: **Claude work** (development in progress, in order), **Sean work now**, **Sean work later**, **Someday**, **End-of-project return-to** (items deliberately left until the animator is integrated or the project closes), and **Updates to other repos**. Each function's header also has its own TO-DO list.
@@ -3217,10 +3396,10 @@ Six lists, kept in step with the project's work queue: **Claude work** (developm
 ### Claude work
 
 1. **The driver's view in the label viewer** (agreed 2026_11_24): a "Driver's view" option from the driver's eye point, estimated from the glass and roof, with a `DriverEye = [x y z]` override in each vehicle's script; from the found steering wheel once task 9 is done.
-2. **The label painter's P2 edits and open bugs** (`Documents/Documentation_CarMesh3D_GUIdesign_paintLabels.md`, sections 8 and 9): mouse painting (drag, single clicks, double-click on glass, after Apply), a second double-click to unselect a part, Esc to unselect all, Ctrl+Z / Ctrl+S, a Revert button; the layout edits agreed on 2026-11-23.
-3. **Interior objects** (the painter's P5): seat, steering wheel and console as sub-labels of `interior`, with cabin surfaces no longer labeled interior; and how the interior is found (Sean's reminder S2C 1).
+2. **The label painter's P2 layout edits** (`Documents/Documentation_CarMesh3D_GUIdesign_paintLabels.md`, sections 8 and 9). Its mouse bugs (single clicks, Ctrl+drag, double-click on glass, picking after Apply, Ctrl+Z / Ctrl+S) were fixed 2026_11_24 (the point under the mouse was taken from the 3D axes, about 400 px off in that window), as was the loss of the scripted fixes' Material and Color when the painter saved; painted edits on layered lamp faces are still stored by face center.
+3. **Interior objects** (the painter's P5): DONE as a build step 2026_11_24: `fcn_CarMesh3D_findInteriorObjects` finds both front seats and the steering wheel in every vehicle script (the library rebuilt; seats on 35 of 36 vehicles, the wheel on 31), and the 2D outlines draw only those three objects as the interior. Still to do: the objects shown and edited as interior sub-labels in the viewer and painter; the driver's view from the seat's hip point.
 4. **The Model Reviewer by mesh family, and the GUI rules applied to it** (tasks 6 and 7): archived until the verification workflow is finished; listed in `Documents/Documentation_CarMesh3D_GUIdesign_reviewVehicle.md`, with its open question (should hidden faces show in Differences?).
-5. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body.
+5. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body. (Its center, plane and radius now come from the template fit above.)
 6. **The high-beam split** (`AutoHighBeams`): it looked wrong on the 2009 Fit and 2009 Corolla; on the Fit the high beams are now labeled by hand (the main headlight is low and high beam). Check the Corolla.
 7. **Known test failures** (see [Tests](#tests)).
 8. **Backlog:** process the downloaded models in the download list; wheel-spoke faces drawn backward (the Fit's worst comparison spots); the .glb reader and skins (the 2008 Shelby GT's wheels); `compareToOriginal` additions (a missing-face test, part counts); demo-menu examples for the stand-alone check tools; the viewLabels test needing `clearvars` before a second run.

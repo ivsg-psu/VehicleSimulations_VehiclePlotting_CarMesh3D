@@ -1,7 +1,7 @@
 Standard checks for 2003 Ford Focus SVT
-Written 2026-11-23 04:47 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:18 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 22206 faces, 33474 vertices
+Mesh: 22206 faces, 30406 vertices
 Dimensions: 12 of 12 within tolerance
 
 Files:

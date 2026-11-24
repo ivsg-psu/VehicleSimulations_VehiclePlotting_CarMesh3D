@@ -1,7 +1,7 @@
 Standard checks for 2006 Nissan Frontier SEKingCab
-Written 2026-11-22 00:09 by fcn_CarMesh3D_runVehicleChecks
+Written 2026-11-24 10:55 by fcn_CarMesh3D_runVehicleChecks
 
-Mesh: 12545 faces, 10909 vertices
+Mesh: 11450 faces, 10087 vertices
 Dimensions: 12 of 12 within tolerance
 Ground contact during the test motion: 0 of 515 samples
 

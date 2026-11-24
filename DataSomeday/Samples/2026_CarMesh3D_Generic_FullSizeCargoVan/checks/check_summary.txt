@@ -1,0 +1,11 @@
+Standard checks for 2026 CarMesh3D Generic FullSizeCargoVan
+Written 2026-11-24 10:34 by fcn_CarMesh3D_runVehicleChecks
+
+Mesh: 9379 faces, 11365 vertices
+Dimensions: 12 of 12 within tolerance
+
+Files:
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_FullSizeCargoVan\checks\testMotion.csv
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_FullSizeCargoVan\checks\check_02_dimensions.png
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_FullSizeCargoVan\checks\check_02_dimensions.txt
+  C:\Users\snb10\Desktop\GitHubRepos\IVSG\VehicleSimulations\VehiclePlotting\CarMesh3D\Data\Samples\2026_CarMesh3D_Generic_FullSizeCargoVan\checks\check_03_labels.png

@@ -13,7 +13,7 @@
 
 %% Set up the workspace
 close all;
-testVehicleID = '2009_Honda_Fit_Sport';
+testVehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 
 %% The list of examples
 examples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=testVehicleID);

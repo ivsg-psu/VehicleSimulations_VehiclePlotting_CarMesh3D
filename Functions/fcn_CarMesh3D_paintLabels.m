@@ -145,6 +145,28 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %               event)
 %           Stop(): stop the painter's timer (before the parent is cleared)
 %           Close(): close its own window
+%           (for automated tests, 2026-11-24; its own window)
+%           State(), SetState(stateOrTag, value), Press(tagOrText),
+%               Key(key, modifiers), CheckLayout(): the window driven by
+%               fcn_CarMesh3D_guiDriver (controls named by their Tags)
+%           MouseDownAt(target, modifiers, selectionType),
+%               MouseMoveAt(target), MouseUpAt(target): the window's OWN
+%               mouse handlers run with the mouse over target (a face
+%               number, or a 3D point on the model; NaN for off the
+%               model); modifiers such as {'control'} or
+%               {'control','shift'}; selectionType 'normal', 'open'
+%               (double-click) or 'alt'
+%           ClickAt(target), DoubleClickAt(target), DragAt(targets,
+%               modifiers): a click, a double-click, a drag over several
+%               targets (rows), made of the three above
+%           FaceAt(target): the face a click there would pick ([] if none)
+%           Layers(): the paint layers (Paint, Applied, Saved, Working: a
+%               label per face, "" for none) and the faces drawn as pending
+%               and as applied paint
+%           ToggleMenu(), MenuOpen(): the menu's list of panels
+%           Parts(): the painter's own parts (TopBar, MenuList, Panels,
+%               PanelNames), for tests of its controls
+%           SetSize(width, height): the window's size, in pixels
 %
 % DEPENDENCIES:
 %
@@ -265,6 +287,41 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % from Settings to Overall Display; the photo options there too
 %   %   % (PhotoOptions false); the camera's angles in Overall Display
 %   %   % (the viewer's OnView); the ground in 1 m squares (the viewer's)
+%   % * A label whose part the mesh does not have (interior, since the
+%   %   % voxel interior labeling was switched off, Q37, 2026-11-24 05:06)
+%   %   % has no faces, instead of an error
+
+% 2026_11_24 (Agent B: script-driven tests) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Every control a user clicks or reads has a Tag, and the window can
+%   %   % be driven by script (Sean, 05:03: "hooks ... the GUI must go to
+%   %   % that state"): new hooks State, SetState, Press, Key, CheckLayout
+%   %   % (fcn_CarMesh3D_guiDriver), and mouse hooks MouseDownAt,
+%   %   % MouseMoveAt, MouseUpAt, ClickAt, DoubleClickAt, DragAt, FaceAt
+%   %   % that run the window's OWN mouse handlers with the mouse put over
+%   %   % a given face or point; Layers, ToggleMenu, MenuOpen, SetSize
+%   %   % * Saved label fixes the painter cannot draw (made by a script,
+%   %   % with Material, Color, AlsoLightTypes, ...: the Fit's 13 lamp
+%   %   % fixes) are kept exactly as they are when it saves; before, a save
+%   %   % rewrote them as plain paint by position, which lost their Material
+%   %   % (a lamp's inner layer), colors and second lamp types
+%   %   % * "Revert to save" in the top bar (asks first)
+%   %   % * A second click on ANOTHER piece soon after a click is a click
+%   %   % there, not a double-click (it painted the whole piece)
+%   %   % * Closing the window while it is still being built no longer
+%   %   % errors (it closes once built)
+%   %   % * Fixed: clicks, double-clicks and Ctrl+drags picked faces far
+%   %   % from the mouse, or none (Sean's T2: "only sometimes", "only the
+%   %   % first face", "glass does nothing", "nothing after Apply"): the
+%   %   % UIAxes' CurrentPoint is shifted in this window; the line under
+%   %   % the mouse is now worked out from the window's CurrentPoint and
+%   %   % the camera (fcn_INTERNAL_rayAtPixel), checked against 221 real
+%   %   % clicks
+%   %   % * Ctrl+drag: each move paints the faces between the last point
+%   %   % and this one, so a fast drag leaves no gaps
+%   %   % * Fixed: the status line said "saved" while paint was pending
+%   %   % * Fixed: Ctrl+Shift+drag over a stroke painted through a window
+%   %   % did not erase it (erasing stopped at the glass)
 
 % TO-DO:
 %
@@ -410,6 +467,23 @@ versionFolder = fcn_INTERNAL_versionFolder(options.VersionFolder, editsFile);
 if ~isempty(options.PhotoFolder)
     photoFolder = char(options.PhotoFolder);
 end
+% (saved label fixes the painter cannot draw as paint, such as a script's
+% fixes with a Material, Color or AlsoLightTypes (the Fit's lamp fixes),
+% are kept exactly as they are: they are applied to the mesh first, and
+% saved again, unchanged, in front of the paint. Before 2026-11-24 a save
+% rewrote them as plain paint by position, which lost those fields.)
+keptEdits = {};
+if ~isempty(editsFile) && isfile(editsFile)
+    keptEdits = fcn_INTERNAL_keptEdits(editsFile);
+    if ~isempty(keptEdits)
+        keptMesh = fcn_CarMesh3D_editLabels(baseMesh, Edits=keptEdits, FigNum=-1);
+        if size(keptMesh.Faces,1) == size(baseMesh.Faces,1)
+            baseMesh = keptMesh;
+        else
+            warning('CarMesh3D:paintLabels', 'The saved fixes changed the number of faces: they are kept, but not shown.');
+        end
+    end
+end
 if ~isfield(baseMesh, 'FaceAlpha') || isempty(baseMesh.FaceAlpha)
     baseMesh.FaceAlpha = ones(size(baseMesh.Faces,1),1);
 end
@@ -466,7 +540,14 @@ meshPieces = [];
 % viewer, fcn_CarMesh3D_viewLabels, built in; the painter colors its
 % paint through the viewer's ColorFilter and HiddenFaces)
 labelViewer = [];
-% (the mouse, in its own window)
+% (the mouse, in its own window; mouseInjected: a test's mouse, the line
+% under it and the keys held, in place of the real mouse's; [] for the
+% real mouse)
+mouseInjected = [];
+strokeLastPixel = [];   % (where the mouse was at the stroke's last point, in pixels)
+lastClickFace = [];   % (the face of the last single click, for double-clicks)
+flagBuilding = true;  % (the window is being built: a close waits until it is)
+flagCloseAsked = false;
 mouseMode = '';
 mouseStart = [0 0];
 mouseLast = [0 0];
@@ -501,33 +582,38 @@ end
 mainGrid = uigridlayout(parent, [3 1], 'RowHeight', {36, '1x', 20}, 'Padding', [0 0 0 0], 'RowSpacing', 3);
 
 % The top bar: the menu, then only Undo, Save, and Exit; the status
-topGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {90, 80, 80, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {90, 80, 80, 120, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
 uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
     'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
     'ButtonPushedFcn', @(~,~) toggleMenu());
-uibutton(topGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoEdit(), ...
+uibutton(topGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoEdit(), 'Tag', 'painterUndo', ...
     'Tooltip', 'Take back the last click or stroke (press again to go further back, newest first). Ctrl+Z.');
-uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], ...
+uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], 'Tag', 'painterSave', ...
     'Tooltip', ['Apply the pending paint and save the edits (the vehicle''s labelEdits file, used by its script). ' ...
     'The saved mesh becomes the working mesh: painted faces take their new label''s look. Ctrl+S.']);
-exitButton = uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closePainter(), ...
+% (Revert to prior save, in the top bar: agreed in section 9 of the design
+% file, P2; it asks first)
+uibutton(topGrid, 'Text', 'Revert to save', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'painterRevert', ...
+    'Tooltip', 'Go back to the last save: paint since then (pending and applied) is taken off. Asks first.');
+exitButton = uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closePainter(), 'Tag', 'painterExit', ...
     'Tooltip', 'Close the painter (it asks first when there are changes not saved)');
 if ~flagOwnWindow
     exitButton.Visible = 'off';   % (the host window closes it)
 end
-editStatusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11);
+editStatusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'painterStatus');
 
 % The body: the left column (the menu's list, then the open panel), and
 % the viewer (the model, the photo dial, the photo and its options)
 bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
 leftGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
-menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1]);
+menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'painterMenuList');
 menuGrid = uigridlayout(menuPanel, [numel(panelNames) 1], 'RowHeight', repmat({28}, 1, numel(panelNames)), ...
     'Padding', [4 4 4 4], 'RowSpacing', 2, 'BackgroundColor', [1 1 1]);
 menuItems = gobjects(1, numel(panelNames));
 for ith_panel = 1:numel(panelNames)
     menuItems(ith_panel) = uibutton(menuGrid, 'Text', panelNames{ith_panel}, 'HorizontalAlignment', 'left', ...
         'BackgroundColor', panelColors{ith_panel}, 'UserData', panelNames{ith_panel}, ...
+        'Tag', ['menu_' strrep(panelNames{ith_panel}, ' ', '')], ...
         'ButtonPushedFcn', @(source,~) pickPanel(source.UserData));
 end
 holderGrid = uigridlayout(leftGrid, [1 1], 'Padding', [0 0 0 0]);
@@ -541,7 +627,7 @@ for ith_panel = 1:numel(panelNames)
 end
 openPanelName = '';
 viewerHolder = uipanel(bodyGrid, 'BorderType', 'none');
-hintLabel = uilabel(mainGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35]);
+hintLabel = uilabel(mainGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35], 'Tag', 'painterHint');
 hintLabel.Layout.Row = 3;
 % (the panels' controls, made once the viewer is built)
 paintGroup = [];
@@ -582,7 +668,7 @@ appliedPatch = patch(labelAxes, 'Faces', zeros(0,3), 'Vertices', zeros(0,3), 'Fa
 if flagOwnWindow
     set(figureHandle, 'WindowButtonDownFcn', @onOwnDown, 'WindowButtonMotionFcn', @(~,~) MouseMoveOwn(), ...
         'WindowButtonUpFcn', @(~,~) MouseUpOwn(), 'WindowScrollWheelFcn', @onOwnScroll, ...
-        'WindowKeyPressFcn', @onOwnKey, 'CloseRequestFcn', @(~,~) closePainter());
+        'WindowKeyPressFcn', @onOwnKey, 'CloseRequestFcn', @(~,~) askCloseWhileBuilding());
     labelPatch.ButtonDownFcn = [];
 end
 
@@ -619,6 +705,13 @@ setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. Pick a lab
     'Photos: drag the red arrow around the vehicle (or click on the dial).']);
 
 painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch, 'EditsFile', editsFile, ...
+    'State', @() fcn_CarMesh3D_guiDriver(figureHandle, 'state'), 'SetState', @driverSet, ...
+    'Press', @(varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'press', varargin{:}), 'Key', @driverKey, ...
+    'CheckLayout', @() fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout'), ...
+    'MouseDownAt', @mouseDownAt, 'MouseMoveAt', @mouseMoveAt, 'MouseUpAt', @mouseUpAt, ...
+    'ClickAt', @clickAt, 'DoubleClickAt', @doubleClickAt, 'DragAt', @dragAt, 'FaceAt', @faceAt, ...
+    'Layers', @getLayers, 'ToggleMenu', @toggleMenu, 'MenuOpen', @menuOpen, 'SetSize', @setSize, ...
+    'Parts', @() struct('TopBar', topGrid, 'MenuList', menuPanel, 'Panels', panelHandles, 'PanelNames', {panelNames}), ...
     'ShowLabel', @showLabel, 'SetHidden', @setHidden, ...
     'EditedMesh', @getEditedMesh, 'Edits', @getEdits, 'NumPainted', @numPainted, 'IsUnsaved', @isUnsaved, 'Status', @getStatus, ...
     'Apply', @applyEdits, 'Undo', @undoEdit, 'Save', @() saveEdits(), 'SaveVersion', @saveVersion, ...
@@ -628,12 +721,20 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
     'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
     'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter);
-if flagOwnWindow
+flagBuilding = false;
+if flagOwnWindow && isvalid(figureHandle)
     figureHandle.UserData = painter;
+    figureHandle.CloseRequestFcn = @(~,~) closePainter();
+    if flagCloseAsked
+        closePainter();   % (closed while it was being built)
+    end
 end
 
-if flagOwnWindow && options.Wait && options.Visible
+if flagOwnWindow && options.Wait && options.Visible && isvalid(figureHandle)
     uiwait(figureHandle);
+    if ~isvalid(figureHandle)
+        return;   % (closePainter set the outputs as the window closed)
+    end
 end
 editedMesh = getEditedMesh();
 labelEdits = getEdits();
@@ -867,7 +968,7 @@ end
                     'UserData', name, 'Tooltip', fcn_INTERNAL_paintTooltip(name));
                 if strcmp(name, 'hide')
                     uilabel(paintGroup, 'Text', 'Hide as:', 'Position', [150 y 52 22], 'HorizontalAlignment', 'right');
-                    hideNameField = uieditfield(paintGroup, 'text', 'Value', 'hidden', 'Position', [206 y 80 22], ...
+                    hideNameField = uieditfield(paintGroup, 'text', 'Value', 'hidden', 'Position', [206 y 80 22], 'Tag', 'hideAs', ...
                         'Tooltip', ['The hidden set the "hide" tool puts faces in (such as ''hard top''): the animator can show a set ' ...
                         'again by name']);
                 end
@@ -884,12 +985,12 @@ end
         uilabel(rowGrid, 'Text', 'Show hidden faces', ...
             'Tooltip', 'Show the hidden faces (magenta), to unhide them; they cannot be painted while out of view');
         showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setShowHidden(value), 'showHidden');
-        uibutton(outer, 'Text', 'Apply', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applyEdits(), ...
+        uibutton(outer, 'Text', 'Apply', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applyEdits(), 'Tag', 'paintApply', ...
             'Tooltip', 'Make the pending paint part of the working mesh (hidden faces go out of view and reach)');
         uilabel(outer, 'Text', ['How to paint: Ctrl+drag paints; Ctrl+Shift+drag erases; a click paints one face (click again ' ...
             'to take it off); a double-click paints a whole piece. Paint is pending (yellow edges) until Apply or Save. ' ...
             'Hiding takes faces out of view, never out of the mesh. To reach faces under others, set their label to ' ...
-            'Shown? No (Labels To Display).'], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.45 0.3 0], ...
+            'Shown? No (Labels To Display).'], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.45 0.3 0], 'Tag', 'paintHowTo', ...
             'VerticalAlignment', 'top');
         markPaintButtons();
     end
@@ -936,7 +1037,7 @@ end
         grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {28, 24, 18, 26, 28, 28, 18, 'fit'}, 'ColumnWidth', {165, '1x'}, ...
             'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', grayBand, 'Scrollable', 'on');
         uilabel(grid, 'Text', 'Save as version');
-        saveVersionButton = uibutton(grid, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), ...
+        saveVersionButton = uibutton(grid, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), 'Tag', 'saveVersion', ...
             'Tooltip', 'Save, and also keep a timestamped copy (<mesh name>_YYYYMMDDHHMMSS.mat: the edits and the edited mesh, in the folder below)');
         uilabel(grid, 'Text', 'Timestamped copy each save', ...
             'Tooltip', ['Each save also keeps a timestamped copy, in the folder below: ' ...
@@ -948,15 +1049,15 @@ end
         folderGrid = uigridlayout(grid, [1 2], 'ColumnWidth', {'1x', 70}, 'Padding', [0 0 0 0], 'ColumnSpacing', 4, ...
             'BackgroundColor', grayBand);
         folderGrid.Layout.Column = [1 2];
-        versionFolderField = uieditfield(folderGrid, 'text', 'Value', versionFolder, ...
+        versionFolderField = uieditfield(folderGrid, 'text', 'Value', versionFolder, 'Tag', 'versionFolder', ...
             'ValueChangedFcn', @(source,~) setVersionFolder(source.Value), ...
             'Tooltip', 'The folder for the timestamped copies (made if it does not exist); remembered for next time');
-        versionBrowseButton = uibutton(folderGrid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browseVersionFolder());
+        versionBrowseButton = uibutton(folderGrid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browseVersionFolder(), 'Tag', 'versionBrowse');
         uilabel(grid, 'Text', 'Revert');
-        uibutton(grid, 'Text', 'Revert to save', 'ButtonPushedFcn', @(~,~) askRevert('save'), ...
+        uibutton(grid, 'Text', 'Revert to save', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'revertToSave', ...
             'Tooltip', 'Go back to the last save (pending and applied paint since then are taken off)');
         uilabel(grid, 'Text', '');
-        uibutton(grid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) askRevert('start'), ...
+        uibutton(grid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) askRevert('start'), 'Tag', 'revertToStart', ...
             'Tooltip', 'Go back to the mesh before any edits (Save to make it stick)');
         label = uilabel(grid, 'Text', 'Edits file:');
         label.Layout.Column = [1 2];
@@ -964,7 +1065,7 @@ end
         if isempty(editsText)
             editsText = '(none: the mesh was given as a variable, so the edits are returned, not saved)';
         end
-        label = uilabel(grid, 'Text', editsText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'VerticalAlignment', 'top');
+        label = uilabel(grid, 'Text', editsText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'VerticalAlignment', 'top', 'Tag', 'editsFileText');
         label.Layout.Column = [1 2];
         if isempty(editsFile)
             saveVersionButton.Enable = 'off';
@@ -1097,14 +1198,19 @@ end
         if ~isvalid(labelAxes)
             return;
         end
-        ray = labelAxes.CurrentPoint;   % (2 x 3: the front and back of the line under the mouse)
+        ray = mouseRay();   % (2 x 3: the front and back of the line under the mouse)
+        faces = facesOnRay(ray, flagSingle, flagErase);
+    end
+
+    function faces = facesOnRay(ray, flagSingle, flagErase, candidates)
+        % (the faces facesUnderMouse finds, for a given line; candidates:
+        % the faces that can be picked, if already known)
+        faces = [];
         direction = ray(2,:) - ray(1,:);
         direction = direction/norm(direction);
-        eligible = ~hiddenFaces();
-        if ~flagErase && ~strcmp(paintTool, 'glass')
-            eligible = eligible & ~currentlyGlass();
+        if nargin < 4
+            candidates = pickableFaces(flagErase);
         end
-        candidates = find(eligible);
         if isempty(candidates)
             return;
         end
@@ -1129,16 +1235,61 @@ end
         faces = unique([hitFace; nearHit(:)]);
     end
 
+    function candidates = pickableFaces(flagErase)
+        % The faces the mouse can pick: not hidden; not glass unless the
+        % glass tool is in use (or the glass has paint to erase)
+        eligible = ~hiddenFaces();
+        if ~strcmp(paintTool, 'glass')
+            if flagErase
+                % (erasing: glass with paint on it can be erased; glass
+                % with none is seen through, as when painting, so a
+                % Ctrl+Shift+drag over a stroke painted through a window
+                % erases it; found by the script tests, 2026-11-24)
+                eligible = eligible & (~currentlyGlass() | strlength(paintTarget) > 0);
+            else
+                eligible = eligible & ~currentlyGlass();
+            end
+        end
+        candidates = find(eligible);
+    end
+
     function strokeStart(flagErase)
         % A Ctrl+drag stroke begins (one Undo entry for the whole stroke)
         strokeOpen = true;
         strokeErase = logical(flagErase);
         strokeFaces = zeros(0,1);
         strokeBefore = strings(0,1);
+        strokeLastPixel = figureHandle.CurrentPoint;
         if ~strokeErase && isempty(paintTool)
             setHint('<b>Pick a label first</b> (Modify Labels, in the menu at the top left), then Ctrl+drag to paint.');
         end
         paintFaces(facesUnderMouse(false, strokeErase), strokeErase);
+    end
+
+    function paintAlongStroke()
+        % A move during a stroke: the faces under the line from the last
+        % point to this one are painted, not only those under this point
+        % (the mouse jumps several faces between two moves when the drag is
+        % fast or the window is busy)
+        pixelNow = figureHandle.CurrentPoint;
+        faces = zeros(0,1);
+        numSteps = 1;
+        candidates = pickableFaces(strokeErase);
+        if ~isempty(strokeLastPixel)
+            numSteps = min(60, max(1, ceil(norm(pixelNow - strokeLastPixel)/4)));   % (a point every 4 pixels)
+        end
+        for ith_step = 1:numSteps
+            if isempty(strokeLastPixel)
+                stepPixel = pixelNow;
+            else
+                fraction = ith_step/numSteps;
+                stepPixel = (1 - fraction)*strokeLastPixel + fraction*pixelNow;
+            end
+            stepRay = fcn_INTERNAL_rayAtPixel(labelAxes, stepPixel, data.Geometry);
+            faces = [faces; reshape(facesOnRay(stepRay, false, strokeErase, candidates), [], 1)]; %#ok<AGROW>
+        end
+        strokeLastPixel = pixelNow;
+        paintFaces(unique(faces), strokeErase);
     end
 
     function closeStroke()
@@ -1165,6 +1316,13 @@ end
         if isempty(face)
             return;
         end
+        if flagPiece && ~fcn_INTERNAL_samePiece(face, lastClickFace, lastClickTime)
+            % (a second click soon after a click on ANOTHER piece: the
+            % system calls it a double-click, but it is a click on a new
+            % spot; before, it painted the whole piece, which made single
+            % clicks seem unreliable)
+            flagPiece = false;
+        end
         if flagPiece && ~isempty(lastClickTime) && toc(lastClickTime) < 1 && lastClickUndo > 0 && lastClickUndo == numel(undoStack)
             % (a double-click comes after a single click on the same spot:
             % that click is taken back first, so the double-click acts on
@@ -1187,8 +1345,22 @@ end
         if ~flagPiece
             lastClickTime = tic;
             lastClickUndo = numel(undoStack);
+            lastClickFace = face;
         end
         notifyPaint();
+    end
+
+    function flagSame = fcn_INTERNAL_samePiece(face, otherFace, clickTime)
+        % (a double-click: the click before it was less than a second ago,
+        % on the same piece)
+        flagSame = false;
+        if isempty(otherFace) || isempty(clickTime) || toc(clickTime) > 1 || otherFace > numFaces
+            return;
+        end
+        if isempty(meshPieces)
+            meshPieces = fcn_INTERNAL_meshPieces(data.Mesh);
+        end
+        flagSame = meshPieces(face) == meshPieces(otherFace);
     end
 
     function clearPending()
@@ -1274,7 +1446,7 @@ end
         for ith_entry = 1:numel(undoStack)
             undoStack(ith_entry).Applied = true;
         end
-        labelEditsAfterSimplify = fcn_INTERNAL_paintEdits(data.BaseMesh, appliedTarget);
+        labelEditsAfterSimplify = getEdits();   % (the kept fixes, then the paint)
         if ~isempty(editsFile)
             if isempty(labelEditsAfterSimplify)
                 if isfile(editsFile)
@@ -1463,8 +1635,8 @@ end
         centers = baseCenters;
         for ith_edit = 1:numel(loaded.labelEditsAfterSimplify)
             thisEdit = loaded.labelEditsAfterSimplify{ith_edit};
-            if ~isfield(thisEdit, 'Points')
-                continue;
+            if ~fcn_INTERNAL_isPaintEdit(thisEdit)
+                continue;   % (a kept fix: already in the base mesh)
             end
             target = fcn_INTERNAL_editTarget(thisEdit);
             [nearestFace, nearestDistance] = fcn_INTERNAL_nearest(centers, thisEdit.Points);
@@ -1477,9 +1649,10 @@ end
 
     %% What the painter gives out
     function meshOut = getEditedMesh()
-        % The mesh with the applied edits
+        % The mesh with the applied edits (the kept fixes are already in
+        % the base mesh)
         meshOut = data.BaseMesh;
-        edits = getEdits();
+        edits = fcn_INTERNAL_paintEdits(data.BaseMesh, appliedTarget);
         if ~isempty(edits)
             meshOut = fcn_CarMesh3D_editLabels(data.BaseMesh, Edits=edits, FigNum=-1);
         end
@@ -1497,7 +1670,8 @@ end
     end
 
     function edits = getEdits()
-        edits = fcn_INTERNAL_paintEdits(data.BaseMesh, appliedTarget);
+        % (the kept fixes, unchanged, then the paint)
+        edits = [keptEdits(:)', fcn_INTERNAL_paintEdits(data.BaseMesh, appliedTarget)];
     end
 
     function count = numPainted()
@@ -1522,7 +1696,10 @@ end
         statusNow = getStatus();
         if isempty(editsFile)
             savedText = '<font color="#606060">no edits file</font>';
-        elseif isequal(appliedTarget, savedTarget)
+        elseif ~isUnsaved()
+            % (pending paint is not saved either: before 2026-11-24 the
+            % line said "saved" while faces were painted and not applied;
+            % found by the random-walk rule "status line matches")
             savedText = '<font color="#2a7a2a">saved</font>';
         else
             savedText = '<font color="#b03000"><b>not saved</b></font>';
@@ -1554,7 +1731,7 @@ end
         if flagUsed
             return;
         elseif strokeOpen
-            paintFaces(facesUnderMouse(false, strokeErase), strokeErase);
+            paintAlongStroke();
             flagUsed = true;
         end
     end
@@ -1566,6 +1743,188 @@ end
         if strokeOpen
             closeStroke();
             flagUsed = true;
+        end
+    end
+
+    %% The mouse as the handlers read it: the real mouse, or a test's
+    function ray = mouseRay()
+        % The line under the mouse (2 x 3: its front and back), worked out
+        % from where the mouse is in the window (its CurrentPoint, in
+        % pixels) and the camera. NOT the axes' own CurrentPoint: in this
+        % window (a UIAxes inside panels and grids) that line is shifted,
+        % by hundreds of pixels, from where the mouse is, so clicks and
+        % strokes picked faces far from the mouse, or none (2026-11-24,
+        % found with real mouse clicks: 221 of 221 clicks agree with this
+        % line, against 181 of 221 for the axes' CurrentPoint, which put
+        % none of its 24 hits where the vehicle was clicked)
+        ray = fcn_INTERNAL_rayAtPixel(labelAxes, figureHandle.CurrentPoint, data.Geometry);
+    end
+
+    function modifiers = mouseModifiers()
+        % The keys held (Ctrl, Shift) as the mouse button went down
+        if ~isempty(mouseInjected)
+            modifiers = mouseInjected.Modifier;
+        else
+            modifiers = figureHandle.CurrentModifier;
+        end
+    end
+
+    %% Hooks for automated tests: the window's own mouse handlers, run
+    %% with the mouse put over a face or a point of the model
+    function injectMouse(target, modifiers)
+        % The mouse over target: the window's pointer (CurrentPoint) put at
+        % the pixel where target is drawn, so the handlers work out the
+        % line under the mouse just as for the real mouse; and the keys
+        % held (the window's CurrentModifier cannot be set)
+        point = targetPoint(target);
+        if any(isnan(point))
+            % (off the model: a corner of the model's box)
+            box = getpixelposition(labelAxes, true);
+            pixel = box(1:2) + 2;
+        else
+            pixel = fcn_INTERNAL_pixelOf(labelAxes, point);
+        end
+        mouseInjected = struct('Modifier', {cellstr(modifiers)});
+        figureHandle.CurrentPoint = pixel;
+    end
+
+    function point = targetPoint(target)
+        % A face number (its center), or a 3D point
+        if isscalar(target) && ~isnan(target) && target == round(target) && target >= 1 && target <= numFaces
+            corners = data.Mesh.Vertices(data.Mesh.Faces(target,:),:);
+            point = mean(corners, 1);
+        elseif isscalar(target) && isnan(target)
+            point = [NaN NaN NaN];
+        else
+            point = reshape(double(target), 1, 3);
+        end
+    end
+
+    function mouseDownAt(target, modifiers, selection)
+        % The mouse button pressed over target (see injectMouse)
+        if nargin < 2
+            modifiers = {};
+        end
+        if nargin < 3 || isempty(selection)
+            selection = 'normal';
+            if any(strcmp(cellstr(modifiers), 'control'))
+                selection = 'alt';   % (on Windows, MATLAB calls a Ctrl+click 'alt')
+            end
+        end
+        injectMouse(target, modifiers);
+        figureHandle.SelectionType = selection;
+        if any(isnan(targetPoint(target)))
+            figureHandle.CurrentObject = labelAxes;
+        else
+            figureHandle.CurrentObject = labelPatch;
+        end
+        onOwnDown(figureHandle, []);
+    end
+
+    function mouseMoveAt(target)
+        modifiers = {};
+        if ~isempty(mouseInjected)
+            modifiers = mouseInjected.Modifier;
+        end
+        injectMouse(target, modifiers);
+        MouseMoveOwn();
+    end
+
+    function mouseUpAt(target)
+        if nargin < 1 || isempty(target)
+            target = NaN;
+        end
+        modifiers = {};
+        if ~isempty(mouseInjected)
+            modifiers = mouseInjected.Modifier;
+        end
+        injectMouse(target, modifiers);
+        try
+            MouseUpOwn();
+        catch caughtError
+            mouseInjected = [];
+            rethrow(caughtError);
+        end
+        mouseInjected = [];
+    end
+
+    function clickAt(target, modifiers)
+        if nargin < 2
+            modifiers = {};
+        end
+        mouseDownAt(target, modifiers);
+        mouseUpAt(target);
+    end
+
+    function doubleClickAt(target)
+        % (as the system sends it: a click, then a press called 'open')
+        mouseDownAt(target, {}, 'normal');
+        mouseUpAt(target);
+        mouseDownAt(target, {}, 'open');
+        mouseUpAt(target);
+    end
+
+    function dragAt(targets, modifiers)
+        % A drag from the first target (row) through the others
+        if nargin < 2
+            modifiers = {};
+        end
+        if isvector(targets) && numel(targets) ~= 3
+            targets = targets(:);
+        end
+        mouseDownAt(targets(1,:), modifiers);
+        for ith_target = 2:size(targets,1)
+            mouseMoveAt(targets(ith_target,:));
+        end
+        mouseUpAt(targets(end,:));
+    end
+
+    function face = faceAt(target)
+        % The face a click over target would pick (the window unchanged)
+        mouseBefore = mouseInjected;
+        pointBefore = figureHandle.CurrentPoint;
+        injectMouse(target, {});
+        face = facesUnderMouse(true, false);
+        mouseInjected = mouseBefore;
+        figureHandle.CurrentPoint = pointBefore;
+    end
+
+    function layers = getLayers()
+        % The paint layers, and what is drawn (for tests' checks)
+        flagShown = ~hiddenFaces();
+        layers = struct('Paint', paintTarget, 'Applied', appliedTarget, 'Saved', savedTarget, 'Working', workingTarget, ...
+            'PendingFaces', find(paintTarget ~= appliedTarget & flagShown), ...
+            'AppliedFaces', find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown), ...
+            'PendingDrawn', size(paintEdges.Faces,1), 'AppliedDrawn', size(appliedPatch.Faces,1), ...
+            'StatusText', editStatusLabel.Text, 'KeptEdits', numel(keptEdits));
+    end
+
+    function flagOpen = menuOpen()
+        flagOpen = leftGrid.RowHeight{1} > 0;
+    end
+
+    function setSize(width, height)
+        figureHandle.Position(3:4) = [width height];
+        drawnow;
+    end
+
+    function stateOut = driverSet(varargin)
+        stateOut = fcn_CarMesh3D_guiDriver(figureHandle, 'set', varargin{:});
+    end
+
+    function stateOut = driverKey(key, modifiers)
+        if nargin < 2
+            modifiers = {};
+        end
+        stateOut = fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, 'Modifier', modifiers);
+    end
+
+    function askCloseWhileBuilding()
+        % (closed while being built: closes once built, else at once)
+        if flagBuilding
+            flagCloseAsked = true;
+        else
+            closePainter();
         end
     end
 
@@ -1584,7 +1943,7 @@ end
             return;
         end
         selection = figureHandle.SelectionType;
-        modifiers = figureHandle.CurrentModifier;
+        modifiers = mouseModifiers();
         if any(strcmp(modifiers, 'control'))
             mouseMode = 'stroke';
             strokeStart(any(strcmp(modifiers, 'shift')));
@@ -1761,7 +2120,10 @@ function flagFaces = fcn_INTERNAL_labelFaces(vehicleMesh, labelKey)
 flagFaces = false(size(vehicleMesh.Faces,1),1);
 if startsWith(labelKey, 'part_')
     partIndex = find(strcmp(vehicleMesh.PartNames, labelKey(6:end)), 1);
-    flagFaces = vehicleMesh.FacePartIndex==partIndex;
+    if isempty(partIndex)
+        return;   % (a part the mesh does not have, such as interior since Q37: no faces)
+    end
+    flagFaces = vehicleMesh.FacePartIndex(:)==partIndex;
     % (and the faces that also belong to it: a lamp's clear cover is a
     % light that is also glass)
     if ~isempty(partIndex) && isfield(vehicleMesh,'FaceAlsoParts') ...
@@ -1770,10 +2132,16 @@ if startsWith(labelKey, 'part_')
     end
 elseif strcmp(labelKey, 'light_none')
     lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
-    flagFaces = vehicleMesh.FacePartIndex==lightPart & vehicleMesh.FaceLightType==0;
+    if isempty(lightPart)
+        return;
+    end
+    flagFaces = vehicleMesh.FacePartIndex(:)==lightPart & vehicleMesh.FaceLightType(:)==0;
 elseif startsWith(labelKey, 'light_')
     typeIndex = find(strcmp(vehicleMesh.LightTypeNames, labelKey(7:end)), 1);
-    flagFaces = vehicleMesh.FaceLightType==typeIndex;
+    if isempty(typeIndex)
+        return;
+    end
+    flagFaces = vehicleMesh.FaceLightType(:)==typeIndex;
 end
 end % Ends fcn_INTERNAL_labelFaces
 
@@ -2059,3 +2427,76 @@ for ith_radio = 1:numel(radios)
     end
 end
 end % Ends fcn_INTERNAL_selectRadio
+
+%% fcn_INTERNAL_isPaintEdit
+function flagPaint = fcn_INTERNAL_isPaintEdit(thisEdit)
+% An edit the painter can draw as paint: faces by their centers (Points),
+% with only a part, a light type, Hide or Unhide (as the painter saves
+% them). Any other field (Material, Color, AlsoLightTypes, Region, ...)
+% makes it a fix the painter keeps exactly as it is.
+paintFields = {'Name', 'Points', 'PointTolerance', 'Part', 'LightType', 'Hide', 'Unhide'};
+flagPaint = isstruct(thisEdit) && isfield(thisEdit, 'Points') && all(ismember(fieldnames(thisEdit), paintFields));
+if flagPaint && isfield(thisEdit, 'Part') && isfield(thisEdit, 'LightType') && ~isempty(thisEdit.Part) && ~isempty(thisEdit.LightType)
+    flagPaint = false;   % (both a part and a light type: not one paint label)
+end
+end % Ends fcn_INTERNAL_isPaintEdit
+
+%% fcn_INTERNAL_keptEdits
+function keptEdits = fcn_INTERNAL_keptEdits(editsFile)
+% The saved fixes the painter cannot draw as paint (kept as they are)
+keptEdits = {};
+loaded = load(editsFile);
+if ~isfield(loaded, 'labelEditsAfterSimplify')
+    return;
+end
+for ith_edit = 1:numel(loaded.labelEditsAfterSimplify)
+    thisEdit = loaded.labelEditsAfterSimplify{ith_edit};
+    if ~fcn_INTERNAL_isPaintEdit(thisEdit)
+        keptEdits{end+1} = thisEdit; %#ok<AGROW>
+    end
+end
+end % Ends fcn_INTERNAL_keptEdits
+
+%% fcn_INTERNAL_pixelOf
+function pixel = fcn_INTERNAL_pixelOf(axesHandle, point)
+% Where a 3D point is drawn in the window, in pixels (as the window's
+% CurrentPoint gives the mouse); for an orthographic camera
+box = getpixelposition(axesHandle, true);
+viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
+distance = norm(viewDirection);
+viewDirection = viewDirection/distance;
+rightward = cross(viewDirection, axesHandle.CameraUpVector);
+rightward = rightward/norm(rightward);
+upward = cross(rightward, viewDirection);
+halfSpan = distance*tand(axesHandle.CameraViewAngle/2);
+pixelsPerMeter = min(box(3), box(4))/(2*max(halfSpan, eps));
+offset = point - axesHandle.CameraTarget;
+pixel = box(1:2) + box(3:4)/2 + pixelsPerMeter*[dot(offset, rightward), dot(offset, upward)];
+end % Ends fcn_INTERNAL_pixelOf
+
+%% fcn_INTERNAL_rayAtPixel
+function ray = fcn_INTERNAL_rayAtPixel(axesHandle, pixel, geometry)
+% The line under a pixel of the window (as its CurrentPoint gives the
+% mouse), through the model's axes: 2 x 3, its front (nearest the camera)
+% and back. The camera's view angle spans the shorter side of the axes'
+% box (checked against real clicks, 2026-11-24).
+box = getpixelposition(axesHandle, true);
+viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
+distance = norm(viewDirection);
+viewDirection = viewDirection/distance;
+rightward = cross(viewDirection, axesHandle.CameraUpVector);
+rightward = rightward/norm(rightward);
+upward = cross(rightward, viewDirection);
+halfSpan = distance*tand(axesHandle.CameraViewAngle/2);
+pixelsPerMeter = min(box(3), box(4))/(2*max(halfSpan, eps));
+offset = (pixel(:)' - (box(1:2) + box(3:4)/2))/pixelsPerMeter;
+pointOnTarget = axesHandle.CameraTarget + offset(1)*rightward + offset(2)*upward;
+reach = 10*max(norm(geometry.Max - geometry.Min), 1) + distance;
+if strcmp(axesHandle.Projection, 'perspective')
+    direction = pointOnTarget - axesHandle.CameraPosition;
+    direction = direction/norm(direction);
+    ray = [axesHandle.CameraPosition; axesHandle.CameraPosition + reach*direction];
+else
+    ray = [pointOnTarget - reach*viewDirection; pointOnTarget + reach*viewDirection];
+end
+end % Ends fcn_INTERNAL_rayAtPixel

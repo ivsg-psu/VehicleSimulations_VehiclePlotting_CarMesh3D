@@ -8,7 +8,21 @@
 
 ## Review now (for Sean)
 
-*(Nothing for Sean to test by hand now. The table version passed T13 (the preview scrolls). C2S 13, the tree rule, is built (2026-11-24 02:30): View, Edit labels and Review close the browser and return the step; tested by script.)*
+*Updated 2026-11-24 07:15. Almost everything is now tested by script (automated GUI tests, Q39: Agent D, 06:06 to 07:01; checked by Claude 07:04: all pass). What is left needs your eyes only.*
+
+**First:** close any browser window and run `clear functions`, then open it from the demo menu.
+
+- **T38. The Demo column:** the demo vehicle has a ★ in a new "Demo" column, next to the exemplar ★ column. Is it clear which ★ means what?
+(Sean's result:)
+
+- **T39. The demo buttons:** in the preview, "★ Use as demo vehicle" and "Back to the repo's demo". Pick a vehicle with photos: it becomes the demo vehicle (★ moves). Pick one without photos: a red hint says why, nothing changes. Their place and wording?
+(Sean's result:)
+
+- **T40. Narrow window:** make the window about 640 wide and 400 tall: the table, preview and buttons stay usable (shorter button words). Looks right?
+(Sean's result:)
+
+- **T41. The highlight follows the preview:** after sorting, filtering or clicking a group header, the highlighted row is the previewed vehicle. Feels right?
+(Sean's result:)
 
 ---
 
@@ -417,3 +431,10 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   > - (A) *Recommended.* Keep the buttons, but each closes the browser and returns the chosen vehicle and the step asked for to its caller (the demo menu), which opens that tool. Students keep the same quick path; only the trunk opens tools.
   > - (B) Remove the buttons: the browser only returns the chosen vehicles, and the next tool is picked from the demo menu.
 - 2026-11-24 02:35 (Claude): tests after C2S 13, run hidden with Sean's OK: the browser's test (View now checked to close the browser and return the vehicle in the preview, with no viewer opened), `fcn_CarMesh3D_openTool`'s and the demo menu's all pass; the real Fit's files unchanged; no timers left.
+- 2026-11-24 06:06 to 07:04 (Agent D, for Claude; Sean offline; Q35/Q36 A, Q39, Q40 A): **the browser made fully drivable and tested by script.**
+  - Every control has a unique Tag. New hooks: State, SetState, Press, Key, CheckLayout (through `fcn_CarMesh3D_guiDriver`), SelectRow and TickRow (through the table's own callbacks), SetSize, UseAsDemo, UseRepoDemo. Old hooks kept.
+  - **Demo vehicle** (Q35, Q36 A): "★ Use as demo vehicle" and "Back to the repo's demo" in the preview (calling `fcn_CarMesh3D_demoVehicle`; a refused vehicle's reason in red in a new hint line); a "Demo" ★ column; with no vehicle chosen, the browser returns a copy of the demo vehicle (the user's own choice if set), not the Fit by name.
+  - **Automated:** all 560 Group × Sort × Order × Filter combinations (set through the controls), checking the rows, their order, the group headers, the preview, the ticks and which buttons are enabled; 3 random walks of 250 steps (44 actions) with the same rules after every step, and a rule that no other window opens or closes (tree rule); View, Edit labels and Review return the right step, close the browser and open nothing; Done and the window's X close in about 0.02 s; an empty list; layout at 1400×900, 800×500, 640×400, 1600×1000, 1024×700 (and once in a visible window); the demo buttons (the preference put back by onCleanup).
+  - **Bugs found and fixed:** after a re-sort or filter the highlighted row stayed on the old row number (showing another vehicle than the preview); clicking a group header row moved the highlight off the previewed vehicle; with nothing in the preview, View, Edit labels, Review and Select were still enabled; at 640×400 the table was 142 px wide, the filter box 0 px and Done off the window (widths now follow the window; short button words when narrow).
+  - **Not fixed:** the title bar's version line is cut off below about 1200 px (`fcn_CarMesh3D_addTitleBar`); long MATLAB names cut off in the preview at 640 px; Copy names not tested (it would overwrite the clipboard); the demo test changes the shared preference for a few seconds.
+  - Report: `Desktop\Claude\Project_CarMesh3D\agents\D\REPORT_browseLibrary.md`. T38 to T41 in Review now.

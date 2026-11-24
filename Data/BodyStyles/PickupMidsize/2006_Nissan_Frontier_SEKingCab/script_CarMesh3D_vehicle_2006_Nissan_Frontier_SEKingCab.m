@@ -142,6 +142,14 @@
 %   % * First write (drafted by Claude, from the template; an ActsOfDoge
 %   %   % download, Free Standard; the trim was inferred, see
 %   %   % vehicleParameters_sources.md). The first midsize pickup
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2006_Nissan_Frontier_SEKingCab
+%   % * importMirror setting (fcn_CarMesh3D_mirrorMesh), false: the download
+%   %   % looked right-hand drive (Sean, 10:38, asked for it mirrored), but the
+%   %   % old symmetric build had put a second wheel on the right; the
+%   %   % download itself is left-hand drive (10:55), so it stays as it is
+%   % * The interior-objects step (findInteriorObjects)
 
 
 % Vehicle settings (the only part to change for a new vehicle)
@@ -164,6 +172,13 @@ bodyStyle = '';
 % Blender (FBX, glTF, GLB, .blend) are Z up.
 importUpAxis = '+z';
 importForwardAxis = '+y';
+
+% Mirror the model left to right right after it is turned (fcn_CarMesh3D_mirrorMesh):
+% true for a download of a right-hand-drive vehicle, so every CarMesh3D mesh
+% is left-hand drive. This download is LEFT-hand drive after all (checked
+% 2026-11-24 10:55: the old symmetric build had copied its wheel onto the
+% right side too; see this folder's README.md), so it is not mirrored.
+importMirror = false;
 
 % Faces to delete right after import: a regular expression on each face's
 % '<materialName> <groupName>' text, for stray pieces that would spoil the
@@ -237,9 +252,15 @@ partShares = {};
 % footprints cut out): many downloads have no underside, so the reduced
 % mesh can be seen through from below and through its windows
 addFloorPanel = true;
+% Find the interior objects: the two front seats and the steering wheel,
+% by fitting templates to the mesh (fcn_CarMesh3D_findInteriorObjects;
+% 1 to 4 minutes, done once and cached). They are drawn in the 2D outline
+% and turn with the steering (Sean, 2026-11-24 09:19).
+findInteriorObjects = true;
+interiorTemplates = struct();   % this vehicle's own sizes when known, e.g. interiorTemplates.SteeringWheel.Diameter = 0.368;
 
 % What to run
-flag_firstLook = 1;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
+flag_firstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
 flag_compareToOriginal = 1;               % 1: compare the reduced mesh with the download (flagged spots; adds about a minute)
 flag_useCache = 1;                        % 1: reuse each stage (mesh, comparison, checks) when nothing it depends on changed; 0: do every step again
 firstLookNote = '';                       % A note added to the labels figure's title (for example, whether the .glb reader would help)
@@ -299,14 +320,14 @@ if flag_fromBodyStyle
         end
     end
 else
-    stage1Files{end+1} = fullfile(thisFolder, modelFile);
+    stage1Files{end+1} = fullfile(vehicleFiles.DownloadRoot, modelFile);
 end
 stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodyStyleMesh.m', 'fcn_CarMesh3D_loadBodyStyles.m', ...
     'fcn_CarMesh3D_fillSampleMesh.m', 'fcn_CarMesh3D_readGLB.m', 'fcn_CarMesh3D_convertToOBJ.m', 'fcn_CarMesh3D_importMesh.m', ...
     'fcn_CarMesh3D_transferTextureColors.m', 'fcn_CarMesh3D_normalizeMesh.m', 'fcn_CarMesh3D_labelParts.m', ...
     'fcn_CarMesh3D_editLabels.m', 'fcn_CarMesh3D_fitMeshToSpec.m', 'fcn_CarMesh3D_simplifyMesh.m', ...
     'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
-    'fcn_CarMesh3D_restoreGroundClearance.m'};
+    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_mirrorMesh.m', 'fcn_CarMesh3D_findInteriorObjects.m'};
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
     'FirstLook',logical(flag_firstLook), 'Compare',logical(flag_compareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
@@ -336,7 +357,7 @@ else
         if isfile(licenseFile)
             modelLicense = strtrim(fileread(licenseFile));
         end
-        modelPath = fullfile(thisFolder, modelFile);
+        modelPath = fullfile(vehicleFiles.DownloadRoot, modelFile);
         % (a .glb: its texture colors and see-through marks, read directly)
         [~,~,modelExtension] = fileparts(modelPath);
         if strcmpi(modelExtension,'.glb')
@@ -357,6 +378,9 @@ else
         end
         vehicleMesh = fcn_INTERNAL_removeFaces(vehicleMesh, removeFaces);
         vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, FigNum=1);
+        if importMirror
+            vehicleMesh = fcn_CarMesh3D_mirrorMesh(vehicleMesh, FigNum=-1);   % (right-hand drive made left-hand drive)
+        end
         fcn_INTERNAL_savePicture(1, fullfile(vehicleFiles.ChecksFolder,'check_00_orientation.png'));
     end
 
@@ -392,10 +416,13 @@ else
             if ~isempty(textureMesh)
                 originalMesh = textureMesh;   % (the .glb, read directly)
             else
-                originalMesh = fcn_CarMesh3D_importMesh(fullfile(thisFolder, modelFile), Name=vehicleFiles.Name, License=modelLicense);
+                originalMesh = fcn_CarMesh3D_importMesh(fullfile(vehicleFiles.DownloadRoot, modelFile), Name=vehicleFiles.Name, License=modelLicense);
             end
             originalMesh = fcn_INTERNAL_removeFaces(originalMesh, removeFaces);
             originalMesh = fcn_CarMesh3D_normalizeMesh(originalMesh, UpAxis=importUpAxis, ForwardAxis=importForwardAxis, FigNum=-1);
+            if importMirror
+                originalMesh = fcn_CarMesh3D_mirrorMesh(originalMesh, FigNum=-1);
+            end
             originalMesh = fcn_CarMesh3D_labelParts(originalMesh, PartRules=partRules, UseMaterialColors=useMaterialColors, ...
                 PartColors={'body',bodyColor; 'glass',glassColor; 'trim',trimColor}, GlassAlpha=glassAlpha, ...
                 SeeThroughGlass=seeThroughGlass, TextureColorParts=textureColorParts);
@@ -474,6 +501,18 @@ else
         fprintf(1,'Lifted %d overlay faces off the surfaces they lie on\n', numLifted);
         if addFloorPanel
             vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FigNum=-1);
+        end
+    end
+    if findInteriorObjects
+        % (the seats and steering wheel, stored in the mesh as FaceInteriorObject,
+        % InteriorObjectNames and InteriorObjects; a failure only warns)
+        try
+            [interiorObjects, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=interiorTemplates, FigNum=-1);
+            fprintf(1,'Interior objects found: driver seat %d, passenger seat %d, steering wheel %d (drive side %s, from the %s)\n', ...
+                interiorObjects.DriverSeat.Found, interiorObjects.PassengerSeat.Found, interiorObjects.SteeringWheel.Found, ...
+                interiorObjects.DriveSide, interiorObjects.DriveSideSource);
+        catch interiorError
+            warning('CarMesh3D:interiorObjects', 'The interior objects were not found: %s', interiorError.message);
         end
     end
     fcn_CarMesh3D_saveCache(stage1File, stage1Inputs, struct('vehicleMesh',vehicleMesh, 'originalMesh',originalMesh), FigNum=-1);

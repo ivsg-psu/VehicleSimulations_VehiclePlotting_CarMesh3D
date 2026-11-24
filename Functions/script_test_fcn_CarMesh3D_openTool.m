@@ -10,7 +10,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = '2009_Honda_Fit_Sport';
+vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 
 %% DEMO case: the step from the browser, opened by the trunk (hidden here)
 figNum = 10001;
