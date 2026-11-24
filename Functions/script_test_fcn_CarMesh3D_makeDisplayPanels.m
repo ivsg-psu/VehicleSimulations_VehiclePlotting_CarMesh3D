@@ -1,0 +1,153 @@
+% script_test_fcn_CarMesh3D_makeDisplayPanels.m
+% Tests fcn_CarMesh3D_makeDisplayPanels: the display panels shared by the
+% label viewer's own window and the label painter, built here into a
+% hidden window of the test's own, around a viewer built into it.
+
+% REVISION HISTORY:
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_makeDisplayPanels
+%   % * First write
+
+%% Set up the workspace
+close all;
+vehicleID = '2026_CarMesh3D_Sample_GUITestVehicle';   % (every lamp type, covers, interior, hidden sets)
+vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
+loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
+
+%% DEMO case: the three panels beside a viewer, in a window of the test's own (hidden)
+figNum = 10001;
+fprintf(1,'Figure %.0f: DEMO case: the three display panels beside a viewer\n', figNum);
+hostFigure = uifigure('Visible', 'off', 'Position', [50 50 1400 820]);
+hostGrid = uigridlayout(hostFigure, [1 4], 'ColumnWidth', {320, 320, 320, '1x'});
+overallPanel = uipanel(hostGrid, 'Title', 'Overall Display');
+labelsPanel = uipanel(hostGrid, 'Title', 'Labels To Display');
+lampsPanel = uipanel(hostGrid, 'Title', 'Lamps To Display');
+viewerPanel = uipanel(hostGrid);
+changeCount = 0;
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=viewerPanel, ShowTools=false, FigNum=-1);
+panels = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=overallPanel, Labels=labelsPanel, Lamps=lampsPanel, ...
+    OnChange=@() fcn_INTERNAL_count());
+assert(all(isfield(panels, {'MarkAll','MarkOverall','MarkLabels','MarkLamps','RebuildLabels','Controls'})));
+controls = panels.Controls();
+assert(isfield(controls.Overall, 'Colors') && ~isempty(controls.LabelRows) && isfield(controls.LampGroups, 'Tail'));
+
+%% TEST case: the labels in groups, every lamp type listed, none gray on the test vehicle
+figNum = 20001;
+fprintf(1,'Figure %.0f: TEST case: groups and rows\n', figNum);
+texts = get(findall(labelsPanel, 'Type', 'uilabel'), 'Text');
+assert(all(ismember({'Main body panels', 'Objects within interior', 'Lights', 'Visibility'}, texts)), 'The four groups');
+lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
+rowKeys = {controls.LabelRows.Key};
+assert(all(ismember(strcat('light_', {lampTypes.Name}), rowKeys)), 'A row for every lamp type');
+assert(isempty(findall(lampsPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'Every lamp has faces on the test vehicle');
+
+%% TEST case: each panel drives the viewer, and calls OnChange
+figNum = 20002;
+fprintf(1,'Figure %.0f: TEST case: the panels drive the viewer\n', figNum);
+changesBefore = fcn_INTERNAL_count(0);
+fcn_INTERNAL_pickRadio(findall(overallPanel, 'Tag', 'overallColors'), 'vehicle');
+assert(strcmp(viewer.Colors(), 'vehicle'));
+fcn_INTERNAL_pickRadio(findall(overallPanel, 'Tag', 'overallColors'), 'labels');
+fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'colored_part_glass'), false);
+assert(any(strcmp(viewer.Uncolored(), 'part_glass')), 'Colored? No');
+fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'allColored'), true);
+assert(isempty(viewer.Uncolored()), 'All labels Colored? Yes');
+fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'shown_part_trim'), false);
+assert(any(strcmp(viewer.Hidden(), 'part_trim')), 'Shown? No');
+fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'allShown'), true);
+assert(~any(strcmp(viewer.Hidden(), 'part_trim')), 'All labels Shown? Yes');
+fcn_INTERNAL_pickRadio(findall(lampsPanel, 'Tag', 'lamp_Tail'), 'brake');
+assert(strcmp(viewer.NightLights().Tail, 'brake'), 'Tail lights Brake');
+fcn_INTERNAL_pickRadio(findall(lampsPanel, 'Tag', 'lamp_All'), false);
+assert(strcmp(viewer.NightLights().Tail, 'off') && ~viewer.NightLights().LowBeam, 'All lamps Off');
+assert(fcn_INTERNAL_count(0) > changesBefore, 'OnChange called');
+
+%% TEST case: the panels show changes made elsewhere (the viewer's hooks), once marked
+figNum = 20003;
+fprintf(1,'Figure %.0f: TEST case: marking\n', figNum);
+viewer.SetBoundaries(true);
+viewer.SetNightLights(struct('LowBeam', true));
+panels.MarkAll();
+boundaries = findall(overallPanel, 'Tag', 'overallBoundaries');
+assert(isequal(boundaries.SelectedObject.UserData, true), 'Boundaries marked On');
+lowBeam = findall(lampsPanel, 'Tag', 'lamp_LowBeam');
+assert(isequal(lowBeam.SelectedObject.UserData, true), 'Low beams marked On');
+allLamps = findall(lampsPanel, 'Tag', 'lamp_All');
+assert(isnan(allLamps.SelectedObject.UserData), 'All lamps mixed');
+viewer.SetBoundaries(false);
+
+%% TEST case: a host keeps the hidden faces' setting (as the painter does)
+figNum = 20004;
+fprintf(1,'Figure %.0f: TEST case: a host''s ShowHidden\n', figNum);
+hostLabelsPanel = uipanel(hostGrid);
+fcn_INTERNAL_setHostFlag(false);
+panels2 = fcn_CarMesh3D_makeDisplayPanels(viewer, Labels=hostLabelsPanel, ...
+    ShowHidden=@() fcn_INTERNAL_setHostFlag(), SetShowHidden=@(flag) fcn_INTERNAL_setHostFlag(flag)); %#ok<NASGU>
+shownHidden = findall(hostLabelsPanel, 'Tag', 'shown_hidden');   % (this panel's row)
+fcn_INTERNAL_pickRadio(shownHidden, true);
+assert(fcn_INTERNAL_setHostFlag() == true, 'The host''s SetShowHidden called');
+
+viewer.Close();
+delete(hostFigure);
+
+%% FAST mode cases
+figNum = 80001;
+fprintf(1,'Figure %.0f: FAST mode cases\n', figNum);
+hostFigure = uifigure('Visible', 'off');
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=uipanel(hostFigure), ShowTools=false, FigNum=-1);
+panelsFast = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=uipanel(hostFigure), FigNum=-1);
+assert(isfield(panelsFast, 'MarkAll'));
+panelsNone = fcn_CarMesh3D_makeDisplayPanels(viewer, FigNum=[]);   % (no panels: nothing built)
+panelsNone.MarkAll();
+viewer.Close();
+delete(hostFigure);
+
+%% BUG cases
+% (none yet)
+
+%% Fail conditions
+if 1==0
+    % Not a viewer
+    fcn_CarMesh3D_makeDisplayPanels(struct('a', 1));
+end
+
+assert(isempty(timerfindall), 'A timer was left running');
+fprintf(1,'All tests of fcn_CarMesh3D_makeDisplayPanels passed\n');
+
+%% Functions follow
+function countOut = fcn_INTERNAL_count(flagAdd)
+% Counts OnChange calls (called with no input by the panels; with 0 to read)
+persistent numCalls
+if isempty(numCalls)
+    numCalls = 0;
+end
+if nargin == 0
+    numCalls = numCalls + 1;
+end
+countOut = numCalls;
+end % Ends fcn_INTERNAL_count
+
+function flagOut = fcn_INTERNAL_setHostFlag(flagIn)
+% A host's own "show hidden faces" setting (set with an input, read without)
+persistent flagKept
+if isempty(flagKept)
+    flagKept = false;
+end
+if nargin > 0
+    flagKept = logical(flagIn);
+end
+flagOut = flagKept;
+end % Ends fcn_INTERNAL_setHostFlag
+
+function fcn_INTERNAL_pickRadio(group, value)
+% Picks the radio button of this value in a button group, as a click
+% does (setting SelectedObject in code does not run the callback)
+assert(isscalar(group), 'The button group');
+radios = findobj(group.Children, 'flat', 'Type', 'uiradiobutton');
+radio = radios(arrayfun(@(r) isequal(r.UserData, value), radios));
+assert(isscalar(radio), 'The radio button');
+oldRadio = group.SelectedObject;
+group.SelectedObject = radio;
+group.SelectionChangedFcn(group, struct('NewValue', radio, 'OldValue', oldRadio));
+end % Ends fcn_INTERNAL_pickRadio

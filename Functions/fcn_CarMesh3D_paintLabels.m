@@ -243,6 +243,29 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % Lamps To Display: Fog lamps and Reflectors lit; Hazards also
 %   %   % lights the warning lamps (fcn_CarMesh3D_lampTypes; Sean, task 8)
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Overall Display, Labels To Display and Lamps To Display built by
+%   %   % fcn_CarMesh3D_makeDisplayPanels, the same code as the viewer's
+%   %   % own window (Q33 (A), Sean 02:41); the labels now in groups (main
+%   %   % body panels, objects within interior, lights, visibility) and
+%   %   % every lamp type
+%   % * Settings: "Show ground?" (Sean, 02:43): the ground plane under the
+%   %   % vehicle, by day and at night, on by default; shared with the
+%   %   % viewer
+%   % * Fixed: a second double-click on a part painted by double-click
+%   %   % now unpaints it (the single click before it is taken back
+%   %   % first; Sean, 02:24 and 02:49)
+%   % * Esc unselects every face selected and not applied, as one Undo
+%   %   % step (Sean, 02:26); hook ClearPending
+%   % * Fixed: paint applied but not saved now goes into the working mesh
+%   %   % and the viewer's, as saved paint does, so an applied lamp (a tail
+%   %   % light painted) lights with the lamps (Sean, 02:47)
+%   % * Sean's viewLabels review (2026-11-24 03:43): Show ground? moved
+%   %   % from Settings to Overall Display; the photo options there too
+%   %   % (PhotoOptions false); the camera's angles in Overall Display
+%   %   % (the viewer's OnView); the ground in 1 m squares (the viewer's)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -424,6 +447,13 @@ numFaces = size(baseMesh.Faces,1);
 paintTarget = strings(numFaces,1);
 appliedTarget = strings(numFaces,1);
 savedTarget = strings(numFaces,1);
+% (workingTarget: the paint taken into the working mesh, data.Mesh, and
+% the viewer's: the saved paint, and since 2026-11-24 the applied paint
+% too, so applied lamps light like any other: Sean, 02:47)
+workingTarget = strings(numFaces,1);
+% (the click just before a double-click: taken back by it, 2026-11-24)
+lastClickTime = [];
+lastClickUndo = 0;
 undoStack = struct('Faces', {}, 'Before', {}, 'Applied', {});
 strokeOpen = false;
 strokeErase = false;
@@ -522,9 +552,7 @@ hideNameField = [];
 saveVersionButton = [];
 versionFolderField = [];
 versionBrowseButton = [];
-labelRows = struct('Key', {}, 'Colored', {}, 'Shown', {});
-lampGroups = struct();
-overallControls = struct();
+displayPanels = [];   % (Overall Display, Labels To Display, Lamps To Display: fcn_CarMesh3D_makeDisplayPanels, shared with the viewer's own window; Q33 (A))
 % (the vehicle's history, for the fine print: with a vehicle ID only)
 historyID = '';
 meshHistory = false;
@@ -538,7 +566,8 @@ if ischar(vehicleInput) || isstring(vehicleInput)
 end
 [~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, ShowTools=false, ...
     PhotoFolder=photoFolder, Outline=outline, OnHint=@setHint, ColorFilter=@paintedColors, ...
-    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=true, OnLamps=@markLamps, FigNum=-1);
+    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, FigNum=-1);
+% (the photo options are in Overall Display now: Sean's viewLabels T8, 2026-11-24)
 labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
 labelPatch.UserData = 'reduced';
@@ -559,9 +588,11 @@ end
 
 % The panels (Sean, 10:24): built once the viewer is, since they list
 % its labels and lamps; the one open last time opens again
-buildOverallPanel();
-buildLabelsPanel();
-buildLampsPanel();
+displayPanels = fcn_CarMesh3D_makeDisplayPanels(labelViewer, ...
+    Overall=panelHandles(strcmp(panelNames, 'Overall Display')), Labels=panelHandles(strcmp(panelNames, 'Labels To Display')), ...
+    Lamps=panelHandles(strcmp(panelNames, 'Lamps To Display')), Band=blueBand, ...
+    LabelColor=@(name) fcn_INTERNAL_paintColor(data, name), OnChange=@showPaint, ...
+    ShowHidden=@showHiddenOn, SetShowHidden=@setShowHidden, FigNum=-1);
 buildModifyPanel();
 buildSettingsPanel();
 startPanel = 'Modify Labels';
@@ -596,7 +627,7 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'StrokeStart', @strokeStart, 'MouseMove', @mouseMove, 'MouseUp', @mouseUp, 'Click', @click, ...
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
     'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
-    'Stop', @stopTimer, 'Close', @closePainter);
+    'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter);
 if flagOwnWindow
     figureHandle.UserData = painter;
 end
@@ -643,7 +674,7 @@ end
         % shows its own label's color, outlined)
         flagShown = ~hiddenFaces(labelViewer.Hidden());
         pending = find(paintTarget ~= appliedTarget & flagShown);
-        applied = find(appliedTarget ~= savedTarget & paintTarget == appliedTarget & flagShown);   % (saved: in the working mesh)
+        applied = find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown);   % (in the working mesh: drawn as it)
         setOverlay(paintEdges, pending, paintTarget(pending));
         setOverlay(appliedPatch, applied, appliedTarget(applied));
         updateStatus();
@@ -655,7 +686,7 @@ end
         % edits). Saved paint is in the working mesh's own colors. (The
         % viewer calls this as its ColorFilter, then makes hidden faces
         % see-through.)
-        flagChanged = paintTarget ~= savedTarget;
+        flagChanged = paintTarget ~= workingTarget;
         flagCleared = flagChanged & strlength(paintTarget) == 0;
         faceColors(flagCleared,:) = data.BaseLabelColors(flagCleared,:);
         faceAlpha(flagCleared) = data.BaseLabelAlpha(flagCleared);
@@ -701,7 +732,7 @@ end
             end
         end
         flagHidden = false(numFaces,1);
-        changed = appliedTarget ~= savedTarget;   % (saved paint is in the working mesh's labels)
+        changed = appliedTarget ~= workingTarget;   % (paint in the working mesh is in its labels)
         for ith_key = 1:numel(hiddenKeys)
             flagLabel = fcn_INTERNAL_labelFaces(data.Mesh, hiddenKeys{ith_key});
             flagBase = fcn_INTERNAL_labelFaces(data.BaseMesh, hiddenKeys{ith_key});
@@ -724,7 +755,7 @@ end
         if ~isempty(glassIndex)
             flagGlass = data.Mesh.FacePartIndex(:) == glassIndex;
         end
-        changed = paintTarget ~= savedTarget;
+        changed = paintTarget ~= workingTarget;
         baseGlass = find(strcmp(data.BaseMesh.PartNames, 'glass'), 1);
         flagBaseGlass = false(numFaces,1);
         if ~isempty(baseGlass)
@@ -775,9 +806,9 @@ end
             catch
             end
         end
-        markOverall();
-        markLabels();
-        markLamps(labelViewer.NightLights());
+        if ~isempty(displayPanels)
+            displayPanels.MarkAll();
+        end
         markPaintButtons();
     end
 
@@ -785,288 +816,18 @@ end
         name = openPanelName;
     end
 
-    function buildOverallPanel()
-        % The overall display: colors, mesh boundaries, nighttime view, the
-        % view, and the see-through body
-        panelHandle = panelHandles(strcmp(panelNames, 'Overall Display'));
-        grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {22, 24, 24, 24, 28, 28, 22, 50}, 'ColumnWidth', {128, '1x'}, ...
-            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', blueBand, 'Scrollable', 'on');
-        heading = uilabel(grid, 'Text', 'Mesh display', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
-        heading.Layout.Column = [1 2];
-        uilabel(grid, 'Text', 'Colors', 'Tooltip', 'Labels: each face in its label''s color. Vehicle colors: as the animator draws it.');
-        overallControls.Colors = fcn_INTERNAL_radioRow(grid, {'Labels', 'Vehicle'}, {'labels', 'vehicle'}, 66, ...
-            @(value) setOverallColors(value), 'overallColors');
-        uilabel(grid, 'Text', 'Show mesh boundaries', 'Tooltip', 'Draw the edge of every face (the mesh''s triangles)');
-        overallControls.Boundaries = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
-            @(value) setOverallBoundaries(value), 'overallBoundaries');
-        uilabel(grid, 'Text', 'Nighttime view', 'Tooltip', ['A night scene: the vehicle in its own colors, its lamps lit, ' ...
-            'and the light they throw on the ground (switch the lamps in Lamps To Display)']);
-        overallControls.Night = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
-            @(value) setOverallNight(value), 'overallNight');
-        uilabel(grid, 'Text', 'View');
-        uibutton(grid, 'Text', 'Reset view', 'ButtonPushedFcn', @(~,~) labelViewer.ResetView(), ...
-            'Tooltip', 'Put the camera back to the starting view');
-        uilabel(grid, 'Text', '');
-        uibutton(grid, 'Text', 'Copy view call', 'ButtonPushedFcn', @(~,~) labelViewer.CopyViewCall(), ...
-            'Tooltip', 'Put the MATLAB call that opens exactly this view (in fcn_CarMesh3D_viewLabels) on the clipboard');
-        heading = uilabel(grid, 'Text', 'See-through body', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25], ...
-            'Tooltip', 'Makes the body see-through, to look at (and paint) what is inside it');
-        heading.Layout.Column = [1 2];
-        overallControls.SeeThrough = uislider(grid, 'Limits', [0 90], 'Value', 0, 'MajorTicks', [0 45 90], ...
-            'MajorTickLabels', {'0', '45', '90%'}, 'MinorTicks', [], 'FontSize', 9, ...
-            'ValueChangedFcn', @(source,~) setOverallSeeThrough(source.Value/100));
-        overallControls.SeeThrough.Layout.Row = 8;
-        overallControls.SeeThrough.Layout.Column = [1 2];
-    end
-
-    function setOverallColors(value)
-        labelViewer.SetColors(value);
-        showPaint();
-    end
-
-    function setOverallBoundaries(value)
-        labelViewer.SetBoundaries(value);
-        showPaint();
-    end
-
-    function setOverallNight(value)
-        labelViewer.SetNightView(value);
-        markLamps(labelViewer.NightLights());
-        showPaint();
-    end
-
-    function setOverallSeeThrough(fraction)
-        labelViewer.SetSeeThrough(fraction);
-        showPaint();
-    end
-
-    function markOverall()
-        % (the overall display's buttons showing the viewer's state)
-        if ~isfield(overallControls, 'Colors') || ~isvalid(overallControls.Colors)
-            return;
-        end
-        fcn_INTERNAL_selectRadio(overallControls.Colors, labelViewer.Colors());
-        fcn_INTERNAL_selectRadio(overallControls.Boundaries, logical(labelViewer.Boundaries()));
-        fcn_INTERNAL_selectRadio(overallControls.Night, logical(labelViewer.NightView()));
-        overallControls.SeeThrough.Value = 100*labelViewer.SeeThrough();
-    end
-
-    function buildLabelsPanel()
-        % The labels to display: each label (its color, its name), Colored?
-        % (Yes: in its label color; No: plain gray) and Shown? (No: out of
-        % view, to reach the faces under it). Labels with no faces are
-        % listed too, in gray italics.
-        panelHandle = panelHandles(strcmp(panelNames, 'Labels To Display'));
-        delete(panelHandle.Children);
-        kinds = labelViewer.LabelKinds();
-        rowKeys = {'part_body', 'part_glass', 'part_wheel', 'part_trim', 'part_interior', 'light_headlight', ...
-            'light_highbeam', 'light_running', 'light_turnsignal', 'light_tail', 'light_backup'};
-        rowNames = {'body', 'glass', 'wheel', 'trim', 'interior', 'low beam', 'high beam', 'running light', ...
-            'turn signal', 'tail light', 'backup light'};
-        % (any other label of the mesh, after these)
-        extra = setdiff(kinds.Keys, [rowKeys, {'hidden'}], 'stable');
-        for ith_extra = 1:numel(extra)
-            rowKeys{end+1} = extra{ith_extra}; %#ok<AGROW>
-            rowNames{end+1} = kinds.Names{strcmp(kinds.Keys, extra{ith_extra})}; %#ok<AGROW>
-        end
-        numRows = numel(rowKeys) + 5;
-        grid = uigridlayout(panelHandle, [numRows 4], 'RowHeight', [repmat({22}, 1, numRows-1), {36}], ...
-            'ColumnWidth', {16, '1x', 70, 70}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
-            'BackgroundColor', blueBand, 'Scrollable', 'on');
-        fcn_INTERNAL_gridText(grid, 1, 3, 'Colored?', 'bold', 'Yes: drawn in its label color. No: plain gray, so the others stand out.');
-        fcn_INTERNAL_gridText(grid, 1, 4, 'Shown?', 'bold', 'No: taken out of view (not out of the mesh), to reach the faces under it');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Yes   No', 'normal', '');
-        fcn_INTERNAL_gridText(grid, 2, 4, 'Yes   No', 'normal', '');
-        labelRows = struct('Key', {}, 'Colored', {}, 'Shown', {});
-        % (All labels: sets every row)
-        fcn_INTERNAL_gridText(grid, 3, 2, 'All labels', 'bold', 'Sets every label''s row at once');
-        allColored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setColoredKey('all', value), 'allColored', true);
-        fcn_INTERNAL_place(allColored, 3, 3);
-        allShown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShownKey('all', value), 'allShown', true);
-        fcn_INTERNAL_place(allShown, 3, 4);
-        labelRows(1) = struct('Key', 'all', 'Colored', allColored, 'Shown', allShown);
-        for ith_row = 1:numel(rowKeys)
-            row = ith_row + 3;
-            key = rowKeys{ith_row};
-            flagPresent = any(strcmp(kinds.Keys, key));
-            color = fcn_INTERNAL_paintColor(data, regexprep(key, '^(part|light)_', ''));
-            box = uipanel(grid, 'BackgroundColor', color, 'BorderType', 'line');
-            fcn_INTERNAL_place(box, row, 1);
-            nameLabel = fcn_INTERNAL_gridText(grid, row, 2, rowNames{ith_row}, 'normal', '');
-            if ~flagPresent
-                set(nameLabel, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic', 'Tooltip', 'No faces have this label yet');
-            end
-            colored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setColoredKey(key, value), ['colored_' key]);
-            fcn_INTERNAL_place(colored, row, 3);
-            shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShownKey(key, value), ['shown_' key]);
-            fcn_INTERNAL_place(shown, row, 4);
-            labelRows(end+1) = struct('Key', key, 'Colored', colored, 'Shown', shown); %#ok<AGROW>
-        end
-        % (the hidden faces: shown or not, as "Show hidden faces" in
-        % Modify Labels)
-        row = numel(rowKeys) + 4;
-        box = uipanel(grid, 'BackgroundColor', fcn_INTERNAL_paintColor(data, 'hide'), 'BorderType', 'line');
-        fcn_INTERNAL_place(box, row, 1);
-        fcn_INTERNAL_gridText(grid, row, 2, 'hidden (not drawn)', 'normal', 'Faces hidden in the mesh (hide, never delete)');
-        shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 34, @(value) setShowHidden(value), 'shown_hidden');
-        fcn_INTERNAL_place(shown, row, 4);
-        labelRows(end+1) = struct('Key', 'hidden', 'Colored', [], 'Shown', shown);
-        note = fcn_INTERNAL_gridText(grid, numRows, 1, 'Gray names: no faces have this label yet.', 'normal', '');
-        set(note, 'FontColor', [0.4 0.4 0.4], 'FontSize', 11, 'WordWrap', 'on');
-        note.Layout.Column = [1 4];
-        markLabels();
-    end
-
-    function setColoredKey(key, flagColored)
-        if isnan(flagColored)
-            return;
-        end
-        keys = {labelRows(~cellfun(@isempty, {labelRows.Colored})).Key};
-        keys = setdiff(keys, {'all'}, 'stable');
-        uncolored = labelViewer.Uncolored();
-        if strcmp(key, 'all')
-            if flagColored
-                uncolored = {};
-            else
-                uncolored = keys;
-            end
-        elseif flagColored
-            uncolored = setdiff(uncolored, {key}, 'stable');
-        else
-            uncolored = union(uncolored, {key}, 'stable');
-        end
-        labelViewer.SetUncolored(uncolored);
-        showPaint();
-        markLabels();
-    end
-
-    function setShownKey(key, flagShown)
-        if isnan(flagShown)
-            return;
-        end
-        keys = setdiff({labelRows.Key}, {'all', 'hidden'}, 'stable');
-        hidden = labelViewer.Hidden();
-        if strcmp(key, 'all')
-            if flagShown
-                hidden = {};
-            else
-                hidden = keys;
-            end
-            setShowHidden(flagShown);
-        elseif flagShown
-            hidden = setdiff(hidden, {key}, 'stable');
-        else
-            hidden = union(hidden, {key}, 'stable');
-        end
-        setHidden(hidden);
-    end
-
+    %% The display panels (fcn_CarMesh3D_makeDisplayPanels): their marks
     function markLabels()
-        % (each label's buttons showing the viewer's state; All shows the
-        % common setting, or none when they differ)
-        if isempty(labelRows) || ~isvalid(labelRows(1).Colored)
-            return;
+        if ~isempty(displayPanels)
+            displayPanels.MarkLabels();
         end
-        uncolored = labelViewer.Uncolored();
-        hidden = labelViewer.Hidden();
-        coloredStates = [];
-        shownStates = [];
-        for ith_row = 2:numel(labelRows)
-            key = labelRows(ith_row).Key;
-            if strcmp(key, 'hidden')
-                fcn_INTERNAL_selectRadio(labelRows(ith_row).Shown, showHiddenOn());
-                continue;
-            end
-            flagColored = ~any(strcmp(uncolored, key));
-            flagShown = ~any(strcmp(hidden, key));
-            fcn_INTERNAL_selectRadio(labelRows(ith_row).Colored, flagColored);
-            fcn_INTERNAL_selectRadio(labelRows(ith_row).Shown, flagShown);
-            coloredStates(end+1) = flagColored; %#ok<AGROW>
-            shownStates(end+1) = flagShown; %#ok<AGROW>
-        end
-        fcn_INTERNAL_selectRadio(labelRows(1).Colored, fcn_INTERNAL_common(coloredStates));
-        fcn_INTERNAL_selectRadio(labelRows(1).Shown, fcn_INTERNAL_common(shownStates));
-    end
-
-    function buildLampsPanel()
-        % The lamps to display: each lamp Off or On (the tail lights also
-        % Brake), lit on the model by day, and with their light at night
-        panelHandle = panelHandles(strcmp(panelNames, 'Lamps To Display'));
-        lampTypes = labelViewer.LampTypes();
-        rows = {'LowBeam', 'Low beams', 'headlight', 'headlight'; 'HighBeam', 'High beams', 'highbeam', 'highbeam'; ...
-            'Running', 'Running lights', 'running', 'running'; 'TurnLeft', 'Left turn signal', 'turnsignal', 'turnsignal'; ...
-            'TurnRight', 'Right turn signal', 'turnsignal', 'turnsignal'; 'Hazards', 'Hazards', 'turnsignal', 'turnsignal'; ...
-            'Tail', 'Tail lights', 'tail', 'tail'; 'Backup', 'Backup lights', 'backup', 'backup'; ...
-            'FogLights', 'Fog lamps', 'fog', 'fog'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};   % (the last two: Sean, task 8)
-        numRows = size(rows,1) + 4;
-        grid = uigridlayout(panelHandle, [numRows 3], 'RowHeight', [repmat({22}, 1, numRows-1), {48}], ...
-            'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
-            'BackgroundColor', blueBand, 'Scrollable', 'on');
-        fcn_INTERNAL_gridText(grid, 1, 3, 'Status?', 'bold', 'Which lamps are switched on');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Off     On      3rd state', 'normal', '');
-        lampGroups = struct();
-        for ith_row = 1:size(rows,1)
-            row = ith_row + 2;
-            name = rows{ith_row,1};
-            box = uipanel(grid, 'BackgroundColor', fcn_INTERNAL_paintColor(data, rows{ith_row,4}), 'BorderType', 'line');
-            fcn_INTERNAL_place(box, row, 1);
-            nameLabel = fcn_INTERNAL_gridText(grid, row, 2, rows{ith_row,2}, 'normal', '');
-            if strcmp(name, 'Hazards')
-                nameLabel.Tooltip = 'Both turn signals at once, and the warning lamps';
-            elseif strcmp(name, 'Reflectors')
-                nameLabel.Tooltip = 'The reflectors as another car''s headlights light them (outside light)';
-            end
-            if ~any(strcmp(lampTypes, rows{ith_row,3}))
-                set(nameLabel, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic', ...
-                    'Tooltip', 'No faces have this lamp yet; its light still shows at night');
-            end
-            if strcmp(name, 'Tail')
-                group = fcn_INTERNAL_radioRow(grid, {'', '', 'Brake'}, {'off', 'on', 'brake'}, 36, ...
-                    @(value) setLamp('Tail', value), 'lamp_Tail');
-            else
-                group = fcn_INTERNAL_radioRow(grid, {'', ''}, {false, true}, 36, @(value) setLamp(name, value), ['lamp_' name]);
-            end
-            fcn_INTERNAL_place(group, row, 3);
-            lampGroups.(name) = group;
-        end
-        row = size(rows,1) + 3;
-        fcn_INTERNAL_gridText(grid, row, 2, 'All lamps', 'bold', 'Every lamp off, or on');
-        lampGroups.All = fcn_INTERNAL_radioRow(grid, {'', ''}, {false, true}, 36, @(value) setLamp('All', value), 'lamp_All', true);
-        fcn_INTERNAL_place(lampGroups.All, row, 3);
-        note = fcn_INTERNAL_gridText(grid, numRows, 1, ['Lit on the model by day; at night, with their light too. ' ...
-            'Gray names: no faces have this lamp yet; its light still shows.'], 'normal', '');
-        set(note, 'FontColor', [0.4 0.4 0.4], 'FontSize', 11, 'WordWrap', 'on', 'VerticalAlignment', 'top');
-        note.Layout.Column = [1 3];
-        markLamps(labelViewer.NightLights());
-    end
-
-    function setLamp(name, value)
-        if isnumeric(value) && isnan(value)
-            return;
-        end
-        labelViewer.SetNightLamp(name, value);   % (the viewer calls markLamps back)
-        showPaint();
     end
 
     function markLamps(states)
-        % (the lamps' buttons showing the lamp states; called by the
-        % viewer whenever they change)
-        if ~isfield(lampGroups, 'LowBeam') || ~isvalid(lampGroups.LowBeam)
-            return;
+        % (the viewer calls this with the lamp states, as its OnLamps)
+        if ~isempty(displayPanels)
+            displayPanels.MarkLamps(states);
         end
-        for name = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
-            if isfield(states, name{1})
-                fcn_INTERNAL_selectRadio(lampGroups.(name{1}), logical(states.(name{1})));
-            end
-        end
-        reflectorsOn = isfield(states, 'Reflectors') && states.Reflectors > 0;
-        fogOn = isfield(states, 'FogLights') && logical(states.FogLights);
-        fcn_INTERNAL_selectRadio(lampGroups.Reflectors, reflectorsOn);
-        fcn_INTERNAL_selectRadio(lampGroups.Hazards, logical(states.TurnLeft) && logical(states.TurnRight));
-        fcn_INTERNAL_selectRadio(lampGroups.Tail, lower(char(states.Tail)));
-        flagsOn = [states.LowBeam, states.HighBeam, states.Running, states.TurnLeft, states.TurnRight, ...
-            ~strcmpi(states.Tail, 'off'), states.Backup, fogOn, reflectorsOn];
-        fcn_INTERNAL_selectRadio(lampGroups.All, fcn_INTERNAL_common(logical(flagsOn)));
     end
 
     function buildModifyPanel()
@@ -1168,7 +929,11 @@ end
         % Settings: saving a version, timestamped copies and where they
         % go, reverting, and the edits file
         panelHandle = panelHandles(strcmp(panelNames, 'Settings'));
-        grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {28, 24, 18, 26, 28, 28, 18, 60}, 'ColumnWidth', {165, '1x'}, ...
+        % (the rows' heights fixed or 'fit', never '1x', so the grid is
+        % as tall as its contents and scrolls when the panel is shorter;
+        % the edits file's path wraps, so its row fits it: Sean's T18 note,
+        % "the settings panel does not have a scroll bar if made too small")
+        grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {28, 24, 18, 26, 28, 28, 18, 'fit'}, 'ColumnWidth', {165, '1x'}, ...
             'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', grayBand, 'Scrollable', 'on');
         uilabel(grid, 'Text', 'Save as version');
         saveVersionButton = uibutton(grid, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), ...
@@ -1209,6 +974,14 @@ end
         end
     end
 
+    function markCamera()
+        % (the viewer's camera moved: the readout in Overall Display;
+        % Show ground? is there too now, Sean's viewLabels T3, 2026-11-24)
+        if ~isempty(displayPanels)
+            displayPanels.MarkCamera();
+        end
+    end
+
     function flagOn = versionsOn()
         flagOn = ~isempty(versionsGroup) && isvalid(versionsGroup) && isequal(versionsGroup.SelectedObject.UserData, true);
     end
@@ -1239,7 +1012,12 @@ end
     end
 
     function onOwnKey(~, event)
-        % Ctrl+Z undoes, Ctrl+S saves (as the buttons at the top)
+        % Ctrl+Z undoes, Ctrl+S saves (as the buttons at the top); Esc
+        % unselects every face selected and not applied
+        if strcmp(event.Key, 'escape') && isempty(event.Modifier)
+            clearPending();
+            return;
+        end
         if any(strcmp(event.Modifier, 'control'))
             switch lower(event.Key)
                 case 'z'
@@ -1387,6 +1165,17 @@ end
         if isempty(face)
             return;
         end
+        if flagPiece && ~isempty(lastClickTime) && toc(lastClickTime) < 1 && lastClickUndo > 0 && lastClickUndo == numel(undoStack)
+            % (a double-click comes after a single click on the same spot:
+            % that click is taken back first, so the double-click acts on
+            % the part as it was; else a second double-click took the one
+            % face's paint off, then painted the whole part again: Sean,
+            % 2026-11-24 02:24 and 02:49)
+            clickEntry = undoStack(end);
+            undoStack(end) = [];
+            paintTarget(clickEntry.Faces) = clickEntry.Before;
+        end
+        lastClickTime = [];
         if flagPiece
             if isempty(meshPieces)
                 meshPieces = fcn_INTERNAL_meshPieces(data.Mesh);
@@ -1395,7 +1184,28 @@ end
         end
         flagAlreadyPainted = all(paintTarget(face) == paintValue());
         paintFaces(face, flagAlreadyPainted);
+        if ~flagPiece
+            lastClickTime = tic;
+            lastClickUndo = numel(undoStack);
+        end
         notifyPaint();
+    end
+
+    function clearPending()
+        % Esc: every face selected and not applied (pending paint) is
+        % unselected; one Undo puts them back (Sean, 2026-11-24 02:26)
+        if strokeOpen
+            closeStroke();
+        end
+        faces = find(paintTarget ~= appliedTarget);
+        if isempty(faces)
+            return;
+        end
+        undoStack(end+1) = struct('Faces', faces, 'Before', paintTarget(faces), 'Applied', false);
+        paintTarget(faces) = appliedTarget(faces);
+        lastClickTime = [];
+        showPaint();
+        setHint(sprintf('%d selected face(s) unselected (Esc). Undo puts them back.', numel(faces)));
     end
 
     function testPaint(tool, points, flagErase)
@@ -1426,6 +1236,7 @@ end
         for ith_entry = 1:numel(undoStack)
             undoStack(ith_entry).Applied = true;
         end
+        absorbTarget(appliedTarget);   % (applied paint in the working mesh: a lamp painted lights with the lamps)
         showPaint();
         notifyChange();
     end
@@ -1443,6 +1254,7 @@ end
         paintTarget(lastEntry.Faces) = lastEntry.Before;
         if lastEntry.Applied
             appliedTarget(lastEntry.Faces) = lastEntry.Before;
+            absorbTarget(appliedTarget);
         end
         showPaint();
         if lastEntry.Applied
@@ -1550,15 +1362,21 @@ end
     end
 
     function absorbSaved()
+        % (the saved paint into the working mesh)
+        absorbTarget(savedTarget);
+    end
+
+    function absorbTarget(target)
         % The saved edits taken into the working mesh: each face's label
         % and label color are the edited mesh's (hidden faces keep their
         % place, hidden). Same faces as the base, so the paint layers and
         % Undo carry on.
+        workingTarget = target;
         data.Mesh = data.BaseMesh;
         data.LabelColors = data.BaseLabelColors;
         data.LabelAlpha = data.BaseLabelAlpha;
         meshPieces = [];
-        edits = fcn_INTERNAL_paintEdits(data.BaseMesh, savedTarget);
+        edits = fcn_INTERNAL_paintEdits(data.BaseMesh, target);
         if ~isempty(edits)
             editedNow = fcn_CarMesh3D_editLabels(data.BaseMesh, Edits=edits, FigNum=-1);
             editedLabels = fcn_CarMesh3D_plotLabels(editedNow, FigNum=-1);
@@ -1603,7 +1421,7 @@ end
         end
         if ~isempty(labelViewer)
             labelViewer.SetMesh(data.Mesh, data.LabelColors, data.LabelAlpha);   % (its list too, if the labels changed)
-            buildLabelsPanel();   % (labels with faces now, or none)
+            displayPanels.RebuildLabels();   % (labels with faces now, or none)
         end
     end
 
@@ -1612,6 +1430,7 @@ end
         paintTarget = savedTarget;
         appliedTarget = savedTarget;
         undoStack(:) = [];
+        absorbTarget(savedTarget);
         showPaint();
         notifyChange();
     end
@@ -1621,6 +1440,7 @@ end
         paintTarget = strings(numFaces,1);
         appliedTarget = paintTarget;
         undoStack(:) = [];
+        absorbTarget(appliedTarget);
         showPaint();
         notifyChange();
     end
@@ -2239,30 +2059,3 @@ for ith_radio = 1:numel(radios)
     end
 end
 end % Ends fcn_INTERNAL_selectRadio
-
-%% fcn_INTERNAL_common
-function value = fcn_INTERNAL_common(flags)
-% The common value of these flags, or [] when they differ
-flags = logical(flags);
-if isempty(flags) || all(flags)
-    value = true;
-elseif ~any(flags)
-    value = false;
-else
-    value = [];
-end
-end % Ends fcn_INTERNAL_common
-
-%% fcn_INTERNAL_gridText
-function label = fcn_INTERNAL_gridText(grid, row, column, textIn, weight, tip)
-% A text in a grid's cell
-label = uilabel(grid, 'Text', textIn, 'FontWeight', weight, 'Tooltip', tip);
-label.Layout.Row = row;
-label.Layout.Column = column;
-end % Ends fcn_INTERNAL_gridText
-
-%% fcn_INTERNAL_place
-function fcn_INTERNAL_place(component, row, column)
-component.Layout.Row = row;
-component.Layout.Column = column;
-end % Ends fcn_INTERNAL_place

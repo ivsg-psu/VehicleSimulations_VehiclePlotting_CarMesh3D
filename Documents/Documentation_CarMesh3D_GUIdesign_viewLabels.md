@@ -6,6 +6,30 @@
 
 ---
 
+## Review now (for Sean)
+
+*Updated 2026-11-24 04:02 from your T1 to T8 results (those, with your words, are now in the change log). Tested by Claude (hidden, by script; all pass): the viewer, the painter, the shared panels, the lights check, openTool and the browser; the Fit's files unchanged.*
+
+**First:** close any viewer or painter window and run `clear functions`.
+
+- **T19. Show ground? in Overall Display:** it is under Nighttime view?, in both the viewer and the painter; GUI settings (viewer) and Settings (painter) no longer have it.
+(Sean's result:)
+
+- **T20. The ground, day and night:** squares of exactly 1 m on whole-meter lines, 10 m past the vehicle on every side; the same squares and extent by day (light) and at night (dark). The painter shows the same ground.
+(Sean's result:)
+
+- **T21. Night graying:** with Nighttime view? On, Colors? and the see-through slider are grayed, and their tooltip says why (at night the vehicle is drawn solid, in its own colors); Off brings them back. (Your T3 bugs: these controls did nothing at night by design, which is why they now say so.)
+(Sean's result:)
+
+- **T22. Camera readout:** under Copy view call, "Camera: <dial>° on the dial, <down>° down, <distance> m from the center of view"; it follows as you turn the model with the mouse (within a quarter second), in both windows. Reset view at the defaults reads 60 and 20. See Q34 below on your 105° reading. The distance is large (about 28 m for the Fit) because MATLAB places the camera far away with a narrow lens; the picture is the same as a near camera with a wide lens.
+(Sean's result:)
+
+- **T23. Framing:** at open and at Reset view, the vehicle fills the view (the 10 m of ground runs past the edges, not shrinking the vehicle).
+(Sean's result:)
+
+- **T24. Photo options in Overall Display:** a "Photos" heading with the photo folder (Browse...), Turn model with photo? and Photo size?; none under the photo any more, in either window; with no photos they are grayed. Shrink the window: the photo may go, but its options stay reachable in the panel.
+(Sean's result:)
+
 ## 1. What the window is for
 
 The viewer is for **looking** at a vehicle's labels: the 3D model with each label in its own color (or in the vehicle's own colors), next to photos of the real vehicle picked by viewing angle on a dial. It changes nothing in the vehicle's files. When it is closed, it returns its **view settings** (camera, labels shown, colors, photo, night view and lamps), and "Copy view call" puts a MATLAB call on the clipboard that opens exactly the same view, so one person can send a problem spot to another.
@@ -316,7 +340,15 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
 
 **(Claude to Sean)**
 
-*(None open.)*
+**Q34. Your T7 reading of "about 105°" for Reset view.** Measured in MATLAB (hidden), Reset view at the defaults puts the camera at 60° on the dial (from the front, toward the left side), 20° down, and the dial's arrow and the new readout agree. What did you compare against?
+- (A) *Recommended.* The photo dial's arrow or the nearest photo: then please read the new camera readout (T22) at Reset view and tell me the numbers; if it says 60 but looks wrong, the dial's 0 or direction is what to fix.
+- (B) By eye, from the model (it looked more side-on than 60°): the readout will settle it.
+- (C) Something else (please say).
+
+*Sean, 04:08 (chat): (A), the dial's arrow or the nearest photo.*
+
+*Claude, 04:09:* checked the Fit in MATLAB (hidden): at Reset view the readout says 60° on the dial and 20° down, the photo shown is `ViewInDegrees_060.jpg`, and the camera sits toward the front-left, 60° from straight ahead (the front is +x). So the code, the dial and the photo's name agree. If the view still looks like about 105° next to that photo, the likely cause is the photo itself: the 060 picture may not have been taken from 60° (a mislabeled photo, or the photo set's 0° is not the front). Stays open until Sean reads T22's numbers at Reset view; then (if the photo is the cause) the photo set gets fixed, not the code.
+
 
 **(Sean to Claude)**
 
@@ -378,3 +410,59 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
   - **Scrolling, Sean 00:58** ("Can we have a rule to make all panels scrollable up/down?"): the Lamps panel cut off All on / All off. The panel was scrollable but the grid inside it fills the panel and squeezes its rows; now the grid scrolls (Lamps and Photo options). T10: **pass** (Sean 01:28). Rule added to how_we_work; and (Sean 01:28) a GUI's tests include making the window short, to check no panel vanishes.
   - **Tires at night, Sean 01:03** (a starburst on the tire sides): the normals were right; the tire's texture-sampled face colors alternated. Q30 (A): tires drawn in one color (fcn_CarMesh3D_labelParts). **Confirmed** by Sean 01:15.
 - 2026-11-24 01:41 (Sean, "Agree"): **a "Driver's view" option** to come, from the driver's eye point. Agreed method: (1) estimated from the glass and roof (height: the roof's inside minus about 0.12 m; along the car: from the A-pillar back to just ahead of the B-pillar; across: about 22% of the width toward the driver's side, by a left- or right-hand-drive setting), with (3) an override `DriverEye = [x y z]` in the vehicle's script (and later a "Set driver's eye" click on the headrest). (2) from a found steering wheel replaces (1) once Task 9 is done. Not started. Context (Sean 01:35): the agreement on the interior was found at 02:40 in the painter's design file: plan item P5 (C2S 7), interior objects as sub-labels seat, steering wheel and console under `interior`, cabin surfaces no longer labeled interior; and Sean's reminder S2C 1 there, to return to how the interior mesh is made. Not built yet (the build still labels the interior by voxels).
+- 2026-11-24 02:41 to 02:55 (Claude): section 5 built (Q33 (A), Sean 02:41: the display panels' code shared with the painter, in `fcn_CarMesh3D_makeDisplayPanels`, new). Its own window: top bar (Menu, Exit, status), Overall Display, Labels To Display (in the four groups), Lamps To Display, GUI settings (starting view, Show ground?, the mesh file, Reset to defaults); photo options shown (V6). Not yet built: GUI settings' color pickers (the painter's P3). Also the ground plane by day and at night, on by default, switchable in GUI settings and the painter's Settings, one preference for both (Sean, 02:43). The starting view 60 on the dial, 20 down (V8). Tests pass (hidden). Review round T1 to T8: see the next entry.
+
+- 2026-11-24 03:43 to 04:02 (Sean's review T1 to T8, results in his words below; built by Claude):
+  - **Show ground?** moved to Overall Display, in both windows (T3); taken out of the viewer's GUI settings and the painter's Settings.
+  - **One ground for day and night** (T6): squares of exactly 1 m on whole-meter lines, 10 m past the vehicle, the same squares and extent by day and at night (light or dark); one function, so the painter's is the same. The camera is framed on the vehicle, not the ground.
+  - **Colors? and see-through grayed at night** with a tooltip (T3's two bugs: at night the vehicle is drawn solid in its own colors, so these did nothing then; not a fault of the ground switch).
+  - **Camera readout** under Copy view call (T7): the dial angle, the angle down, and the distance from the center of view (hook `CameraInfo`, option `OnView`; the view timer now runs with no photos too). The 105° reading is Q34.
+  - **Photo options in Overall Display** (T8): photo folder, Turn model with photo?, Photo size?; no longer under the photo, in either window (the painter's `PhotoOptions=false`).
+  - Found while testing: `axis equal` sets the axes' limits back to automatic, so the framing now sets equal axes itself; and `view()` reads angles in the plot box's units, so the test reads the camera's own angles (as the dial does since 2026-11-23 14:37).
+  - Tests: makeDisplayPanels, viewLabels, paintLabels, animateChecks, openTool, browseLibrary all pass (hidden); the Fit's label edits and review files unchanged. Not yet: Browse... to a photo folder when the viewer opened with no photos (it says "No folder"; the photo side is only built when there are photos).
+
+  **Review round T1 to T8 (2026-11-24 02:55), with Sean's results as written:**
+
+  - **T1. Layout:** the top bar has ☰ Menu, Exit and a status line (vehicle; label or vehicle colors; day or night). The window opens with Overall Display at the left; the photo options are under the photo.
+  (Sean's result:)
+  * All pass
+
+  - **T2. Menu:** pick each panel; one shows at a time; the open one picked again closes the column and the model widens.
+  (Sean's result:)
+  * All pass
+
+  - **T3. Overall Display:** Colors? Labels/Vehicle; Show mesh boundaries? Off/On; Nighttime view? Off/On; Reset view; Copy view call; the see-through slider.
+
+  (Sean's result:)
+  * Button for whether to display the road or not seems to be more natural in "Overall Display" panel. Please move it there.
+  * BUG: when set to night mode, and ground is selected to off, the "Overall Diplay / See-through body does not work. NOTE: this was not repeatable. Moving on to other menu testing, and returning, the functionality worked again.
+  * BUG: when set to night mode, and ground is selected to off, the "Overall Diplay / Colors?" radio button does not work. View stays in vehicle colors. NOTE: this was not repeatable. Moving on to other menu testing, and returning, the functionality worked again.
+
+  - **T4. Labels To Display:** the four groups (main body panels, objects within interior, lights with all 11 lamp types, visibility); Colored? No grays a label; Shown? No hides it; All labels sets every row; gray names for labels with no faces.
+  (Sean's result:)
+  * All pass
+
+  - **T5. Lamps To Display:** each lamp Off/On (Tail Off/On/Brake); Hazards; All lamps; by day and at night (the turn-signal fixes of 00:57 still hold).
+
+  (Sean's result:)
+  * All pass
+
+  - **T6. The ground:** a light checkered ground under the vehicle by day, the dark one at night; GUI settings, Show ground? Off removes both; On brings them back. The painter shows the same ground (its Settings has the same switch).
+
+  (Sean's result:)
+
+  Works, but has issues:
+  * Ground extent: how far the ground extends away from the vehicle in each direction is different sizes in the different day/night choices. Should be same 
+  * Checker "grid" size: should be same regardless of day or night/ 
+  * Checker size: suggest a checker size that is EXACTLY 1 meter grid, so user has a reference when checking the vehicle scale. Push this requirement as well into the paintLabels GUI.
+
+
+  - **T7. GUI settings:** set the starting view (for example 90 on the dial, 30 down), press Reset view in Overall Display: the camera goes there. Reset to defaults puts 60 and 20 back, and the ground on. The painter's Reset view follows the same setting.
+  (Sean's result:)
+  * It does not go to 60 degrees. It looks more lie 105 degrees. BUG?
+  * It would help to have a display somewhere that shows the camera ground and vertical angles, and camera distance from center of view. Perhaps print this into text fields within Overall Display? under the copy view call? Note: this would also help with the debugging of this issue 
+
+  - **T8. Short window:** make the window short: every panel scrolls, nothing vanishes.
+  (Sean's result:)
+  * All panels scroll, this works
+  * Photo panel disappears if shrink vertical path too much (as expected). Since photos are rarely changed, let's absorb the photo panel's options into the Overall Display, unless that breaks other GUIs (then, let's discuss). The photo panel itself would then be no longer needed. That willl also give a very clean look to the GUI where all visual attention goes to the mesh and photos, where it should be.

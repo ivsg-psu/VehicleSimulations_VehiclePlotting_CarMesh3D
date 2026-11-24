@@ -9,6 +9,13 @@
 %   % * Tests the see-through body, the rendered glass, and the interior
 %   %   % seen through clear glass
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_viewLabels
+%   % * Its own window in the painter's layout: the menu, one panel at a
+%   %   % time, the panels driving the viewer, GUI settings, the ground
+%   %   % plane by day and night (Q33 (A)); "Show mesh boundaries" set in
+%   %   % Overall Display; GUI settings put back at the end
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -258,6 +265,108 @@ catch err
 end
 delete(emptyFile);
 
+%% TEST case: Its own window in the painter's layout: the menu, the panels, GUI settings, the ground (Q33 (A); Sean, 2026-11-24 02:41 and 02:43)
+fprintf(1,'TEST case: its own window: menu, panels, GUI settings, ground\n');
+% (the GUI settings it keeps, put back at the end, even if the test stops)
+prefsBefore = struct();
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+    if ispref('CarMesh3D', prefName{1})
+        prefsBefore.(prefName{1}) = getpref('CarMesh3D', prefName{1});
+    end
+end
+cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+% (the top bar: the menu and Exit; no old tool row or label list in sight)
+assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu')), 'The Menu button');
+assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Text', 'Exit')), 'The Exit button');
+assert(isempty(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Title', 'Labels')), 'No old label list');
+% (it opens at Overall Display; each panel opens alone; the open one picked again closes it)
+assert(strcmp(viewer.Panel(), 'Overall Display'));
+for panelName = {'Labels To Display', 'Lamps To Display', 'GUI settings', 'Overall Display'}
+    viewer.OpenPanel(panelName{1});
+    assert(strcmp(viewer.Panel(), panelName{1}));
+    shownPanels = findall(viewer.Figure, 'Type', 'uipanel', 'Visible', 'on', '-regexp', 'Tag', '(Display|settings)$');
+    assert(isscalar(shownPanels) && strcmp(shownPanels.Tag, panelName{1}), 'One panel at a time');
+end
+% (Overall Display drives the viewer: the colors)
+colorsGroup = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallColors');
+fcn_INTERNAL_pickRadio(colorsGroup, 'vehicle');
+assert(strcmp(viewer.Colors(), 'vehicle'), 'Colors? Vehicle');
+fcn_INTERNAL_pickRadio(colorsGroup, 'labels');
+% (Labels To Display: Shown? No for glass hides it; the row follows the viewer)
+shownGlass = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'shown_part_glass');
+fcn_INTERNAL_pickRadio(shownGlass, false);
+assert(any(strcmp(viewer.Hidden(), 'part_glass')), 'Shown? No hides the label');
+fcn_INTERNAL_pickRadio(shownGlass, true);
+assert(~any(strcmp(viewer.Hidden(), 'part_glass')));
+% (one label shown alone shows as that label Colored? Yes, the rest No)
+viewer.ShowLabel('part_body');
+panels = viewer.Panels();
+panels.MarkLabels();
+coloredGlass = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'colored_part_glass');
+assert(isequal(coloredGlass.SelectedObject.UserData, false), 'One label alone: the others Colored? No');
+viewer.ShowLabel('all');
+% (Lamps To Display: Left turn On, then Hazards Off: both turn signals off)
+fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'lamp_TurnLeft'), true);
+assert(viewer.NightLights().TurnLeft, 'Left turn signal on');
+fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'lamp_Hazards'), false);
+assert(~viewer.NightLights().TurnLeft && ~viewer.NightLights().TurnRight, 'Hazards Off: both off');
+% (the ground: shown by day by default; Show ground? Off hides it, at night too)
+viewer.SetGround(true);
+dayGround = findall(viewer.Axes, 'Type', 'patch', 'Tag', 'dayGround');
+assert(isscalar(dayGround) && strcmp(dayGround.Visible, 'on'), 'The ground by day');
+fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'showGround'), false);
+assert(~viewer.Ground() && strcmp(dayGround.Visible, 'off'), 'Show ground? Off');
+groundRow = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'showGround');
+assert(isscalar(groundRow), 'Show ground? is one row (in Overall Display; GUI settings has none now)');
+assert(isequal(groundRow.SelectedObject.UserData, false), 'Show ground? row follows the viewer');
+viewer.SetNightView(true);
+patchesNoGround = numel(findobj(viewer.Axes, 'Type', 'patch'));
+viewer.SetGround(true);
+assert(numel(findobj(viewer.Axes, 'Type', 'patch')) == patchesNoGround + 1, 'The night ground follows the setting');
+assert(strcmp(dayGround.Visible, 'off'), 'No day ground at night');
+% (Sean's T6: the same ground by day and at night, squares of exactly 1 m on whole meters)
+nightGround = findall(viewer.Axes, 'Type', 'patch', 'Tag', 'nightGround');
+assert(isscalar(nightGround), 'The night ground, tagged');
+assert(isequal(size(nightGround.Vertices), size(dayGround.Vertices)) && ...
+    max(abs(nightGround.Vertices(:) - dayGround.Vertices(:))) < 1e-9, 'Day and night grounds: the same squares, the same extent');
+squareX = dayGround.Vertices(dayGround.Faces(:,2),1) - dayGround.Vertices(dayGround.Faces(:,1),1);
+assert(all(abs(squareX - 1) < 1e-9) && all(reshape(abs(dayGround.Vertices(:,1:2) - round(dayGround.Vertices(:,1:2))), [], 1) < 1e-9), ...
+    'Ground squares exactly 1 m, on whole meters');
+% (Sean's T3: Colors? and see-through grayed at night)
+seeThrough = findall(viewer.Figure, 'Tag', 'overallSeeThrough');
+assert(all(strcmp({colorsGroup.Children.Enable}, 'off')), 'Colors? grayed at night');
+if ~isempty(seeThrough)
+    assert(strcmp(seeThrough(1).Enable, 'off'), 'See-through grayed at night');
+end
+viewer.SetNightView(false);
+assert(strcmp(dayGround.Visible, 'on'), 'The day ground back by day');
+assert(all(strcmp({colorsGroup.Children.Enable}, 'on')), 'Colors? back by day');
+% (Sean's T7: the camera's angles and distance in Overall Display)
+camera = viewer.CameraInfo();
+assert(all(isfield(camera, {'DialAngle','DownAngle','Distance'})) && camera.Distance > 0, 'CameraInfo');
+cameraReadout = findall(viewer.Figure, 'Tag', 'cameraReadout');
+panels.MarkCamera();
+assert(isscalar(cameraReadout) && contains(cameraReadout.Text, sprintf('%.0f', camera.DialAngle)), 'Camera readout');
+% (Sean's T8: the photo options in Overall Display, none under the photo)
+assert(isscalar(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'turnWithPhoto')), 'Turn model with photo? once, in Overall Display');
+assert(isscalar(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'photoSize')), 'Photo size? once, in Overall Display');
+% (the starting view: GUI settings; Reset view goes there)
+viewer.SetStartView(90, 30);
+viewer.ResetView();
+% (the camera's own angles, in meters: view() reads them in the plot box's
+% units, which differ once the axes are framed on the vehicle)
+camera = viewer.CameraInfo();
+assert(abs(mod(camera.DialAngle - 90 + 180, 360) - 180) < 0.01 && abs(camera.DownAngle - 30) < 0.01, ...
+    sprintf('Reset view at the starting view (got %.6f, %.6f)', camera.DialAngle, camera.DownAngle));
+assert(isequal(viewer.StartView(), [90 30]));
+% (framed on the vehicle, not the 10 m of ground around it)
+meshNow = viewer.Patch.Vertices;
+xLimits = viewer.Axes.XLim;
+assert(xLimits(1) > min(meshNow(:,1)) - 1 && xLimits(2) < max(meshNow(:,1)) + 1, 'The view framed on the vehicle');
+viewer.Close();
+clear cleanupPrefs;   % (the GUI settings put back)
+
 %% Fail conditions
 if 1==0
     %% FAIL case: not a mesh file or a mesh
@@ -282,8 +391,31 @@ viewer.Close();
 end % Ends fcn_INTERNAL_callOf
 
 function fcn_INTERNAL_tickBoundaries(viewer, flagOn)
-% Ticks (or unticks) "Show mesh boundaries", as a person would
-boundaryBox = findall(viewer.Figure, 'Type', 'uicheckbox', 'Text', 'Show mesh boundaries');
-boundaryBox.Value = flagOn;
-boundaryBox.ValueChangedFcn(boundaryBox, []);
+% Sets "Show mesh boundaries?" Off or On in Overall Display, as a person
+% would (its own window's menu panel, since 2026_11_24)
+group = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallBoundaries');
+fcn_INTERNAL_pickRadio(group, logical(flagOn));
 end % Ends fcn_INTERNAL_tickBoundaries
+
+function fcn_INTERNAL_pickRadio(group, value)
+% Picks the radio button of this value in a button group, as a click
+% does (setting SelectedObject in code does not run the callback)
+assert(isscalar(group), 'The button group');
+radios = findobj(group.Children, 'flat', 'Type', 'uiradiobutton');
+radio = radios(arrayfun(@(r) isequal(r.UserData, value), radios));
+assert(isscalar(radio), 'The radio button');
+oldRadio = group.SelectedObject;
+group.SelectedObject = radio;
+group.SelectionChangedFcn(group, struct('NewValue', radio, 'OldValue', oldRadio));
+end % Ends fcn_INTERNAL_pickRadio
+
+function fcn_INTERNAL_restorePrefs(prefsBefore)
+% Puts the GUI settings back as they were before the test
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+    if isfield(prefsBefore, prefName{1})
+        setpref('CarMesh3D', prefName{1}, prefsBefore.(prefName{1}));
+    elseif ispref('CarMesh3D', prefName{1})
+        rmpref('CarMesh3D', prefName{1});
+    end
+end
+end % Ends fcn_INTERNAL_restorePrefs

@@ -16,7 +16,13 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 % angle and magnification.
 %
 % It works on its own (its own window), or inside another window, which
-% gives it a panel to build into.
+% gives it a panel to build into. Its own window has the label painter's
+% layout: a top bar (the menu, Exit, what is shown now), and one panel at
+% a time at the left: Overall Display, Labels To Display and Lamps To
+% Display (built by fcn_CarMesh3D_makeDisplayPanels, the same panels as
+% the painter's) and GUI settings (the starting view, the ground plane).
+% A ground plane is drawn under the vehicle, by day and at night, unless
+% switched off in GUI settings.
 %
 % FORMAT:
 %
@@ -65,11 +71,13 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      Parent: a panel or grid to build into; [] (default) for a window of
 %      its own.
 %
-%      LabelListParent: a panel or grid to put the list of labels in.
-%      Default: the side of its own window; none inside a Parent.
+%      LabelListParent: a panel or grid to put the older list of labels
+%      (and lamps) in, for a host that wants it. Default: none (its own
+%      window lists them in Labels To Display and Lamps To Display).
 %
-%      ShowTools: false to leave out the row of tools (colors, reset view,
-%      copy view call). Default true.
+%      ShowTools: inside a host (Parent), false to leave out the row of
+%      tools (colors, reset view, copy view call). Default true. Its own
+%      window has the menu's Overall Display instead.
 %
 %      OnHint: a function called with a hint (HTML text); [] (default) to
 %      show hints in the viewer's own hint line.
@@ -92,11 +100,16 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %
 %      PhotoOptions: true to put the photo's options under the photo (its
 %      folder, with Browse; whether picking a photo turns the model; its
-%      size: small, medium, large). Default false. (The painter uses it.)
+%      size: small, medium, large). Default false; always shown in its
+%      own window. (The painter uses it.)
 %
 %      OnLamps: a function called with the lamp states (a structure, as
 %      in NightLights) whenever they change, for a window with a lamp
 %      panel of its own. Default [] (none).
+%
+%      OnView: a function called (with no input) when the camera has
+%      moved, for a window that shows the camera's angles (the shared
+%      Overall Display). Default [] (none).
 %
 %      Wait: true to wait until the window is closed and return the view
 %      settings then. Default: true in a window of its own on screen,
@@ -137,6 +150,15 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           SetHistory(history): new fine print (after a change)
 %           ResetView(), SetSeeThrough(fraction), SeeThrough(): how
 %               see-through the body is drawn (0 solid, up to 0.9)
+%           LabelColor(name): the color of a label's box ('body',
+%               'headlight', 'hide', ...)
+%           SetGround(flag), Ground(): the ground plane shown or not (a
+%               preference shared with the painter)
+%           SetStartView(dialAngle, downAngle), StartView(): the starting
+%               view (and Reset view's), a preference shared with the
+%               painter
+%           OpenPanel(name), Panel(), Panels(): its own window's panels
+%               (Panels: fcn_CarMesh3D_makeDisplayPanels' functions)
 %           Stop() (its timer), Close()
 %
 % DEPENDENCIES:
@@ -255,6 +277,31 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % lights (Sean, task 8; Q24 (A), Q25 (A)). The night lamp states
 %   %   % have FogLights, Hazards and Reflectors
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * Its own window in the painter's layout (Q33 (A), Sean 02:41; the
+%   %   % design file's section 5): a top bar (Menu, Exit, the status),
+%   %   % one panel at a time at the left (Overall Display, Labels To
+%   %   % Display, Lamps To Display: built by
+%   %   % fcn_CarMesh3D_makeDisplayPanels, shared with the painter; and GUI
+%   %   % settings), the photo options under the photo. The tool row and
+%   %   % the old label list are left for hosts that ask for them
+%   %   % (ShowTools, LabelListParent)
+%   % * A ground plane by day (light squares) as at night, on by
+%   %   % default; "Show ground?" in GUI settings, kept as a preference
+%   %   % the painter shares (Sean, 02:43)
+%   % * The starting view (and Reset view) from GUI settings: 60 degrees
+%   %   % on the dial, 20 down by default (V8; the painter's C2S 2)
+%   % * New hooks: LabelColor, SetGround, Ground, SetStartView,
+%   %   % StartView, OpenPanel, Panel, Panels
+%   % * Sean's review T1 to T8 (03:43): Show ground? moved to Overall
+%   %   % Display; the ground in squares of exactly 1 m, the same extent
+%   %   % (10 m past the vehicle) and squares by day and at night, the view
+%   %   % framed on the vehicle; the photo options in Overall Display (not
+%   %   % under the photo, in its own window); the camera's angles and
+%   %   % distance shown in Overall Display (hook CameraInfo, option OnView;
+%   %   % the view timer runs with no photos too)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -286,6 +333,7 @@ arguments
     options.Wait = []           % Wait until closed; [] for the default
     options.PhotoOptions = false % Photo options under the photo (folder, turn the model, size)
     options.OnLamps = []        % Called with the lamp states when they change (a host's lamp panel)
+    options.OnView = []         % Called when the camera moves (a host's camera readout)
     options.Visible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
@@ -480,6 +528,26 @@ nightObjects = gobjects(0);   % (the night scene's ground, light and vehicle)
 dayLights = gobjects(0);      % (the viewer's own lights, off at night)
 labelSwatches = gobjects(0);
 photoIndex = 0;
+% (the ground plane, by day and at night: on unless switched off in GUI
+% settings; one preference for the viewer and the painter, Sean,
+% 2026-11-24 02:43)
+flagGround = fcn_INTERNAL_pref('ShowGround', true);
+dayGround = [];
+% (the starting view, on the dial and looking down: GUI settings; the
+% same for the viewer and the painter: V8, painter C2S 2)
+startDial = fcn_INTERNAL_pref('StartViewDial', 60);
+startDown = fcn_INTERNAL_pref('StartViewDown', 20);
+% (its own window: the painter's layout, Q33 (A): a top bar with the
+% menu, one panel at a time at the left)
+displayPanels = [];
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'};
+panelHandles = gobjects(0);
+menuItems = gobjects(0);
+openPanelName = '';
+leftGrid = [];
+bodyGrid = [];
+statusLabel = [];
+settingsControls = struct();
 flagDialDragging = false;
 flagSyncingView = false;
 lastLabelView = [NaN NaN];
@@ -507,10 +575,42 @@ if flagOwnWindow
         'Visible', visibleText);
     % (the title bar: this function's name and version; the rest under it)
     contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_viewLabels', Subtitle=vehicleName, FigNum=-1);
-    % (the list of labels at the left, beside the model it labels; the
-    % photo at the right: Sean, 00:05)
-    rootGrid = uigridlayout(contentPanel, [1 2], 'ColumnWidth', {235, '1x'}, 'Padding', [6 6 6 6], 'ColumnSpacing', 6);
-    parent = uipanel(rootGrid, 'BorderType', 'none');
+    % (the painter's layout, Q33 (A), Sean 2026-11-24 02:41; the design
+    % file's section 5: a top bar (the menu, Exit, the status), the open
+    % panel at the left beside the model, the model, the photo dial, and
+    % the photo with its options at the right)
+    rootGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
+    topGrid = uigridlayout(rootGrid, [1 3], 'ColumnWidth', {90, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+    uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
+        'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
+        'ButtonPushedFcn', @(~,~) toggleMenu());
+    uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closeViewer(), ...
+        'Tooltip', 'Close the viewer (it returns the view settings; nothing is saved)');
+    statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'viewerStatus');
+    bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
+    leftGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
+    menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1]);
+    menuGrid = uigridlayout(menuPanel, [numel(panelNames) 1], 'RowHeight', repmat({28}, 1, numel(panelNames)), ...
+        'Padding', [4 4 4 4], 'RowSpacing', 2, 'BackgroundColor', [1 1 1], 'Scrollable', 'on');
+    blueBand = [0.93 0.95 1];     % (viewing work, as in the painter)
+    grayBand = [0.94 0.94 0.94];  % (settings)
+    panelColors = {blueBand, blueBand, blueBand, grayBand};
+    menuItems = gobjects(1, numel(panelNames));
+    for ith_panel = 1:numel(panelNames)
+        menuItems(ith_panel) = uibutton(menuGrid, 'Text', panelNames{ith_panel}, 'HorizontalAlignment', 'left', ...
+            'BackgroundColor', panelColors{ith_panel}, 'UserData', panelNames{ith_panel}, ...
+            'ButtonPushedFcn', @(source,~) pickPanel(source.UserData));
+    end
+    holderGrid = uigridlayout(leftGrid, [1 1], 'Padding', [0 0 0 0]);
+    holderGrid.Layout.Row = 2;
+    panelHandles = gobjects(1, numel(panelNames));
+    for ith_panel = 1:numel(panelNames)
+        panelHandles(ith_panel) = uipanel(holderGrid, 'Title', panelNames{ith_panel}, 'FontWeight', 'bold', 'FontSize', 13, ...
+            'BackgroundColor', panelColors{ith_panel}, 'Scrollable', 'on', 'Visible', 'off', 'Tag', panelNames{ith_panel});
+        panelHandles(ith_panel).Layout.Row = 1;
+        panelHandles(ith_panel).Layout.Column = 1;
+    end
+    parent = uipanel(bodyGrid, 'BorderType', 'none');
     parent.Layout.Row = 1;
     parent.Layout.Column = 2;
 else
@@ -518,8 +618,8 @@ else
     figureHandle = ancestor(parent, 'figure');
 end
 toolHeight = 0;
-if options.ShowTools
-    toolHeight = 34;
+if options.ShowTools && ~flagOwnWindow
+    toolHeight = 34;   % (inside a host; its own window has the menu's Overall Display instead)
 end
 hintHeight = 0;
 if flagHasHint
@@ -565,7 +665,7 @@ closeButton = uibutton(toolGrid, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) clos
 if ~flagOwnWindow
     closeButton.Visible = 'off';
 end
-if ~options.ShowTools
+if ~options.ShowTools || flagOwnWindow
     toolGrid.Visible = 'off';
 end
 
@@ -602,8 +702,10 @@ axis(axesHandle, 'off');
 axesHandle.Color = [1 1 1];
 axesHandle.Clipping = 'off';
 meshPatch = fcn_INTERNAL_drawMesh(axesHandle, vehicleMesh, data.LabelColors, data.LabelAlpha);
-view(axesHandle, -40, 20);
-axis(axesHandle, 'equal');
+dayGround = fcn_INTERNAL_ground(axesHandle, vehicleMesh.Vertices, 'day');
+dayGround.Visible = matlab.lang.OnOffSwitchState(flagGround);
+view(axesHandle, startDial + 90, startDown);   % (the dial's angle is the camera's azimuth less 90 degrees)
+fcn_INTERNAL_frameVehicle(axesHandle, vehicleMesh.Vertices);   % (framed on the vehicle, not the ground; equal axes)
 axis(axesHandle, 'vis3d');
 camlight(axesHandle, 'headlight');
 fcn_INTERNAL_quietAxes(axesHandle);
@@ -639,8 +741,8 @@ if ~isempty(photoSet)
     [dialArrow, dialDots] = fcn_INTERNAL_drawDial(dialAxes, data, [photoSet.Angle]);
     dialAxes.ButtonDownFcn = @onDialDown;
     placePhoto();
-    if options.PhotoOptions
-        makePhotoOptions();
+    if options.PhotoOptions && ~flagOwnWindow
+        makePhotoOptions();   % (a host that asks; its own window has them in Overall Display)
     end
 end
 hintLabel = [];
@@ -660,12 +762,7 @@ setHistory(history);
 labelRadios = gobjects(0);
 labelShowBoxes = gobjects(0);
 labelGroup = [];
-listParent = options.LabelListParent;
-if isempty(listParent) && flagOwnWindow
-    listParent = uigridlayout(rootGrid, [1 1], 'Padding', [0 0 0 0]);
-    listParent.Layout.Row = 1;
-    listParent.Layout.Column = 1;
-end
+listParent = options.LabelListParent;   % (its own window lists the labels in Labels To Display instead)
 if ~isempty(listParent)
     % (in a grid of its own, so it fills the space it is given)
     % (the label list, and under it the lamp list of the nighttime view:
@@ -696,11 +793,10 @@ placePhoto();
 setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. Pick a label at the left to see it alone; ' ...
     'untick it to hide it. Photos: drag the red arrow around the vehicle; drag the photo''s bottom left corner to resize it. ' ...
     '"Copy view call" puts this exact view on the clipboard.']);
-if ~isempty(photoSet)
-    viewTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.25, ...
-        'TimerFcn', @(~,~) onModelViewChanged(), 'BusyMode', 'drop');
-    start(viewTimer);
-end
+% (always: the camera's angles in Overall Display follow the view too)
+viewTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.25, ...
+    'TimerFcn', @(~,~) onModelViewChanged(), 'BusyMode', 'drop');
+start(viewTimer);
 meshPatch.DeleteFcn = @(~,~) stopTimer();
 
 viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, ...
@@ -718,8 +814,19 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'SetTurnWithPhoto', @setTurnWithPhoto, 'TurnWithPhoto', @getTurnWithPhoto, ...
     'SetPhotoHeight', @setPhotoHeight, 'PhotoHeight', @getPhotoHeight, 'SetPhotoFolder', @setPhotoFolder, ...
     'PhotoFolder', @getPhotoFolder, 'PlacePhoto', @placePhoto, ...
+    'LabelColor', @getLabelColor, 'SetGround', @setGround, 'Ground', @getGround, 'CameraInfo', @getCameraInfo, ...
+    'SetStartView', @setStartView, 'StartView', @getStartView, ...
+    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'Panels', @getPanels, ...
     'Stop', @stopTimer, 'Close', @closeViewer);
 if flagOwnWindow
+    % (the panels, made once the hooks are: the display panels shared
+    % with the painter, fcn_CarMesh3D_makeDisplayPanels, and GUI
+    % settings; the window opens at Overall Display)
+    displayPanels = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=panelHandles(1), Labels=panelHandles(2), ...
+        Lamps=panelHandles(3), OnChange=@updateStatus, FigNum=-1);
+    buildSettingsPanel();
+    pickPanel('Overall Display');
+    updateStatus();
     figureHandle.UserData = viewer;
 end
 
@@ -1095,7 +1202,11 @@ end
     end
 
     function markPhotoOptions()
-        % (the photo options showing the state)
+        % (the photo options showing the state: Overall Display's, and
+        % those under the photo for a host that asked for them)
+        if ~isempty(displayPanels)
+            displayPanels.MarkOverall();
+        end
         if isempty(photoFolderLabel) || ~isvalid(photoFolderLabel)
             return;
         end
@@ -1215,9 +1326,11 @@ end
     function resetView()
         % (the view it opened with: from the front left, the whole vehicle)
         if isempty(startView)
-            axis(axesHandle, 'auto');
-            view(axesHandle, -40, 20);
-            axis(axesHandle, 'equal');
+            % (the camera worked out again, from the angles and the vehicle)
+            set(axesHandle, 'CameraPositionMode', 'auto', 'CameraTargetMode', 'auto', ...
+                'CameraUpVectorMode', 'auto', 'CameraViewAngleMode', 'auto');
+            view(axesHandle, startDial + 90, startDown);
+            fcn_INTERNAL_frameVehicle(axesHandle, data.Mesh.Vertices);   % (the vehicle, not the ground, fills the view; equal axes)
             axis(axesHandle, 'vis3d');
             drawnow;
             fcn_INTERNAL_freezeCamera(axesHandle);
@@ -1333,6 +1446,31 @@ end
         end
         lastLabelView = [azimuth elevation];
         setDialAngle(azimuth - 90, false, false);
+        notifyView();
+    end
+
+    function notifyView()
+        % (the camera moved: a host's readout, and its own window's)
+        if ~isempty(options.OnView)
+            options.OnView();
+        end
+        if ~isempty(displayPanels)
+            displayPanels.MarkCamera();
+        end
+    end
+
+    function camera = getCameraInfo()
+        % The camera now: its angle on the photo dial (0 the front, 90 the
+        % left side), how far it looks down, and its distance from the
+        % point it looks at (Sean's T7, 2026-11-24)
+        camera = struct('DialAngle', NaN, 'DownAngle', NaN, 'Distance', NaN);
+        if isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        [azimuth, elevation] = fcn_INTERNAL_cameraAngles(axesHandle);
+        camera.DialAngle = mod(azimuth - 90, 360);
+        camera.DownAngle = elevation;
+        camera.Distance = norm(axesHandle.CameraPosition - axesHandle.CameraTarget);
     end
 
     function stopTimer()
@@ -1418,6 +1556,9 @@ end
         else
             leaveNight();
         end
+        if ~isempty(displayPanels)
+            displayPanels.MarkOverall();   % (Colors? and see-through: by day only)
+        end
     end
 
     function enterNight()
@@ -1444,12 +1585,19 @@ end
         dayLights = findobj(axesHandle, 'Type', 'light');
         set(dayLights, 'Visible', 'off');
         meshPatch.Visible = 'off';
+        if ~isempty(dayGround) && isvalid(dayGround)
+            dayGround.Visible = 'off';   % (the night ground instead)
+        end
         nightSky = [0.04 0.05 0.09];
         axesHandle.Color = nightSky;
         modelHolder.BackgroundColor = nightSky;
         buildNight();
-        setHint(['<b>Nighttime view:</b> switch the lamps in the lamp list; hide a label (its Show box, or ' ...
-            'Shown? No) to take it away (the glass over a lamp, say). Paint by day: turn the nighttime view off.']);
+        nightHint = ['<b>Nighttime view:</b> switch the lamps in Lamps To Display (' char(9776) ' Menu); set a label''s ' ...
+            'Shown? to No to take it away (the glass over a lamp, say).'];
+        if ~isempty(options.HiddenFaces)
+            nightHint = [nightHint ' Paint by day: turn the nighttime view off.'];   % (inside the painter)
+        end
+        setHint(nightHint);
     end
 
     function buildNight()
@@ -1461,7 +1609,9 @@ end
         cameraNow = fcn_INTERNAL_getView(axesHandle);
         delete(nightObjects(isvalid(nightObjects)));
         before = axesHandle.Children;
-        fcn_INTERNAL_nightGround(axesHandle, data.Mesh.Vertices);
+        if flagGround
+            fcn_INTERNAL_ground(axesHandle, data.Mesh.Vertices, 'night');
+        end
         light(axesHandle, 'Style', 'infinite', 'Position', [0.3 -0.5 1], 'Color', [0.22 0.22 0.26]);
         shownMesh = fcn_INTERNAL_keepFaces(data.Mesh, ~hiddenFaceFlags());
         if isfield(shownMesh, 'FaceHiddenSet')
@@ -1485,6 +1635,9 @@ end
             return;
         end
         meshPatch.Visible = 'on';
+        if ~isempty(dayGround) && isvalid(dayGround)
+            dayGround.Visible = matlab.lang.OnOffSwitchState(flagGround);
+        end
         axesHandle.Color = [1 1 1];
         modelHolder.BackgroundColor = [1 1 1];
         redraw();
@@ -1552,6 +1705,9 @@ end
         end
         if ~isempty(options.OnLamps)
             options.OnLamps(nightStates);
+        end
+        if ~isempty(displayPanels)
+            displayPanels.MarkLamps(nightStates);   % (its own window's Lamps To Display)
         end
     end
 
@@ -1846,6 +2002,202 @@ end
         end
     end
 
+    %% Its own window: the menu, the panels, GUI settings, the status
+    function toggleMenu()
+        % The menu's list of panels, opened under the menu button (or
+        % closed), as in the painter
+        if isempty(leftGrid) || ~isvalid(leftGrid)
+            return;
+        end
+        if leftGrid.RowHeight{1} == 0
+            leftGrid.RowHeight{1} = numel(panelNames)*30 + 10;
+            bodyGrid.ColumnWidth{1} = 320;
+        else
+            leftGrid.RowHeight{1} = 0;
+            if isempty(openPanelName)
+                bodyGrid.ColumnWidth{1} = 0;
+            end
+        end
+    end
+
+    function pickPanel(name)
+        % Open this panel at the left (the open one closes); the open
+        % panel picked again closes it, and the model takes its width
+        if isempty(leftGrid) || ~isvalid(leftGrid)
+            return;
+        end
+        name = char(name);
+        if strcmp(name, openPanelName) && leftGrid.RowHeight{1} > 0
+            name = '';
+        end
+        openPanelName = name;
+        for ith_item = 1:numel(panelHandles)
+            flagOpen = strcmp(panelNames{ith_item}, openPanelName);
+            panelHandles(ith_item).Visible = matlab.lang.OnOffSwitchState(flagOpen);
+            mark = '    ';
+            if flagOpen
+                mark = [char(10003) ' '];
+            end
+            menuItems(ith_item).Text = [mark panelNames{ith_item}];
+        end
+        leftGrid.RowHeight{1} = 0;
+        if isempty(openPanelName)
+            bodyGrid.ColumnWidth{1} = 0;
+        else
+            bodyGrid.ColumnWidth{1} = 320;
+        end
+        if ~isempty(displayPanels)
+            displayPanels.MarkAll();
+        end
+        markSettings();
+        placePhoto();
+    end
+
+    function name = getOpenPanel()
+        name = openPanelName;
+    end
+
+    function panelsOut = getPanels()
+        panelsOut = displayPanels;
+    end
+
+    function buildSettingsPanel()
+        % GUI settings: only those the viewer uses (the starting view, the
+        % ground), the mesh file shown, and Reset to defaults
+        panelHandle = panelHandles(strcmp(panelNames, 'GUI settings'));
+        band = panelHandle.BackgroundColor;
+        grid = uigridlayout(panelHandle, [9 2], 'RowHeight', {22, 24, 24, 18, 24, 22, 40, 18, 30}, 'ColumnWidth', {150, '1x'}, ...
+            'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');
+        heading = uilabel(grid, 'Text', 'Starting view (and Reset view)', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
+        heading.Layout.Column = [1 2];
+        uilabel(grid, 'Text', 'On the dial (degrees)', 'Tooltip', 'Where the camera starts, as the photo dial reads it: 0 is the front');
+        settingsControls.Dial = uieditfield(grid, 'numeric', 'Limits', [-360 360], 'Value', startDial, ...
+            'ValueChangedFcn', @(source,~) setStartView(source.Value, startDown));
+        uilabel(grid, 'Text', 'Looking down (degrees)', 'Tooltip', 'How far above the vehicle the camera starts');
+        settingsControls.Down = uieditfield(grid, 'numeric', 'Limits', [-89 89], 'Value', startDown, ...
+            'ValueChangedFcn', @(source,~) setStartView(startDial, source.Value));
+        defaultsNote = uilabel(grid, 'Text', '(default is 60 and 20; the painter uses the same)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
+        defaultsNote.Layout.Column = [1 2];
+        groundNote = uilabel(grid, 'Text', '(Show ground? is in Overall Display)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
+        groundNote.Layout.Column = [1 2];
+        heading = uilabel(grid, 'Text', 'Mesh file', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
+        heading.Layout.Column = [1 2];
+        meshText = meshFile;
+        if isempty(meshText)
+            meshText = '(a mesh variable)';
+        end
+        meshLabel = uilabel(grid, 'Text', meshText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'Tooltip', meshText);
+        meshLabel.Layout.Column = [1 2];
+        uilabel(grid, 'Text', '');
+        resetButton = uibutton(grid, 'Text', 'Reset to defaults', 'ButtonPushedFcn', @(~,~) resetSettings(), ...
+            'Tooltip', 'The starting view at 60 and 20, and the ground shown');
+        resetButton.Layout.Row = 9;
+        resetButton.Layout.Column = [1 2];
+        markSettings();
+    end
+
+    function markSettings()
+        % (GUI settings showing the settings now)
+        if ~isfield(settingsControls, 'Dial') || ~isvalid(settingsControls.Dial)
+            return;
+        end
+        settingsControls.Dial.Value = startDial;
+        settingsControls.Down.Value = startDown;
+    end
+
+    function resetSettings()
+        setStartView(60, 20);
+        setGround(true);
+    end
+
+    function setStartView(dialAngle, downAngle)
+        % The starting view (and Reset view's), kept for the viewer and
+        % the painter
+        startDial = double(dialAngle);
+        startDown = double(downAngle);
+        fcn_INTERNAL_setPref('StartViewDial', startDial);
+        fcn_INTERNAL_setPref('StartViewDown', startDown);
+        startView = [];   % (taken again, at the new angles, by the next Reset view)
+        markSettings();
+    end
+
+    function angles = getStartView()
+        angles = [startDial startDown];
+    end
+
+    function setGround(flagOn)
+        % The ground plane, by day and at night; kept for the viewer and
+        % the painter (Sean, 2026-11-24 02:43)
+        flagGround = logical(flagOn);
+        fcn_INTERNAL_setPref('ShowGround', flagGround);
+        if ~isempty(dayGround) && isvalid(dayGround)
+            dayGround.Visible = matlab.lang.OnOffSwitchState(flagGround && ~flagNight);
+        end
+        if flagNight
+            buildNight();
+        end
+        markSettings();
+        if ~isempty(displayPanels)
+            displayPanels.MarkOverall();
+        end
+        updateStatus();
+    end
+
+    function flagOn = getGround()
+        flagOn = flagGround;
+    end
+
+    function color = getLabelColor(name)
+        % The color of a label's box, by name ('body', 'headlight',
+        % 'hide', ...): the color most of its faces have in the labels
+        % view, else a standard one (as the painter's)
+        name = char(name);
+        defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], ...
+            'interior', [0.85 0.65 0.40], 'wheel', [0.08 0.08 0.08], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30]);
+        for thisType = fcn_CarMesh3D_lampTypes(FigNum=-1)'
+            defaults.(thisType.Name) = thisType.LabelColor;
+        end
+        if startsWith(name, 'hide:')
+            name = 'hide';
+        end
+        color = [0.5 0.5 0.5];
+        if isfield(defaults, name)
+            color = defaults.(name);
+        end
+        if any(strcmp(name, {'hide', 'unhide'}))
+            return;
+        end
+        if any(strcmp(name, {'body', 'glass', 'trim', 'interior', 'wheel'}))
+            key = ['part_' name];
+        else
+            key = ['light_' name];
+        end
+        if any(fcn_INTERNAL_labelFaces(data.Mesh, key))
+            color = fcn_INTERNAL_labelColor(data, key);
+        end
+    end
+
+    function updateStatus()
+        % (the top bar's status: what is shown now)
+        if isempty(statusLabel) || ~isvalid(statusLabel)
+            return;
+        end
+        colorsText = 'label colors';
+        if strcmp(colorsMode, 'vehicle')
+            colorsText = 'vehicle colors';
+        end
+        timeText = 'by day';
+        if flagNight
+            timeText = 'at night';
+        end
+        numHidden = numel(setdiff(hiddenKeys, {'hidden'}));
+        hiddenText = '';
+        if numHidden > 0
+            hiddenText = sprintf(' | %d label(s) not shown', numHidden);
+        end
+        statusLabel.Text = sprintf('<b>%s</b> | %s, %s%s', vehicleName, colorsText, timeText, hiddenText);
+    end
+
     function closeViewer()
         % The view settings kept, to be returned; then the window closed
         if ~isempty(axesHandle) && isvalid(axesHandle)
@@ -2121,30 +2473,69 @@ end
 lampTypes = typeNames(flagHas);
 end
 
-function groundPatch = fcn_INTERNAL_nightGround(axesHandle, vertices)
-% The night ground of the lights check (fcn_CarMesh3D_animateChecks): 2 m
-% squares in two dark shades, unlit, 15 m past the vehicle on every
-% side, just under its lowest point
-extent = [min(vertices(:,1))-15, max(vertices(:,1))+15, min(vertices(:,2))-15, max(vertices(:,2))+15];
+function value = fcn_INTERNAL_pref(name, default)
+% A GUI setting kept between sessions (group CarMesh3D, shared with the
+% painter), else its default
+value = default;
+try
+    if ispref('CarMesh3D', name)
+        value = getpref('CarMesh3D', name);
+    end
+catch
+    value = default;
+end
+end % Ends fcn_INTERNAL_pref
+
+function fcn_INTERNAL_setPref(name, value)
+% (a GUI setting kept for the next session; nothing lost if it cannot be)
+try
+    setpref('CarMesh3D', name, value);
+catch
+end
+end % Ends fcn_INTERNAL_setPref
+
+function groundPatch = fcn_INTERNAL_ground(axesHandle, vertices, timeOfDay)
+% The ground under the vehicle (Sean, 2026-11-24 02:43 and 03:43): squares
+% of exactly 1 m on whole-meter lines (a scale to judge the vehicle by), in
+% two shades, light by day and dark at night, the same squares and the same
+% extent either way (10 m past the vehicle on every side), just under its
+% lowest point; unlit, unclipped, and never picked by the mouse
+margin = 10;
+xEdges = floor(min(vertices(:,1)) - margin):1:ceil(max(vertices(:,1)) + margin) - 1;
+yEdges = floor(min(vertices(:,2)) - margin):1:ceil(max(vertices(:,2)) + margin) - 1;
 groundZ = min(vertices(:,3)) - 0.01;
-squareSize = 2;
-xEdges = floor(extent(1)/squareSize)*squareSize:squareSize:extent(2);
-yEdges = floor(extent(3)/squareSize)*squareSize:squareSize:extent(4);
 [gridX, gridY] = meshgrid(xEdges, yEdges);
 numSquares = numel(gridX);
-corners = [0 0; squareSize 0; squareSize squareSize; 0 squareSize];
+corners = [0 0; 1 0; 1 1; 0 1];
 groundVertices = zeros(4*numSquares, 3);
 groundVertices(:,3) = groundZ;
 groundFaces = reshape(1:4*numSquares, 4, [])';
 for ith_corner = 1:4
     groundVertices(ith_corner:4:end, 1:2) = [gridX(:) gridY(:)] + corners(ith_corner,:);
 end
-flagDark = mod(round(gridX(:)/squareSize) + round(gridY(:)/squareSize), 2) == 0;
-shades = [0.11 0.11 0.13; 0.14 0.14 0.16];
+flagDark = mod(round(gridX(:)) + round(gridY(:)), 2) == 0;
+if strcmp(timeOfDay, 'night')
+    shades = [0.11 0.11 0.13; 0.14 0.14 0.16];
+    tag = 'nightGround';
+else
+    shades = [0.94 0.94 0.95; 0.87 0.87 0.89];
+    tag = 'dayGround';
+end
 groundPatch = patch(axesHandle, 'Faces', groundFaces, 'Vertices', groundVertices, ...
     'FaceVertexCData', shades(1 + flagDark, :), 'FaceColor', 'flat', 'EdgeColor', 'none', ...
-    'FaceLighting', 'none', 'Clipping', 'off', 'HitTest', 'off');
-end
+    'FaceLighting', 'none', 'Clipping', 'off', 'HitTest', 'off', 'PickableParts', 'none', 'Tag', tag);
+end % Ends fcn_INTERNAL_ground
+
+function fcn_INTERNAL_frameVehicle(axesHandle, vertices)
+% The axes' limits around the vehicle (5% to spare), so the camera frames
+% the vehicle and not the ground drawn around it (which is unclipped), with
+% equal axes. (Not axis equal: it sets the limits back to automatic.)
+lowCorner = min(vertices, [], 1);
+highCorner = max(vertices, [], 1);
+pad = 0.05*max(highCorner - lowCorner);
+axesHandle.DataAspectRatio = [1 1 1];
+axis(axesHandle, [lowCorner(1)-pad highCorner(1)+pad lowCorner(2)-pad highCorner(2)+pad lowCorner(3)-pad highCorner(3)+pad]);
+end % Ends fcn_INTERNAL_frameVehicle
 
 function thisColor = fcn_INTERNAL_labelColor(data, labelKey)
 % The color most of a label's faces have in the label colors

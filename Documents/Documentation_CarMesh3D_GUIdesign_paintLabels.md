@@ -8,7 +8,12 @@
 
 ## Review now (for Sean)
 
-*No test round open (2026-11-24 02:40). The round of 2026-11-23 15:55 (T1 to T13), with Sean's results, is in the change log; the bugs it found are listed in section 9 until fixed (the P2 edits). Tonight's T11 (every side panel scrolls) passed.*
+*Updated 2026-11-24 04:04. Test numbers are unique across the design files from now on (Sean, 03:43): this file's T14 to T18 of 02:55 are renumbered T25 to T29 (T14 and T15 had been used in the chat); your results for T26 to T29 are in the change log. The viewer's round (T19 to T24, in its design file) covers the painter too: Show ground? and the photo options moved to Overall Display, the 1 m ground, the camera readout.*
+
+**First:** close the painter and run `clear functions`, then open it from the demo menu.
+
+- **T30. Settings scrolls:** open Settings and make the window short: a scroll bar appears and every row can be reached, down to the edits file's path. (The path's row was a fixed 60 pixels, so a long path was cut off rather than scrolled; it now fits its text. Show ground? is no longer in Settings: T19.)
+(Sean's result:)
 
 ## 1. What the window is for
 
@@ -362,7 +367,6 @@ As a process, please add this ruleset to the project: when working with MD files
 
 
 **Open bugs** (Claude, 2026-11-24 02:40; from Sean's test results, quoted in the change log, and his notes since):
-- **Double-click does not unselect** (Sean, 2026-11-24 02:24): a double-click selects a whole part, but another double-click does not unselect it.
 - **Ctrl+drag paints only the first face** (T2, 2026-11-23): dragging should paint every face passed over; Ctrl+Shift+drag (erase) likewise works only at the first click.
 - **Single clicks are unreliable** (T2): a click selects or unselects a face only sometimes; some faces seem unselectable after 3+ tries.
 - **Double-click on glass does nothing** (T2): it worked on the tire and the body.
@@ -370,7 +374,6 @@ As a process, please add this ruleset to the project: when working with MD files
 - **Mirror can't be tested on the GUI test vehicle** (T3): it was not symmetric then. *(Since 2026-11-23 the test vehicle is made exactly symmetric; recheck.)*
 - **Ctrl+Z and Ctrl+S** (T4): did not seem to work.
 - **No Revert button in the top bar** (T6): only Undo, Save, Exit (the agreed 'Revert to prior save' is part of P2).
-- **Esc should unselect all selected faces** (Sean, 2026-11-24 02:26; a request, queued).
 
 ## 10. Change log
 
@@ -489,4 +492,35 @@ As a process, please add this ruleset to the project: when working with MD files
   > - **T13. Look and feel:** anything cut off, misaligned or unclear, at the window's normal size and when resized.
   > 
   > Note anything you find in section 9 (Open issues), as before.
-  > 
+  >
+- 2026-11-24 02:47 to 02:55 (Sean's round, bugs; Claude's fixes): a second double-click now unpaints a part (the single click before it is taken back first); Esc unselects every face selected and not applied, one Undo step (hook ClearPending); applied paint now goes into the working mesh and the viewer's, so an applied tail lamp lights (Sean 02:47); the display panels built by `fcn_CarMesh3D_makeDisplayPanels`, shared with the viewer (Q33 (A)); Settings: Show ground? (Sean 02:43). Tests pass (hidden). T14 to T18 in Review now.
+- 2026-11-24 03:43 to 04:04 (Sean's results for the 02:55 round, given as T14 to T18, renumbered T25 to T29; Claude):
+  - T25 (was T14, double-click twice): **pass**, Sean 04:09 (chat): "This worked as expected". Moved here:
+
+    - **T25. Double-click twice:** pick a label, double-click a part (it is painted), double-click it again: the whole part is unpainted.
+    (Sean's result:)
+    * This worked as expected (Sean, 04:09)
+
+  - Your bug under T29: "the settings panel does not have a scroll bar if made too small. It needs one." The grid's rows were fixed heights, the last (the edits file's path, wrapped) only 60 pixels, so a long path was cut off instead of scrolled; its row now fits the text, and the row left by Show ground? is gone. T30 checks it.
+  - Show ground? moved from Settings to Overall Display, and the photo options there too (`PhotoOptions=false`), both from the viewer's T3 and T8; the ground in 1 m squares; the camera readout (the viewer's `OnView`). Tests: paintLabels and the shared panels pass (hidden).
+
+  **Review round of 02:55, with Sean's results as written (renumbered):**
+
+  - **T26. Esc:** paint a few faces (not applied), press Esc: they are all unselected; Undo puts them back. (Click on the model first, so the window has the keyboard.)
+  (Sean's result:)
+  * All pass
+
+  - **T27. Applied lamp lights:** paint faces as tail, press Apply (not Save), then switch the tail lights On and Brake in Lamps To Display, by day and at night: the painted faces light like the other tail lights.
+  (Sean's result:)
+  * All pass
+
+
+  - **T28. The shared panels:** Overall Display, Labels To Display (now in groups, with all 11 lamp types) and Lamps To Display look and work as before; they are the same code as the viewer's own window now.
+  (Sean's result:)
+  * All pass
+
+  - **T29. Ground:** the ground under the vehicle by day and at night; Settings, Show ground? Off removes it, On brings it back (the viewer follows the same setting).
+  (Sean's result:)
+  * All pass
+
+  BUG: the settings panel does not have a scroll bar if made too small. It needs one.
