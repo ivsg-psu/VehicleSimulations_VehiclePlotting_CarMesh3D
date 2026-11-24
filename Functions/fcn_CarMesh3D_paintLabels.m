@@ -236,6 +236,12 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * A save carries each face's lamp cover (FaceCoverLamp, from
 %   %   % fcn_CarMesh3D_findLampCovers), more parts and lamp functions into
 %   %   % the working mesh, not only its part, lamp type and colors
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Paint as: fog, reflector, license plate, marker and warning lamps;
+%   %   % Lamps To Display: Fog lamps and Reflectors lit; Hazards also
+%   %   % lights the warning lamps (fcn_CarMesh3D_lampTypes; Sean, task 8)
 
 % TO-DO:
 %
@@ -388,7 +394,7 @@ if ~isfield(baseMesh, 'FaceLightType') || isempty(baseMesh.FaceLightType)
     baseMesh.FaceLightType = zeros(size(baseMesh.Faces,1),1);
 end
 if ~isfield(baseMesh, 'LightTypeNames')
-    baseMesh.LightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
+    baseMesh.LightTypeNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
 end
 % (two meshes with the same faces: BaseMesh, before any edits, which the
 % edits are made from and written for; and Mesh, the working mesh, the
@@ -784,7 +790,7 @@ end
         % view, and the see-through body
         panelHandle = panelHandles(strcmp(panelNames, 'Overall Display'));
         grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {22, 24, 24, 24, 28, 28, 22, 50}, 'ColumnWidth', {128, '1x'}, ...
-            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', blueBand);
+            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', blueBand, 'Scrollable', 'on');
         heading = uilabel(grid, 'Text', 'Mesh display', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
         heading.Layout.Column = [1 2];
         uilabel(grid, 'Text', 'Colors', 'Tooltip', 'Labels: each face in its label''s color. Vehicle colors: as the animator draws it.');
@@ -990,7 +996,8 @@ end
         rows = {'LowBeam', 'Low beams', 'headlight', 'headlight'; 'HighBeam', 'High beams', 'highbeam', 'highbeam'; ...
             'Running', 'Running lights', 'running', 'running'; 'TurnLeft', 'Left turn signal', 'turnsignal', 'turnsignal'; ...
             'TurnRight', 'Right turn signal', 'turnsignal', 'turnsignal'; 'Hazards', 'Hazards', 'turnsignal', 'turnsignal'; ...
-            'Tail', 'Tail lights', 'tail', 'tail'; 'Backup', 'Backup lights', 'backup', 'backup'};
+            'Tail', 'Tail lights', 'tail', 'tail'; 'Backup', 'Backup lights', 'backup', 'backup'; ...
+            'FogLights', 'Fog lamps', 'fog', 'fog'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};   % (the last two: Sean, task 8)
         numRows = size(rows,1) + 4;
         grid = uigridlayout(panelHandle, [numRows 3], 'RowHeight', [repmat({22}, 1, numRows-1), {48}], ...
             'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
@@ -1005,7 +1012,9 @@ end
             fcn_INTERNAL_place(box, row, 1);
             nameLabel = fcn_INTERNAL_gridText(grid, row, 2, rows{ith_row,2}, 'normal', '');
             if strcmp(name, 'Hazards')
-                nameLabel.Tooltip = 'Both turn signals at once';
+                nameLabel.Tooltip = 'Both turn signals at once, and the warning lamps';
+            elseif strcmp(name, 'Reflectors')
+                nameLabel.Tooltip = 'The reflectors as another car''s headlights light them (outside light)';
             end
             if ~any(strcmp(lampTypes, rows{ith_row,3}))
                 set(nameLabel, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic', ...
@@ -1045,13 +1054,18 @@ end
         if ~isfield(lampGroups, 'LowBeam') || ~isvalid(lampGroups.LowBeam)
             return;
         end
-        for name = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup'}
-            fcn_INTERNAL_selectRadio(lampGroups.(name{1}), logical(states.(name{1})));
+        for name = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
+            if isfield(states, name{1})
+                fcn_INTERNAL_selectRadio(lampGroups.(name{1}), logical(states.(name{1})));
+            end
         end
+        reflectorsOn = isfield(states, 'Reflectors') && states.Reflectors > 0;
+        fogOn = isfield(states, 'FogLights') && logical(states.FogLights);
+        fcn_INTERNAL_selectRadio(lampGroups.Reflectors, reflectorsOn);
         fcn_INTERNAL_selectRadio(lampGroups.Hazards, logical(states.TurnLeft) && logical(states.TurnRight));
         fcn_INTERNAL_selectRadio(lampGroups.Tail, lower(char(states.Tail)));
         flagsOn = [states.LowBeam, states.HighBeam, states.Running, states.TurnLeft, states.TurnRight, ...
-            ~strcmpi(states.Tail, 'off'), states.Backup];
+            ~strcmpi(states.Tail, 'off'), states.Backup, fogOn, reflectorsOn];
         fcn_INTERNAL_selectRadio(lampGroups.All, fcn_INTERNAL_common(logical(flagsOn)));
     end
 
@@ -1061,7 +1075,8 @@ end
         % how to paint
         panelHandle = panelHandles(strcmp(panelNames, 'Modify Labels'));
         groups = {'Main labeling:', {'body', 'glass', 'trim', 'interior', 'wheel'}; ...
-            'Bulb labeling:', {'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup'}; ...
+            'Bulb labeling:', {'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
+                'fog', 'reflector', 'licenseplate', 'marker', 'warning'}; ...   % (the last five: Sean, task 8)
             'Visibility labeling:', {'hide', 'unhide', ''}};
         rowHeight = 24;
         numRows = 1 + sum(cellfun(@(names) numel(names) + 1, groups(:,2)));
@@ -1154,7 +1169,7 @@ end
         % go, reverting, and the edits file
         panelHandle = panelHandles(strcmp(panelNames, 'Settings'));
         grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {28, 24, 18, 26, 28, 28, 18, 60}, 'ColumnWidth', {165, '1x'}, ...
-            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', grayBand);
+            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', grayBand, 'Scrollable', 'on');
         uilabel(grid, 'Text', 'Save as version');
         saveVersionButton = uibutton(grid, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), ...
             'Tooltip', 'Save, and also keep a timestamped copy (<mesh name>_YYYYMMDDHHMMSS.mat: the edits and the edited mesh, in the folder below)');
@@ -1872,13 +1887,15 @@ end % Ends fcn_INTERNAL_geometry
 function names = fcn_INTERNAL_paintNames()
 % The labels faces can be painted as (parts, light types), and hide and
 % unhide (never delete: Sean, 04:07)
-names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', 'hide', 'unhide'};
+names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
+    'fog', 'reflector', 'licenseplate', 'marker', 'warning', 'hide', 'unhide'};
 end % Ends fcn_INTERNAL_paintNames
 
 %% fcn_INTERNAL_paintText
 function textOut = fcn_INTERNAL_paintText(name)
 % A paint label's button text: the headlight is the low beam
-textOut = strrep(strrep(strrep(name, 'turnsignal', 'turn signal'), 'highbeam', 'high beam'), 'headlight', 'low beam');
+textOut = strrep(strrep(strrep(strrep(name, 'turnsignal', 'turn signal'), 'highbeam', 'high beam'), 'headlight', 'low beam'), ...
+    'licenseplate', 'license plate');
 end % Ends fcn_INTERNAL_paintText
 
 %% fcn_INTERNAL_paintColor
@@ -1888,6 +1905,11 @@ function [color, alpha] = fcn_INTERNAL_paintColor(data, name)
 defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], 'interior', [0.85 0.65 0.40], ...
     'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'highbeam', [0.80 0.90 1.00], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
     'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30]);
+for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types: their label colors; Sean, task 8)
+    if ~isfield(defaults, thisType.Name)
+        defaults.(thisType.Name) = thisType.LabelColor;
+    end
+end
 if startsWith(name, 'hide:')
     name = 'hide';   % (a hidden set: "hide:<set>")
 end

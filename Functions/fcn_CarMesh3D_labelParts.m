@@ -140,8 +140,10 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %               (1 FL, 2 FR, 3 RL, 4 RR)
 %           FaceColors (M x 3): RGB display color of each face
 %           FaceAlpha (M x 1): transparency of each face
-%           LightTypeNames (6 x 1 cell): {'headlight';'turnsignal';
-%               'running';'tail';'backup';'highbeam'}
+%           LightTypeNames (cell, one per lamp type): the names of
+%               fcn_CarMesh3D_lampTypes, in its order ('headlight',
+%               'turnsignal', 'running', 'tail', 'backup', 'highbeam',
+%               'fog', 'reflector', 'licenseplate', 'marker', 'warning')
 %           FaceLightType (M x 1): index into LightTypeNames for light
 %               faces, 0 for all other faces
 %           TextureColorParts (cell): the TextureColorParts option
@@ -222,6 +224,19 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % clear glass, recorded in the new per-face field FaceCoverLamp
 %   %   % (the covered lamp's light type), which fcn_CarMesh3D_plotVehicle
 %   %   % tints while that lamp is lit. New option LampCoverDistance
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * The lamp types and their name rules come from fcn_CarMesh3D_lampTypes
+%   %   % (one list for every function), which adds fog lamps, reflectors,
+%   %   % the license plate lamp, marker lamps and warning lamps (Sean,
+%   %   % task 8); LightTypeNames now lists all eleven
+
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_labelParts
+%   % * Tires drawn in one color each (the median of their texture
+%   %   % colors), not face by face, which made a starburst on their
+%   %   % sides (Q30 (A))
 
 % TO-DO:
 %
@@ -492,6 +507,23 @@ for ith_row = 1:size(options.PartColors,1)
     faceColors(flagThisPart,:) = repmat(options.PartColors{ith_row,2}, sum(flagThisPart), 1);
 end
 
+% Tires in one color each: the middle (median) of their texture colors.
+% Sampled face by face, a tire's colors alternate dark and light along
+% its long thin side triangles and show as a starburst; a tire has no
+% detail worth that. Tire faces: wheel faces whose material name holds
+% "tire" (Q30 (A), Sean, 2026_11_24 01:10)
+if isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces ...
+        && isfield(vehicleMesh,'MaterialNames') && isfield(vehicleMesh,'FaceMaterialIndex')
+    tireMaterials = find(contains(lower(cellstr(vehicleMesh.MaterialNames)), 'tire'));
+    wheelPart = find(strcmp(partNames, 'wheel'), 1);
+    for ith_material = reshape(tireMaterials,1,[])
+        flagTire = vehicleMesh.FaceMaterialIndex(:)==ith_material & facePartIndex(:)==wheelPart;
+        if any(flagTire)
+            vehicleMesh.FaceTextureColors(flagTire,:) = repmat(median(vehicleMesh.FaceTextureColors(flagTire,:),1), nnz(flagTire), 1);
+        end
+    end
+end
+
 % Texture colors, for the parts listed
 textureColorParts = lower(reshape(options.TextureColorParts,1,[]));
 if ~isempty(textureColorParts) && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces
@@ -510,14 +542,11 @@ if options.LampCovers && any(facePartIndex==2) && any(facePartIndex==4)
 end
 
 % Light types, for switchable lights
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
-lightTypeRules = {...
-    'high.?beam|hi.?beam|main.?beam',  'highbeam';
-    'turn|indicator|blinker|signal',   'turnsignal';
-    'reverse|backup|back_up',          'backup';
-    'drl|running|daytime',             'running';
-    'tail|brake|stop|rear',            'tail';
-    'head|front',                      'headlight'};
+% (the lamp types and their name rules, in one place: fcn_CarMesh3D_lampTypes)
+lampTypes = fcn_CarMesh3D_lampTypes();
+lightTypeNames = {lampTypes.Name}';
+[~, ruleOrder] = sort([lampTypes.RuleOrder]);
+lightTypeRules = [{lampTypes(ruleOrder).NameRule}', {lampTypes(ruleOrder).Name}'];
 faceLightType = zeros(Nfaces,1);
 flagLightFace = facePartIndex==4;
 if any(flagLightFace)

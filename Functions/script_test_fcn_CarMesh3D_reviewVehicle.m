@@ -32,7 +32,15 @@ close all
 
 % (a vehicle with a finished mesh, cache, levels, and outline)
 vehicleID = '2009_Honda_Fit_Sport';
-vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID);
+% (a temporary copy of the vehicle, with no saved label fixes: the test
+% paints and saves, and must never change the vehicle itself; 2026_11_24,
+% after a stopped run overwrote the Fit's fixes)
+vehicleFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID, DemoFolder=tempname, FigNum=-1);
+copyEditsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleID));
+if isfile(copyEditsFile)
+    delete(copyEditsFile);
+end
+vehicleInput = vehicleFiles.Folder;   % (what the tools are given: the copy)
 reviewFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.mat', vehicleID));
 reportFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.md', vehicleID));
 flagHadReview = isfile(reviewFile);
@@ -51,6 +59,11 @@ end
 if flagHadReport
     copyfile(reportFile, backupFolder);
 end
+% (put back through onCleanup, so a test stopped midway still puts the
+% vehicle's label fixes and answers back: 2026_11_24, after a stopped run
+% left the Fit's fixes overwritten)
+cleanupFiles = onCleanup(@() fcn_INTERNAL_restoreFiles(backupFolder, vehicleID, reviewFile, reportFile, editsFile, ...
+    flagHadReview, flagHadReport, flagHadEdits));
 % (the timestamped copies the painter keeps at each save go to a temporary
 % folder: the folder remembered for them is set to it, and put back)
 versionFolder = fullfile(tempname, 'meshVersions');
@@ -73,7 +86,7 @@ cleanupHistory = onCleanup(@() fcn_INTERNAL_restoreHistory(historyFile, historyB
 
 %% Basic case: build the reviewer, hidden
 fprintf(1,'Basic case: the reviewer for %s\n', vehicleID);
-[reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, Visible=false, Reviewer='test');
+[reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='test');
 
 % Check variable types
 assert(istable(reviewTable));
@@ -174,11 +187,15 @@ labelRow = find(answers.Check=="labels", 1) + current(2) - 1;
 assert(answers.Status(labelRow)=="rejected");                  % (painting rejects)
 assert(isfile(figureHandle.UserData.EditsFile));               % (saved for the script)
 paintedEdits = load(figureHandle.UserData.EditsFile, 'labelEditsAfterSimplify');
-assert(strcmp(paintedEdits.labelEditsAfterSimplify{1}.Part, 'trim'));
-assert(size(paintedEdits.labelEditsAfterSimplify{1}.Points,1) >= 2);
+% (the test's own fix, wherever it is among the vehicle's saved fixes)
+trimEdits = paintedEdits.labelEditsAfterSimplify(cellfun(@(e) strcmp(fcn_INTERNAL_field(e,'Part'), 'trim'), paintedEdits.labelEditsAfterSimplify));
+assert(~isempty(trimEdits));
+assert(size(trimEdits{end}.Points,1) >= 2);
 % (Undo takes back one selection at a time, newest first)
-mirrorBox = findobj(figureHandle, 'Type', 'uicheckbox', 'Text', 'Mirror to the other side');
-mirrorBox.Value = false;
+% (the painter's mirror switch is an Off/On pair, tag 'mirror', since its redesign)
+mirrorGroup = findobj(figureHandle, 'Type', 'uibuttongroup', 'Tag', 'mirror');
+assert(isscalar(mirrorGroup), 'The painter''s mirror switch');
+mirrorGroup.SelectedObject = findobj(mirrorGroup, 'Type', 'uiradiobutton', 'Text', 'Off');
 undoButton = findobj(figureHandle, 'Type', 'uibutton', 'Text', 'Undo');
 saveButton = findobj(figureHandle, 'Type', 'uibutton', 'Text', 'Save');
 figureHandle.UserData.Paint('backup', [1.5 0.7 0.6], false);
@@ -192,7 +209,7 @@ undoButton.ButtonPushedFcn(undoButton, []);
 saveButton.ButtonPushedFcn(saveButton, []);
 paintedEdits = load(figureHandle.UserData.EditsFile, 'labelEditsAfterSimplify');
 assert(~any(cellfun(@(e) strcmp(fcn_INTERNAL_field(e,'LightType'), 'backup'), paintedEdits.labelEditsAfterSimplify)));
-mirrorBox.Value = true;
+mirrorGroup.SelectedObject = findobj(mirrorGroup, 'Type', 'uiradiobutton', 'Text', 'On');
 
 %% The animations use the painted edits (a face painted as a lamp lights up)
 fprintf(1,'The animations use the painted edits\n');
@@ -242,12 +259,13 @@ fprintf(1,'Differences compares the edited mesh\n');
 compareIndex = find(strcmp(checkKeys, 'compare'));
 figureHandle.UserData.ShowCheck(compareIndex);
 spotsBefore = figureHandle.UserData.ItemKeys();
-% (a patch of the roof deleted: the body faces near the top middle)
+% (a patch of the roof hidden: the body faces near the top middle; the painter's
+% delete became hide on 2026_11_23, hidden never deleted)
 roofFaces = find(lightsMesh.FacePartIndex == find(strcmp(lightsMesh.PartNames, 'body')));
 [~, order] = sort(sum((lightsCenters(roofFaces,:) - [mean(lightsCenters(:,1)) 0 max(lightsCenters(:,3))]).^2, 2));
 roofPoints = lightsCenters(roofFaces(order(1:40)),:);
 figureHandle.UserData.ShowCheck(labelsIndex);
-figureHandle.UserData.Paint('delete', roofPoints, false);    % (painted, and saved)
+figureHandle.UserData.Paint('hide', roofPoints, false);    % (painted, and saved)
 figureHandle.UserData.ShowCheck(compareIndex);
 spotsAfter = figureHandle.UserData.ItemKeys();
 newSpots = setdiff(spotsAfter, spotsBefore);
@@ -258,7 +276,7 @@ assert(any(cellfun(@(c) numel(c)==3 && norm(c - roofCenter) < 0.6, spotCenters))
 assert(all(ismember(setdiff(spotsBefore, {'all'}), spotsAfter)) || numel(spotsAfter) >= numel(spotsBefore));
 % (the roof put back, and the spot gone)
 figureHandle.UserData.ShowCheck(labelsIndex);
-figureHandle.UserData.Paint('delete', roofPoints, true);
+figureHandle.UserData.Paint('hide', roofPoints, true);
 figureHandle.UserData.ShowCheck(compareIndex);
 assert(isequal(sort(figureHandle.UserData.ItemKeys()), sort(spotsBefore)));
 figureHandle.UserData.ShowCheck(find(strcmp(checkKeys, 'orientation')));
@@ -269,7 +287,7 @@ figureHandle.UserData.SetCause('front: -X', 'up: +Z (as shown)');
 fprintf(1,'The overall decision goes in the change log\n');
 figureHandle.UserData.ShowCheck(find(strcmp(checkKeys, 'summary')));
 figureHandle.UserData.Vote('approved');
-reviewedHistory = fcn_CarMesh3D_meshHistory(vehicleID);
+reviewedHistory = fcn_CarMesh3D_meshHistory(vehicleInput);
 assert(strcmp(reviewedHistory.Review.Status, 'approved') && strcmp(reviewedHistory.Review.By, 'test'));
 
 %% Closing saves the answers and the report
@@ -284,27 +302,12 @@ assert(contains(reportText, 'Painted label fixes'));
 assert(contains(reportText, 'importForwardAxis = '));
 
 %% Opening again loads the earlier answers
-[reviewTable2, figureHandle2] = fcn_CarMesh3D_reviewVehicle(vehicleID, Visible=false, Reviewer='test');
+[reviewTable2, figureHandle2] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='test');
 assert(isequal(height(reviewTable2), height(reviewTable)));
 close(figureHandle2);
 
 %% Clean up the files this test made (and put back the earlier answers)
-if flagHadReview
-    copyfile(fullfile(backupFolder, sprintf('review_%s.mat', vehicleID)), reviewFile);
-else
-    delete(reviewFile);
-end
-if flagHadReport
-    copyfile(fullfile(backupFolder, sprintf('review_%s.md', vehicleID)), reportFile);
-else
-    delete(reportFile);
-end
-if flagHadEdits
-    copyfile(fullfile(backupFolder, sprintf('labelEdits_%s.mat', vehicleID)), editsFile);
-elseif isfile(editsFile)
-    delete(editsFile);
-end
-rmdir(backupFolder, 's');
+clear cleanupFiles;   % (fcn_INTERNAL_restoreFiles)
 
 %% Fail conditions
 if 1==0
@@ -346,3 +349,20 @@ if isfolder(fileparts(versionFolder))
     rmdir(fileparts(versionFolder), 's');
 end
 end % Ends fcn_INTERNAL_restoreFolderPref
+
+function fcn_INTERNAL_restoreFiles(backupFolder, vehicleID, reviewFile, reportFile, editsFile, flagHadReview, flagHadReport, flagHadEdits)
+% Puts the vehicle's answers, report and label fixes back as they were
+pairs = {reviewFile, flagHadReview, sprintf('review_%s.mat', vehicleID);
+    reportFile, flagHadReport, sprintf('review_%s.md', vehicleID);
+    editsFile, flagHadEdits, sprintf('labelEdits_%s.mat', vehicleID)};
+for ith_pair = 1:size(pairs,1)
+    if pairs{ith_pair,2}
+        copyfile(fullfile(backupFolder, pairs{ith_pair,3}), pairs{ith_pair,1});
+    elseif isfile(pairs{ith_pair,1})
+        delete(pairs{ith_pair,1});
+    end
+end
+if isfolder(backupFolder)
+    rmdir(backupFolder, 's');
+end
+end % Ends fcn_INTERNAL_restoreFiles

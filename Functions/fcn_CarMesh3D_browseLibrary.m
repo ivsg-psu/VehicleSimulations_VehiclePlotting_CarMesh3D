@@ -1,4 +1,4 @@
-function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
+function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(options)
 % fcn_CarMesh3D_browseLibrary
 % A window listing every finished vehicle in the library, one row each,
 % in a scrolling list. Each row shows:
@@ -19,10 +19,14 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 % cell array to copy, and returned when the window is closed, in the
 % order they are shown.
 %
-% Each row also has buttons that open the vehicle in the viewer (View),
-% the label painter (Edit labels) or the reviewer (Review). The editor and
-% the reviewer save their changes, so the user is asked whether to open
-% the vehicle itself or a fresh demo copy of it.
+% The preview has buttons for the next step with the vehicle: the viewer
+% (View), the label painter (Edit labels) or the reviewer (Review). The
+% editor and the reviewer save their changes, so the user is asked
+% whether to use the vehicle itself or a fresh demo copy of it. The
+% browser does not open the tool itself (the tree rule: only the trunk,
+% the demo menu or the user's script, opens tools; Sean, 2026-11-24
+% 01:28): the button closes the browser and returns the step asked for
+% (nextStep), which fcn_CarMesh3D_openTool opens.
 %
 % If no vehicle is selected when the window is closed, the default test
 % vehicle is returned instead: a fresh, temporary copy of it
@@ -33,7 +37,7 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %
 % FORMAT:
 %
-%       [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(...
+%       [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(...
 %           (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
 %           (Descending=flag),...
 %           (Selected=names), (DefaultVehicle=id), (Wait=flag),...
@@ -117,17 +121,25 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %               name, MATLAB name or class holds the text (filters stack);
 %               a text matching none is not applied (true if applied)
 %           ClearFilters(), Filters(): the filters applied, in order
-%           Open(name, tool, (flagUseCopy)): open a vehicle in a tool, as
-%               its row's buttons do: 'view', 'edit' or 'review'. For
-%               'edit' and 'review', flagUseCopy true opens a fresh demo
-%               copy (the default when the window is hidden), false the
-%               vehicle itself; omitted in a shown window, the user is
-%               asked. Returns the tool's handles and the folder used
+%           Open(name, tool, (flagUseCopy)): the step a vehicle's
+%               buttons ask for, without closing the window: 'view',
+%               'edit' or 'review'. For 'edit' and 'review', flagUseCopy
+%               true uses a fresh demo copy (the default when the window
+%               is hidden), false the vehicle itself; omitted in a shown
+%               window, the user is asked. Returns the step (as
+%               nextStep) and the folder used; no tool is opened
+%           NextStep(): the step asked for so far
 %           Select(names), Deselect(names), Selected(): the selected
 %               names, in the order shown
 %           Result(): what closing the window returns (makes the default
 %               vehicle's copy when none is selected)
 %           Close(): close the window
+%
+%      nextStep: the step asked for with the View, Edit labels or Review
+%      button (which also closes the window): a structure with Tool
+%      ('view', 'edit' or 'review'; '' for none), VehicleID, and Folder
+%      (the vehicle's, or its fresh demo copy's). Open it with
+%      fcn_CarMesh3D_openTool(nextStep).
 %
 % DEPENDENCIES:
 %
@@ -190,6 +202,14 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %   % * The selection is shown as text, not in a text box (it read as a
 %   %   % place to type; Sean, 23:35), with a Copy names button
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * The tree rule (Sean, 01:28; C2S 13 (A)): View, Edit labels and
+%   %   % Review no longer open the tool. They close the browser and
+%   %   % return the step (a third output, nextStep), which the demo menu
+%   %   % opens with fcn_CarMesh3D_openTool. Open() returns the step
+%   % * The preview panel scrolls (every panel scrolls; Sean, 00:58)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -217,11 +237,22 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %   % * "Name" is no longer a sort choice (Sean, 21:54: the name starts
 %   %   % with the year, so the order looked random; Make covers it);
 %   %   % SortBy='name' in old calls sorts by make
+%   % * The list of picture rows is replaced by a text table and a
+%   %   % preview panel (Sean, Q23 (A), 22:59; C2S 9 to 12 (A), 23:06):
+%   %   % the table has a row per group and a row per vehicle (Select,
+%   %   % star, Vehicle, Year, Make, Class, Length, Score, Review,
+%   %   % License); clicking a row (or the arrow keys) shows its pictures
+%   %   % and details on the right, with its Select and the View, Edit
+%   %   % labels and Review buttons. The list's 80 pictures had made the
+%   %   % window's drawing stall for about 60 s. New hooks: Table,
+%   %   % Preview(name), Previewed()
 %   % * A progress bar while the list is arranged, and the list hidden
 %   %   % while its rows move (Sean, 22:15: changing the sort in a visible
 %   %   % window gave no response; anything longer than 2 or 3 seconds
 %   %   % shows a progress bar); an error while arranging is shown in
 %   %   % the window and the command window, not lost
+%   % * The 2D pictures color the newer lamp types (fog, reflector, license
+%   %   % plate, marker, warning) from fcn_CarMesh3D_lampTypes (Sean, task 8)
 %   % * Ties are ordered by make, then name, and for a text sort in the
 %   %   % order chosen: sorting by Class within Class groups, Z to A, gave
 %   %   % the coupes by year, not Z to A (Sean's screenshot, 22:05)
@@ -387,6 +418,7 @@ end
 filterTerms = {};   % (the filters applied, in order: each narrows what is shown)
 currentOrder = 1:numVehicles;   % (indices into vehicles, as shown)
 result = {};
+nextStep = struct('Tool', '', 'VehicleID', '', 'Folder', '');   % (the step asked for: View, Edit labels or Review)
 flagResultFixed = false;
 defaultCopyNames = {};   % (the default vehicle's demo copy, made once)
 lastFilterTime = -inf;   % (when Enter last tried a filter)
@@ -455,17 +487,43 @@ uibutton(selectionGrid, 'Text', 'Select all shown', 'Tooltip', 'Tick Select on e
 uibutton(selectionGrid, 'Text', 'Clear selection', 'Tooltip', 'Untick Select on every vehicle shown', ...
     'ButtonPushedFcn', @(~,~) selectShown(false));
 
-% Row 3: the scrolling list, one row per vehicle, and a header per group
-listGrid = uigridlayout(mainGrid, [max(numVehicles,1) 1], 'Scrollable', 'on', ...
-    'Padding', [0 0 0 0], 'RowSpacing', 4, 'BackgroundColor', [0.97 0.97 0.97]);
-rowPanels = gobjects(numVehicles, 1);
-selectBoxes = gobjects(numVehicles, 1);
-for ith_vehicle = 1:numVehicles
-    [rowPanels(ith_vehicle), selectBoxes(ith_vehicle)] = fcn_INTERNAL_buildRow(listGrid, vehicles(ith_vehicle), ...
-        flagSelected(ith_vehicle), @(source,~) onSelect(ith_vehicle, source.Value), ...
-        @(toolName) openTool(ith_vehicle, toolName));
-end
-groupHeaders = gobjects(0, 1);
+% Row 3: a text table of the vehicles (left) and a preview of the one
+% clicked (right). (Sean, Q23 (A), 22:59: the list of picture rows made
+% the window's drawing stall for about 60 s; a text table stays fast for
+% thousands of vehicles, and only one vehicle's pictures are on screen)
+bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {'1x', 470}, 'Padding', [0 0 0 0], 'ColumnSpacing', 8);
+vehicleTable = uitable(bodyGrid, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', ...
+    'FontSize', 13, 'Tooltip', 'Click a vehicle to see it on the right; tick Select on the ones to return', ...
+    'CellEditCallback', @(~, event) onTableEdit(event), ...
+    'SelectionChangedFcn', @(source, ~) onTableSelection(source.Selection));
+tableRowVehicle = zeros(0, 1);   % (the vehicle on each table row; 0 for a group row)
+previewIndex = 0;   % (the vehicle in the preview; the first one shown, once the table is filled)
+
+previewPanel = uipanel(bodyGrid, 'BackgroundColor', [1 1 1]);
+previewGrid = uigridlayout(previewPanel, [7 1], 'RowHeight', {30, 18, 'fit', '1x', 'fit', 30, 30}, ...
+    'Padding', [10 8 10 8], 'RowSpacing', 6, 'BackgroundColor', [1 1 1], 'Scrollable', 'on');
+previewName = uilabel(previewGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', 'WordWrap', 'on');
+previewID = uilabel(previewGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 13, 'FontColor', [0.35 0.35 0.35]);
+pictureGrid = uigridlayout(previewGrid, [1 2], 'RowHeight', {160}, 'ColumnWidth', {'1x', '1x'}, ...
+    'Padding', [0 0 0 0], 'ColumnSpacing', 6, 'BackgroundColor', [1 1 1]);
+picture3D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The labeled 3D mesh, from the front left');
+picture2D = uiimage(pictureGrid, 'ScaleMethod', 'fit', 'Tooltip', 'The 2D overhead outline, front to the right');
+previewDetails = uilabel(previewGrid, 'Text', '', 'Interpreter', 'html', 'VerticalAlignment', 'top', ...
+    'WordWrap', 'on', 'FontSize', 12);
+previewSelect = uicheckbox(previewGrid, 'Text', 'Select', 'FontSize', 15, 'FontWeight', 'bold', ...
+    'Tooltip', 'Return this vehicle''s MATLAB name when the window is closed (the same as its Select in the table)', ...
+    'ValueChangedFcn', @(source, ~) onPreviewSelect(source.Value));
+previewSpacer = uilabel(previewGrid, 'Text', ''); %#ok<NASGU>
+toolGrid = uigridlayout(previewGrid, [1 3], 'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0], ...
+    'BackgroundColor', [1 1 1]);
+uibutton(toolGrid, 'Text', 'View', 'Tooltip', 'Open in fcn_CarMesh3D_viewLabels (changes nothing)', ...
+    'ButtonPushedFcn', @(~,~) openPreviewed('view'));
+uibutton(toolGrid, 'Text', 'Edit labels', 'Tooltip', 'Open in the label painter, fcn_CarMesh3D_paintLabels (asks: the vehicle or a demo copy)', ...
+    'ButtonPushedFcn', @(~,~) openPreviewed('edit'));
+uibutton(toolGrid, 'Text', 'Review', 'Tooltip', 'Open in the Model Reviewer, fcn_CarMesh3D_reviewVehicle (asks: the vehicle or a demo copy)', ...
+    'ButtonPushedFcn', @(~,~) openPreviewed('review'));
+previewSelect.Layout.Row = 5;
+toolGrid.Layout.Row = 7;
 
 figureHandle.CloseRequestFcn = @(~,~) closeWindow();
 arrangeList();
@@ -476,7 +534,8 @@ browser = struct('Figure', figureHandle, 'Vehicles', vehicles, ...
     'Open', @openByName, ...
     'ApplyFilter', @applyFilter, 'ClearFilters', @clearFilters, 'Filters', @getFilters, ...
     'Select', @(names) setSelected(names, true), 'Deselect', @(names) setSelected(names, false), ...
-    'Selected', @getSelected, 'Result', @getResult, 'Close', @closeWindow);
+    'Selected', @getSelected, 'Result', @getResult, 'Close', @closeWindow, ...
+    'Table', vehicleTable, 'Preview', @previewByName, 'Previewed', @getPreviewed, 'NextStep', @getNextStep);
 
 if flagWait && options.Visible
     uiwait(figureHandle);
@@ -504,19 +563,9 @@ end
 %% The window's nested functions (they share its state)
 
     function arrangeList()
-        % Sorts, groups and filters the rows, and places them (with a
-        % header per group) in the list. In a visible window this shows a
-        % progress bar while it works (anything that can take more than 2
-        % or 3 seconds shows one: Sean, 22:15). An error is shown in the
-        % window, not lost. (The list is NOT hidden while its rows move:
-        % hiding the scrolling list stalled the window's drawing for about
-        % 60 s, measured 22:28)
-        progressBar = [];
-        if strcmp(figureHandle.Visible, 'on')
-            progressBar = uiprogressdlg(figureHandle, 'Title', functionName, ...
-                'Message', 'Arranging the list...', 'Indeterminate', 'on');
-        end
-        cleanupList = onCleanup(@() fcn_INTERNAL_endArrange(progressBar));
+        % Sorts, groups and filters the vehicles and fills the table (with
+        % a row per group). A text table takes well under a second, so no
+        % progress bar (rule 26). An error is shown in the window, not lost
         try
             arrangeRows();
         catch ME
@@ -529,37 +578,29 @@ end
         currentOrder = fcn_INTERNAL_order(vehicles, sortKey, groupKey, flagDescending);
         flagShown = fcn_INTERNAL_matchesFilter(vehicles, filterTerms);
         shownOrder = currentOrder(flagShown(currentOrder));
-        hiddenOrder = currentOrder(~flagShown(currentOrder));
-
-        delete(groupHeaders(isgraphics(groupHeaders)));
-        groupHeaders = gobjects(0, 1);
-        rowHeights = {};
-        lastGroup = string(missing);
-        for ith_shown = 1:numel(shownOrder)
-            thisVehicle = shownOrder(ith_shown);
-            thisGroup = fcn_INTERNAL_groupName(vehicles(thisVehicle), groupKey);
-            if ~strcmp(groupKey, 'none') && (ismissing(lastGroup) || ~strcmp(thisGroup, lastGroup))
-                numInGroup = sum(arrayfun(@(k) strcmp(fcn_INTERNAL_groupName(vehicles(k), groupKey), thisGroup), shownOrder));
-                header = uilabel(listGrid, 'Text', sprintf('  %s   (%d)', thisGroup, numInGroup), ...
-                    'FontSize', 16, 'FontWeight', 'bold', 'FontColor', [1 1 1], 'BackgroundColor', [0.25 0.35 0.5]);
-                rowHeights{end+1} = 30; %#ok<AGROW>
-                header.Layout.Row = numel(rowHeights);
-                groupHeaders(end+1, 1) = header; %#ok<AGROW>
-                lastGroup = thisGroup;
-            end
-            rowHeights{end+1} = 210; %#ok<AGROW>
-            rowPanels(thisVehicle).Layout.Row = numel(rowHeights);
-            rowPanels(thisVehicle).Visible = 'on';
+        [tableData, columnNames, tableRowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey);
+        vehicleTable.Data = tableData;
+        vehicleTable.ColumnName = columnNames;
+        vehicleTable.ColumnEditable = [true, false(1, numel(columnNames) - 1)];
+        vehicleTable.ColumnWidth = fcn_INTERNAL_columnWidths(columnNames);
+        removeStyle(vehicleTable);
+        groupRows = find(tableRowVehicle == 0);
+        if ~isempty(groupRows)
+            addStyle(vehicleTable, uistyle('BackgroundColor', [0.25 0.35 0.5], 'FontColor', [1 1 1], ...
+                'FontWeight', 'bold'), 'row', groupRows);
         end
-        for ith_hidden = 1:numel(hiddenOrder)
-            rowHeights{end+1} = 0; %#ok<AGROW>
-            rowPanels(hiddenOrder(ith_hidden)).Layout.Row = numel(rowHeights);
-            rowPanels(hiddenOrder(ith_hidden)).Visible = 'off';
+        exemplarRows = find(tableRowVehicle > 0);
+        exemplarRows = exemplarRows(arrayfun(@(k) vehicles(tableRowVehicle(k)).IsExemplar, exemplarRows));
+        if ~isempty(exemplarRows)
+            addStyle(vehicleTable, uistyle('FontColor', [0.6 0.4 0]), 'row', exemplarRows);
         end
-        if isempty(rowHeights)
-            rowHeights = {0};
+        % (the preview keeps its vehicle if it is still shown, else the first one)
+        if isempty(shownOrder)
+            previewIndex = 0;
+        elseif ~ismember(previewIndex, shownOrder)
+            previewIndex = shownOrder(1);
         end
-        listGrid.RowHeight = rowHeights;
+        showPreview();
         if isempty(filterTerms)
             countLabel.Text = sprintf('%d of %d vehicles shown', numel(shownOrder), numVehicles);
         else
@@ -567,6 +608,116 @@ end
                 strjoin(strcat('"', filterTerms, '"'), ' + '));
         end
         showSelection();
+    end
+
+    function onTableSelection(selectedRows)
+        % A row clicked (or moved to with the arrow keys): its vehicle in
+        % the preview (a group row changes nothing)
+        if isempty(selectedRows)
+            return;
+        end
+        thisVehicle = tableRowVehicle(selectedRows(1));
+        if thisVehicle > 0
+            previewIndex = thisVehicle;
+            showPreview();
+        end
+    end
+
+    function onTableEdit(event)
+        % The Select column ticked or unticked (a group row cannot be)
+        tableRow = event.Indices(1);
+        thisVehicle = tableRowVehicle(tableRow);
+        if thisVehicle == 0
+            vehicleTable.Data{tableRow, 1} = [];
+            return;
+        end
+        onSelect(thisVehicle, logical(event.NewData));
+    end
+
+    function showPreview()
+        % The preview panel: the vehicle previewIndex, or nothing
+        if previewIndex == 0
+            previewName.Text = '(no vehicle shown)';
+            previewID.Text = '';
+            picture3D.ImageSource = fcn_INTERNAL_pictureOrBlank('');
+            picture2D.ImageSource = fcn_INTERNAL_pictureOrBlank('');
+            previewDetails.Text = '';
+            previewSelect.Enable = 'off';
+            previewSelect.Value = false;
+            return;
+        end
+        vehicle = vehicles(previewIndex);
+        nameText = vehicle.Name;
+        previewName.FontColor = [0 0 0];
+        if vehicle.IsExemplar
+            nameText = [char(9733) ' ' nameText];
+            previewName.FontColor = [0.6 0.4 0];
+        end
+        previewName.Text = nameText;
+        previewID.Text = vehicle.ID;
+        picture3D.ImageSource = fcn_INTERNAL_pictureOrBlank(vehicle.Picture3D);
+        picture2D.ImageSource = fcn_INTERNAL_pictureOrBlank(vehicle.Picture2D);
+        previewDetails.Text = fcn_INTERNAL_detailsHTML(vehicle);
+        previewSelect.Enable = 'on';
+        previewSelect.Value = flagSelected(previewIndex);
+    end
+
+    function previewByName(name)
+        % Shows the named vehicle (one in this list) in the preview
+        index = find(strcmp({vehicles.ID}, char(name)), 1);
+        if isempty(index)
+            error('CarMesh3D:notInList', '%s: "%s" is not among the vehicles in this list.', functionName, char(name));
+        end
+        previewIndex = index;
+        showPreview();
+        tableRow = find(tableRowVehicle == index, 1);
+        if ~isempty(tableRow)
+            vehicleTable.Selection = tableRow;
+        end
+    end
+
+    function onPreviewSelect(flagValue)
+        % The preview's Select box: the vehicle in the preview NOW (a
+        % nested function: an anonymous one would keep the vehicle that
+        % was previewed when the window was built)
+        onSelect(previewIndex, flagValue);
+    end
+
+    function openPreviewed(toolName)
+        % The preview's View, Edit labels and Review buttons (nested, as
+        % above): the step is returned to the caller, and the window
+        % closes (the tree rule: the browser opens no tool itself)
+        if previewIndex > 0
+            request = openTool(previewIndex, toolName);
+            if ~isempty(request.Tool)
+                closeWindow();
+            end
+        end
+    end
+
+    function stepOut = getNextStep()
+        stepOut = nextStep;
+    end
+
+    function name = getPreviewed()
+        % The MATLAB name of the vehicle in the preview ('' for none)
+        name = '';
+        if previewIndex > 0
+            name = vehicles(previewIndex).ID;
+        end
+    end
+
+    function setTicks(indices, flagValue)
+        % The Select column's ticks, and the preview's, for these vehicles
+        for thisVehicle = indices(:)'
+            tableRow = find(tableRowVehicle == thisVehicle, 1);
+            if ~isempty(tableRow)
+                vehicleTable.Data{tableRow, 1} = logical(flagValue);
+            end
+            if thisVehicle == previewIndex
+                previewSelect.Value = logical(flagValue);
+            end
+        end
     end
 
     function setSort(newKey, newDescending)
@@ -608,24 +759,25 @@ end
         arrangeList();
     end
 
-    function [toolOutput, folderUsed] = openByName(name, toolName, varargin)
-        % Opens the named vehicle (one in this list) in a tool
+    function [request, folderUsed] = openByName(name, toolName, varargin)
+        % The step for the named vehicle (one in this list) in a tool
         index = find(strcmp({vehicles.ID}, char(name)), 1);
         if isempty(index)
             error('CarMesh3D:notInList', '%s: "%s" is not among the vehicles in this list.', functionName, char(name));
         end
-        [toolOutput, folderUsed] = openTool(index, toolName, varargin{:});
+        [request, folderUsed] = openTool(index, toolName, varargin{:});
     end
 
-    function [toolOutput, folderUsed] = openTool(index, toolName, flagUseCopy)
-        % Opens this vehicle in a tool: 'view' (the viewer: changes
+    function [request, folderUsed] = openTool(index, toolName, flagUseCopy)
+        % The step for this vehicle in a tool: 'view' (the viewer: changes
         % nothing), 'edit' (the label painter) or 'review' (the reviewer).
+        % It is kept as nextStep and returned; no tool is opened here.
         % The editor and the reviewer save to the vehicle, so the user is
         % asked first, and may open a fresh demo copy instead
         % (flagUseCopy: true or false skips the question, for scripts)
         vehicle = vehicles(index);
         folderUsed = vehicle.Folder;
-        toolOutput = [];
+        request = struct('Tool', '', 'VehicleID', '', 'Folder', '');
         if any(strcmp(toolName, {'edit','review'}))
             if nargin < 3
                 if strcmp(figureHandle.Visible, 'on')
@@ -647,20 +799,8 @@ end
                 folderUsed = demoFiles.Folder;
             end
         end
-        files = fcn_CarMesh3D_findVehicleFiles(folderUsed, FigNum=-1);
-        switch toolName
-            case 'view'
-                outlineArguments = {};
-                if files.HasOutline
-                    outlineArguments = {'Outline', files.OutlineFile};
-                end
-                [~, toolOutput] = fcn_CarMesh3D_viewLabels(files.MeshFile, outlineArguments{:}, Wait=false, ...
-                    Visible=strcmp(figureHandle.Visible, 'on'));
-            case 'edit'
-                [~, ~, toolOutput] = fcn_CarMesh3D_paintLabels(files.Folder, Visible=strcmp(figureHandle.Visible, 'on'));
-            case 'review'
-                [~, toolOutput] = fcn_CarMesh3D_reviewVehicle(files.Folder, Visible=strcmp(figureHandle.Visible, 'on'));
-        end
+        request = struct('Tool', char(toolName), 'VehicleID', vehicle.ID, 'Folder', folderUsed);
+        nextStep = request;
     end
 
     function flagApplied = applyFilter(newText)
@@ -730,25 +870,25 @@ end
     end
 
     function onSelect(index, flagValue)
+        if index == 0
+            return;
+        end
         flagSelected(index) = flagValue;
+        setTicks(index, flagValue);
         showSelection();
     end
 
     function selectShown(flagValue)
         flagShown = fcn_INTERNAL_matchesFilter(vehicles, filterTerms);
         flagSelected(flagShown) = flagValue;
-        for ith_box = find(flagShown)
-            selectBoxes(ith_box).Value = flagValue;
-        end
+        setTicks(find(flagShown), flagValue);
         showSelection();
     end
 
     function setSelected(names, flagValue)
         flagNames = ismember({vehicles.ID}, cellstr(names));
         flagSelected(flagNames) = flagValue;
-        for ith_box = find(flagNames)
-            selectBoxes(ith_box).Value = flagValue;
-        end
+        setTicks(find(flagNames), flagValue);
         showSelection();
     end
 
@@ -1022,6 +1162,11 @@ end
 if isfield(vehicleOutline, 'Lights')
     lightColors = struct('headlight', [1 0.85 0.1], 'tail', [0.85 0 0], 'turn', [1 0.55 0], ...
         'running', [0 0.8 0.8], 'backup', [0.2 0.75 0.2]);
+    for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types: Sean, task 8)
+        if ~isfield(lightColors, thisType.Name) && ~any(strcmp(thisType.Name, {'turnsignal','highbeam'}))
+            lightColors.(thisType.Name) = thisType.LabelColor;
+        end
+    end
     for ith_piece = 1:numel(vehicleOutline.Lights)
         lightType = char(vehicleOutline.Lights(ith_piece).Type);
         thisColor = [0.85 0 0.85];
@@ -1055,48 +1200,107 @@ if size(polygon, 1) >= 3
 end
 end % Ends fcn_INTERNAL_fill
 
-%% fcn_INTERNAL_buildRow
-function [rowPanel, selectBox] = fcn_INTERNAL_buildRow(listGrid, vehicle, flagSelected, onSelect, onOpen)
-% One vehicle's row: its 3D picture, its 2D picture, its details, and
-% its Select box with buttons that open it in the viewer, the label
-% painter, or the reviewer
-rowPanel = uipanel(listGrid, 'BackgroundColor', [1 1 1]);
-if vehicle.IsExemplar
-    rowPanel.HighlightColor = [0.85 0.65 0];
-    rowPanel.BorderWidth = 2;
+%% fcn_INTERNAL_tableData
+function [tableData, columnNames, rowVehicle] = fcn_INTERNAL_tableData(vehicles, shownOrder, flagSelected, groupKey)
+% The table's rows: a row per group (when grouped) and a row per vehicle
+% shown. Columns (Sean, C2S 11 (A)): Select, the exemplar star, Vehicle,
+% Year, Make, Class (left out when grouped by class), Length, Score,
+% Review, License. rowVehicle: the vehicle on each row, 0 for a group row
+flagClass = ~strcmp(groupKey, 'class');
+columnNames = {'Select', char(9733), 'Vehicle', 'Year', 'Make'};
+if flagClass
+    columnNames{end+1} = 'Class';
 end
-rowGrid = uigridlayout(rowPanel, [1 4], 'ColumnWidth', {270, 270, '1x', 120}, ...
-    'Padding', [6 6 6 6], 'ColumnSpacing', 10, 'BackgroundColor', [1 1 1]);
-fcn_INTERNAL_picture(rowGrid, vehicle.Picture3D, 'no 3D picture');
-fcn_INTERNAL_picture(rowGrid, vehicle.Picture2D, 'no 2D outline');
+columnNames = [columnNames, {'Length (m)', 'Score', 'Review', 'License'}];
+numColumns = numel(columnNames);
+tableData = cell(0, numColumns);
+rowVehicle = zeros(0, 1);
+lastGroup = string(missing);
+for ith_shown = 1:numel(shownOrder)
+    thisVehicle = shownOrder(ith_shown);
+    vehicle = vehicles(thisVehicle);
+    thisGroup = fcn_INTERNAL_groupName(vehicle, groupKey);
+    if ~strcmp(groupKey, 'none') && (ismissing(lastGroup) || ~strcmp(thisGroup, lastGroup))
+        numInGroup = sum(arrayfun(@(k) strcmp(fcn_INTERNAL_groupName(vehicles(k), groupKey), thisGroup), shownOrder));
+        groupRow = repmat({''}, 1, numColumns);
+        groupRow{1} = [];
+        groupRow{3} = sprintf('%s   (%d)', upper(char(thisGroup)), numInGroup);
+        tableData(end+1, :) = groupRow; %#ok<AGROW>
+        rowVehicle(end+1, 1) = 0; %#ok<AGROW>
+        lastGroup = thisGroup;
+    end
+    star = '';
+    if vehicle.IsExemplar
+        star = char(9733);
+    end
+    row = {logical(flagSelected(thisVehicle)), star, vehicle.Name, fcn_INTERNAL_numberText(vehicle.Year, '%d'), ...
+        char(vehicle.Make)};
+    if flagClass
+        row{end+1} = char(vehicle.ClassName); %#ok<AGROW>
+    end
+    review = '';
+    if ~isnan(vehicle.ReviewPercent)
+        review = sprintf('%.0f %%', vehicle.ReviewPercent);
+    end
+    row = [row, {fcn_INTERNAL_numberText(vehicle.Length, '%.2f'), fcn_INTERNAL_numberText(vehicle.Score, '%.1f'), ...
+        review, fcn_INTERNAL_shortLicense(vehicle.License)}]; %#ok<AGROW>
+    tableData(end+1, :) = row; %#ok<AGROW>
+    rowVehicle(end+1, 1) = thisVehicle; %#ok<AGROW>
+end
+end % Ends fcn_INTERNAL_tableData
 
-detailGrid = uigridlayout(rowGrid, [3 1], 'RowHeight', {34, 20, '1x'}, 'Padding', [0 0 0 0], ...
-    'RowSpacing', 2, 'BackgroundColor', [1 1 1]);
-nameText = vehicle.Name;
-if vehicle.IsExemplar
-    nameText = [char(9733) ' ' nameText];
+%% fcn_INTERNAL_columnWidths
+function widths = fcn_INTERNAL_columnWidths(columnNames)
+% The table's column widths, by column name ('auto' for the vehicle name)
+widths = cell(1, numel(columnNames));
+for k = 1:numel(columnNames)
+    switch columnNames{k}
+        case 'Select',     widths{k} = 55;
+        case char(9733),   widths{k} = 30;
+        case 'Vehicle',    widths{k} = 'auto';
+        case 'Year',       widths{k} = 55;
+        case 'Make',       widths{k} = 100;
+        case 'Class',      widths{k} = 170;
+        case 'Length (m)', widths{k} = 85;
+        case 'Score',      widths{k} = 60;
+        case 'Review',     widths{k} = 65;
+        case 'License',    widths{k} = 130;
+        otherwise,         widths{k} = 'auto';
+    end
 end
-nameLabel = uilabel(detailGrid, 'Text', nameText, 'FontSize', 22, 'FontWeight', 'bold');
-if vehicle.IsExemplar
-    nameLabel.FontColor = [0.6 0.4 0];
-end
-uilabel(detailGrid, 'Text', vehicle.ID, 'FontName', 'Courier New', 'FontSize', 13, 'FontColor', [0.35 0.35 0.35]);
-uilabel(detailGrid, 'Text', fcn_INTERNAL_detailsHTML(vehicle), 'Interpreter', 'html', ...
-    'VerticalAlignment', 'top', 'WordWrap', 'on', 'FontSize', 12);
+end % Ends fcn_INTERNAL_columnWidths
 
-buttonGrid = uigridlayout(rowGrid, [5 1], 'RowHeight', {34, 8, 28, 28, 28}, 'Padding', [0 10 0 0], ...
-    'RowSpacing', 4, 'BackgroundColor', [1 1 1]);
-selectBox = uicheckbox(buttonGrid, 'Text', 'Select', 'FontSize', 15, 'FontWeight', 'bold', ...
-    'Value', flagSelected, 'Tooltip', 'Return this vehicle''s MATLAB name when the window is closed', ...
-    'ValueChangedFcn', onSelect);
-uilabel(buttonGrid, 'Text', '');
-uibutton(buttonGrid, 'Text', 'View', 'Tooltip', 'Open in fcn_CarMesh3D_viewLabels (changes nothing)', ...
-    'ButtonPushedFcn', @(~,~) onOpen('view'));
-uibutton(buttonGrid, 'Text', 'Edit labels', 'Tooltip', 'Open in the label painter, fcn_CarMesh3D_paintLabels (asks: the vehicle or a demo copy)', ...
-    'ButtonPushedFcn', @(~,~) onOpen('edit'));
-uibutton(buttonGrid, 'Text', 'Review', 'Tooltip', 'Open in the Model Reviewer, fcn_CarMesh3D_reviewVehicle (asks: the vehicle or a demo copy)', ...
-    'ButtonPushedFcn', @(~,~) onOpen('review'));
-end % Ends fcn_INTERNAL_buildRow
+%% fcn_INTERNAL_numberText
+function text = fcn_INTERNAL_numberText(value, format)
+% A number as text for the table ('' when missing)
+if isempty(value) || (isnumeric(value) && isnan(value))
+    text = '';
+else
+    text = sprintf(format, value);
+end
+end % Ends fcn_INTERNAL_numberText
+
+%% fcn_INTERNAL_shortLicense
+function text = fcn_INTERNAL_shortLicense(license)
+% The license, short, for the table (the preview has it in full)
+text = char(license);
+if startsWith(text, 'none needed')
+    text = 'none needed';
+elseif isempty(text)
+    text = '(not found)';
+end
+end % Ends fcn_INTERNAL_shortLicense
+
+%% fcn_INTERNAL_pictureOrBlank
+function source = fcn_INTERNAL_pictureOrBlank(pictureFile)
+% A picture file for the preview, or a plain light gray square when the
+% picture is missing
+if ~isempty(pictureFile) && isfile(pictureFile)
+    source = pictureFile;
+else
+    source = repmat(uint8(240), [30 42 3]);
+end
+end % Ends fcn_INTERNAL_pictureOrBlank
 
 %% fcn_INTERNAL_toolTitle
 function title = fcn_INTERNAL_toolTitle(toolName)
@@ -1106,16 +1310,6 @@ switch toolName
     otherwise,     title = 'viewer (fcn_CarMesh3D_viewLabels)';
 end
 end % Ends fcn_INTERNAL_toolTitle
-
-%% fcn_INTERNAL_picture
-function fcn_INTERNAL_picture(parent, pictureFile, missingText)
-if ~isempty(pictureFile) && isfile(pictureFile)
-    uiimage(parent, 'ImageSource', pictureFile, 'ScaleMethod', 'fit');
-else
-    uilabel(parent, 'Text', missingText, 'HorizontalAlignment', 'center', 'FontColor', [0.5 0.5 0.5], ...
-        'BackgroundColor', [0.94 0.94 0.94]);
-end
-end % Ends fcn_INTERNAL_picture
 
 %% fcn_INTERNAL_detailsHTML
 function html = fcn_INTERNAL_detailsHTML(vehicle)
@@ -1210,14 +1404,6 @@ sortTable = table((1:numVehicles)', groupValues, sortValues, makes, names, 'Vari
 sortTable = sortrows(sortTable, {'Group','Value','Make','Name'}, {'ascend', direction, tieDirection, tieDirection}, 'MissingPlacement', 'last');
 order = sortTable.Index';
 end % Ends fcn_INTERNAL_order
-
-%% fcn_INTERNAL_endArrange
-function fcn_INTERNAL_endArrange(progressBar)
-% After the list is arranged (or fails): close the progress bar
-if ~isempty(progressBar) && isvalid(progressBar)
-    close(progressBar);
-end
-end % Ends fcn_INTERNAL_endArrange
 
 %% fcn_INTERNAL_sortKey
 function sortKey = fcn_INTERNAL_sortKey(sortKey)

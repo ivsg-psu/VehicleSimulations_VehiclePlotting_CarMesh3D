@@ -88,6 +88,11 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_plotLabels
 %   % * A label color for the 'highbeam' light type (blue) (Sean, 03:27)
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotLabels
+%   % * Label colors for the newer lamp types (fog, reflector, licenseplate,
+%   %   % marker, warning) from fcn_CarMesh3D_lampTypes (Sean, task 8)
 
 % TO-DO:
 %
@@ -202,6 +207,12 @@ partColors = struct('body',[0.97 0.97 0.97], 'glass',[0.55 0.80 1.00], 'wheel',[
     'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45], 'interior',[0.85 0.65 0.40]);
 lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
     'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10], 'highbeam',[0.30 0.55 1.00]);
+% (the newer lamp types: their label colors from fcn_CarMesh3D_lampTypes)
+for thisType = fcn_CarMesh3D_lampTypes()'
+    if ~isfield(lightColors, thisType.Name)
+        lightColors.(thisType.Name) = thisType.LabelColor;
+    end
+end
 
 Nfaces = size(vehicleMesh.Faces,1);
 labelMesh = vehicleMesh;

@@ -336,7 +336,7 @@ headFaces = find(oldMesh.FaceLightType==1);
 editedMesh = fcn_CarMesh3D_editLabels(oldMesh, Edits={struct('FaceIndices',headFaces(1),'LightType','highbeam')});
 assert(isequal(editedMesh.LightTypeNames(1:5), oldMesh.LightTypeNames) && strcmp(editedMesh.LightTypeNames{6}, 'highbeam'));
 assert(editedMesh.FaceLightType(headFaces(1))==6 && all(editedMesh.FaceLightType(headFaces(2:end))==1));
-assert(size(editedMesh.FaceLightFunctions,2)==6 && editedMesh.FaceLightFunctions(headFaces(1),6));
+assert(size(editedMesh.FaceLightFunctions,2)==numel(editedMesh.LightTypeNames) && editedMesh.FaceLightFunctions(headFaces(1),6));   % (one column per type: older meshes get every type of fcn_CarMesh3D_lampTypes added, task 8)
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

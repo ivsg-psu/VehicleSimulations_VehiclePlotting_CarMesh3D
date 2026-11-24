@@ -39,8 +39,10 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    the shown faces (fcn_CarMesh3D_visibleMesh)
 %       Unhide:      true to show the picked faces again
 %       LightType:   'headlight' (the low beam), 'highbeam',
-%                    'turnsignal', 'running', 'tail', or 'backup' (this
-%                    also makes Part 'light')
+%                    'turnsignal', 'running', 'tail', 'backup', 'fog',
+%                    'reflector', 'licenseplate', 'marker', or 'warning'
+%                    (the names of fcn_CarMesh3D_lampTypes; this also
+%                    makes Part 'light')
 %       AlsoLightTypes: more light types the picked faces also are (a
 %                    cell array, such as {'turnsignal'}: a rear lamp that
 %                    is a tail light and flashes as a turn signal; a front
@@ -204,6 +206,17 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % no longer a cover (also in the click editor, and undone with
 %   %   % it); after an AlsoParts edit adds glass, lights now also glass
 %   %   % that lie over a lamp become its clear cover
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * The lamp types, their default colors and label colors come from
+%   %   % fcn_CarMesh3D_lampTypes, which adds fog, reflector, licenseplate,
+%   %   % marker and warning (Sean, task 8)
+%   % * Points: the nearest face is looked for among the faces that pass
+%   %   % the edit's other fields (Material, Group, CurrentPart, Region,
+%   %   % FaceIndices), so layered faces (a lamp lens a few millimeters
+%   %   % over the lamp) are told apart; before, the nearest face of any
+%   %   % kind was picked and could be the wrong layer (the 2009 Fit)
 
 % TO-DO:
 %
@@ -271,7 +284,7 @@ end
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+lightTypeNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
 
 % Edits may be a struct array or a cell array; use a cell array inside
 editList = options.Edits;
@@ -597,21 +610,6 @@ function selectedFaces = fcn_INTERNAL_selectFaces(vehicleMesh, thisEdit)
 Nfaces = size(vehicleMesh.Faces,1);
 flagSelected = true(Nfaces,1);
 
-if fcn_INTERNAL_hasValue(thisEdit,'Points')
-    % (the face nearest each point, if close enough)
-    centers = fcn_INTERNAL_faceCenters(vehicleMesh);
-    tolerance = fcn_INTERNAL_getValue(thisEdit, 'PointTolerance', 0.005);
-    flagPoint = false(Nfaces,1);
-    points = thisEdit.Points;
-    for ith_point = 1:size(points,1)
-        [distanceSquared, nearestFace] = min(sum((centers - points(ith_point,:)).^2, 2));
-        if distanceSquared <= tolerance^2
-            flagPoint(nearestFace) = true;
-        end
-    end
-    flagSelected = flagSelected & flagPoint;
-end
-
 if fcn_INTERNAL_hasValue(thisEdit,'FaceIndices')
     flagIndex = false(Nfaces,1);
     flagIndex(thisEdit.FaceIndices(thisEdit.FaceIndices>=1 & thisEdit.FaceIndices<=Nfaces)) = true;
@@ -659,6 +657,28 @@ if fcn_INTERNAL_hasValue(thisEdit,'CurrentPart')
     flagSelected = flagSelected & vehicleMesh.FacePartIndex(:)==partIndex;
 end
 
+if fcn_INTERNAL_hasValue(thisEdit,'Points')
+    % (the face nearest each point, if close enough, among the faces that
+    % pass the other fields: with Material given, a lamp's inner layer and
+    % the lens lying a few millimeters over it are told apart; found on
+    % the 2009 Honda Fit, 2026_11_24)
+    candidates = find(flagSelected);
+    centers = fcn_INTERNAL_faceCenters(vehicleMesh);
+    centers = centers(candidates,:);
+    tolerance = fcn_INTERNAL_getValue(thisEdit, 'PointTolerance', 0.005);
+    flagPoint = false(Nfaces,1);
+    points = thisEdit.Points;
+    if ~isempty(candidates)
+        for ith_point = 1:size(points,1)
+            [distanceSquared, nearestCandidate] = min(sum((centers - points(ith_point,:)).^2, 2));
+            if distanceSquared <= tolerance^2
+                flagPoint(candidates(nearestCandidate)) = true;
+            end
+        end
+    end
+    flagSelected = flagSelected & flagPoint;
+end
+
 selectedFaces = find(flagSelected);
 end % Ends fcn_INTERNAL_selectFaces
 
@@ -699,8 +719,8 @@ function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleM
 partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
 lightTypeNames = vehicleMesh.LightTypeNames;
 defaultPartColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20; 0.35 0.33 0.32];
-defaultLightColors = struct('headlight', [0.90 0.90 0.85], 'turnsignal', [0.85 0.55 0.15], 'running', [0.90 0.90 0.85], ...
-    'tail', [0.55 0.05 0.05], 'backup', [0.85 0.85 0.85], 'highbeam', [0.92 0.92 0.90]);
+lampTypes = fcn_CarMesh3D_lampTypes();
+defaultLightColors = cell2struct({lampTypes.FaceColor}', {lampTypes.Name}', 1);
 
 if ~isempty(newLightType)
     newPart = 'light';
@@ -800,7 +820,14 @@ function [displayColors, legendNames, legendColors] = fcn_INTERNAL_labelColors(v
 partColors = [0.80 0.80 0.80; 0.45 0.70 1.00; 0.15 0.15 0.15; 1.00 1.00 0.60; 0.80 0.45 0.15; 0.85 0.65 0.40];
 lightColors = [1.00 1.00 0.20; 1.00 0.55 0.00; 0.70 1.00 0.70; 0.90 0.05 0.05; 0.60 0.20 1.00; 0.10 0.85 0.85];
 lightColors = lightColors(1:min(end, numel(vehicleMesh.LightTypeNames)),:);
-lightColors(end+1:numel(vehicleMesh.LightTypeNames),:) = 0.5;   % (any other light type: gray)
+lightColors(end+1:numel(vehicleMesh.LightTypeNames),:) = 0.5;   % (any other light type: gray, unless listed)
+lampTypes = fcn_CarMesh3D_lampTypes();
+for ith_type = 7:numel(vehicleMesh.LightTypeNames)   % (the newer types: their label colors)
+    thisType = lampTypes(strcmp({lampTypes.Name}, vehicleMesh.LightTypeNames{ith_type}));
+    if ~isempty(thisType)
+        lightColors(ith_type,:) = thisType.LabelColor;
+    end
+end
 Nfaces = size(vehicleMesh.Faces,1);
 % (by part name, so a mesh whose parts are in another order, or that has
 % 'interior', is colored right)

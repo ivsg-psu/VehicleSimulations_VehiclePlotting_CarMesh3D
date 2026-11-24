@@ -1,2 +1,2 @@
 License: CC0 1.0 (public domain)
-This vehicle is made up: it was made by zz_tmp_redraw_photos from the CarMesh3D sample sedan (itself made by fcn_CarMesh3D_fillSampleMesh). No downloaded model is used.
+This vehicle is made up: it was made by script_CarMesh3D_vehicle_2026_CarMesh3D_Sample_GUITestVehicle from the CarMesh3D sample sedan (itself made by fcn_CarMesh3D_fillSampleMesh). No downloaded model is used.

@@ -126,9 +126,19 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %               high beam lamps are the 'highbeam' faces; a vehicle with
 %               none lights its headlights white for the high beams
 %           TurnLeft, TurnRight: true or false (blink them in your loop)
-%           Running: true or false (front running lights)
-%           Tail: 'off', 'on', or 'brake' (rear lights)
+%           Hazards: true or false: both turn signals and the warning
+%               lamps (blink it in your loop)
+%           Running: true or false (front running lights; the marker
+%               lamps light with them)
+%           Tail: 'off', 'on', or 'brake' (rear lights; the license plate
+%               lamp lights whenever the tail lamps are on)
 %           Backup: true or false
+%           FogLights: true or false (the fog lamps)
+%           Reflectors: 0 to 1, how much outside light (another car's
+%               headlights) the reflectors send back: 0 none, 1 full
+%      (The lamp types are those of fcn_CarMesh3D_lampTypes. Reflectors,
+%      marker lamps and warning lamps glow in their own colors, made
+%      brighter, since they come in amber, red or white.)
 %      Lights need light faces with light types, from fcn_CarMesh3D_labelParts
 %      or fcn_CarMesh3D_editLabels. Turn signals are split into left and
 %      right by position. A light that is on is drawn unshaded, so it
@@ -325,6 +335,21 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % lamps' clear covers no longer glow opaque as lamps
 %   % * LightEffects: a lamp under a clear cover glows around its cover
 %   %   % (the glow shell around the lamp behind poked through the cover)
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * Five more lamp types (fcn_CarMesh3D_lampTypes; Sean, task 8):
+%   %   % fog lamps (new LightStates field FogLights), reflectors (new
+%   %   % field Reflectors, 0 to 1: how much outside light they send
+%   %   % back), the license plate lamp (lit with the tail lamps), marker
+%   %   % lamps (lit with the running lights) and warning lamps (new field
+%   %   % Hazards, which also lights both turn signals; Q24 (A), Q25 (A),
+%   %   % 23:19). Reflectors, marker and warning lamps glow in their own
+%   %   % colors made brighter (they come in amber, red or white)
+%   % * What lights those five types is a list, fcn_CarMesh3D_lampTypes'
+%   %   % default, which a vehicle can replace with its own mesh field
+%   %   % LampSwitching (Sean, 23:23: makers switch fog lamps in 3 to 6
+%   %   % ways)
 
 % TO-DO:
 %
@@ -496,7 +521,8 @@ if 0==flag_max_speed
             if ~isstruct(options.LightStates)
                 error('LightStates must be a structure (see help fcn_CarMesh3D_plotVehicle)');
             end
-            allowedFields = {'Headlights','LowBeam','HighBeam','TurnLeft','TurnRight','Running','Tail','Backup'};
+            allowedFields = {'Headlights','LowBeam','HighBeam','TurnLeft','TurnRight','Running','Tail','Backup', ...
+                'Hazards','FogLights','Reflectors'};
             givenFields = fieldnames(options.LightStates);
             unknownFields = setdiff(givenFields, allowedFields);
             if ~isempty(unknownFields)
@@ -792,6 +818,7 @@ else
     plotHandles.LightOffAlpha = lightOffAlpha;
     plotHandles.LightOnAlpha = lightOnAlpha;
     plotHandles.LightGroupNames = lightGroupNames;
+    plotHandles.LampSwitching = fcn_INTERNAL_lampSwitching(vehicleMesh);   % (what lights the fog, reflector, plate, marker and warning lamps)
     plotHandles.FaceLighting = faceLighting;
     plotHandles.LightEffects = lightEffects;
     plotHandles.CoverPatches = coverPatches;
@@ -902,7 +929,8 @@ end % Ends fcn_INTERNAL_patchesByAlpha
 %% fcn_INTERNAL_lightGroupNames
 function lightGroupNames = fcn_INTERNAL_lightGroupNames
 % The switchable light groups, in a fixed order
-lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup','highBeam'};
+lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup','highBeam', ...
+    'fog','reflector','licenseplate','marker','warning'};   % (the last five: Sean, task 8)
 end % Ends fcn_INTERNAL_lightGroupNames
 
 %% fcn_INTERNAL_faceLightGroups
@@ -912,7 +940,7 @@ function [faceLightGroup, lightGroupNames] = fcn_INTERNAL_faceLightGroups(vehicl
 % right by position. A face with several light functions
 % (FaceLightFunctions: a tail light that is also a turn signal) is in a
 % group of its own, named by its functions joined with '_' (such as
-% 'turnLeft_tail'), after the six single groups.
+% 'turnLeft_tail'), after the single groups.
 Nfaces = size(vehicleMesh.Faces,1);
 faceLightGroup = zeros(Nfaces,1);
 lightGroupNames = fcn_INTERNAL_lightGroupNames;
@@ -936,6 +964,9 @@ faceLightGroup(strcmp(faceTypeName,'running')) = 4;
 faceLightGroup(strcmp(faceTypeName,'tail'))    = 5;
 faceLightGroup(strcmp(faceTypeName,'backup'))  = 6;
 faceLightGroup(strcmp(faceTypeName,'highbeam')) = 7;
+for ith_new = 8:numel(lightGroupNames)   % (fog, reflector, licenseplate, marker, warning: named as their types)
+    faceLightGroup(strcmp(faceTypeName, lightGroupNames{ith_new})) = ith_new;
+end
 
 % Faces with several light functions: a group for each combination
 if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == Nfaces ...
@@ -1006,7 +1037,8 @@ faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
     vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
 lampFaces = find(faceLightGroup > 0);
 faceLightType = double(vehicleMesh.FaceLightType(:));
-baseGroups = struct('headlight',1,'running',4,'tail',5,'backup',6,'highbeam',7);
+baseGroups = struct('headlight',1,'running',4,'tail',5,'backup',6,'highbeam',7, ...
+    'fog',8,'reflector',9,'licenseplate',10,'marker',11,'warning',12);
 for thisType = unique(coverType(flagCover))'
     theseCovers = find(flagCover & coverType==thisType);
     sameType = lampFaces(faceLightType(lampFaces)==thisType);
@@ -1143,13 +1175,18 @@ else
 end
 % (no high beam lamps: the headlights light white for the high beams)
 flagHighFaces = isfield(plotHandles.LightPatches,'highBeam') && ~isempty(plotHandles.LightPatches.highBeam);
+% (what lights the lamp types switched from fcn_CarMesh3D_lampTypes)
+lampSwitching = struct;
+if isfield(plotHandles,'LampSwitching')
+    lampSwitching = plotHandles.LampSwitching;
+end
 for ith_group = 1:length(lightGroupNames)
     thisName = lightGroupNames{ith_group};
     thisPatch = plotHandles.LightPatches.(thisName);
     if isempty(thisPatch)
         continue;
     end
-    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
+    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces, lampSwitching);
     offColors = plotHandles.LightOffColors.(thisName);
     if ~iscell(offColors)
         offColors = {offColors};   % (handles made before 2026_11_22: one patch)
@@ -1170,7 +1207,7 @@ for ith_group = 1:length(lightGroupNames)
                 set(thisPatch(ith_patch),'FaceAlpha',offAlpha{ith_patch});
             end
         else
-            set(thisPatch(ith_patch),'FaceVertexCData',repmat(onColor,size(offColors{ith_patch},1),1),...
+            set(thisPatch(ith_patch),'FaceVertexCData',fcn_INTERNAL_litColors(onColor, offColors{ith_patch}),...
                 'FaceLighting','none');
             if numel(onAlpha) >= ith_patch && ~isempty(onAlpha{ith_patch})
                 set(thisPatch(ith_patch),'FaceAlpha',onAlpha{ith_patch});
@@ -1188,7 +1225,7 @@ if isfield(plotHandles,'CoverPatches')   % (handles made before 2026_11_23 have 
             continue;
         end
         thisCover = plotHandles.CoverPatches.(thisName);
-        onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
+        onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces, lampSwitching);
         offColors = plotHandles.CoverOffColors.(thisName);
         offAlpha = plotHandles.CoverOffAlpha.(thisName);
         for ith_patch = 1:numel(thisCover)
@@ -1196,7 +1233,7 @@ if isfield(plotHandles,'CoverPatches')   % (handles made before 2026_11_23 have 
                 set(thisCover(ith_patch),'FaceVertexCData',offColors{ith_patch},...
                     'FaceAlpha',offAlpha{ith_patch},'FaceLighting',plotHandles.FaceLighting);
             else
-                set(thisCover(ith_patch),'FaceVertexCData',repmat(onColor,size(offColors{ith_patch},1),1),...
+                set(thisCover(ith_patch),'FaceVertexCData',fcn_INTERNAL_litColors(onColor, offColors{ith_patch}),...
                     'FaceAlpha',plotHandles.CoverOnAlpha,'FaceLighting','none');
             end
         end
@@ -1214,10 +1251,17 @@ for ith_group = 1:length(lightGroupNames)
     if isempty(thisGlow)
         continue;
     end
-    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces);
+    onColor = fcn_INTERNAL_lightColor(thisName, lightStates, flagHighFaces, lampSwitching);
     if isempty(onColor)
         fcn_INTERNAL_setVisible(thisGlow, false);
     else
+        if isscalar(onColor)   % (glowing in its own colors: the lamp's colors, brighter, on average)
+            lampColors = plotHandles.LightOffColors.(thisName);
+            if iscell(lampColors)
+                lampColors = vertcat(lampColors{:});
+            end
+            onColor = mean(fcn_INTERNAL_litColors(onColor, lampColors), 1);
+        end
         set(thisGlow,'FaceColor',onColor);
         fcn_INTERNAL_setVisible(thisGlow, true);
     end
@@ -1238,8 +1282,8 @@ fcn_INTERNAL_setVisible(lightEffects.Pools.tail, strcmp(tailState,'on'));
 fcn_INTERNAL_setVisible(lightEffects.Pools.brake, strcmp(tailState,'brake'));
 fcn_INTERNAL_setVisible(lightEffects.Pools.backup, fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'Backup',false)));
 if isfield(lightEffects.Pools, 'turnLeftFront')   % (handles made before 2026_11_23 have no turn pools)
-    flagLeft = fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnLeft',false));
-    flagRight = fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnRight',false));
+    flagLeft = fcn_INTERNAL_turnOn(lightStates, 'TurnLeft');
+    flagRight = fcn_INTERNAL_turnOn(lightStates, 'TurnRight');
     fcn_INTERNAL_setVisible(lightEffects.Pools.turnLeftFront, flagLeft);
     fcn_INTERNAL_setVisible(lightEffects.Pools.turnLeftRear, flagLeft);
     fcn_INTERNAL_setVisible(lightEffects.Pools.turnRightFront, flagRight);
@@ -1435,19 +1479,23 @@ end
 end % Ends fcn_INTERNAL_beams
 
 %% fcn_INTERNAL_lightColor
-function onColor = fcn_INTERNAL_lightColor(groupName, lightStates, flagHighFaces)
+function onColor = fcn_INTERNAL_lightColor(groupName, lightStates, flagHighFaces, lampSwitching)
 % The glowing color of a light group in the given states, or [] if off.
 % A combined group ('turnLeft_tail') glows when any of its functions is
 % on: a turn signal flashing wins (in red when the lamp is also a tail
-% light, as on many US cars), then the brake and tail, the headlights,
-% the running lights, and backing up
+% light, as on many US cars), then the warning lamps, the brake and tail,
+% the headlights, the fog lamps, the running lights and marker lamps, the
+% license plate lamp, backing up, and the reflectors.
+% A number (0 to 1) in place of a color means "the lamp's own colors,
+% made that much brighter" (reflectors, marker and warning lamps)
 onColor = [];
 if contains(groupName, '_')
     members = split(groupName, '_');
-    priority = {'turnLeft','turnRight','tail','highBeam','headlight','running','backup'};
+    priority = {'turnLeft','turnRight','warning','tail','highBeam','headlight','fog','running','marker', ...
+        'licenseplate','backup','reflector'};
     for thisMember = priority
         if any(strcmp(members, thisMember{1}))
-            onColor = fcn_INTERNAL_lightColor(thisMember{1}, lightStates, flagHighFaces);
+            onColor = fcn_INTERNAL_lightColor(thisMember{1}, lightStates, flagHighFaces, lampSwitching);
             if ~isempty(onColor)
                 if startsWith(thisMember{1}, 'turn') && any(strcmp(members, 'tail'))
                     onColor = [1.00 0.12 0.08];   % (a red turn signal)
@@ -1473,11 +1521,11 @@ switch groupName
             onColor = [1.00 1.00 1.00];
         end
     case 'turnLeft'
-        if fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnLeft',false))
+        if fcn_INTERNAL_turnOn(lightStates, 'TurnLeft')
             onColor = [1.00 0.55 0.00];
         end
     case 'turnRight'
-        if fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'TurnRight',false))
+        if fcn_INTERNAL_turnOn(lightStates, 'TurnRight')
             onColor = [1.00 0.55 0.00];
         end
     case 'running'
@@ -1503,8 +1551,101 @@ switch groupName
         if fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates,'Backup',false))
             onColor = [1.00 1.00 1.00];
         end
+    case {'fog','licenseplate','marker','warning','reflector'}
+        % (switched by the states listed for the type: the vehicle's own
+        % LampSwitching, else fcn_CarMesh3D_lampTypes' default; any one
+        % on lights it. Fog and the plate lamp in fixed colors; the
+        % others in their own colors, brighter: Sean, task 8)
+        amount = 0;
+        if isfield(lampSwitching, groupName)
+            for stateName = reshape(cellstr(lampSwitching.(groupName)), 1, [])
+                amount = max(amount, fcn_INTERNAL_stateAmount(lightStates, stateName{1}));
+            end
+        end
+        if amount > 0
+            switch groupName
+                case 'fog'
+                    onColor = [1.00 0.97 0.85];
+                case 'licenseplate'
+                    onColor = [1.00 1.00 0.95];
+                otherwise
+                    onColor = min(1, amount);
+            end
+        end
 end
 end % Ends fcn_INTERNAL_lightColor
+
+%% fcn_INTERNAL_stateAmount
+function amount = fcn_INTERNAL_stateAmount(lightStates, stateName)
+% How much a LightStates field is on, 0 to 1: Headlights 'low' or 'high',
+% LowBeam and HighBeam as the beams are, Tail 'on' or 'brake', Reflectors
+% its value, any other field 1 when true
+switch stateName
+    case 'LowBeam'
+        [flagLow, ~] = fcn_INTERNAL_beams(lightStates);
+        amount = double(flagLow);
+    case 'HighBeam'
+        [~, flagHigh] = fcn_INTERNAL_beams(lightStates);
+        amount = double(flagHigh);
+    case 'Headlights'
+        [flagLow, flagHigh] = fcn_INTERNAL_beams(lightStates);
+        amount = double(flagLow || flagHigh);
+    case 'Tail'
+        state = fcn_INTERNAL_stateValue(lightStates,'Tail','off');
+        if ischar(state) || isstring(state)
+            amount = double(any(strcmpi(char(state), {'on','brake'})));
+        else
+            amount = double(fcn_INTERNAL_isOn(state));
+        end
+    case 'Reflectors'
+        value = double(fcn_INTERNAL_stateValue(lightStates,'Reflectors',0));
+        amount = 0;
+        if ~isempty(value)
+            amount = min(1, max(0, value(1)));
+        end
+    otherwise
+        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates, stateName, false)));
+end
+end % Ends fcn_INTERNAL_stateAmount
+
+%% fcn_INTERNAL_lampSwitching
+function lampSwitching = fcn_INTERNAL_lampSwitching(vehicleMesh)
+% What lights each lamp type switched from a list: fcn_CarMesh3D_lampTypes'
+% defaults, replaced type by type by the vehicle's own LampSwitching
+% (makers switch fog lamps, for one, in several ways: Sean, 23:23)
+lampSwitching = struct;
+for thisType = fcn_CarMesh3D_lampTypes()'
+    if ~isempty(thisType.SwitchedByStates)
+        lampSwitching.(thisType.Name) = thisType.SwitchedByStates;
+    end
+end
+if isfield(vehicleMesh,'LampSwitching') && isstruct(vehicleMesh.LampSwitching)
+    for typeName = fieldnames(vehicleMesh.LampSwitching)'
+        lampSwitching.(typeName{1}) = cellstr(vehicleMesh.LampSwitching.(typeName{1}));
+    end
+end
+end % Ends fcn_INTERNAL_lampSwitching
+
+%% fcn_INTERNAL_turnOn
+function flagOn = fcn_INTERNAL_turnOn(lightStates, fieldName)
+% Is a turn signal on: its own state (TurnLeft or TurnRight), or the
+% hazards (both)
+flagOn = fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates, fieldName, false)) ...
+    || fcn_INTERNAL_isOn(fcn_INTERNAL_stateValue(lightStates, 'Hazards', false));
+end % Ends fcn_INTERNAL_turnOn
+
+%% fcn_INTERNAL_litColors
+function litColors = fcn_INTERNAL_litColors(onColor, offColors)
+% The colors of a lit patch: one color for every face (onColor, 1 x 3),
+% or, when onColor is a number from 0 to 1, the faces' own colors made
+% that much brighter (each toward its own hue at full brightness)
+if numel(onColor) == 3
+    litColors = repmat(reshape(onColor, 1, 3), size(offColors,1), 1);
+else
+    brightest = offColors ./ max(max(offColors, [], 2), eps);
+    litColors = offColors + onColor * (brightest - offColors);
+end
+end % Ends fcn_INTERNAL_litColors
 
 %% fcn_INTERNAL_stateValue
 function value = fcn_INTERNAL_stateValue(lightStates, fieldName, defaultValue)

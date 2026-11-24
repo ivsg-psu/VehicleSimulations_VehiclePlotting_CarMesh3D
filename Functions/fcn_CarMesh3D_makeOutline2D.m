@@ -177,6 +177,11 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 % - In fcn_CarMesh3D_makeOutline2D
 %   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeOutline2D
+%   % * The check plot colors the newer lamp types (fcn_CarMesh3D_lampTypes;
+%   %   % Sean, task 8)
 
 % TO-DO:
 %
@@ -543,6 +548,11 @@ if flag_do_plots
     layout = tiledlayout(2, 1, 'TileSpacing','compact', 'Padding','compact');
     lightColors = struct('headlight',[0.85 0.80 0.55], 'turnsignal',[0.95 0.55 0.05], 'running',[0.85 0.80 0.55], ...
         'tail',[0.80 0.05 0.05], 'backup',[0.60 0.60 0.60], 'highbeam',[0.85 0.85 0.75], 'other',[0.50 0.50 0.50]);
+    for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types)
+        if ~isfield(lightColors, thisType.Name)
+            lightColors.(thisType.Name) = thisType.LabelColor;
+        end
+    end
     panelTitles = {'The outlines alone', 'Over the mesh seen from above (faded)'};
     for ith_panel = 1:2
         nexttile(layout);

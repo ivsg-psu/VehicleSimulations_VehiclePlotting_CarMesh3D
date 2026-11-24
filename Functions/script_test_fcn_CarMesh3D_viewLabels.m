@@ -149,7 +149,13 @@ if isfield(loaded.vehicleMesh, 'FaceHiddenSet')
     flagBody = flagBody & loaded.vehicleMesh.FaceHiddenSet(:) == 0;
 end
 alphaData = viewer.Patch.FaceVertexAlphaData;
-assert(max(abs(alphaData(flagGlass) - loaded.vehicleMesh.FaceAlpha(flagGlass))) < 1e-9, 'Glass as rendered');
+% (a lamp's clear cover is drawn as glass, at least 40% opaque, so it shows: Q29 (A), 2026_11_24)
+expectedAlpha = loaded.vehicleMesh.FaceAlpha(:);
+if isfield(loaded.vehicleMesh, 'FaceCoverLamp')
+    flagCover = loaded.vehicleMesh.FaceCoverLamp(:) > 0;
+    expectedAlpha(flagCover) = max(expectedAlpha(flagCover), 0.40);
+end
+assert(max(abs(alphaData(flagGlass) - expectedAlpha(flagGlass))) < 1e-9, 'Glass as rendered');
 viewer.SetSeeThrough(0.6);
 alphaData = viewer.Patch.FaceVertexAlphaData;
 assert(all(abs(alphaData(flagBody) - 0.4) < 1e-9), 'Body 60% see-through');
@@ -180,6 +186,10 @@ assert(~any(viewer.NightLights().LowBeam));
 viewer.SetNightLights(struct('Tail', 'brake'));
 flagTail = loaded.vehicleMesh.FaceLightType(:) == find(strcmp(loaded.vehicleMesh.LightTypeNames, 'tail'));
 assert(all(max(abs(viewer.Patch.FaceVertexCData(flagTail,:) - [1.00 0.12 0.08]), [], 2) < 1e-9), 'Brake lights lit by day');
+% (and the clear covers of lit lamps, which glow in the lamp's lit color by day too: 2026_11_24)
+if isfield(loaded.vehicleMesh, 'FaceCoverLamp')
+    flagLamp = flagLamp | loaded.vehicleMesh.FaceCoverLamp(:) > 0;
+end
 assert(isequal(viewer.Patch.FaceVertexCData(~flagLamp,:), colorsOff(~flagLamp,:)), 'Only the lamps change');
 viewer.SetNightLights(struct('Tail', 'off'));
 assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Lamps off: as before');

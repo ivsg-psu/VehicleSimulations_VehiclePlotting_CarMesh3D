@@ -211,18 +211,18 @@ assert(strcmp(warningID, 'CarMesh3D:notInLibrary'));
 assert(isequal(browser.Order(), {'2009_Honda_Fit_Sport'}));
 browser.Close();
 
-%% Opening a vehicle from its row: the viewer; the editor and reviewer on a demo copy
+%% A vehicle's next step: the browser returns it and opens no tool (the tree rule; C2S 13 (A))
 [~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={'2009_Honda_Fit_Sport'});
-[viewer, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'view');
-assert(isgraphics(viewer.Figure) && strcmp(folderUsed, browser.Vehicles(1).Folder));
-viewer.Close();
-[painter, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'edit');
-assert(contains(folderUsed, fullfile(tempdir, 'CarMesh3D_demo')), 'Hidden: the editor opens a demo copy');
-assert(contains(painter.EditsFile, fullfile(tempdir, 'CarMesh3D_demo')));
-painter.Close();
-[reviewWindow, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'review', true);
-assert(isgraphics(reviewWindow) && contains(folderUsed, fullfile(tempdir, 'CarMesh3D_demo')));
-delete(reviewWindow);
+figuresBefore = numel(findall(groot, 'Type', 'figure'));
+[viewStep, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'view');
+assert(strcmp(viewStep.Tool, 'view') && strcmp(folderUsed, browser.Vehicles(1).Folder) && strcmp(viewStep.Folder, folderUsed));
+[editStep, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'edit');
+assert(contains(folderUsed, fullfile(tempdir, 'CarMesh3D_demo')), 'Hidden: the editor step uses a demo copy');
+[reviewStep, folderUsed] = browser.Open('2009_Honda_Fit_Sport', 'review', true);
+assert(strcmp(reviewStep.Tool, 'review') && contains(folderUsed, fullfile(tempdir, 'CarMesh3D_demo')));
+assert(isequal(browser.NextStep(), reviewStep));
+assert(numel(findall(groot, 'Type', 'figure')) == figuresBefore, 'The browser opened a tool''s window');
+% (the trunk opens the step: fcn_CarMesh3D_openTool, tested in its own script)
 buttons = findall(browser.Figure, 'Type', 'uibutton');
 assert(all(ismember({'View','Edit labels','Review'}, {buttons.Text})));
 try
@@ -232,6 +232,78 @@ catch ME
     assert(strcmp(ME.identifier, 'CarMesh3D:notInList'), ME.message);
 end
 browser.Close();
+
+%% The table and the preview (Sean, Q23 (A) and C2S 9 to 12 (A), 23:06)
+[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, GroupBy='class', SortBy='make');
+vehicleTable = browser.Table;
+assert(isa(vehicleTable, 'matlab.ui.control.Table'), 'The vehicles are in a table');
+assert(isempty(findall(browser.Figure, 'Type', 'uiimage')) || numel(findall(browser.Figure, 'Type', 'uiimage')) == 2, ...
+    'Only the preview''s two pictures');
+assert(isequal(vehicleTable.ColumnName(1:5)', {'Select', char(9733), 'Vehicle', 'Year', 'Make'}) && ...
+    ~ismember('Class', vehicleTable.ColumnName), 'The columns (no Class column when grouped by class)');
+% (the preview starts at the first vehicle shown, and keeps its vehicle
+% through a re-sort while it is still shown)
+order = browser.Order();
+assert(strcmp(browser.Previewed(), order{1}), 'The preview starts at the first vehicle shown');
+browser.SetGroup('make');
+assert(ismember('Class', vehicleTable.ColumnName), 'A Class column when not grouped by class');
+assert(strcmp(browser.Previewed(), order{1}), 'The preview keeps its vehicle through a re-sort');
+order = browser.Order();
+% (clicking a row: its vehicle in the preview; a group row: no change)
+flagGroupRow = cellfun(@isempty, vehicleTable.Data(:, 1));
+vehicleRows = find(~flagGroupRow);
+vehicleTable.Selection = vehicleRows(3);
+vehicleTable.SelectionChangedFcn(vehicleTable, []);
+assert(strcmp(browser.Previewed(), order{3}), 'A row clicked is previewed');
+vehicleTable.Selection = find(flagGroupRow, 1);
+vehicleTable.SelectionChangedFcn(vehicleTable, []);
+assert(strcmp(browser.Previewed(), order{3}), 'A group row clicked changes nothing');
+previewName = findall(browser.Figure, 'Type', 'uilabel', 'FontSize', 20);
+previewedVehicle = vehicles(strcmp({vehicles.ID}, order{3}));
+assert(contains(previewName.Text, previewedVehicle.Name), 'The preview shows the vehicle''s name');
+pictures = findall(browser.Figure, 'Type', 'uiimage');
+assert(any(strcmp(cellfun(@char, {pictures.ImageSource}, 'UniformOutput', false), previewedVehicle.Picture3D)), ...
+    'The preview shows the vehicle''s 3D picture');
+% (ticking Select in the table, in the preview, and by the hooks: all agree)
+event = struct('Indices', [vehicleRows(3) 1], 'NewData', true);
+vehicleTable.CellEditCallback(vehicleTable, event);
+previewSelect = findall(browser.Figure, 'Type', 'uicheckbox', 'Text', 'Select');
+assert(isequal(browser.Selected(), order(3)) && previewSelect.Value, 'Ticked in the table: selected, and ticked in the preview');
+previewSelect.Value = false;
+previewSelect.ValueChangedFcn(previewSelect, []);
+assert(isempty(browser.Selected()) && isequal(vehicleTable.Data{vehicleRows(3), 1}, false), ...
+    'Unticked in the preview: unselected, and unticked in the table');
+browser.Select(order(1));
+assert(isequal(vehicleTable.Data{vehicleRows(1), 1}, true), 'Select() ticks the table');
+groupRow = find(flagGroupRow, 1);
+vehicleTable.Data{groupRow, 1} = true;
+vehicleTable.CellEditCallback(vehicleTable, struct('Indices', [groupRow 1], 'NewData', true));
+assert(isempty(vehicleTable.Data{groupRow, 1}) && isequal(browser.Selected(), order(1)), 'A group row cannot be ticked');
+% (Preview(name), and a name not in the list)
+browser.Preview(order{5});
+assert(strcmp(browser.Previewed(), order{5}) && isequal(vehicleTable.Selection, vehicleRows(5)), 'Preview(name)');
+try
+    browser.Preview('1900_No_Such_Car');
+    error('should have failed');
+catch ME
+    assert(strcmp(ME.identifier, 'CarMesh3D:notInList'), ME.message);
+end
+% (a filter that hides the previewed vehicle moves the preview to the first shown)
+browser.ApplyFilter(vehicles(strcmp({vehicles.ID}, order{1})).Make);
+shownNow = browser.Order();
+assert(any(strcmp(browser.Previewed(), shownNow)), 'The preview is of a vehicle shown');
+browser.ClearFilters();
+% (the preview's View button asks for the vehicle in the preview now, not
+% the one previewed when the window was built; it closes the browser and
+% returns the step, and opens no viewer itself: the tree rule, C2S 13 (A))
+viewButton = findall(browser.Figure, 'Type', 'uibutton', 'Text', 'View');
+browser.Preview(order{2});
+viewersBefore = numel(findall(groot, 'Type', 'figure', '-regexp', 'Name', 'viewLabels'));
+viewButton.ButtonPushedFcn(viewButton, []);
+pickedStep = browser.NextStep();
+assert(strcmp(pickedStep.Tool, 'view') && strcmp(pickedStep.VehicleID, order{2}), 'View asks for the vehicle in the preview');
+assert(~isvalid(browser.Figure), 'View closes the browser');
+assert(numel(findall(groot, 'Type', 'figure', '-regexp', 'Name', 'viewLabels')) == viewersBefore, 'The browser opened no viewer');
 
 %% A data folder given is named in the subtitle (rule B10)
 dataFolder = fullfile(fileparts(fileparts(which('fcn_CarMesh3D_browseVehicles'))), 'Data');   % (the library's own Data folder)
@@ -250,7 +322,7 @@ assert(isempty(timerfindall), 'No timers are left running');
 % the list are the groups, in the same order, each above its vehicles
 [~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
 vehicles = browser.Vehicles;
-listGrid = findall(browser.Figure, 'Type', 'uigridlayout', 'Scrollable', 'on');
+vehicleTable = browser.Table;
 groupKeyList = {'class','make','year','review','exemplar','license','none'};
 sortKeyList = {'make','year','class','length','score','review','built','reviewDate'};
 numChecked = 0;
@@ -282,29 +354,31 @@ for ith_group = 1:numel(groupKeyList)
                     assert(all(diff(v) >= 0), '%s: not ascending within group %s', what, groupNames(find(groupRank == thisRank, 1)));
                 end
             end
-            % (the headers as laid out in the list: one per group, in order,
-            % each in the row just above its group's first vehicle)
-            if ~strcmp(groupKeyList{ith_group}, 'none')
-                headers = findall(listGrid, 'Type', 'uilabel', 'FontSize', 16);
-                headerRows = arrayfun(@(h) h.Layout.Row, headers);
-                [headerRows, byRow] = sort(headerRows);
-                headerNames = arrayfun(@(h) string(strtrim(regexprep(h.Text, '\s+\(\d+\)$', ''))), headers(byRow));
-                assert(isequal(headerNames(:), unique(groupNames, 'stable')), '%s: the headers do not match the groups', what);
-                rowsPanels = findall(listGrid, 'Type', 'uipanel', 'Visible', 'on');
-                firstRows = zeros(numel(headerNames), 1);
-                for ith_header = 1:numel(headerNames)
-                    firstID = order{find(groupNames == headerNames(ith_header), 1)};
-                    firstPanel = rowsPanels(arrayfun(@(pnl) ~isempty(findall(pnl, 'Type', 'uilabel', 'Text', firstID)), rowsPanels));
-                    firstRows(ith_header) = firstPanel(1).Layout.Row;
+            % (the table as filled: the vehicles in the order shown, and,
+            % when grouped, one group row before each group's vehicles,
+            % named for it)
+            tableData = vehicleTable.Data;
+            flagGroupRow = cellfun(@isempty, tableData(:, 1));
+            assert(isequal(tableData(~flagGroupRow, 3)', {vehicles(index).Name}), '%s: the table rows are not in the order shown', what);
+            if strcmp(groupKeyList{ith_group}, 'none')
+                assert(~any(flagGroupRow), '%s: group rows with no groups', what);
+            else
+                groupRowNames = string(regexprep(tableData(flagGroupRow, 3), '\s+\(\d+\)$', ''));
+                assert(isequal(groupRowNames(:), upper(unique(groupNames, 'stable'))), '%s: the group rows do not match the groups', what);
+                % (each group row is followed by its group's first vehicle)
+                groupRowIndex = find(flagGroupRow);
+                vehicleRowIndex = cumsum(~flagGroupRow);
+                for ith_header = 1:numel(groupRowIndex)
+                    firstOfGroup = find(upper(groupNames) == groupRowNames(ith_header), 1);
+                    assert(vehicleRowIndex(groupRowIndex(ith_header) + 1) == firstOfGroup, ...
+                        '%s: a group row is not just above its group', what);
                 end
-                assert(isequal(firstRows, headerRows(:) + 1), '%s: a header is not just above its group', what);
             end
             numChecked = numChecked + 1;
         end
     end
 end
 assert(numChecked == 112);
-assert(strcmp(listGrid.Visible, 'on'), 'The list is shown again after it is arranged');
 % (Sean's screenshot, 22:05: sort by Class within Class groups, Z to A:
 % the coupes by make, Z to A; and A to Z, the reverse)
 browser.SetGroup('class');

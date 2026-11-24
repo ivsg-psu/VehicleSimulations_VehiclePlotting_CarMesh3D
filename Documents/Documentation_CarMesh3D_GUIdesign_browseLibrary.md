@@ -2,37 +2,13 @@
 
 *The style and layout choices for the library browser, kept so the window can be rebuilt from this file. Edit it freely: it is the place to change the design, and Claude builds from it. Started 2026-11-23 16:20 by Claude from the window as built (`fcn_CarMesh3D_browseLibrary.m`, last changed 2026-11-22 23:38, and its picture `Images/functions/fcn_CarMesh3D_browseLibrary.png`).*
 
-**Status:** REVIEWED by Sean 2026-11-23 17:56 (C2S 1 to 5 answered; see the change log). Section 4 describes the window as it is today; section 5 is the agreed design, not yet built. Sections marked **(Sean)** are Sean's words or decisions; **(Claude, to confirm)** marks Claude's fill-ins.
+**Status:** REDESIGN PROPOSED (2026-11-23 23:05). The list version (sections 4 and 5) was built and pushed as a return point (commit "Library browser, list version (return point before the table redesign)", 23:01). Sean chose (Q23 (A), 22:59) to replace the list of picture rows with a text table and a preview panel: section 3.3 is Claude's proposal, with C2S 9 to 12 for Sean. Not built.
 
 ---
 
 ## Review now (for Sean)
 
-*Added 2026-11-23 22:12 by Claude. Sean writes his result under each step (works, or what he saw). When a round is done, Claude moves the steps and results into the change log (section 10) and clears this section for the next round.*
-
-**What Claude already tested (by script, hidden):** `script_test_fcn_CarMesh3D_browseLibrary.m` passes (22:10, 38 s, no windows or timers left). It covers every arrangement, 7 Group by x 8 sorts x 2 orders = 112: the groups in their own order, the vehicles within each group in the order chosen, and each header just above its group; the coupe case from Sean's screenshot; Order= and the older Descending=; Enter in the filter box; tooltips on every control; Copy names grayed out; the demo copy made once; Open() with an unknown name; the data folder in the subtitle.
-
-**What needs Sean's eyes and hands** (open it from the demo menu: "browseLibrary: browse the vehicle library and pick vehicles"):
-
-**T6. The Order? words.** Pick each sort in turn. The Order? choices change to fit it: Make and Class show A to Z / Z to A; Year, Date built and Date reviewed show Newest first / Oldest first; Length shows Longest first / Shortest first; Score shows Highest first / Lowest first; Review shows Most approved first / Least approved first. Each new sort starts at its first choice. "Name" is no longer in the sort list.
-
-(Sean's result:)
-
-**T7. The coupe case.** Group by Class, sort by Class, Order? Z to A. The coupes read Honda Civic Si, Ford Mustang GT, CarMesh3D Generic Coupe. Switch to A to Z: they reverse.
-
-(Sean's result:)
-
-**T8. Edit labels on any row.** The question names the "label painter" (it said "mesh editor" before), and "Open a demo copy" is the default button. Cancel closes the question without opening anything.
-
-(Sean's result:)
-
-**T9. Done: close and return, with nothing selected.** The window closes, and the command window says a fresh copy of the Fit is returned.
-
-(Sean's result:)
-
-**T10. Look and feel.** Box 2 is wider now (400 px). Nothing in the top row is cut off at Sean's window size, the filter box's title especially.
-
-(Sean's result:)
+*(Nothing for Sean to test by hand now. The table version passed T13 (the preview scrolls). C2S 13, the tree rule, is built (2026-11-24 02:30): View, Edit labels and Review close the browser and return the step; tested by script.)*
 
 ---
 
@@ -107,6 +83,39 @@ The painter's general rules apply where they fit a list window: see [Documentati
 ### 3.2 Agreed (2026-11-23)
 
 The same layout: it already follows B1 to B5 and suits a list. No pancake menu (nothing here is used seldom enough to hide). Changes are small (section 5): Descending stops reversing the groups (B7), Enter applies the filter (B9), the missing tooltips are added, and "Clear" is renamed.
+
+### 3.3 Proposed: a text table and a preview panel (Claude, 2026-11-23 23:05; for Sean's review)
+
+**Why** (measured 22:26 to 22:51, see the change log): the browser's own code takes about 0.1 s for any re-sort, but in a visible window the screen could stop updating for about 60 s; the stall came from the list's 80 pictures (with none, or 40, it did not happen), most likely when the window was covered by another. With hundreds to thousands of vehicles, a list of picture rows (about 15 controls per vehicle: 607 for 40) also gets slow to open. Sean (22:54): "switch the list to only text, and give some type of click-to-see option for the images".
+
+```
++---------------------------------------------------------------------------------------------------------------+
+| fcn_CarMesh3D_browseLibrary        (title bar: version | "The vehicle library: tick Select ...")             |
++---------------------------------------------------------------------------------------------------------------+
+| +1. Group by------+ +2. Sort within each group by-----------+ +3. Filter ...-----------------------+ 40 of 40 |
+| |[Class       v]  | |[Year          v] Order? [Newest first v]| |[ part of a name ...][Apply][Clear] | [Done]   |
+| +-----------------+ +-----------------------------------------+ +------------------------------------+          |
+| Returned when closed: selectedNames = {'2009_Honda_Fit_Sport'};   % 1 vehicle(s)   [Copy][Select all][Clear] |
++--------------------------------------------------------------------------+------------------------------------+
+| Sel | * | Vehicle                    | Year | Make  | Length | Score | Rev. | PREVIEW: 2012 Honda Civic Si   |
+|-----+---+----------------------------+------+-------+--------+-------+------|  [3D picture, 420 x 300]          |
+| COUPE (3)                                         (tinted group row)       |  [2D picture, 420 x 300]          |
+| [ ] | * | 2012 Honda Civic Si        | 2012 | Honda |  4.46  | 100.0 |  0 % |  Class: Coupe  * exemplar        |
+| [ ] | * | 2006 Ford Mustang GT       | 2006 | Ford  |  4.78  | 100.0 |  0 % |  Size: 4.46 x 1.75 x 1.40 m ...  |
+| [ ] |   | 2026 CarMesh3D Generic ... | 2026 | CarM..|  4.62  | 100.0 |  0 % |  Processed / Review / License    |
+| CROSSOVER OR COMPACT SUV (5)                                               |  [ ] Select                       |
+| ...   (a uitable: scrolls; fast for thousands of rows)                     |  [View] [Edit labels] [Review]    |
++--------------------------------------------------------------------------+------------------------------------+
+```
+
+- **The table** (`uitable`, about 60 % of the width): one row per vehicle, text only, no pictures. Proposed columns (C2S 11): **Select** (a tick box, the only editable column), **★** (exemplar), **Vehicle** (the name), **Year**, **Make**, **Class** (when not grouped by class), **Length (m)**, **Score**, **Review (% approved)**, **License** (short). The MATLAB name shows in the preview and in a tooltip.
+- **Groups** (C2S 10): a tinted, bold row per group ("COUPE (3)"), as the list's headers today; it cannot be ticked or previewed.
+- **The preview panel** (right, about 40 %, 440 px or more): the vehicle of the row clicked (C2S 12): its 3D and 2D pictures (the same cached pictures as now, one vehicle at a time), its name and MATLAB name, the full details (the same text as today's rows), its own Select tick box (the same as the table's), and View, Edit labels and Review. With nothing clicked: the first vehicle shown.
+- **Controls above the table stay as built** (Group by, Sort, Order?, Filter, the selection row, Done): rules B1 to B13 keep their meaning. Whether clicking a column heading also sorts is C2S 9.
+- **Keyboard:** up and down arrows move through the rows and the preview follows (the table does this by itself).
+- **Rule 26:** opening (reading the library) keeps its progress dialog; a re-sort of a text table should take well under a second, so it needs none.
+- **Kept:** every option, output and hook (section 4.5); the question before Edit labels and Review; the pictures' cache. New hooks for tests: `Preview(name)` (show this vehicle in the preview) and `Previewed()`.
+- **Scale check before building it fully** (Claude): a table of 2,000 made-up rows, sorted and regrouped in a visible window, timed (needs Sean's OK for a visible window).
 
 ## 4. The window as built today
 
@@ -183,7 +192,7 @@ Warnings appear in a `uialert` (in the command window when the window is hidden)
 
 **`browser`**: `Figure`, `Vehicles` (one element per vehicle: ID, Name, Year, Make, Model, Trim, Folder, class, size, score, build, license, review fields, picture files), `Order()`, `SetSort(key, (flagDescending))`, `SortOrder()`, `SetGroup(key)`, `ApplyFilter(text)` (true if applied), `ClearFilters()`, `Filters()`, `Open(name, tool, (flagUseCopy))` ('view', 'edit', 'review'), `Select(names)`, `Deselect(names)`, `Selected()`, `Result()`, `Close()`.
 
-## 5. Agreed design (2026-11-23; not yet built)
+## 5. Agreed design for the list version (2026-11-23; built 22:06, return point 23:01)
 
 ### 5.1 What already follows the rules (keep)
 
@@ -252,6 +261,7 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
 *(None open.)*
 
 **(Sean to Claude)**
+
 
 *(None open.)*
 
@@ -364,3 +374,46 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   - which Group by was chosen (Class, the default?), and
   - if Sean can, a screenshot of the list as it looked, pasted here or saved in `Project_CarMesh3D\pictures\`. (Claude will not capture a browser window itself: that hung MATLAB at 21:40.)
 - 2026-11-23 22:12: "Review now (for Sean)" section added at the top, with test steps T6 to T10 for Sean's results (Sean, 22:10: keep the tests in this file so they go in the change log).
+- 2026-11-23 23:05: return point pushed by Sean (23:01) with the list version; local copy in `Project_CarMesh3D\backups\browseLibrary_listVersion_2026_11_23`. Sean chose the redesign (Q23 (A), 22:59: a text table and a preview panel, in place of the list of picture rows). Section 3.3 proposed, with C2S 9 to 12. The list version's test steps, never answered, retired from "Review now":
+
+  ## Review now (for Sean)
+
+  *Added 2026-11-23 22:12 by Claude. Sean writes his result under each step (works, or what he saw). When a round is done, Claude moves the steps and results into the change log (section 10) and clears this section for the next round.*
+
+  **What Claude already tested (by script, hidden):** `script_test_fcn_CarMesh3D_browseLibrary.m` passes (22:10, 38 s, no windows or timers left). It covers every arrangement, 7 Group by x 8 sorts x 2 orders = 112: the groups in their own order, the vehicles within each group in the order chosen, and each header just above its group; the coupe case from Sean's screenshot; Order= and the older Descending=; Enter in the filter box; tooltips on every control; Copy names grayed out; the demo copy made once; Open() with an unknown name; the data folder in the subtitle.
+
+  **What needs Sean's eyes and hands** (open it from the demo menu: "browseLibrary: browse the vehicle library and pick vehicles"):
+
+  **T6. The Order? words.** Pick each sort in turn. The Order? choices change to fit it: Make and Class show A to Z / Z to A; Year, Date built and Date reviewed show Newest first / Oldest first; Length shows Longest first / Shortest first; Score shows Highest first / Lowest first; Review shows Most approved first / Least approved first. Each new sort starts at its first choice. "Name" is no longer in the sort list.
+
+  (Sean's result:)
+
+  **T7. The coupe case.** Group by Class, sort by Class, Order? Z to A. The coupes read Honda Civic Si, Ford Mustang GT, CarMesh3D Generic Coupe. Switch to A to Z: they reverse.
+
+  (Sean's result:)
+
+  **T8. Edit labels on any row.** The question names the "label painter" (it said "mesh editor" before), and "Open a demo copy" is the default button. Cancel closes the question without opening anything.
+
+  (Sean's result:)
+
+  **T9. Done: close and return, with nothing selected.** The window closes, and the command window says a fresh copy of the Fit is returned.
+
+  (Sean's result:)
+
+  **T10. Look and feel.** Box 2 is wider now (400 px). Nothing in the top row is cut off at Sean's window size, the filter box's title especially.
+
+  (Sean's result:)
+
+  ---
+- 2026-11-23 23:06 (Sean): C2S 9 to 12 answered: "your proposals are good starts... Please proceed." So each (A): the boxes only sort (headings do not); a tinted bold row per group; the columns Select, ★, Vehicle, Year, Make, Class, Length, Score, Review, License; the preview shows the row last clicked. Built 23:06 to 23:59 (table and preview, section 3.3). The questions as asked:
+  - C2S 9 (sorting by a column heading): (A) the boxes only; (B) a heading sets the Sort box; (C) headings sort by themselves, ignoring groups.
+  - C2S 10 (groups in the table): (A) a tinted bold row per group; (B) a Group column instead.
+  - C2S 11 (columns): (A) as above; (B) fewer; (C) Sean lists them.
+  - C2S 12 (the preview): (A) the row last clicked; (B) on hover only; (C) a separate window on double-click.
+- 2026-11-24 01:28 (Sean): T13 (the preview panel scrolls when the window is short): **pass**. C2S 13 (the tree rule) opened.
+
+- 2026-11-24 02:20 (Sean): C2S 13 answered: "agree with (A)". Built 02:20 to 02:35: the buttons close the browser and return the step (third output `nextStep`); `fcn_CarMesh3D_openTool` (new) opens it; the demo menu's library example calls it; the browser opens no tool itself. The question as asked:
+  > **C2S 13 (= chat Q31, 2026-11-24 01:32). The View / Edit labels / Review buttons and the tree rule.** Sean, 01:28: "let's try to follow a clean 'tree' paradigm where entry in/out of a branch is mediated by the trunk, not via other branches." Today these buttons open the viewer, the painter and the reviewer from inside the browser (search `case 'view'` in the code).
+  > - (A) *Recommended.* Keep the buttons, but each closes the browser and returns the chosen vehicle and the step asked for to its caller (the demo menu), which opens that tool. Students keep the same quick path; only the trunk opens tools.
+  > - (B) Remove the buttons: the browser only returns the chosen vehicles, and the next tool is picked from the demo menu.
+- 2026-11-24 02:35 (Claude): tests after C2S 13, run hidden with Sean's OK: the browser's test (View now checked to close the browser and return the vehicle in the preview, with no viewer opened), `fcn_CarMesh3D_openTool`'s and the demo menu's all pass; the real Fit's files unchanged; no timers left.

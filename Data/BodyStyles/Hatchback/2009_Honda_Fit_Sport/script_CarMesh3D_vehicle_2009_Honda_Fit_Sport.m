@@ -161,6 +161,19 @@
 %   %   % files), and the download is used as it is: targetFaces
 %   %   % = [] (no reduction, no mirroring), the floor panel only
 %   %   % above 10% open (see README.md, "Mesh families")
+%
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2009_Honda_Fit_Sport
+%   % * The rear lamps relabeled from the model's own layers (Sean's
+%   %   % labeling slide and review, 2026-11-23 23:50 to 00:28; scripted by
+%   %   % Claude): the lens is glass (clear covers), the inner layer is a
+%   %   % white cavity reflector (a reflector also lit by the backup lamps),
+%   %   % two white reflector strips, backup, turn signal, red reflectors,
+%   %   % and the tail and brake unit. The fixes are in this folder's
+%   %   % labelEdits file (exact faces by position, both sides)
+%   % * The lamps' clear covers are found again after the label fixes
+%   %   % (fcn_CarMesh3D_findLampCovers), so a lens painted as glass
+%   %   % covers the lamp under it
 
 % TO-DO:
 %
@@ -634,6 +647,11 @@ if isfile(reviewEditsFile)
     reviewEditsStamp = fcn_CarMesh3D_fileStamps({reviewEditsFile}, FigNum=-1);
     fprintf(1,'Applied %d label fixes painted in the Model Reviewer\n', numel(reviewEdits.labelEditsAfterSimplify));
 end
+% (the lamps' clear covers found again: a lens painted as glass above
+% becomes the clear cover of the lamp under it, tinted while that lamp is
+% lit; Sean, 2026-11-23 23:50: "paint the lens as glass and only the
+% inner layer as the lamp types")
+vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, FigNum=-1);
 
 %% Step 6: Save the finished mesh
 if flag_firstLook

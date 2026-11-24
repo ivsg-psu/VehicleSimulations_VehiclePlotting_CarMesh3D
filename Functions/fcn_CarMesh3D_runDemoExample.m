@@ -284,12 +284,17 @@ examples(end).Title = 'browseLibrary: browse the vehicle library and pick vehicl
 examples(end).Description = ['Every finished vehicle, one row each: its labeled 3D mesh, its 2D overhead outline, ' ...
     'its name (a star for the exemplar of its class) and MATLAB name, class, size, license, processing score, ' ...
     'and review. Sort, group and filter the list; tick "Select" on vehicles, and their MATLAB names are ' ...
-    'returned when the window is closed. With none selected, a fresh copy of the default test vehicle is returned.'];
+    'returned when the window is closed. With none selected, a fresh copy of the default test vehicle is returned. ' ...
+    'View, Edit labels and Review close the browser and open that tool for the vehicle.'];
 examples(end).DemoCommands = {
     '% (Browsing changes nothing; with no vehicle selected, a fresh COPY of the test vehicle is returned)'
-    sprintf('selectedNames = fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'')', vehicleID)};
+    sprintf('[selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'')', vehicleID)
+    '% (View, Edit labels or Review in the browser: the step it returns is opened here, by the trunk)'
+    'fcn_CarMesh3D_openTool(nextStep);'};
 examples(end).VehicleCommands = {
-    sprintf('selectedNames = fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'')', vehicleID)};
+    sprintf('[selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'')', vehicleID)
+    '% (View, Edit labels or Review in the browser: the step it returns is opened here, by the trunk)'
+    'fcn_CarMesh3D_openTool(nextStep);'};
 examples(end).SavesChanges = false;
 
 % The viewer

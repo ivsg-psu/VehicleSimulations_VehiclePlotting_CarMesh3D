@@ -246,6 +246,14 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % SetNightLamp, LabelKinds, LampTypes, CopyViewCall, OnLamps; the
 %   %   % photo's options under the photo (PhotoOptions: folder, turn the
 %   %   % model with the photo, size). The viewer on its own is unchanged.
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * The lamp list has Fog lamps and Reflectors lit (outside light);
+%   %   % Hazards also lights the warning lamps; marker lamps light with
+%   %   % the running lights and the license plate lamp with the tail
+%   %   % lights (Sean, task 8; Q24 (A), Q25 (A)). The night lamp states
+%   %   % have FogLights, Hazards and Reflectors
 
 % TO-DO:
 %
@@ -460,7 +468,7 @@ boundaryBox = [];
 flagNight = false;   % (the nighttime view)
 nightBox = [];
 nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, 'TurnRight', false, ...
-    'Tail', 'off', 'Backup', false);   % (the lamps switched on: none by day, at first; all, the first time night falls)
+    'Tail', 'off', 'Backup', false, 'FogLights', false, 'Hazards', false, 'Reflectors', 0);   % (the lamps switched on: none by day, at first; all, the first time night falls)
 flagLampsSet = false;
 uncoloredKeys = {};     % (labels drawn plain gray: a host's "Colored? No"; Sean, 10:24)
 flagTurnWithPhoto = true;   % (the model turns to a photo picked on the dial)
@@ -854,12 +862,36 @@ end
             % it is rendered: Sean, 14:08)
             flagGlassFaces = fcn_INTERNAL_labelFaces(data.Mesh, 'part_glass');
             baseAlpha(flagGlassFaces) = data.Mesh.FaceAlpha(flagGlassFaces);
+            % (a lamp's clear cover, FaceCoverLamp, drawn as glass you can
+            % see: in the glass color and see-through enough to show the
+            % lamp under it, not nearly clear as in the vehicle's colors;
+            % it is glass, so the glass Colored? and Shown? switches act on
+            % it; Q29, Sean, 2026_11_24 00:48)
+            if isfield(data.Mesh,'FaceCoverLamp') && numel(data.Mesh.FaceCoverLamp)==numFaces
+                flagCover = data.Mesh.FaceCoverLamp(:) > 0 & flagGlassFaces(:);
+                baseAlpha(flagCover) = max(baseAlpha(flagCover), 0.40);
+            end
         end
         % (by day, the lamps switched on in the lamp list drawn lit, in
         % their lit colors, solid; Sean, 03:53)
         [flagLit, litColors] = fcn_INTERNAL_litColors(data.Mesh, nightStates);
         baseColors(flagLit,:) = litColors(flagLit,:);
         baseAlpha(flagLit) = 1;
+        % (a lit lamp's clear cover glows in the lamp's lit color, as at
+        % night in fcn_CarMesh3D_plotVehicle; else the glass over it, drawn
+        % as glass since Q29, washed the lit color out: a turn signal by
+        % day was very dim; Sean, 2026_11_24 01:03)
+        if isfield(data.Mesh,'FaceCoverLamp') && numel(data.Mesh.FaceCoverLamp)==numFaces
+            flagCover = data.Mesh.FaceCoverLamp(:) > 0;
+            if any(flagCover)
+                coverMesh = data.Mesh;
+                coverMesh.FaceLightType(flagCover) = data.Mesh.FaceCoverLamp(flagCover);
+                [flagCoverLit, coverColors] = fcn_INTERNAL_litColors(coverMesh, nightStates);
+                flagCoverLit = flagCoverLit & flagCover;
+                baseColors(flagCoverLit,:) = coverColors(flagCoverLit,:);
+                baseAlpha(flagCoverLit) = max(baseAlpha(flagCoverLit), 0.55);
+            end
+        end
         if strcmp(currentKey, 'all')
             faceColors = baseColors;
             faceAlpha = baseAlpha;
@@ -1032,7 +1064,7 @@ end
         optionsPanel.Layout.Row = 2;
         photoColumn.RowSpacing = 6;
         optionsGrid = uigridlayout(optionsPanel, [4 3], 'RowHeight', {24, 24, 24, '1x'}, 'ColumnWidth', {150, '1x', 80}, ...
-            'Padding', [6 6 6 6], 'RowSpacing', 6, 'BackgroundColor', blue);
+            'Padding', [6 6 6 6], 'RowSpacing', 6, 'BackgroundColor', blue, 'Scrollable', 'on');
         uilabel(optionsGrid, 'Text', 'Photo folder', 'Tooltip', 'Where the ViewInDegrees_<angle> photos are');
         photoFolderLabel = uilabel(optionsGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3]);
         uibutton(optionsGrid, 'Text', 'Browse...', 'Tooltip', 'Pick another folder of ViewInDegrees_<angle> photos', ...
@@ -1405,7 +1437,7 @@ end
         if ~flagLampsSet
             % (the first night, with no lamps set: every lamp on)
             nightStates = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
-                'TurnRight', true, 'Tail', 'on', 'Backup', true);
+                'TurnRight', true, 'Tail', 'on', 'Backup', true, 'FogLights', true, 'Hazards', true, 'Reflectors', 1);
             flagLampsSet = true;
             showNightLights();
         end
@@ -1489,6 +1521,12 @@ end
                 nightStates.(name{1}) = statesIn.(name{1});
             end
         end
+        % (hazards on means both turn signals on, as plotVehicle draws them,
+        % so the turn boxes show what is lit)
+        if logical(nightStates.Hazards)
+            nightStates.TurnLeft = true;
+            nightStates.TurnRight = true;
+        end
         showNightLights();
     end
 
@@ -1501,6 +1539,8 @@ end
             nightControls.TurnLeft.Value = logical(nightStates.TurnLeft);
             nightControls.TurnRight.Value = logical(nightStates.TurnRight);
             nightControls.Hazards.Value = logical(nightStates.TurnLeft) && logical(nightStates.TurnRight);
+            nightControls.FogLights.Value = logical(nightStates.FogLights);
+            nightControls.Reflectors.Value = nightStates.Reflectors > 0;
             nightControls.Tail.SelectedObject = findobj(nightControls.Tail.Children, ...
                 'UserData', lower(char(nightStates.Tail)));
             nightControls.Backup.Value = logical(nightStates.Backup);
@@ -1520,15 +1560,26 @@ end
         flagLampsSet = true;
         switch name
             case 'Hazards'
+                % (both turn signals, and the warning lamps)
                 nightStates.TurnLeft = logical(value);
                 nightStates.TurnRight = logical(value);
+                nightStates.Hazards = logical(value);
+            case 'Reflectors'
+                nightStates.Reflectors = double(logical(value));   % (the list's box: none or full outside light)
+            case {'TurnLeft', 'TurnRight'}
+                % (one turn signal: the hazards are on only while both
+                % are, since plotVehicle lights both turn signals while
+                % Hazards is on; without this, unticking one turn signal
+                % left it and its glow on the ground lit; Sean, 2026_11_24 00:57)
+                nightStates.(name) = logical(value);
+                nightStates.Hazards = logical(nightStates.TurnLeft) && logical(nightStates.TurnRight);
             case 'All'
                 if value
                     nightStates = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
-                        'TurnRight', true, 'Tail', 'on', 'Backup', true);
+                        'TurnRight', true, 'Tail', 'on', 'Backup', true, 'FogLights', true, 'Hazards', true, 'Reflectors', 1);
                 else
                     nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
-                        'TurnRight', false, 'Tail', 'off', 'Backup', false);
+                        'TurnRight', false, 'Tail', 'off', 'Backup', false, 'FogLights', false, 'Hazards', false, 'Reflectors', 0);
                 end
             otherwise
                 nightStates.(name) = value;
@@ -1546,8 +1597,12 @@ end
         lampTypes = fcn_INTERNAL_lampTypes(data.Mesh);
         lampPanel = uipanel(listInner, 'Title', 'Lamps', 'Scrollable', 'on');
         lampPanel.Layout.Row = 2;
-        lampGrid = uigridlayout(lampPanel, [12 1], 'RowHeight', {20, 22, 22, 22, 22, 22, 22, 20, 28, 22, 30, 48}, ...
-            'Padding', [8 6 8 6], 'RowSpacing', 4);
+        lampGrid = uigridlayout(lampPanel, [14 1], 'RowHeight', {20, 22, 22, 22, 22, 22, 22, 20, 28, 22, 22, 22, 30, 60}, ...
+            'Padding', [8 6 8 6], 'RowSpacing', 4, 'Scrollable', 'on');
+        % (the grid scrolls, not the panel: a grid fills its panel and
+        % squeezes its rows, so a scrollable panel around it never
+        % scrolls and the bottom rows were cut off; rule: every panel
+        % scrolls up and down, Sean, 2026_11_24 00:58)
         uilabel(lampGrid, 'Text', 'Headlights', 'FontWeight', 'bold');
         nightControls.LowBeam = uicheckbox(lampGrid, 'Text', 'Low beams', ...
             'ValueChangedFcn', @(source,~) setNightLamp('LowBeam', source.Value));
@@ -1569,11 +1624,18 @@ end
         uiradiobutton(nightControls.Tail, 'Text', 'Brake', 'Position', [110 3 70 22], 'UserData', 'brake');
         nightControls.Backup = uicheckbox(lampGrid, 'Text', 'Backup lights', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Backup', source.Value));
+        % (fog lamps, and reflectors lit by outside light: Sean, task 8)
+        nightControls.FogLights = uicheckbox(lampGrid, 'Text', 'Fog lamps', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('FogLights', source.Value));
+        nightControls.Reflectors = uicheckbox(lampGrid, 'Text', 'Reflectors lit (outside light)', ...
+            'Tooltip', 'The reflectors as another car''s headlights light them', ...
+            'ValueChangedFcn', @(source,~) setNightLamp('Reflectors', source.Value));
         buttonGrid = uigridlayout(lampGrid, [1 2], 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
         uibutton(buttonGrid, 'Text', 'All on', 'ButtonPushedFcn', @(~,~) setNightLamp('All', true));
         uibutton(buttonGrid, 'Text', 'All off', 'ButtonPushedFcn', @(~,~) setNightLamp('All', false));
         nightControls.Note = uilabel(lampGrid, 'Text', ['Lit on the model by day; at night, with their light. ' ...
-            '"no faces": none labeled; its light still shows.'], ...
+            'Marker lamps light with the running lights, the license plate lamp with the tail lights, ' ...
+            'warning lamps with the hazards. "no faces": none labeled; its light still shows.'], ...
             'WordWrap', 'on', 'VerticalAlignment', 'top', 'FontColor', [0.4 0.4 0.4], 'FontSize', 11);
         % (every lamp can be switched; those with no labeled faces say so)
         noFaces = ' (no faces)';
@@ -1600,6 +1662,12 @@ end
         end
         if ~any(strcmp(lampTypes, 'backup'))
             nightControls.Backup.Text = [nightControls.Backup.Text noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'fog'))
+            nightControls.FogLights.Text = [nightControls.FogLights.Text noFaces];
+        end
+        if ~any(strcmp(lampTypes, 'reflector'))
+            nightControls.Reflectors.Text = [nightControls.Reflectors.Text noFaces];
         end
         showNightLights();
     end
@@ -1982,18 +2050,43 @@ if strcmp(tailState, 'brake'), tailColor = [1.00 0.12 0.08]; end
 headColor = [];
 if isOn(lampStates.LowBeam), headColor = [1.00 0.96 0.78]; end
 if isOn(lampStates.HighBeam) && ~flagHighLamps, headColor = [1.00 1.00 1.00]; end
+% (the newer lamp states, missing from older view settings: off)
+for newField = {'FogLights', 'Hazards', 'Reflectors'}
+    if ~isfield(lampStates, newField{1})
+        lampStates.(newField{1}) = false;
+    end
+end
+% (reflectors, marker lamps and warning lamps glow in their own colors,
+% made brighter; marker with the running lights, the license plate lamp
+% with the tail lights, warning lamps with the hazards: Sean, task 8)
+ownColors = 0.5*ones(numFaces,3);
+if isfield(vehicleMesh,'FaceColors') && size(vehicleMesh.FaceColors,1) == numFaces
+    ownColors = vehicleMesh.FaceColors;
+end
+brightest = ownColors ./ max(max(ownColors,[],2), eps);
+reflectorAmount = min(1, max(0, double(lampStates.Reflectors(1))));
 % (lowest priority first: later ones win)
-layers = {has('backup'), isOn(lampStates.Backup), [1.00 1.00 1.00];
+layers = {has('reflector'), reflectorAmount > 0, ownColors + reflectorAmount*(brightest - ownColors);
+    has('backup'), isOn(lampStates.Backup), [1.00 1.00 1.00];
+    has('licenseplate'), ~isempty(tailColor), [1.00 1.00 0.95];
+    has('marker'), isOn(lampStates.Running), brightest;
     has('running'), isOn(lampStates.Running), [1.00 0.98 0.90];
+    has('fog'), isOn(lampStates.FogLights), [1.00 0.97 0.85];
     has('headlight'), ~isempty(headColor), headColor;
     has('highbeam'), isOn(lampStates.HighBeam), [1.00 1.00 1.00];
     has('tail'), ~isempty(tailColor), tailColor;
     has('turnsignal') & faceY > 0, isOn(lampStates.TurnLeft), [1.00 0.55 0.00];
-    has('turnsignal') & faceY <= 0, isOn(lampStates.TurnRight), [1.00 0.55 0.00]};
+    has('turnsignal') & faceY <= 0, isOn(lampStates.TurnRight), [1.00 0.55 0.00];
+    has('warning'), isOn(lampStates.Hazards), brightest};
 for ith_layer = 1:size(layers,1)
     if layers{ith_layer,2}
         flagThese = layers{ith_layer,1};
-        litColors(flagThese,:) = repmat(layers{ith_layer,3}, nnz(flagThese), 1);
+        theseColors = layers{ith_layer,3};
+        if size(theseColors,1) == numFaces   % (each face its own color)
+            litColors(flagThese,:) = theseColors(flagThese,:);
+        else
+            litColors(flagThese,:) = repmat(theseColors, nnz(flagThese), 1);
+        end
         flagLit = flagLit | flagThese;
     end
 end

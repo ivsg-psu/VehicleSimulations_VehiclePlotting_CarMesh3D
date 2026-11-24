@@ -116,6 +116,12 @@ function animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey, options)
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_animateChecks
+%   % * The mesh with its saved label fixes comes from
+%   %   % fcn_CarMesh3D_meshWithLabelEdits (no window), not a hidden
+%   %   % painter (the tree rule; Q32 (A))
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -228,19 +234,10 @@ vehicleName = 'mesh';
 if ischar(vehicleInput) || isstring(vehicleInput)
     vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(vehicleInput), FigNum=-1);
     vehicleName = vehicleFiles.Name;
-    loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
-    vehicleMesh = loaded.vehicleMesh;
-    % (label edits saved after the mesh file was made: the mesh with them,
-    % as the painter gives it)
-    editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
-    if isfile(editsFile)
-        editsInfo = dir(editsFile);
-        meshInfo = dir(vehicleFiles.MeshFile);
-        if editsInfo.datenum > meshInfo.datenum
-            [vehicleMesh, ~, painter] = fcn_CarMesh3D_paintLabels(char(vehicleInput), Visible=false, FigNum=-1);
-            painter.Close();
-        end
-    end
+    % (the mesh with its saved label fixes, from a plain function with no
+    % window: the tree rule, Q32 (A), Sean 2026_11_24 01:55; this was a
+    % hidden painter)
+    vehicleMesh = fcn_CarMesh3D_meshWithLabelEdits(char(vehicleInput), FigNum=-1);
     if isempty(testMotion)
         stage3File = fullfile(vehicleFiles.Folder, 'cache', 'stage3_checks.mat');
         if isfile(stage3File)

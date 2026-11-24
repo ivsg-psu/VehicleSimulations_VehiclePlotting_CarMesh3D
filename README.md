@@ -47,19 +47,31 @@ flowchart TB
   SM --> RC["restoreGroundClearance"] --> FF["fixFlippedFaces"] --> SO["separateOverlays"] --> FP["addFloorPanel (only above 10% open)"] --> LI["labelInterior"]
   LI --> EL2["editLabels (painted fixes, hide/unhide)"]
   E --> EL2
-  EL2 --> VM(["vehicleMesh_ID.mat"])
-  EL2 --> CK["runVehicleChecks"]
+  EL2 --> LC["findLampCovers (clear covers over lamps)"]
+  LC --> VM(["vehicleMesh_ID.mat"])
+  LC --> CK["runVehicleChecks"]
+  LT["lampTypes (the one list of lamp types, colors, switching)"] -.-> LP & AN & RV
   CK --> VA["validateMesh"] & HF["checkHiddenFaces"] & PL["plotLabels"]
-  EL2 -. "reduced meshes only" .-> CT["compareToOriginal"]
+  LC -. "reduced meshes only" .-> CT["compareToOriginal"]
   CK --> BI["makeBuildInfo (versions, quality score)"] --> VM
   VM --> DL["makeDetailLevels"] --> LV(["vehicleLevels_ID.mat"])
   VM --> O2["makeOutline2D"] --> OL(["vehicleOutline_ID.mat"])
   VIS["visibleMesh (hidden faces left out)"] -.-> VA & HF & DL & O2 & CT
-  VM --> RV["reviewVehicle: viewOrientation, viewDimensions, viewLabels + paintLabels, viewOutline, viewDetailLevels, animateChecks"]
-  RV -- "Save paint" --> E
+  subgraph TR["The trunk: only it opens tools"]
+    DM["demo menu (script_demo_CarMesh3D, runDemoExample) or your own script"] --> OT["openTool"]
+  end
   VM --> BL["browseLibrary / listVehicles / showVehicle"]
+  DM --> BL
+  BL -- "picked vehicles, nextStep (View, Edit labels, Review)" --> DM
+  OT --> RV["reviewVehicle: viewOrientation, viewDimensions, viewLabels + paintLabels, viewOutline, viewDetailLevels, animateChecks"]
+  OT --> VLB["viewLabels"] & PLB["paintLabels (holds viewLabels)"]
+  VM & E --> MW["meshWithLabelEdits (no window)"] --> RV
+  RV -- "Save paint" --> E
+  PLB -- "Save paint" --> E
   VM --> AN["Animation (and AnimateCar3D): plotVehicle, plotScene, loadMotionCSV, fillTrajectory, calcAckermannSteering, fillCameraSettings, updateCamera, saveGifFrame"]
 ```
+
+**Tools form a tree** (2026_11_24): only the trunk (the demo menu, or your own script) opens a tool. A tool may hold child tools in its own window (the reviewer holds the painter; the painter holds the label viewer), but never opens a sibling: the library browser's View, Edit labels and Review buttons close the browser and return the step (`nextStep`), which `fcn_CarMesh3D_openTool` opens. Work that several tools need, such as the mesh with its saved label fixes, is a plain function with no window (`fcn_CarMesh3D_meshWithLabelEdits`).
 
 Two loops close the chart. **Painting:** the label painter (in the Model Reviewer, or `fcn_CarMesh3D_paintLabels` alone) saves its fixes in `labelEdits_<ID>.mat`, and the next build applies them, so a fix is never lost when the vehicle is built again. **Caching:** each slow stage (the mesh, the comparison, the checks) is saved in the vehicle's `cache` folder with the dates of every file and function it depends on (`fcn_CarMesh3D_saveCache`, `fcn_CarMesh3D_loadCache`, `fcn_CarMesh3D_fileStamps`), and reused when none of them changed.
 
@@ -159,10 +171,10 @@ Flow 1 writes each finished vehicle (mesh, detail levels, 2D outline, check pict
 | 1 | Reduce and repair | `fcn_CarMesh3D_simplifyMesh`, `fcn_CarMesh3D_fixFlippedFaces`, `fcn_CarMesh3D_separateOverlays`, `fcn_CarMesh3D_addFloorPanel` | |
 | 1 | Assess quality | `fcn_CarMesh3D_compareToOriginal` (holes, label changes, flipped faces, see-through gaps), `fcn_CarMesh3D_validateMesh` (dimensions), `fcn_CarMesh3D_runVehicleChecks` (pictures and GIFs) | |
 | 1 | Stamp and save | `fcn_CarMesh3D_makeBuildInfo` (versions and quality score), `fcn_CarMesh3D_makeDetailLevels`, `fcn_CarMesh3D_makeOutline2D`; slow stages cached by `fcn_CarMesh3D_loadCache` / `fcn_CarMesh3D_saveCache` | |
-| 2 | List the vehicles | `fcn_CarMesh3D_browseVehicles` (the vehicle browser: a menu with quality scores), `fcn_CarMesh3D_listVehicles` (scores; up to date or not), `fcn_CarMesh3D_loadBodyStyles` | `fcn_CarMesh3D_browseVehicles` (see [Browsing the vehicles](#browsing-the-vehicles)) |
-| 2 | View in 3D and 2D | `fcn_CarMesh3D_showVehicle` (3D and 2D, or parts by label or material, with a summary), `fcn_CarMesh3D_plotLabels`, `fcn_CarMesh3D_plotVehicle`, the outline in `vehicleOutline_<ID>.mat` | |
+| 2 | List the vehicles | `fcn_CarMesh3D_browseLibrary` (the library browser: a sortable table with a preview; returns the vehicles picked and the next step), `fcn_CarMesh3D_browseVehicles` (a menu with quality scores), `fcn_CarMesh3D_listVehicles` (scores; up to date or not), `fcn_CarMesh3D_loadBodyStyles` | the demo menu (`script_demo_CarMesh3D.m`), which opens the step picked with `fcn_CarMesh3D_openTool` (see [Browsing the vehicles](#browsing-the-vehicles)) |
+| 2 | View in 3D and 2D | `fcn_CarMesh3D_viewLabels` (the label viewer, by day and at night, beside the photos), `fcn_CarMesh3D_showVehicle` (3D and 2D, or parts by label or material, with a summary), `fcn_CarMesh3D_plotLabels`, `fcn_CarMesh3D_plotVehicle`, the outline in `vehicleOutline_<ID>.mat` | |
 | 2 | Compare | the pictures in each vehicle's `checks` folder; `fcn_CarMesh3D_compareToOriginal`; `fcn_CarMesh3D_validateMesh` | |
-| 2 | Small changes | `fcn_CarMesh3D_editLabels` (also clicked, with the interactive label editor), the vehicle script's settings (body color, part rules) | the vehicle's own script |
+| 2 | Small changes | `fcn_CarMesh3D_paintLabels` (the label painter; fixes saved in `labelEdits_<ID>.mat`), `fcn_CarMesh3D_editLabels` (fixes by script: by position, region, material), `fcn_CarMesh3D_reviewVehicle` (the model reviewer), the vehicle script's settings (body color, part rules) | the demo menu, or the vehicle's own script |
 | 2 | Refit from a body style | `fcn_CarMesh3D_fillBodyStyleMesh` (an approved exemplar refit to new dimensions) | `Data/script_CarMesh3D_bodyStyle_TEMPLATE.m`; the generic vehicles in `Data/Samples` |
 | 3 | Find and check | `fcn_CarMesh3D_findVehicleFiles`, `fcn_CarMesh3D_version` (`AtLeast=`, mesh version), `fcn_CarMesh3D_listVehicles` | AnimateCar3D |
 | 3 | Load the mesh | `vehicleMesh_<ID>.mat`, `vehicleLevels_<ID>.mat` (detail levels), `vehicleOutline_<ID>.mat` (2D) | |
@@ -204,7 +216,14 @@ Each animation is the vehicle's `check_09_drive.gif`: the standard test drive (s
 
 ### Browsing the vehicles
 
-`fcn_CarMesh3D_browseVehicles` opens a menu, in the command window, of every finished vehicle: its name, body style, quality score (0 to 100), and whether its mesh is up to date. Type a vehicle's number to see it (`fcn_CarMesh3D_showVehicle`: the mesh in 3D in figure 1, its 2D outlines in figure 2); the menu marks it viewed and offers the next one. `v` changes what a number shows (3D and 2D, parts by label, or parts by material), `t` prints the full table, and `q` quits. The menu is DebugTools' `fcn_DebugTools_menuManageSelections`, so run `script_demo_CarMesh3D.m` once first to install DebugTools.
+**The library browser** (`fcn_CarMesh3D_browseLibrary`, also in the demo menu) is a window with every finished vehicle in a table: sort, group and filter it; click a row to preview its labeled mesh and outline; tick Select on the vehicles you want, and their MATLAB names are returned when you close it. The preview's View, Edit labels and Review buttons close the browser and hand that step back to the caller, which opens it:
+
+```matlab
+[selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary();
+fcn_CarMesh3D_openTool(nextStep);    % the viewer, the painter or the reviewer, if a button was pressed
+```
+
+**In the command window,** `fcn_CarMesh3D_browseVehicles` opens a menu, in the command window, of every finished vehicle: its name, body style, quality score (0 to 100), and whether its mesh is up to date. Type a vehicle's number to see it (`fcn_CarMesh3D_showVehicle`: the mesh in 3D in figure 1, its 2D outlines in figure 2); the menu marks it viewed and offers the next one. `v` changes what a number shows (3D and 2D, parts by label, or parts by material), `t` prints the full table, and `q` quits. The menu is DebugTools' `fcn_DebugTools_menuManageSelections`, so run `script_demo_CarMesh3D.m` once first to install DebugTools.
 
 ```matlab
 fcn_CarMesh3D_browseVehicles;                    % by body style
@@ -585,22 +604,29 @@ Things to know:
 
 Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by labeling), and a **signal** is behavior (what the driver or the animation tells the lamps to do). Hazards and braking are signals; there is no "hazard lamp" or "brake lamp".
 
-**Lamp types.** Light faces have a lamp type (`LightTypeNames`, `FaceLightType`):
+**Lamp types.** Light faces have a lamp type (`LightTypeNames`, `FaceLightType`). The list, with each type's colors, which light state switches it, and the regulation behind it (FMVSS No. 108), is kept in one place, `fcn_CarMesh3D_lampTypes`; every function reads it from there, so a new type is added once.
 
-| Type | Lamp | Lit color |
-|---|---|---|
-| `'headlight'` | Low beam (both beams, on a vehicle with no high-beam faces) | warm white |
-| `'highbeam'` | High beam, a lamp of its own | white |
-| `'turnsignal'` | Turn signal; left and right are found from position (Y > 0 is left), so a turn signal is labeled once | amber |
-| `'running'` | Front running lights | white |
-| `'tail'` | Tail lights (and the brake lights: braking makes them bright) | dark red; bright red braking |
-| `'backup'` | Backup (reverse) lights | white |
+| Type | Lamp | Lit by (`LightStates`) | Lit color |
+|---|---|---|---|
+| `'headlight'` | Low beam (both beams, on a vehicle with no high-beam faces) | `Headlights` ('low' or 'high'), or `LowBeam` | warm white |
+| `'highbeam'` | High beam, a lamp of its own | `Headlights` ('high'), or `HighBeam` | white |
+| `'turnsignal'` | Turn signal; left and right are found from position (Y > 0 is left), so a turn signal is labeled once | `TurnLeft`, `TurnRight`, or `Hazards` | amber |
+| `'running'` | Front running lights (DRL) | `Running` | white |
+| `'tail'` | Tail lights (and the brake lights: braking makes them bright) | `Tail` ('on', or 'brake') | dark red; bright red braking |
+| `'backup'` | Backup (reverse) lights | `Backup` | white |
+| `'fog'` | Fog lamps | `FogLights` | warm white |
+| `'reflector'` | Reflectors: no power of their own; they glow when outside light (another vehicle's headlights, a street light) falls on them | `Reflectors` (the outside light, 0 to 1) | their own color (amber, red or white), brighter |
+| `'licenseplate'` | License plate lamp | lit whenever the tail lights are | white |
+| `'marker'` | Marker lamps (side markers, clearance lamps) | lit with the running lights | their own color, brighter |
+| `'warning'` | Warning lamps (beacons, light bars, arrow boards) | `Hazards` | their own color, brighter |
 
-`fcn_CarMesh3D_labelParts` sets the type from names (`TurnSignal`, `Reverse`, `TailLight`, `HighBeam`...); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. **High beams are found automatically** where a headlight's faces clearly form two clusters (`AutoHighBeams`, on by default): the cluster nearer the middle of the car (or the upper one) becomes the high beam. This is a starting point; check it in `fcn_CarMesh3D_viewLabels` ("high beam") and fix it in the label painter. Planned (task 8): fog, license plate, marker (side markers, clearance lamps), and warning lamps (beacons, light bars).
+The switching can differ by vehicle (fog lamps, for one, are switched in several ways): a mesh's `LampSwitching` field overrides the standard switching for that vehicle.
 
-**One lamp, several functions.** A lamp that is tail, brake, and turn signal at once (common on US cars) keeps one type and lists the others in `FaceLightFunctions` (M x number of types, logical), set with `fcn_CarMesh3D_editLabels`'s `AlsoLightTypes`. It glows in the color of the first function that is on: turn signal, tail, high beam, low beam, running, backup (a turn signal that is also a tail light flashes red).
+`fcn_CarMesh3D_labelParts` sets the type from names (`TurnSignal`, `Reverse`, `TailLight`, `HighBeam`, `Fog`, `Reflector`...); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. **High beams are found automatically** where a headlight's faces clearly form two clusters (`AutoHighBeams`, on by default): the cluster nearer the middle of the car (or the upper one) becomes the high beam. This is a starting point; check it in `fcn_CarMesh3D_viewLabels` ("high beam") and fix it in the label painter.
 
-**Clear covers over lamps.** A clear cover lying over a lamp lens is labeled as that lamp *and* as glass (`FaceAlsoParts`, M x number of parts, logical): it is drawn as glass while the lamp is off, and lit while it is on.
+**One lamp, several functions.** A lamp that is tail, brake, and turn signal at once (common on US cars) keeps one type and lists the others in `FaceLightFunctions` (M x number of types, logical), set with `fcn_CarMesh3D_editLabels`'s `AlsoLightTypes`. It glows in the color of the first function that is on: turn signal, tail, high beam, low beam, running, backup (a turn signal that is also a tail light flashes red). The 2009 Fit's white cavity reflector, for one, is a reflector that also lights as a backup lamp.
+
+**Clear covers over lamps.** Many models have a clear plastic cover in front of a lamp, with the bulb or reflector visible behind it. `fcn_CarMesh3D_findLampCovers` finds such covers (glass lying just in front of a lamp) and makes each one clear glass that is the cover of the lamp behind it (`FaceCoverLamp`): about 15% opaque and untinted, so the lamp shows through, and tinted with the lamp's lit color while that lamp is on. In the label viewer's label colors, covers are drawn as glass you can see (40% opaque), and the glass Colored? and Shown? switches act on them.
 
 **Switching the lights.** `LightStates` is a structure; leave out a field to keep that light off:
 
@@ -608,17 +634,20 @@ Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by
 |---|---|---|
 | `Headlights` | `'off'`, `'low'`, `'high'` | Headlights (`'high'` is both beams) |
 | `LowBeam`, `HighBeam` | `true` / `false` | Each beam alone (overrides `Headlights` for it) |
-| `TurnLeft`, `TurnRight` | `true` / `false` | Turn signals (blink them in your loop; both together are the hazards) |
-| `Running` | `true` / `false` | Front running lights |
-| `Tail` | `'off'`, `'on'`, `'brake'` | Rear lights: dim red when on, bright red when braking |
+| `TurnLeft`, `TurnRight` | `true` / `false` | Turn signals (blink them in your loop) |
+| `Hazards` | `true` / `false` | Both turn signals and the warning lamps |
+| `Running` | `true` / `false` | Front running lights (and the marker lamps) |
+| `Tail` | `'off'`, `'on'`, `'brake'` | Rear lights: dim red when on, bright red when braking (and the license plate lamp) |
 | `Backup` | `true` / `false` | Backup (reverse) lights |
+| `FogLights` | `true` / `false` | Fog lamps |
+| `Reflectors` | `0` to `1` | Outside light on the reflectors (set by the scene: AnimateCar3D can light them from other vehicles' lamps) |
 
 A light that is on is drawn unshaded (`FaceLighting='none'`) in a bright color, so it appears to glow. Blinking is just switching a light with time:
 
 ```matlab
 blinkOn = mod(t, 0.8) < 0.4;                                        % 0.4 s on, 0.4 s off
 lightStates = struct('Headlights','low', 'Tail','on', 'TurnLeft',blinkOn);   % left signal
-lightStates = struct('TurnLeft',blinkOn, 'TurnRight',blinkOn, 'Tail','brake'); % hazards, braking
+lightStates = struct('Hazards',blinkOn, 'Tail','brake');            % hazards, braking
 lightStates = struct('LowBeam',false, 'HighBeam',true);              % high beams alone
 fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=lightStates, PlotHandles=h, FigNum=-1);
 ```
@@ -992,7 +1021,7 @@ Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fas
 
 ## Tests
 
-Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (64 pairs; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`). Run one by name, or all of them:
+Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (68 pairs; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`). Run one by name, or all of them:
 
 ```matlab
 script_test_fcn_CarMesh3D_plotVehicle            % one function
@@ -1004,7 +1033,9 @@ Each test script runs as a plain script, top to bottom: its sections share varia
 
 **Required before a commit:** the tests of every function changed, and of the functions that call it (the [chart](#how-the-functions-fit-together) shows them). **Optional:** the full set, about 10 minutes (the GUI tests open hidden windows; `fcn_CarMesh3D_compareToOriginal`'s takes about 2 minutes).
 
-**Known failures** (both fail on the committed code too, and are on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), and `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check).
+**Known failures** (on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check), and `script_test_fcn_CarMesh3D_reviewVehicle` at its Differences case (hiding part of the roof makes no difference spot, since hidden faces are not deleted; waits on the reviewer's redesign).
+
+**Run tests the way a user does**, in MATLAB's base workspace (as above): some tests use the base workspace or the current figure, and fail falsely when run from inside a function. **Tests never write to a real vehicle's files:** a test that saves works on a temporary copy (`fcn_CarMesh3D_makeDemoCopy`) and puts anything it changes back through `onCleanup`, so the put-back runs even if the test stops.
 
 These tests check the code. The checks of a *vehicle* (is its mesh right?) are the pictures its build writes: see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run).
 
@@ -1032,6 +1063,8 @@ A finished `vehicleMesh` (here the 2009 Fit: N = 31,293 vertices, M = 22,276 fac
 | `PartNames` | cell, 6 x 1 | label | `{'body';'glass';'wheel';'light';'trim';'interior'}` |
 | `FacePartIndex` | double, M x 1 | label, edit | Part of each face |
 | `FaceAlsoParts` | logical, M x parts | label, edit | More parts a face belongs to (a clear lamp cover is light and glass) |
+| `FaceCoverLamp` | M x 1 | findLampCovers | For a clear cover in front of a lamp, the light type of the lamp it covers (0 for other faces) |
+| `LampSwitching` | struct (optional) | the vehicle script | This vehicle's own lamp switching, overriding `fcn_CarMesh3D_lampTypes`' standard one |
 | `FaceWheelIndex` | double, M x 1 | label | 0, or 1 FL, 2 FR, 3 RL, 4 RR |
 | `LightTypeNames` | cell, 6 x 1 | label | `{'headlight';'turnsignal';'running';'tail';'backup';'highbeam'}` |
 | `FaceLightType` | double, M x 1 | label, edit | Each light face's lamp type (0: not a lamp) |
@@ -1705,6 +1738,41 @@ The vehicle as it is shown: the mesh without its hidden faces.
 **Assumptions:** FaceHiddenSet is present (a mesh without it is returned unchanged); every per-face field (Face*) has one row per face.
 
 ![fcn_CarMesh3D_visibleMesh sample output](Images/functions/fcn_CarMesh3D_visibleMesh.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_lampTypes</code></b> (test: <code>script_test_fcn_CarMesh3D_lampTypes.m</code>): The one list of lamp types, with their colors, switching and sources.</summary>
+
+The one list of lamp types (11: headlight, turnsignal, running, tail, backup, highbeam, fog, reflector, licenseplate, marker, warning) that every other function reads: each type's label, its paint and label colors, its lit color, which light state switches it, its name rule (for `fcn_CarMesh3D_labelParts`), and its sources (FMVSS No. 108). The standard switching is in one clearly marked EDIT HERE block; a mesh's `LampSwitching` field overrides it for one vehicle. See [Switchable lights](#switchable-lights).
+
+```matlab
+lampTypes = fcn_CarMesh3D_lampTypes((FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `FigNum` | option | not used (nothing is plotted). If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
+| `lampTypes` | output | one element per lamp type, in the order of `LightTypeNames`: Name, Label, FaceColor, LabelColor, LitColor, SwitchedBy, SwitchedByStates, NameRule, RuleOrder, Sources. | struct | 11 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_findLampCovers</code></b> (test: <code>script_test_fcn_CarMesh3D_findLampCovers.m</code>): Finds the clear covers in front of lamps and makes each one clear glass that covers its lamp.</summary>
+
+Finds the clear glass covers lying in front of a vehicle's lamps (looking straight behind each glass face for a lamp face within `Distance`), and makes each one clear glass that is the cover of the lamp behind it: untinted and about 15% opaque, so the lamp shows through; `fcn_CarMesh3D_plotVehicle` tints a cover with its lamp's lit color while the lamp is on. Windows are never over a lamp, so they stay as they are. Run again, it gives the same result. The vehicle script runs it after the painted label fixes.
+
+```matlab
+vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh,...
+    (Distance=distance), (ClearAlpha=alpha), (ClearColor=[r g b]), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleMesh` | input | a labeled CarMesh3D mesh, in meters. | struct | 1 x 1 |
+| `Distance` | option | how far behind a glass face to look for a lamp, in meters. Default `0.05`. | double | 1 x 1 |
+| `ClearAlpha` | option | a cover's opacity, 0 (invisible) to 1. Default `0.15`. | double | 1 x 1 |
+| `ClearColor` | option | a cover's color. Default `[0.90 0.90 0.90]`. | double | 1 x 3 |
+| `FigNum` | option | a figure to plot the lamps and their covers; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with the covers made clear glass, and `FaceCoverLamp` (M x 1): the light type of the lamp each face covers, or 0. | struct | 1 x 1 |
 
 </details>
 
@@ -2640,12 +2708,12 @@ viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput,...
 
 </details>
 
-<details><summary><b><code>fcn_CarMesh3D_browseLibrary</code></b> (test: <code>script_test_fcn_CarMesh3D_browseLibrary.m</code>): A window listing every finished vehicle in the library, one row each, in a scrolling list.</summary>
+<details><summary><b><code>fcn_CarMesh3D_browseLibrary</code></b> (test: <code>script_test_fcn_CarMesh3D_browseLibrary.m</code>): A window listing every finished vehicle in the library, one row each, in a table, with a preview of the row picked.</summary>
 
-A window listing every finished vehicle in the library, one row each, in a scrolling list.
+A window listing every finished vehicle in the library, one row each, in a table that can be sorted, grouped and filtered, with a preview (the labeled 3D mesh and the 2D outline) of the row picked. Tick Select on the vehicles wanted; their MATLAB names are returned when the window closes. The preview's View, Edit labels and Review buttons close the browser and return that step (`nextStep`): the browser opens no tool itself, and the caller opens the step with `fcn_CarMesh3D_openTool` (the tree rule).
 
 ```matlab
-[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(...
+[selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(...
     (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
     (Descending=flag), (Selected=names), (DefaultVehicle=id), (Wait=flag),...
     (Visible=flag), (DataFolder=folder), (FigNum=figNum))
@@ -2665,7 +2733,8 @@ A window listing every finished vehicle in the library, one row each, in a scrol
 | `DataFolder` | option | the library's Data folder. Default: the one next to the Functions folder. | char or string | 1 x n |
 | `FigNum` | option | not used (a window). If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
 | `selectedNames` | output | a cell array of the selected vehicles' MATLAB names (vehicle IDs), in the order they were shown when the window was closed (vehicles selected but hidden by the filter come last). | cell | 1 x n |
-| `browser` | output | a structure of the window's handles and functions: Figure, Vehicles (one element per vehicle: ID, Name, details) Order(): the IDs in the order shown (those the filter hides are left out) SetSort(key, (flagDescending)): with no flag, the sort's own default order; SortOrder(): the Order? words shown; SetGroup(key) ApplyFilter(text): keep, of the vehicles shown, those whose name, MATLAB name or class holds the text (filters stack); a text matching none is not applied (true if applied) ClearFilters(), Filters(): the filters applied, in order Open(name, tool, (flagUseCopy)): open a vehicle in a tool, as its row's buttons do: 'view', 'edit' or 'review'. | struct | 1 x 1 |
+| `browser` | output | a structure of the window's handles and functions: Figure, Vehicles (one element per vehicle: ID, Name, details) Order(): the IDs in the order shown (those the filter hides are left out) SetSort(key, (flagDescending)): with no flag, the sort's own default order; SortOrder(): the Order? words shown; SetGroup(key) ApplyFilter(text): keep, of the vehicles shown, those whose name, MATLAB name or class holds the text (filters stack); a text matching none is not applied (true if applied) ClearFilters(), Filters(): the filters applied, in order; Open(name, tool, (flagUseCopy)): the step a vehicle's buttons ask for ('view', 'edit' or 'review'), returned without opening a tool; NextStep(); Table; Preview(name), Previewed(). | struct | 1 x 1 |
+| `nextStep` | output | the step asked for with the View, Edit labels or Review button (which also closes the window): Tool ('view', 'edit' or 'review'; '' for none), VehicleID, and Folder (the vehicle's, or a fresh demo copy's). Open it with `fcn_CarMesh3D_openTool(nextStep)`. | struct | 1 x 1 |
 
 **Assumptions:** Vehicles live in Data/BodyStyles/<Style>/<ID> folders with their saved meshes and outlines.
 
@@ -2810,6 +2879,42 @@ demoFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID,...
 
 </details>
 
+<details><summary><b><code>fcn_CarMesh3D_openTool</code></b> (test: <code>script_test_fcn_CarMesh3D_openTool.m</code>): Opens the vehicle tool picked in the library browser (called by the trunk).</summary>
+
+Opens one of the vehicle tools (the label viewer, the label painter or the model reviewer) for a vehicle: the step a user asked for with the library browser's View, Edit labels or Review buttons, returned by `fcn_CarMesh3D_browseLibrary` as `nextStep`. It is called by the trunk (the demo menu, or your own script), never by another tool, so that tools never open each other (the tree rule). With no step (no button pressed) it does nothing.
+
+```matlab
+[selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary();
+toolOutput = fcn_CarMesh3D_openTool(nextStep, (Visible=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `nextStep` | input | Tool ('view', 'edit' or 'review'; '' for none), VehicleID, and Folder (the vehicle's, or its demo copy's). | struct | 1 x 1 |
+| `Visible` | option | false to open the tool hidden (tests). Default `true`. | logical | 1 x 1 |
+| `FigNum` | option | not used; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `toolOutput` | output | the tool's handles (the viewer's, the painter's, or the reviewer's window); [] with no step. | struct or figure | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_meshWithLabelEdits</code></b> (test: <code>script_test_fcn_CarMesh3D_meshWithLabelEdits.m</code>): A vehicle's mesh with its saved label fixes, with no window.</summary>
+
+A vehicle's mesh with the label fixes saved in its `labelEdits_<ID>.mat`: the mesh the vehicle's script would save if it ran now. If the mesh file is newer than the fixes, it is returned as it is; otherwise the saved fixes are applied to the cached stage-1 mesh and the lamp covers found again, the same steps as the script. The reviewer and the animation checks use it (they used to build a hidden label painter for this).
+
+```matlab
+[vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, (Always=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleID` | input | a vehicle ID, or its folder. | char or string | 1 x n |
+| `Always` | option | true to apply the fixes to the stage-1 mesh even when the mesh file is newer (to check that they agree). Default `false`. | logical | 1 x 1 |
+| `FigNum` | option | a figure to plot the mesh in; -1 for fast mode. Default `[]`. | double | 1 x 1 (or empty) |
+| `vehicleMesh` | output | the mesh with the saved label fixes. | struct | 1 x 1 |
+| `info` | output | Source ('mesh file', 'stage-1 mesh with the saved edits', or 'mesh file (no stage-1 cache)'), NumEdits, EditsFile, MeshFile. | struct | 1 x 1 |
+
+</details>
+
 ### Draw and animate
 
 <details><summary><b><code>fcn_CarMesh3D_plotVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_plotVehicle.m</code>): Plots a CarMesh3D vehicle mesh as a small number of patch objects: one patch for the opaque body, one for each level of transparency (typically the glass), one per wheel, and one per group of switchable lights.</summary>
@@ -2850,7 +2955,7 @@ plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh,...
 | `BodyPitch` | option | Body pitch relative to the wheels [rad], + nose down Default `0`. | double | 1 x 1 |
 | `BodyHeave` | option | Body rise relative to the wheels [m], + up Default `0`. | double | 1 x 1 |
 | `BodyPivot` | option | the point [x y z], in the vehicle frame, that the body rolls and pitches about. | double | 1 x 3 (or empty) |
-| `LightStates` | option | a structure that switches the vehicle's lights. | struct | 1 x 1 |
+| `LightStates` | option | a structure that switches the vehicle's lights: Headlights, LowBeam, HighBeam, TurnLeft, TurnRight, Hazards, Running, Tail, Backup, FogLights, Reflectors (see [Switchable lights](#switchable-lights)). | struct | 1 x 1 |
 | `LightEffects` | option | true to "fake" light shining from the lamps, for night scenes (see fcn_CarMesh3D_plotScene with TimeOfDay='night'). Default is false. | logical | 1 x 1 |
 | `ShowHidden` | option | the hidden sets to show (hidden faces: FaceHiddenSet, named in HiddenSetNames, from fcn_CarMesh3D_editLabels's Hide), by name, such as {'hard top'}, or true for all, or false for none. | cell, char or logical | 1 x n |
 | `AxesHandle` | option | an axes to plot into, in any figure (a uifigure's uiaxes too, which FigNum cannot reach). If given, FigNum only chooses fast mode (-1) or not. Default `[]`. | graphics handle | 1 x 1 |
@@ -3111,21 +3216,19 @@ Six lists, kept in step with the project's work queue: **Claude work** (developm
 
 ### Claude work
 
-1. **This README** (2026_11_23): the dependency chart, the function reference with sample outputs, hidden faces, tests, mesh families.
-2. **Lamp painting** (task 8, first part): paint every lamp type in the label painter, including each side's turn signal.
-3. **Clear lamp covers:** a plain-glass cover over a lamp becomes clear glass (about 15% opacity, untinted, found automatically), and covers no longer glow, so the lit bulb shows through.
-4. **The Model Reviewer by mesh family** (task 6): Orientation, Dimensions, Labels (with lamp types), 2D outline, and Summary up front; "More checks" for the rest (Differences as one overview picture, for changed meshes only; lights, body, steering, wheels, drive, detail levels); the rotation question ("If rotating is not smooth here, this mesh is almost certainly too large for real-time animation on this computer"); a review older than the last build marked "built since review".
-5. **The GUI layout rules applied to the reviewer and the painter** (task 7): read-only text shown as text, controls in the order they are used.
-6. **Lamp types and signals** (task 8, the rest): four more lamp types (fog, license plate, marker, warning), each with a color; a lamp-type section in the editor; painting a lamp with several functions.
-7. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body.
-8. **The high-beam split** (`AutoHighBeams`): it looks wrong on the 2009 Fit and 2009 Corolla (most of the lamp became high beam); check whether it picks the wrong cluster or splits lens from housing.
-9. **Known test failures** (see [Tests](#tests)): `makeOutline2D` line 220 and `runVehicleChecks` line 83.
-10. **Backlog:** process the downloaded models in the download list; wheel-spoke faces drawn backward (the Fit's worst comparison spots); the .glb reader and skins (the 2008 Shelby GT's wheels); `compareToOriginal` additions (a missing-face test, part counts); demo-menu examples for the stand-alone check tools; the viewLabels test needing `clearvars` before a second run.
+1. **The driver's view in the label viewer** (agreed 2026_11_24): a "Driver's view" option from the driver's eye point, estimated from the glass and roof, with a `DriverEye = [x y z]` override in each vehicle's script; from the found steering wheel once task 9 is done.
+2. **The label painter's P2 edits and open bugs** (`Documents/Documentation_CarMesh3D_GUIdesign_paintLabels.md`, sections 8 and 9): mouse painting (drag, single clicks, double-click on glass, after Apply), a second double-click to unselect a part, Esc to unselect all, Ctrl+Z / Ctrl+S, a Revert button; the layout edits agreed on 2026-11-23.
+3. **Interior objects** (the painter's P5): seat, steering wheel and console as sub-labels of `interior`, with cabin surfaces no longer labeled interior; and how the interior is found (Sean's reminder S2C 1).
+4. **The Model Reviewer by mesh family, and the GUI rules applied to it** (tasks 6 and 7): archived until the verification workflow is finished; listed in `Documents/Documentation_CarMesh3D_GUIdesign_reviewVehicle.md`, with its open question (should hidden faces show in Differences?).
+5. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body.
+6. **The high-beam split** (`AutoHighBeams`): it looked wrong on the 2009 Fit and 2009 Corolla; on the Fit the high beams are now labeled by hand (the main headlight is low and high beam). Check the Corolla.
+7. **Known test failures** (see [Tests](#tests)).
+8. **Backlog:** process the downloaded models in the download list; wheel-spoke faces drawn backward (the Fit's worst comparison spots); the .glb reader and skins (the 2008 Shelby GT's wheels); `compareToOriginal` additions (a missing-face test, part counts); demo-menu examples for the stand-alone check tools; the viewLabels test needing `clearvars` before a second run.
 
 ### Sean work now
 
-- Review this README and commit it (the commit message comes as a `..._PASTE_THIS.txt` file).
-- Check the high-beam split on the 2009 Fit and 2009 Corolla in `fcn_CarMesh3D_viewLabels` (pick "high beam").
+- Review the 2009 Fit's lamps (front and rear) in the label viewer and painter: the first vehicle to pass review, and the exemplar of best practice.
+- Commit tonight's work (the commit message comes as a `..._PASTE_THIS.txt` file).
 
 ### Sean work later
 
@@ -3164,7 +3267,17 @@ Six lists, kept in step with the project's work queue: **Claude work** (developm
 - **vehicleParameters** (the shared IVSG format): parameter checks (change request 15).
 - **AnimateCar3D extras** (Someday): trails, roads, scenarios, terrain, street lights, contact patches.
 
-**Done recently** (2026_11_22 to 2026_11_23)
+**Done recently** (2026_11_23 to 2026_11_24)
+
+- 11 lamp types in one list (`fcn_CarMesh3D_lampTypes`): fog, reflector, license plate, marker and warning lamps added, with the light states `FogLights`, `Hazards` and `Reflectors`, switching per vehicle, and sources (FMVSS No. 108)
+- Clear covers over lamps found automatically (`fcn_CarMesh3D_findLampCovers`), lit with their lamp; drawn as glass in the label viewer's label colors
+- The 2009 Fit's lamps labeled front and rear by script (13 label fixes by position and material), as the best-practice exemplar
+- The library browser as a sortable table with a preview, and a progress bar for slow steps
+- Tools form a tree: the browser returns the next step for the trunk to open (`fcn_CarMesh3D_openTool`); the mesh with its saved label fixes from a plain function (`fcn_CarMesh3D_meshWithLabelEdits`) instead of a hidden painter
+- Every panel of the GUIs scrolls; turn signals and hazards stay in step in the label viewer; tires drawn in one color (their texture colors made a starburst)
+- Tests: the GUI test vehicle has every lamp type; the reviewer's test works on a copy of the vehicle
+
+**Done** (2026_11_22 to 2026_11_23)
 
 - Hidden faces in named sets instead of deleted faces (`fcn_CarMesh3D_visibleMesh`, `fcn_CarMesh3D_checkHiddenFaces`, `ShowHidden=`); the painter's hide and unhide tools
 - High beams as lamps of their own (`'highbeam'`, `LowBeam`/`HighBeam`, `AutoHighBeams`); turn-signal light pools; lamp covers that are also glass; lamps with several functions

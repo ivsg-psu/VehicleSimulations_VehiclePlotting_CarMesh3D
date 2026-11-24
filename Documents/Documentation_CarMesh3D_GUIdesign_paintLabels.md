@@ -8,68 +8,7 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-23 15:55. This section says what to look at in the window as built now, and what Claude could and could not test. P2 will change the layout (section 9), so look mostly at behavior.*
-
-**How to open it.** Use the GUI test vehicle (made up, with every feature) or the Fit. Painting either one saves only when you press Save, into that vehicle's own `labelEdits_<ID>.mat`, which nothing else running today touches; thread B does not change label edits. To get the outputs back when the window closes, pass `Wait=true`:
-```matlab
-% The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, its own photos)
-[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2026_CarMesh3D_Sample_GUITestVehicle', Wait=true);
-
-% The 2009 Fit (a real download)
-[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', Wait=true);
-```
-After the window closes: `editedMesh` is the mesh with every saved and applied edit; `labelEdits` is the list of edits (a cell array of structures, as the vehicle's script applies them); `painter` is the window's handle structure (its functions no longer work once it is closed). Saved edits stay in the vehicle's `labelEdits_<ID>.mat`, so nothing is lost if MATLAB closes. To undo a test painting on a real vehicle: Settings, Revert to start, then Save.
-
-**Tested by Claude (hidden, by script; passes):** opening on a vehicle ID and inside a parent panel; each menu panel opens alone and the last one is remembered; no check boxes left in the panels; Colored? No draws a label gray, and All shows the mixed state; Shown? No hides a label's faces; the lamp buttons follow the lamp states (All off sets Tail to Off); the Paint as radio follows the tool, including none; painting by script (Paint), Apply, Undo by steps, Save, Revert to save and to start; timestamped copies on and off, and the copy folder; hide into a named set and unhide; the photo dial by script; the reviewer's Labels check with the painter inside it (picture checked).
-
-**Needs Sean's hands (Claude cannot test these):**
-- **T1. Menu:** click ☰ Menu, pick each panel; pick the open panel again (it should close, and the model widens).
-Confirmed. Works as expected.
-
-- **T2. Mouse painting:** pick a label in Modify Labels, then 
-
-Ctrl+drag,
-Result: first click face highlighted. No others even if move over. Expected behavior: all dragged items would be selected. Bug?
-
- Ctrl+Shift+drag (erase), 
- Result: will sometimes deselect highlighted face, but only at first click point. Bug?
- 
- a single click (one face;
-sometimes works 
-
-  click again to take it off), 
-only sometimes works. Bug.
-
-Overall Result: Many mouse clicks required to select, even with single click, and some faces seem unselectable (3+ attempts result in no change. Same is true when deselecting. Noticing that first select and deselect tends to work more than subsequent click attempts on same face. Most face clicks result in no response.
- 
- and a double-click (a whole piece). 
-  worked once for 2 different objects (tire and body). Won't work for glass. Bug?
-
-Pending paint should show yellow edges until Apply.
-Worked, but after apply, cannot select any verticies in any
-
-
-- **T3. Mirror to the other side? Off/On:** paint one side and check the other side follows only when On.
-Cannot test this easily. GUITestVehicle is not symmetric in the mesh about XZ plane. <-- Bug
-
-- **T4. Keyboard:** Ctrl+Z (undo) and Ctrl+S (save), with the mouse over the model.
-Does not seem to work. Cannot easily tell however since hit apply.
-
-- **T5. Exit with unsaved paint:** a Save / Discard / Cancel dialog; Cancel keeps the window.
-Works
-
-- **T6. Revert to save and Revert to start (Settings):** each asks first.
-Revert button is missing at top. Only see Undo, Save, Edit 
-
-- **T7. Browse buttons:** the copy folder (Settings) and the photo folder (Photo panel) open folder pickers; a folder with no `ViewInDegrees_<angle>` photos is refused with a message.
-- **T8. Photo panel:** Turn model with photo Off/On (drag the dial's red arrow; the model turns only when On); Photo size Small/Medium/Large; dragging the photo's corner (the size buttons then show none selected). Known: Small cuts off "Large" (fixed in P2).
-- **T9. Overall Display:** Labels/Vehicle colors; mesh boundaries Off/On; Nighttime view Off/On (lamps light at night; Lamps To Display buttons follow); Reset view; Copy view call (paste the result into MATLAB: it should open the viewer at the same view); the see-through slider.
-- **T10. Labels To Display while painting:** set a label to Shown? No and paint the faces under it; set Colored? No on all but one label.
-- **T11. Lamps To Display:** each lamp Off/On, Tail Off/On/Brake, All lamps; by day the lit lamps show lit colors on the model; at night, with their light. On the test vehicle every lamp has faces; on the Fit, running, turn and backup show gray names.
-- **T12. Hidden faces:** on the test vehicle, Show hidden faces? On shows the muffler and the roof panel (magenta); unhide one with the unhide label; Hide as a new set name.
-- **T13. Look and feel:** anything cut off, misaligned or unclear, at the window's normal size and when resized.
-
-Note anything you find in section 9 (Open issues), as before.
+*No test round open (2026-11-24 02:40). The round of 2026-11-23 15:55 (T1 to T13), with Sean's results, is in the change log; the bugs it found are listed in section 9 until fixed (the P2 edits). Tonight's T11 (every side panel scrolls) passed.*
 
 ## 1. What the window is for
 
@@ -335,7 +274,7 @@ Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S
 **(Claude to Sean)** No questions open from Claude (C2S 1 to 8 are closed into the change log). S2C 1 stays open above as a reminder.
 
 **Plan of work** (agreed by Sean, 15:39; C2S 7 and 8 merged in):
-- **P1. The GUI test vehicle**, the painter's test on it, the demo menu's two items. *(Started 15:39.)*
+- **P1. The GUI test vehicle**, the painter's test on it, the demo menu's two items. *(Done 2026-11-23; every lamp type added 2026-11-24.)*
 - **P2. The GUI edits** of section 9, including: Labels To Display in groups, with the interior group shown as "objects within interior" (C2S 7); timestamped copies as Off/On rows ("At each save?", "Every 10 minutes?", "When the paint label changes?"), with the warning "All off: no timestamped copies will be made." when all are off (C2S 8); the recovery file of unsaved paint and its folder (C2S 4); then a T1, T2 ... test list for Sean.
 - **P3. Body color** (saved with the vehicle's edits, C2S 1), the color picker, the contrast shift, GUI colors.
 - **P4. Lamp covers:** clear covers, glowing with the lit lamp under them (C2S 6).
@@ -421,6 +360,18 @@ Please review each of the above selections critically, and suggest improvements 
 
 As a process, please add this ruleset to the project: when working with MD files to pose questions back and forth, use section highlights as **(Claude to Sean)** and **(Sean to Claude)** for open questions. Feel free to include comments within the questions area to frame questions and add clarifications. The questions section can include comments about past questions or new questions. Be sure to number the questions in Sean-to-Claude (S2C) or Claude-to-Sean (C2S) formats when posting or replying to prior questions, so Claude questions to Sean would appear as: (C2S 1, C2S 2, etc.) . Do not take questions off the open questions list until they are answered, and when taking them off put the question, context (including thread back/forth), and final answer into the change log. For GUI design work, fter making changes, Clause should clearly list what specific items should be reviewed in terms of functionality in a listed test sequence (T1, T2, T3, etc.). This ensures clarity of the items Claude can test, and which things require Sean's interaction testing.
 
+
+**Open bugs** (Claude, 2026-11-24 02:40; from Sean's test results, quoted in the change log, and his notes since):
+- **Double-click does not unselect** (Sean, 2026-11-24 02:24): a double-click selects a whole part, but another double-click does not unselect it.
+- **Ctrl+drag paints only the first face** (T2, 2026-11-23): dragging should paint every face passed over; Ctrl+Shift+drag (erase) likewise works only at the first click.
+- **Single clicks are unreliable** (T2): a click selects or unselects a face only sometimes; some faces seem unselectable after 3+ tries.
+- **Double-click on glass does nothing** (T2): it worked on the tire and the body.
+- **No faces can be picked after Apply** (T2).
+- **Mirror can't be tested on the GUI test vehicle** (T3): it was not symmetric then. *(Since 2026-11-23 the test vehicle is made exactly symmetric; recheck.)*
+- **Ctrl+Z and Ctrl+S** (T4): did not seem to work.
+- **No Revert button in the top bar** (T6): only Undo, Save, Exit (the agreed 'Revert to prior save' is part of P2).
+- **Esc should unselect all selected faces** (Sean, 2026-11-24 02:26; a request, queued).
+
 ## 10. Change log
 
 - 2026-11-23 10:05: started (Sean's guidelines; Claude's fill-ins from the 04:35 window).
@@ -468,3 +419,74 @@ As a process, please add this ruleset to the project: when working with MD files
   - **Order of work: Sean (15:39): agreed, with C2S 7 and 8 merged in** (P2 and P5 above).
 - 2026-11-23 18:02 (Sean, Q20 (A)): rule 25 added, from Sean's viewLabels answer to C2S 4 ("All input arguments should be in some way presented in the GUI"), made a rule for every CarMesh3D window.
 - 2026-11-23 22:20 (Sean, 22:15): rule 26 added (a progress bar for anything over 2 or 3 seconds; errors shown in the window), for every CarMesh3D window.
+- 2026-11-24 01:00 (Claude): every side panel's grid scrolls (`'Scrollable','on'` on the grid, not only the panel), so nothing is cut off on a short window (Sean 00:58, rule in how_we_work). The Paint as and Lamps grids already did. Test T11 waits on the Menu issue (section 9).
+- 2026-11-24 01:45 (Sean): the Menu issue was an old copy of the painter in MATLAB's memory (no error; fixed by `clear functions`). Lesson: after Claude changes a GUI's code, close the GUI and run `clear functions` before testing it.
+- 2026-11-24 01:47 (Sean): T11 (each side panel scrolls when the window is short; nothing changes when it is tall): **all pass**.
+
+
+- 2026-11-23 15:55 to 2026-11-24 02:40: **test round T1 to T13** (window as built 2026-11-23), moved here from 'Review now' with Sean's results as he wrote them; its bugs are listed in section 9:
+
+  > 
+  > *Updated 2026-11-23 15:55. This section says what to look at in the window as built now, and what Claude could and could not test. P2 will change the layout (section 9), so look mostly at behavior.*
+  > 
+  > **How to open it.** Use the GUI test vehicle (made up, with every feature) or the Fit. Painting either one saves only when you press Save, into that vehicle's own `labelEdits_<ID>.mat`, which nothing else running today touches; thread B does not change label edits. To get the outputs back when the window closes, pass `Wait=true`:
+  > ```matlab
+  > % The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, its own photos)
+  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2026_CarMesh3D_Sample_GUITestVehicle', Wait=true);
+  > 
+  > % The 2009 Fit (a real download)
+  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', Wait=true);
+  > ```
+  > After the window closes: `editedMesh` is the mesh with every saved and applied edit; `labelEdits` is the list of edits (a cell array of structures, as the vehicle's script applies them); `painter` is the window's handle structure (its functions no longer work once it is closed). Saved edits stay in the vehicle's `labelEdits_<ID>.mat`, so nothing is lost if MATLAB closes. To undo a test painting on a real vehicle: Settings, Revert to start, then Save.
+  > 
+  > **Tested by Claude (hidden, by script; passes):** opening on a vehicle ID and inside a parent panel; each menu panel opens alone and the last one is remembered; no check boxes left in the panels; Colored? No draws a label gray, and All shows the mixed state; Shown? No hides a label's faces; the lamp buttons follow the lamp states (All off sets Tail to Off); the Paint as radio follows the tool, including none; painting by script (Paint), Apply, Undo by steps, Save, Revert to save and to start; timestamped copies on and off, and the copy folder; hide into a named set and unhide; the photo dial by script; the reviewer's Labels check with the painter inside it (picture checked).
+  > 
+  > **Needs Sean's hands (Claude cannot test these):**
+  > - **T1. Menu:** click ☰ Menu, pick each panel; pick the open panel again (it should close, and the model widens).
+  > Confirmed. Works as expected.
+  > 
+  > - **T2. Mouse painting:** pick a label in Modify Labels, then 
+  > 
+  > Ctrl+drag,
+  > Result: first click face highlighted. No others even if move over. Expected behavior: all dragged items would be selected. Bug?
+  > 
+  >  Ctrl+Shift+drag (erase), 
+  >  Result: will sometimes deselect highlighted face, but only at first click point. Bug?
+  >  
+  >  a single click (one face;
+  > sometimes works 
+  > 
+  >   click again to take it off), 
+  > only sometimes works. Bug.
+  > 
+  > Overall Result: Many mouse clicks required to select, even with single click, and some faces seem unselectable (3+ attempts result in no change. Same is true when deselecting. Noticing that first select and deselect tends to work more than subsequent click attempts on same face. Most face clicks result in no response.
+  >  
+  >  and a double-click (a whole piece). 
+  >   worked once for 2 different objects (tire and body). Won't work for glass. Bug?
+  > 
+  > Pending paint should show yellow edges until Apply.
+  > Worked, but after apply, cannot select any verticies in any
+  > 
+  > 
+  > - **T3. Mirror to the other side? Off/On:** paint one side and check the other side follows only when On.
+  > Cannot test this easily. GUITestVehicle is not symmetric in the mesh about XZ plane. <-- Bug
+  > 
+  > - **T4. Keyboard:** Ctrl+Z (undo) and Ctrl+S (save), with the mouse over the model.
+  > Does not seem to work. Cannot easily tell however since hit apply.
+  > 
+  > - **T5. Exit with unsaved paint:** a Save / Discard / Cancel dialog; Cancel keeps the window.
+  > Works
+  > 
+  > - **T6. Revert to save and Revert to start (Settings):** each asks first.
+  > Revert button is missing at top. Only see Undo, Save, Edit 
+  > 
+  > - **T7. Browse buttons:** the copy folder (Settings) and the photo folder (Photo panel) open folder pickers; a folder with no `ViewInDegrees_<angle>` photos is refused with a message.
+  > - **T8. Photo panel:** Turn model with photo Off/On (drag the dial's red arrow; the model turns only when On); Photo size Small/Medium/Large; dragging the photo's corner (the size buttons then show none selected). Known: Small cuts off "Large" (fixed in P2).
+  > - **T9. Overall Display:** Labels/Vehicle colors; mesh boundaries Off/On; Nighttime view Off/On (lamps light at night; Lamps To Display buttons follow); Reset view; Copy view call (paste the result into MATLAB: it should open the viewer at the same view); the see-through slider.
+  > - **T10. Labels To Display while painting:** set a label to Shown? No and paint the faces under it; set Colored? No on all but one label.
+  > - **T11. Lamps To Display:** each lamp Off/On, Tail Off/On/Brake, All lamps; by day the lit lamps show lit colors on the model; at night, with their light. On the test vehicle every lamp has faces; on the Fit, running, turn and backup show gray names.
+  > - **T12. Hidden faces:** on the test vehicle, Show hidden faces? On shows the muffler and the roof panel (magenta); unhide one with the unhide label; Hide as a new set name.
+  > - **T13. Look and feel:** anything cut off, misaligned or unclear, at the window's normal size and when resized.
+  > 
+  > Note anything you find in section 9 (Open issues), as before.
+  > 

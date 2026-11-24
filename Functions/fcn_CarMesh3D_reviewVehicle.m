@@ -284,6 +284,18 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 % - In fcn_CarMesh3D_reviewVehicle
 %   % * "should be: highbeam light" among the fixes for wrong faces
 %   %   % (Sean, 03:27)
+%
+% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * The "should be" choices list every lamp type of
+%   %   % fcn_CarMesh3D_lampTypes (fog, reflector, licenseplate, marker and
+%   %   % warning added; Sean, task 8)
+
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * The mesh with its saved label fixes comes from
+%   %   % fcn_CarMesh3D_meshWithLabelEdits (no window), not a hidden
+%   %   % painter (the tree rule; Q32 (A))
 
 % TO-DO:
 %
@@ -430,7 +442,7 @@ uibutton(viewGrid, 'Text', 'Zoom +', 'ButtonPushedFcn', @(~,~) onZoom(1.25), 'To
 uibutton(viewGrid, 'Text', 'Zoom -', 'ButtonPushedFcn', @(~,~) onZoom(0.8), 'Tooltip', 'Zoom out (or the mouse wheel)');
 answerPanel = uipanel(rightGrid, 'Title', 'Question', 'FontWeight', 'bold');
 answerGrid = uigridlayout(answerPanel, [10 2], 'RowHeight', {64, 34, 36, 26, 26, 24, '1x', 34, 30, 30}, 'ColumnWidth', {'1x','1x'}, ...
-    'RowSpacing', 4, 'Padding', [8 6 8 6]);
+    'RowSpacing', 4, 'Padding', [8 6 8 6], 'Scrollable', 'on');
 questionLabel = uilabel(answerGrid, 'Text', '', 'WordWrap', 'on', 'FontSize', 13, 'FontWeight', 'bold', 'VerticalAlignment', 'top');
 questionLabel.Layout.Column = [1 2];
 % (Approve, "?" for no answer yet, and Reject)
@@ -1516,7 +1528,10 @@ end
             set(findobj(allAxes(ith_axes), '-regexp', 'Tag', '^spot', 'Type', 'line'), 'LineWidth', 1, 'Color', [0.6 0.6 0.6]);
             set(findobj(allAxes(ith_axes), '-regexp', 'Tag', '^spot', 'Type', 'patch'), 'EdgeColor', [0.55 0.55 0.55], 'LineWidth', 0.75);
         end
-        spotIndex = find(strcmp({compareSpots.Key}, thisItem.Key), 1);
+        spotIndex = [];
+        if isstruct(compareSpots) && ~isempty(compareSpots) && isfield(thisItem, 'Key')   % (no spots: compareSpots is [] until the Differences view is drawn)
+            spotIndex = find(strcmp({compareSpots.Key}, thisItem.Key), 1);
+        end
         if isempty(spotIndex) || spotIndex > numel(compareSpots) || isempty(allAxes)
             onResetView();
             return;
@@ -1944,15 +1959,16 @@ end % Ends fcn_INTERNAL_loadData
 function meshOut = fcn_INTERNAL_meshWithSavedEdits(vehicleFiles, vehicleMesh)
 % The mesh with the label edits saved: the mesh file, unless the edits
 % were saved after it was made (the script not run since); then the
-% stage-1 mesh with the saved edits applied, as the painter gives it
+% stage-1 mesh with the saved edits applied (fcn_CarMesh3D_meshWithLabelEdits)
 meshOut = vehicleMesh;
 editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
 if isfile(editsFile) && isfile(vehicleFiles.MeshFile)
     editsInfo = dir(editsFile);
     meshInfo = dir(vehicleFiles.MeshFile);
     if editsInfo.datenum > meshInfo.datenum
-        [meshOut, ~, savedPainter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Visible=false, FigNum=-1);
-        savedPainter.Close();
+        % (from a plain function with no window: the tree rule, Q32 (A),
+        % Sean 2026_11_24 01:55; this was a hidden painter)
+        meshOut = fcn_CarMesh3D_meshWithLabelEdits(vehicleFiles.Folder, FigNum=-1);
     end
 end
 if ~isfield(meshOut, 'FaceAlpha') || numel(meshOut.FaceAlpha) ~= size(meshOut.Faces,1)
@@ -2086,7 +2102,7 @@ labelItems(:) = [];
 [labelKeys, labelNames] = fcn_INTERNAL_labelKinds(data.Mesh);
 % (what wrong faces should be: each part, and each type of light)
 fixChoices = strcat({'should be: '}, {'body', 'glass', 'trim', 'interior', 'wheel'});
-lightTypeNames = {'headlight', 'turnsignal', 'running', 'tail', 'backup', 'highbeam'};
+lightTypeNames = {fcn_CarMesh3D_lampTypes().Name};   % (every lamp type: one list for every function)
 if isfield(data.Mesh, 'LightTypeNames')
     lightTypeNames = union(lightTypeNames, data.Mesh.LightTypeNames(:)', 'stable');
 end

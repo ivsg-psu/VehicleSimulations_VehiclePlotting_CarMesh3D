@@ -40,6 +40,12 @@
 %   % * First version (Sean, 13:12; design file
 %   %   % Documents/Documentation_CarMesh3D_GUIdesign_paintLabels.md, P1)
 
+% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2026_CarMesh3D_Sample_GUITestVehicle
+%   % * Every lamp type (11, from fcn_CarMesh3D_lampTypes): fog lamps, side
+%   %   % markers, rear reflectors, a license plate lamp and a roof beacon
+%   %   % (warning) added, so the GUIs' tests see every lamp type
+
 % TO-DO:
 %
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
@@ -67,7 +73,9 @@ vehicleMesh = loaded.vehicleMesh;
 
 %% The standard part and lamp lists (the sample predates interior and high beams)
 standardParts = {'body';'glass';'wheel';'light';'trim';'interior'};
-standardLamps = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+% (every lamp type, from the one list: fcn_CarMesh3D_lampTypes; 11 since task 8)
+lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
+standardLamps = reshape({lampTypes.Name}, [], 1);
 assert(isequal(vehicleMesh.PartNames(:), standardParts(1:numel(vehicleMesh.PartNames))), 'Sample part order changed');
 assert(isequal(vehicleMesh.LightTypeNames(:), standardLamps(1:numel(vehicleMesh.LightTypeNames))), 'Sample lamp order changed');
 vehicleMesh.PartNames = standardParts;
@@ -98,7 +106,12 @@ pieces = { ...   name, box, mirrored
     'steering wheel', [1.75 1.80  0.25 0.55 0.85 1.05], false
     'console',        [1.40 2.00 -0.10 0.10 0.45 0.75], false
     'muffler',        [-0.90 -0.40 -0.50 -0.30 0.15 0.25], false
-    'roof panel',     [0.00 2.00 -0.80 0.80 1.46 1.48], false};
+    'roof panel',     [0.00 2.00 -0.80 0.80 1.46 1.48], false
+    'fog lamp',       [3.80 3.82  0.50 0.65 0.30 0.36], true
+    'side marker',    [3.30 3.40  0.92 0.94 0.55 0.60], true
+    'rear reflector', [-1.05 -1.03 0.45 0.60 0.45 0.50], true
+    'plate lamp',     [-1.05 -1.03 -0.10 0.10 0.50 0.53], false
+    'roof beacon',    [0.90 1.10 -0.10 0.10 1.50 1.58], false};
 for ith_piece = 1:size(pieces,1)
     box = pieces{ith_piece,2};
     if box(3) < 0 && box(4) > 0
@@ -135,7 +148,12 @@ edits = {
     struct('Name','console', 'Region',boxOf('console'), 'Part','interior', 'Color',[0.45 0.40 0.35])
     struct('Name','muffler (hidden)', 'Region',boxOf('muffler'), 'Part','trim', 'Color',[0.40 0.40 0.40])
     struct('Name','muffler hidden', 'Region',boxOf('muffler'), 'Hide',true)
-    struct('Name','hard top (hidden)', 'Region',boxOf('roof panel'), 'Hide','hard top')};
+    struct('Name','hard top (hidden)', 'Region',boxOf('roof panel'), 'Hide','hard top')
+    struct('Name','fog lamps', 'Region',boxOf('fog lamp'), 'BothSides',true, 'LightType','fog', 'Color',[0.95 0.95 0.85])
+    struct('Name','side markers', 'Region',boxOf('side marker'), 'BothSides',true, 'LightType','marker', 'Color',[0.85 0.45 0.05])
+    struct('Name','rear reflectors', 'Region',boxOf('rear reflector'), 'BothSides',true, 'LightType','reflector', 'Color',[0.62 0.06 0.05])
+    struct('Name','license plate lamp', 'Region',boxOf('plate lamp'), 'LightType','licenseplate', 'Color',[0.95 0.95 0.90])
+    struct('Name','roof beacon (warning lamp)', 'Region',boxOf('roof beacon'), 'LightType','warning', 'Color',[1.00 0.55 0.00])};
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=-1);
 
 %% Check that every feature is there (the point of this vehicle)
