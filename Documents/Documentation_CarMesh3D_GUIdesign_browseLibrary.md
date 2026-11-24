@@ -6,6 +6,36 @@
 
 ---
 
+## Review now (for Sean)
+
+*Added 2026-11-23 22:12 by Claude. Sean writes his result under each step (works, or what he saw). When a round is done, Claude moves the steps and results into the change log (section 10) and clears this section for the next round.*
+
+**What Claude already tested (by script, hidden):** `script_test_fcn_CarMesh3D_browseLibrary.m` passes (22:10, 38 s, no windows or timers left). It covers every arrangement, 7 Group by x 8 sorts x 2 orders = 112: the groups in their own order, the vehicles within each group in the order chosen, and each header just above its group; the coupe case from Sean's screenshot; Order= and the older Descending=; Enter in the filter box; tooltips on every control; Copy names grayed out; the demo copy made once; Open() with an unknown name; the data folder in the subtitle.
+
+**What needs Sean's eyes and hands** (open it from the demo menu: "browseLibrary: browse the vehicle library and pick vehicles"):
+
+**T6. The Order? words.** Pick each sort in turn. The Order? choices change to fit it: Make and Class show A to Z / Z to A; Year, Date built and Date reviewed show Newest first / Oldest first; Length shows Longest first / Shortest first; Score shows Highest first / Lowest first; Review shows Most approved first / Least approved first. Each new sort starts at its first choice. "Name" is no longer in the sort list.
+
+(Sean's result:)
+
+**T7. The coupe case.** Group by Class, sort by Class, Order? Z to A. The coupes read Honda Civic Si, Ford Mustang GT, CarMesh3D Generic Coupe. Switch to A to Z: they reverse.
+
+(Sean's result:)
+
+**T8. Edit labels on any row.** The question names the "label painter" (it said "mesh editor" before), and "Open a demo copy" is the default button. Cancel closes the question without opening anything.
+
+(Sean's result:)
+
+**T9. Done: close and return, with nothing selected.** The window closes, and the command window says a fresh copy of the Fit is returned.
+
+(Sean's result:)
+
+**T10. Look and feel.** Box 2 is wider now (400 px). Nothing in the top row is cut off at Sean's window size, the filter box's title especially.
+
+(Sean's result:)
+
+---
+
 ## 1. What the window is for
 
 The browser shows every finished vehicle in the library, one row each, in a scrolling list: a picture of the labeled 3D mesh, a picture of the 2D overhead outline, the vehicle's name and MATLAB name (vehicle ID), and its details (class, size, processing and score, review, license). The user groups, sorts and filters the list, ticks **Select** on the vehicles wanted, and closes the window: the selected vehicles' MATLAB names are returned, in the order shown. With none selected, a fresh temporary copy of the default test vehicle is returned (so a tool tried on it changes only the copy).
@@ -26,11 +56,22 @@ The painter's general rules apply where they fit a list window: see [Documentati
 - B5. **Only the vehicles given** (`Vehicles=`): every sort, group, filter and selection works on them alone. (16:32)
 
 **(Sean, 2026-11-23) Rules from the painter file that this window follows too:** buttons only for actions (rule 11: already so); every control with a tooltip (rule 14: several are missing, section 5.4); radio choices asked as questions ending in "?" (rule 22).
-- B6. **Two stated exceptions to rules 6 and 10 (on/off choices as radio pairs): the Descending check box and the Select check box on each row stay check boxes.** (C2S 1, C2S 2)
-- B7. **Group by sets the order of the groups; Descending reverses only the vehicles within each group.** Groups are always in their own order: classes A to Z, years oldest first, reviewed first, exemplars first. (C2S 3)
+- B6. **A stated exception to rules 6 and 10 (on/off choices as radio pairs): the Select check box on each row stays a check box.** (C2S 2. The Descending check box, kept by C2S 1, was replaced by the Order? drop-down: C2S 6.)
+- B7. **Group by sets the order of the groups; Order? orders only the vehicles within each group.** Groups are always in their own order: classes A to Z, years oldest first, reviewed first, exemplars first. (C2S 3)
 - B8. **Nothing is remembered between calls:** each call opens at its options or the defaults, so there is no Reset to defaults button (rules 23, 24 do not apply). Scripts open this window often and expect the same list each time. (C2S 4)
 - B9. **Enter in the filter box applies the filter**, the same as Apply filter; typing alone still does nothing (B2). (C2S 5)
+- B10. **Every input argument is shown in the GUI in some way** (painter rule 25, Sean 18:02): `Vehicles=` in the subtitle (as now), `Selected=` as the ticked rows (as now), `DefaultVehicle=` in the selection text when none is selected (as now), and `SortBy=`, `GroupBy=`, `Descending=` in boxes 1 and 2 (as now). (Claude, to confirm in the build: `DataFolder=`, now shown nowhere, goes in the subtitle when it is not the default.)
+- B11. **The order within each group is chosen in words that fit the sort** (Sean, C2S 6, 21:22): an **Order?** drop-down beside the sort, with two choices, the sort's own default first, and each new sort opening at its default:
+  - Make, Class: **A to Z** / Z to A
+  - Year, Date built, Date reviewed: **Newest first** / Oldest first
+  - Length: **Longest first** / Shortest first
+  - Score: **Highest first** / Lowest first
+  - Review (% approved): **Most approved first** / Least approved first
 
+  The call takes the same words (`Order=`); `Descending=` still works for old calls.
+
+- B12. **No "Name" sort** (Sean, 21:54, C2S 7): the name begins with the year, so a sort by name looked random by make; Make covers it. `SortBy='name'` in old calls sorts by make. **Text sorts ignore upper and lower case.**
+- B13. **Ties are ordered by make, then name; for a text sort (Make, Class) in the order chosen, for the others A to Z** (Sean's screenshot, 22:05: sorting by Class within Class groups, Z to A, should give the coupes Honda, Ford, CarMesh3D).
 ## 3. Layout
 
 ### 3.1 As built today (2026-11-22 23:38)
@@ -74,7 +115,7 @@ The same layout: it already follows B1 to B5 and suits a list. No pancake menu (
 | Control | Kind | Default | Tooltip | What it does |
 |---|---|---|---|---|
 | **1. Group by** | box (bold title) with a drop-down: Class (body style), Make, Year, Review status, Exemplars first, License, (no groups) | Class (or `GroupBy=`) | "The headings the list is divided under" | Divides the list under headings, one per group. |
-| **2. Sort within each group by** | box with a drop-down: Name, Year, Make, Class (body style), Length, Score, Review (% approved), Date built, Date reviewed | Class (or `SortBy=`) | "The order of the vehicles under each heading" | Orders the vehicles in each group; ties by name, A to Z. Missing values (no review date, say) go last. |
+| **2. Sort within each group by** | box with a drop-down: Make, Year, Class (body style), Length, Score, Review (% approved), Date built, Date reviewed | Class (or `SortBy=`) | "The order of the vehicles under each heading" | Orders the vehicles in each group; ties by name, A to Z. Missing values (no review date, say) go last. |
 | Descending | check box, 95 px, in box 2 | off (or `Descending=`) | (none) | Reverses the order. **It reverses the order of the groups too** (see C2S 3). |
 | **3. Filter: keep the vehicles shown whose name, MATLAB name or class holds** | box with a text box | empty; placeholder "part of a name, year, make, class" | "Type, then press Apply filter: each filter narrows what is shown; Clear filters shows them all again" | Where the filter text is typed. |
 | Apply filter | button, 90 px | | (none) | Applies the text as a filter (B2): a vehicle matches when every word of the text is in its name, MATLAB name, class name or class key (case ignored). Empty text: a warning "Type part of a name, year, make or class in the filter box, then press Apply filter." Text that matches none of the vehicles shown: not applied, and a warning "No vehicle now shown has "..." in its name, MATLAB name, or class, so the filter was not applied." The box is emptied after a filter is applied. |
@@ -127,9 +168,10 @@ Warnings appear in a `uialert` (in the command window when the window is hidden)
 | Option | Default | What it does |
 |---|---|---|
 | `Vehicles` | {} (the whole library) | Only these MATLAB names; names not finished are listed in a warning (`CarMesh3D:notInLibrary`) and left out. |
-| `SortBy` | 'class' | 'name', 'year', 'make', 'class', 'length', 'score', 'review', 'built', 'reviewDate'. |
+| `SortBy` | 'class' | 'make', 'year', 'class', 'length', 'score', 'review', 'built', 'reviewDate'. |
 | `GroupBy` | 'class' | 'class', 'make', 'year', 'review', 'exemplar', 'license', 'none'. |
-| `Descending` | false | Descending order. |
+| `Order` | '' (the sort's own default) | The order within each group, in the Order? words (B11). |
+| `Descending` | [] | The older way to give the order, kept for old calls; `Order` wins. |
 | `Selected` | {} | Names ticked at the start. |
 | `DefaultVehicle` | '2009_Honda_Fit_Sport' | Copied and returned when none is selected. |
 | `Wait` | true when visible | Wait until closed. |
@@ -139,7 +181,7 @@ Warnings appear in a `uialert` (in the command window when the window is hidden)
 
 **`selectedNames`**: the selected MATLAB names in the order shown; with none, `{<folder of a fresh copy of DefaultVehicle>}` (a message in the command window says so). With `Wait=false`: the selection when the window opened.
 
-**`browser`**: `Figure`, `Vehicles` (one element per vehicle: ID, Name, Year, Make, Model, Trim, Folder, class, size, score, build, license, review fields, picture files), `Order()`, `SetSort(key, flagDescending)`, `SetGroup(key)`, `ApplyFilter(text)` (true if applied), `ClearFilters()`, `Filters()`, `Open(name, tool, (flagUseCopy))` ('view', 'edit', 'review'), `Select(names)`, `Deselect(names)`, `Selected()`, `Result()`, `Close()`.
+**`browser`**: `Figure`, `Vehicles` (one element per vehicle: ID, Name, Year, Make, Model, Trim, Folder, class, size, score, build, license, review fields, picture files), `Order()`, `SetSort(key, (flagDescending))`, `SortOrder()`, `SetGroup(key)`, `ApplyFilter(text)` (true if applied), `ClearFilters()`, `Filters()`, `Open(name, tool, (flagUseCopy))` ('view', 'edit', 'review'), `Select(names)`, `Deselect(names)`, `Selected()`, `Result()`, `Close()`.
 
 ## 5. Agreed design (2026-11-23; not yet built)
 
@@ -152,12 +194,12 @@ Warnings appear in a `uialert` (in the command window when the window is hidden)
 ### 5.2 Control row, proposed
 
 ```
-+1. Group by--------+ +2. Sort within each group by-----+ +3. Filter: keep ... holds-----------------+  39 of 39 shown
-|[Class (body)   v] | |[Class (body style) v] [ ]Descending| |[ part of a name, year...][Apply][Clear]  | [Done: close and return]
-+-------------------+ +----------------------------------+ +------------------------------------------+
++1. Group by--------+ +2. Sort within each group by--------------------+ +3. Filter: keep ... holds-----------------+  39 of 39 shown
+|[Class (body)   v] | |[Year              v]  Order? [Newest first  v] | |[ part of a name, year...][Apply][Clear]  | [Done: close and return]
++-------------------+ +-------------------------------------------------+ +------------------------------------------+
 ```
 
-- **Descending** stays a check box (B6). It now reverses only the vehicles within each group; the groups keep their own order (B7), as box 2's title says.
+- **Order?** (B11), a drop-down of two choices worded for the sort, replaces the Descending check box. It orders only the vehicles within each group; the groups keep their own order (B7), as box 2's title says. Box 2 is 400 px (was 290).
 - **Enter in the filter box applies the filter** (B9); typing alone still does nothing (B2).
 
 ### 5.3 Selection row, proposed
@@ -174,7 +216,7 @@ the selected, in the order shown
 
 | Control | Proposed tooltip |
 |---|---|
-| Descending | "Reverse the order of the vehicles under each heading (the headings keep their order)" |
+| Order? | "The order of the vehicles under each heading (the headings keep their own order)" |
 | Apply filter | "Keep, of the vehicles shown, those whose name, MATLAB name or class holds every word typed. A filter that matches none is not applied." |
 | Clear filters | "Remove every filter: show all the vehicles again" |
 | Done: close and return | "Close this window and return the selected vehicles' MATLAB names (with none selected: a fresh copy of the default test vehicle)" |
@@ -256,3 +298,69 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   (A)
 
   (Sean to Claude, same review: "See answers listed under each C2S question above".)
+- 2026-11-23 18:02 (Sean, Q20 (A)): rule B10 added (painter rule 25: every input argument shown in the GUI).
+- 2026-11-23 21:30: Sean's test of the 18:05 build (T1 to T5), C2S 6 asked from his T2 note and answered (A), and closed (threads below). T2 found a bug (Descending and the sort drop-down undid each other), fixed. Rule B6 changed (only Select stays a check box), B7 reworded, B11 added (the Order? drop-down); sections 4.5 and 5.2 to 5.4 updated. Built and tested (script_test_fcn_CarMesh3D_browseLibrary passes); README updated (`Order=` option).
+
+  **Sean's test results (2026-11-23 21:17), with Claude's reply:**
+
+  T-list:
+
+  > T1 (Claude, needs your OK): run script_test_fcn_CarMesh3D_browseLibrary. It builds hidden windows, which earlier took your cursor with the large painter, so I'll run it only while you're away or when you say OK. If it passes, I'll copy the two files into the repo.
+
+  Sent the OK
+
+  > T2 (Sean): fcn_CarMesh3D_browseLibrary(), then Group by "Exemplars first", then tick Descending. Exemplars should stay at the top, and the order within each group should reverse.
+
+  Not sure what "order within each group should reverse. When I select "Exemplars first", the remainder go into "Other vehicles (29)". If I then tell it sort by Year, that works - in Exemplars and in Other, both groups are sorted by Year lowest to highest. But if I then hit "Descending", the Sort with each group by suddenly jumps selection (by itself) to "Class (body style)" and the years are definitely not sorted highest to lowest. When selecting the "Descending" checkbox, the selection of "Sort within each group by" should not change by itself. I was expecting that, if the Sort within each group is by Year, and then I hit descending, I should see the newest year at top, and oldest at bottom. As well, the name descending is odd and actually doesn't fit will with the purpose of this button. For example, the default ordering for year should be "Sorted Newest to Oldest" since newer vehilces are more relevant than old ones. But for Class, the sort order is "Alphabetical" which some might not realize is "Ascending" - it is an odd way to describe alphabetical order, as the word implies a metric (mass, time, length). Perhaps the Sort Option should be a drop-down menu or other design? and perhaps one that is specific to the "Sort within each group by" selected?
+
+  > (Claude, 21:25) Sean is right on both counts. **The jump is a bug**, now fixed: the Descending box's callback kept the sort the window opened with (Class), and the sort drop-down's callback kept the Descending value the window opened with, so each undid the other (anonymous functions keep the values from when they were made). Both now read the current values. The test now checks this exact case: Exemplars first, sort by Year, tick Descending: the sort stays Year, newest first in both groups; then choosing Length keeps Descending ticked. The fixed code is in `pending\browseLibrary_2026_11_23b\` and is not yet in the repo: its test builds hidden windows, so Claude runs it when Sean says OK. **The naming** is C2S 6 above.
+
+
+  > T3 (Sean): type honda in the filter box and press Enter. The list should narrow, the box should empty, and the count should read "… shown; filters: "honda"".
+
+  Works exactly as described.
+
+  > T4 (Sean): type toyota, then click Apply filter. There should be one warning, not two, and the filter should not be applied.
+
+  Works exactly as described.
+
+  > T5 (Sean): untick everything. Copy names should be grayed out. Hover over the buttons and check boxes; every one should show a tooltip.
+
+  Works exactly as described.
+
+  Re: C2S 6. The sort order control: Please go with Option A
+
+  **C2S 6, closed (Sean 21:22: "Please go with Option A"):**
+
+  **C2S 6. The sort order control** (from Sean's T2 note below, 21:17). Sean: "Descending" is an odd word for alphabetical order, and each sort has a natural order of its own (newest vehicles first, for example). This changes the answer to C2S 1 (keep the Descending check box), so it is asked again.
+  - (A) *Recommended.* Replace the Descending check box with an **Order?** drop-down beside the sort drop-down, whose two choices are worded for the sort chosen, and which starts at that sort's own default (first below) each time the sort changes:
+    - Name, Make, Class: **A to Z** / Z to A
+    - Year, Date built, Date reviewed: **Newest first** / Oldest first
+    - Length: **Longest first** / Shortest first
+    - Score: **Highest first** / Lowest first
+    - Review (% approved): **Most approved first** / Least approved first
+
+    The call's `Descending=` option stays for old calls (true: Z to A, newest, longest, highest, most approved first), and a new `Order=` option takes the words shown ('A to Z', 'Newest first' ...); with neither, each sort opens at its own default. The box title stays "2. Sort within each group by"; groups keep their own order (B7).
+  - (B) The same two worded choices, but as a radio pair under the sort drop-down (rule 22: "Order?" with its two choices), its words changing with the sort. Box 2 needs a second line (the control row grows from 66 to about 90 px).
+  - (C) Keep the check box, renamed "Reverse order", with one default order for all sorts (as now, A to Z and smallest first).
+- 2026-11-23 22:05: Sean's test of the Order? build (21:36, below). Name sort dropped (Sean, 21:54; C2S 7 closed in chat: "Suggest dropping name, because we already have sorting by Make"): rule B12. Text sorts now ignore case ("GUITestVehicle" came before "GenericSedan", found by the new test). New test of all 112 arrangements (7 Group by x 8 sorts x 2 orders): groups in their own order, vehicles within each group in the order chosen, and each header just above its group; it passes. Groups shown Z to A not reproduced: C2S 8.
+
+  **Sean's test results (2026-11-23 21:36):**
+
+  > To try it, use the demo menu's browseLibrary item, sort by Year, and switch Order? between Newest first and Oldest first.
+
+  Results: (using "Group by")
+  Sort by?    Ordering?         Behavior?
+  Name        A to Z            Groups get sorted A to Z (correct), cars within each group not sorted by any clear metric because name not clear for in-group. For example, in Coupe group, user would think the names were CarMesh3D, Honda Civic Si, Ford Mustang. But C, H, F is not a sort order of either Z to A or A to Z (bug?) Need to disambiguate the word "name".
+  Name        Z to A            Buggy. Groups NOT sorted A to Z (bug), cars within each group NOT sorted by any clear metric because name not clear for in-group. For example, in Coupe group, user would think the names were CarMesh3D, Honda Civic Si, Ford Mustang. But C, H, F is not a sort order of either Z to A or A to Z (bug?) Need to disambiguate the word "name".
+  Year        Newest first      Works
+  Year        Newest first      Works
+  Make        A to Z            Works
+  Make        Z to A            Works
+  (stopped here because it was tedious - suggest automating this test because permutations are too many)
+- 2026-11-23 22:12: C2S 8 answered by Sean's screenshot (22:05: Group by Class, sort by Class, Z to A; "Expecting in the Coupe grouping for Honda to be at top, then Ford in middle, then CarMesh"). Cause: sorting by the same thing as the groups made every vehicle in a group a tie, and ties were ordered by name (which starts with the year), always A to Z, so the coupes came 2006, 2012, 2026. Fixed: rule B13. The test checks this case and, for every text sort, that makes follow the order chosen; it passes. Closed:
+
+  **C2S 8. Groups shown Z to A (Sean's 21:36 result, "Name, Z to A").** Claude could not reproduce it: in a hidden window, with Group by Class and every sort and order, the groups come out in their own order, and each header sits just above its own vehicles (now checked by the test for all 112 arrangements). To find it, Claude needs:
+  - which Group by was chosen (Class, the default?), and
+  - if Sean can, a screenshot of the list as it looked, pasted here or saved in `Project_CarMesh3D\pictures\`. (Claude will not capture a browser window itself: that hung MATLAB at 21:40.)
+- 2026-11-23 22:12: "Review now (for Sean)" section added at the top, with test steps T6 to T10 for Sean's results (Sean, 22:10: keep the tests in this file so they go in the change log).

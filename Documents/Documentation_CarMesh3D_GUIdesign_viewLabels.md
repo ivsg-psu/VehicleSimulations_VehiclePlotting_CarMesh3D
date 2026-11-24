@@ -26,7 +26,7 @@ V2. **Its panels are the painter's viewing panels** (Overall Display, Labels To 
 V3. **The view settings stay the window's memory.** What the user sets (camera, labels, colors, lamps, photo) is returned by the call and put in the view call, as now; MATLAB preferences hold only GUI settings (rule 17, as changed by the painter's open issue: the window always opens at Overall Display).
 V4. **Old view calls keep working.** A view call copied before the change opens the same view after it: the settings keep `Label` and `Hidden` and add `Uncolored` (C2S 3).
 V5. **Built into a host, the host decides** which parts show: the tool row (now `ShowTools`), the photo options (`PhotoOptions`), the lists (`LabelListParent`), the hint line (`OnHint`), as today.
-V6. **(Sean) Every input argument is shown in the GUI in some way**, so what a call can set, the window can show or set too. Photo options are therefore on by default in the viewer's own window (`PhotoOptions` default true); a host can still turn them off. (C2S 4)
+V6. **(Sean) Every input argument is shown in the GUI in some way** (painter rule 25, for every window), so what a call can set, the window can show or set too. Photo options are therefore on by default in the viewer's own window (`PhotoOptions` default true); a host can still turn them off. (C2S 4)
 V7. **Every label is listed, as in the painter** (rule 13): labels the mesh does not have appear with gray italic names. (C2S 5)
 V8. **One starting view for both windows:** a GUI setting, 60 degrees on the dial and 20 degrees down, used to open and by Reset view; opening at a photo or at given view settings still wins. (C2S 6)
 
@@ -370,3 +370,4 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
   - (B) Keep the viewer's own starting view.
 
   (A)
+- 2026-11-23 18:02 (Sean, Q20 (A)): V6 made a rule for every window, as painter rule 25; V6 now refers to it.

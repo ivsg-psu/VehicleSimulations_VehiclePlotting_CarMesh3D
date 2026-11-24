@@ -2646,17 +2646,18 @@ A window listing every finished vehicle in the library, one row each, in a scrol
 
 ```matlab
 [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(...
-    (Vehicles=names), (SortBy=key), (GroupBy=key), (Descending=flag),...
-    (Selected=names), (DefaultVehicle=id), (Wait=flag),...
+    (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
+    (Descending=flag), (Selected=names), (DefaultVehicle=id), (Wait=flag),...
     (Visible=flag), (DataFolder=folder), (FigNum=figNum))
 ```
 
 | Variable | Kind | Meaning | Class | Size |
 |---|---|---|---|---|
 | `Vehicles` | option | a cell array of MATLAB names (vehicle IDs), such as {'2009_Honda_Fit_Sport', '2013_Toyota_Prius_Four'}: the browser shows, sorts, groups, filters and selects only these vehicles. | cell | 1 x n |
-| `SortBy` | option | 'name', 'year', 'make', 'class' (default), 'length', 'score', 'review' (the percent of review items approved), 'built' (when the mesh was made), or 'reviewDate'. Default `'class'`. | char | 1 x n |
+| `SortBy` | option | 'make', 'year', 'class' (default), 'length', 'score', 'review' (the percent of review items approved), 'built' (when the mesh was made), or 'reviewDate'. Ties are ordered by name. (Old calls with 'name' sort by make.) Default `'class'`. | char | 1 x n |
 | `GroupBy` | option | 'class' (default), 'make', 'year', 'review' (reviewed, partly reviewed, not reviewed), 'exemplar' (exemplars first), 'license', or 'none'. Default `'class'`. | char | 1 x n |
-| `Descending` | option | true to sort (and group) in descending order. Default false. | logical | 1 x 1 |
+| `Order` | option | how the vehicles are ordered within each group, in the words of the window's Order? drop-down, which depend on SortBy: 'A to Z' or 'Z to A' (make, class); 'Newest first' or 'Oldest first' (year, built, reviewDate); 'Longest first' or 'Shortest first' (length); 'Highest first' or 'Lowest first' (score); 'Most approved first' or 'Least approved first' (review). Default '': the sort's own default, the first of each pair. The groups always keep their own order. | char | 1 x n |
+| `Descending` | option | the older way to give the order, kept so old calls work: true for Z to A, newest, longest, highest or most approved first. Default []: the sort's own default. Order, when given, wins. | logical | 1 x 1 (or empty) |
 | `Selected` | option | MATLAB names (vehicle IDs) ticked when the window opens. Default {}. | cell | 1 x n |
 | `DefaultVehicle` | option | the vehicle copied and returned when none is selected. Default '2009_Honda_Fit_Sport' (the demo menu's test vehicle). | char | 1 x n |
 | `Wait` | option | true to wait until the window is closed, and return the selection then. Default: true when Visible, else false. | logical | 1 x 1 |
@@ -2664,7 +2665,7 @@ A window listing every finished vehicle in the library, one row each, in a scrol
 | `DataFolder` | option | the library's Data folder. Default: the one next to the Functions folder. | char or string | 1 x n |
 | `FigNum` | option | not used (a window). If set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
 | `selectedNames` | output | a cell array of the selected vehicles' MATLAB names (vehicle IDs), in the order they were shown when the window was closed (vehicles selected but hidden by the filter come last). | cell | 1 x n |
-| `browser` | output | a structure of the window's handles and functions: Figure, Vehicles (one element per vehicle: ID, Name, details) Order(): the IDs in the order shown (those the filter hides are left out) SetSort(key, flagDescending), SetGroup(key) ApplyFilter(text): keep, of the vehicles shown, those whose name, MATLAB name or class holds the text (filters stack); a text matching none is not applied (true if applied) ClearFilters(), Filters(): the filters applied, in order Open(name, tool, (flagUseCopy)): open a vehicle in a tool, as its row's buttons do: 'view', 'edit' or 'review'. | struct | 1 x 1 |
+| `browser` | output | a structure of the window's handles and functions: Figure, Vehicles (one element per vehicle: ID, Name, details) Order(): the IDs in the order shown (those the filter hides are left out) SetSort(key, (flagDescending)): with no flag, the sort's own default order; SortOrder(): the Order? words shown; SetGroup(key) ApplyFilter(text): keep, of the vehicles shown, those whose name, MATLAB name or class holds the text (filters stack); a text matching none is not applied (true if applied) ClearFilters(), Filters(): the filters applied, in order Open(name, tool, (flagUseCopy)): open a vehicle in a tool, as its row's buttons do: 'view', 'edit' or 'review'. | struct | 1 x 1 |
 
 **Assumptions:** Vehicles live in Data/BodyStyles/<Style>/<ID> folders with their saved meshes and outlines.
 

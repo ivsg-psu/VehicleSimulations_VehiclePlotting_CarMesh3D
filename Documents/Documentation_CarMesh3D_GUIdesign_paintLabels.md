@@ -107,6 +107,8 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 22. **A radio-button choice is asked as a question** and its name ends with "?" ("Turn model with photo?", "Show mesh boundaries?"), so it reads as something to answer (Sean, 13:12).
 23. **A text box that has a default shows the default under it**, in gray ("(default is "hidden")"), so the user never has to remember it; defaults are set in GUI settings (Sean, 13:12).
 24. **Every GUI setting can be put back:** GUI settings ends with "Reset to defaults" (Sean, 13:12).
+25. **Every input argument is shown in the GUI in some way:** what a call can set, the window can show or set too (a control, or text in the subtitle, status line or a panel). This rule applies to every CarMesh3D window; the viewLabels and browseLibrary design files refer to it (Sean, 18:01 and Q20, 18:02).
+26. **Anything that can take more than 2 or 3 seconds shows a progress bar** (a `uiprogressdlg` in the window; indeterminate when the length is not known), and the window says when it is done or what went wrong; it never just stops responding. An error in a callback is shown in the window, not only in the command window. This rule applies to every CarMesh3D window (Sean, 22:15, from the library browser's slow re-sort).
 
 ## 3. Layout
 
@@ -464,3 +466,5 @@ As a process, please add this ruleset to the project: when working with MD files
   - **C2S 7, closed (A):** Claude (15:27): `interior` keeps its code name (saved meshes, `fcn_CarMesh3D_plotVehicle` and AnimateCar3D keep working) but is shown as "objects within interior" and means only objects inside the cabin, with sub-labels seat, steering wheel, console; cabin surfaces go back to their download labels; automatic interior labeling off by default, rewritten later to find only those objects. (A) as above; (B) also rename the key to `objectsWithinInterior`. **Sean (15:39): "Agree. Lets queue this change."** Queued as P5.
   - **C2S 8, closed (A):** Claude (15:27): one Off/On row per event in place of check boxes ("At each save?", "Every 10 minutes?", "When the paint label changes?"; all off means never), keeping rule 10. **Sean (15:39): agreed, with a warning when all are off: "All Off means never. No autosaves will be generated." (reword freely).** Worded in P2 as "All off: no timestamped copies will be made."
   - **Order of work: Sean (15:39): agreed, with C2S 7 and 8 merged in** (P2 and P5 above).
+- 2026-11-23 18:02 (Sean, Q20 (A)): rule 25 added, from Sean's viewLabels answer to C2S 4 ("All input arguments should be in some way presented in the GUI"), made a rule for every CarMesh3D window.
+- 2026-11-23 22:20 (Sean, 22:15): rule 26 added (a progress bar for anything over 2 or 3 seconds; errors shown in the window), for every CarMesh3D window.

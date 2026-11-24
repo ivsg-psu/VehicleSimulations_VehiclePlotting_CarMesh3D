@@ -20,7 +20,7 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 % order they are shown.
 %
 % Each row also has buttons that open the vehicle in the viewer (View),
-% the mesh editor (Edit labels) or the reviewer (Review). The editor and
+% the label painter (Edit labels) or the reviewer (Review). The editor and
 % the reviewer save their changes, so the user is asked whether to open
 % the vehicle itself or a fresh demo copy of it.
 %
@@ -34,7 +34,8 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 % FORMAT:
 %
 %       [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(...
-%           (Vehicles=names), (SortBy=key), (GroupBy=key), (Descending=flag),...
+%           (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
+%           (Descending=flag),...
 %           (Selected=names), (DefaultVehicle=id), (Wait=flag),...
 %           (Visible=flag), (DataFolder=folder), (FigNum=figNum))
 %
@@ -51,16 +52,32 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %      Names not found among the finished vehicles are listed in a
 %      warning and left out. Default {}: the whole library.
 %
-%      SortBy: 'name', 'year', 'make', 'class' (default), 'length',
-%      'score', 'review' (the percent of review items approved), 'built'
-%      (when the mesh was made), or 'reviewDate'.
+%      SortBy: 'make', 'year', 'class' (default), 'length', 'score',
+%      'review' (the percent of review items approved), 'built' (when the
+%      mesh was made), or 'reviewDate'. Ties are ordered by name. ('name'
+%      is no longer a choice, Sean 21:54: the name starts with the year,
+%      so a name sort looked random; old calls with 'name' sort by make.)
 %
 %      GroupBy: 'class' (default), 'make', 'year', 'review' (reviewed,
 %      partly reviewed, not reviewed), 'exemplar' (exemplars first),
 %      'license', or 'none'.
 %
-%      Descending: true to sort (and group) in descending order. Default
-%      false.
+%      Order: how the vehicles are ordered within each group, in the
+%      words of the window's Order? drop-down, which depend on SortBy:
+%          'make', 'class':                   'A to Z' or 'Z to A'
+%          'year', 'built', 'reviewDate':     'Newest first' or 'Oldest first'
+%          'length':                          'Longest first' or 'Shortest first'
+%          'score':                           'Highest first' or 'Lowest first'
+%          'review':                          'Most approved first' or
+%                                             'Least approved first'
+%      Default '': the sort's own default, the first of each pair (A to
+%      Z for names; newest, longest, highest and most approved first for
+%      the others). The groups always keep their own order.
+%
+%      Descending: the older way to give the order, kept so old calls
+%      work: true for Z to A, newest, longest, highest or most approved
+%      first; false for the reverse. Default []: the sort's own default.
+%      Order, when given, wins.
 %
 %      Selected: MATLAB names (vehicle IDs) ticked when the window opens.
 %      Default {}.
@@ -93,7 +110,9 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %           Figure, Vehicles (one element per vehicle: ID, Name, details)
 %           Order(): the IDs in the order shown (those the filter hides
 %               are left out)
-%           SetSort(key, flagDescending), SetGroup(key)
+%           SetSort(key, (flagDescending)): with no flag, the sort's own
+%               default order; SortOrder(): the Order? words shown;
+%           SetGroup(key)
 %           ApplyFilter(text): keep, of the vehicles shown, those whose
 %               name, MATLAB name or class holds the text (filters stack);
 %               a text matching none is not applied (true if applied)
@@ -127,7 +146,7 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 %           '2013_Toyota_Prius_Four', '2014_Honda_CRV_EXL'})
 %
 %       % Longest first, grouped by make
-%       selectedNames = fcn_CarMesh3D_browseLibrary(SortBy='length', Descending=true, GroupBy='make')
+%       selectedNames = fcn_CarMesh3D_browseLibrary(SortBy='length', Order='Shortest first', GroupBy='make')
 %
 %       See the script: script_test_fcn_CarMesh3D_browseLibrary.m for a
 %       full test suite.
@@ -176,6 +195,42 @@ function [selectedNames, browser] = fcn_CarMesh3D_browseLibrary(options)
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_browseLibrary
 %   % * (none)
+%
+% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary (from the design file's review,
+%   % Documentation_CarMesh3D_GUIdesign_browseLibrary.md, Sean 17:56)
+%   % * Descending orders only the vehicles within each group; the
+%   %   % groups keep their own order (rule B7)
+%   % * Enter in the filter box applies the filter (rule B9)
+%   % * A data folder other than the default is named in the subtitle
+%   %   % (rule B10: every input argument shown in the GUI)
+%   % * Tooltips on every control; "Clear" renamed "Clear selection";
+%   %   % Copy names grayed out while nothing is selected
+%   % * Result() makes the default vehicle's demo copy once, not at
+%   %   % each call; Open() with a name not in the list gives a clear
+%   %   % error (CarMesh3D:notInList); "mesh editor" now "label painter"
+%   % * The Descending check box is replaced by an Order? drop-down whose
+%   %   % two choices are worded for the sort chosen (A to Z, Newest
+%   %   % first, Longest first ...), each sort opening at its own default
+%   %   % (Sean, C2S 6, 21:22); new option Order=; Descending= kept for
+%   %   % old calls; new hook SortOrder()
+%   % * "Name" is no longer a sort choice (Sean, 21:54: the name starts
+%   %   % with the year, so the order looked random; Make covers it);
+%   %   % SortBy='name' in old calls sorts by make
+%   % * A progress bar while the list is arranged, and the list hidden
+%   %   % while its rows move (Sean, 22:15: changing the sort in a visible
+%   %   % window gave no response; anything longer than 2 or 3 seconds
+%   %   % shows a progress bar); an error while arranging is shown in
+%   %   % the window and the command window, not lost
+%   % * Ties are ordered by make, then name, and for a text sort in the
+%   %   % order chosen: sorting by Class within Class groups, Z to A, gave
+%   %   % the coupes by year, not Z to A (Sean's screenshot, 22:05)
+%   % * Text sorts ignore upper and lower case ("GUITestVehicle" came
+%   %   % before "GenericSedan"; found by the new every-arrangement test)
+%   % * Fixed: ticking Descending put the sort back to the one the window
+%   %   % opened with, and choosing a sort cleared Descending (their
+%   %   % callbacks kept the values from when the window was built;
+%   %   % Sean's T2, 21:17)
 
 
 
@@ -188,7 +243,8 @@ arguments
     options.Vehicles = {}             % Only these vehicles (MATLAB names); {} for the whole library
     options.SortBy = 'class'          % How the list is sorted
     options.GroupBy = 'class'         % How the list is grouped
-    options.Descending = false        % true for descending order
+    options.Order = ''                % The order within each group, in the drop-down's words; '' for the sort's default
+    options.Descending = []           % (older way) true for Z to A / newest / longest / highest first; [] for the sort's default
     options.Selected = {}             % Names ticked at the start
     options.DefaultVehicle = '2009_Honda_Fit_Sport'   % Returned (as a fresh copy) when none is selected
     options.Wait = []                 % Wait for the window to close; [] for "when visible"
@@ -240,14 +296,24 @@ end
 %              |_|
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-sortKeys = {'name','year','make','class','length','score','review','built','reviewDate'};
+sortKeys = {'make','year','class','length','score','review','built','reviewDate'};
 groupKeys = {'class','make','year','review','exemplar','license','none'};
 if 0==flag_max_speed
     if flag_check_inputs
         % The number of inputs and the option names are checked by the
         % arguments block above
-        if ~any(strcmpi(char(options.SortBy), sortKeys))
+        if ~any(strcmpi(char(options.SortBy), [sortKeys, {'name'}]))
             error('CarMesh3D:badInput', 'SortBy must be one of: %s', strjoin(sortKeys, ', '));
+        end
+        if ~isempty(options.Order)
+            [orderWords, ~] = fcn_INTERNAL_orderWords(char(options.SortBy));
+            if ~any(strcmpi(char(options.Order), orderWords))
+                error('CarMesh3D:badInput', 'For SortBy=''%s'', Order must be ''%s'' or ''%s''.', ...
+                    char(options.SortBy), orderWords{1}, orderWords{2});
+            end
+        end
+        if ~isempty(options.Descending) && ~(islogical(options.Descending) || isnumeric(options.Descending))
+            error('CarMesh3D:badInput', 'Descending must be true or false.');
         end
         if ~any(strcmpi(char(options.GroupBy), groupKeys))
             error('CarMesh3D:badInput', 'GroupBy must be one of: %s', strjoin(groupKeys, ', '));
@@ -291,6 +357,9 @@ if ~isempty(options.Vehicles)
     librarySubtitle = sprintf('Part of the vehicle library: the %d vehicles given (Vehicles option). Tick "Select" on the ones wanted; their MATLAB names are returned when this window is closed', ...
         numel(cellstr(options.Vehicles)));
 end
+if ~isempty(options.DataFolder)
+    librarySubtitle = sprintf('%s. Data folder: %s', librarySubtitle, char(options.DataFolder));
+end
 contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, functionName, FigNum=-1, Subtitle=librarySubtitle);
 mainGrid = uigridlayout(contentPanel, [3 1], 'RowHeight', {66, 44, '1x'}, ...
     'Padding', [10 8 10 8], 'RowSpacing', 6);
@@ -306,21 +375,29 @@ if ~isempty(progressDialog) && isvalid(progressDialog)
 end
 numVehicles = numel(vehicles);
 flagSelected = ismember({vehicles.ID}, cellstr(options.Selected));
-sortKey = lower(char(options.SortBy));
-if strcmpi(sortKey, 'reviewdate'), sortKey = 'reviewDate'; end
+sortKey = fcn_INTERNAL_sortKey(options.SortBy);
 groupKey = lower(char(options.GroupBy));
-flagDescending = logical(options.Descending);
+[orderWords, orderDescending] = fcn_INTERNAL_orderWords(sortKey);
+flagDescending = orderDescending(1);   % (the sort's own default)
+if ~isempty(options.Order)
+    flagDescending = orderDescending(strcmpi(char(options.Order), orderWords));
+elseif ~isempty(options.Descending)
+    flagDescending = logical(options.Descending);
+end
 filterTerms = {};   % (the filters applied, in order: each narrows what is shown)
 currentOrder = 1:numVehicles;   % (indices into vehicles, as shown)
 result = {};
 flagResultFixed = false;
+defaultCopyNames = {};   % (the default vehicle's demo copy, made once)
+lastFilterTime = -inf;   % (when Enter last tried a filter)
+lastFilterText = '';     % (and the text it tried)
 
-% Row 2: the three ways to arrange the list, each in a box of its own,
+% Row 1: the three ways to arrange the list, each in a box of its own,
 % in the order they are used, left to right: group, then sort within the
 % groups, then filter what is shown (Sean, 23:33: the sort box was left of
 % the group box, read first, and mistaken for the main order). Then the
 % count and the Done button, at the right
-controlGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {220, 290, '1x', 175}, ...
+controlGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {220, 400, '1x', 175}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 8);
 
 groupPanel = uipanel(controlGrid, 'Title', '1. Group by', 'FontWeight', 'bold');
@@ -333,40 +410,52 @@ groupDropdown = uidropdown(groupGrid, 'Items', groupLabels, 'ItemsData', groupKe
     'ValueChangedFcn', @(source,~) setGroup(source.Value));
 
 sortPanel = uipanel(controlGrid, 'Title', '2. Sort within each group by', 'FontWeight', 'bold');
-sortGrid = uigridlayout(sortPanel, [1 2], 'ColumnWidth', {'1x', 95}, 'Padding', [6 4 6 4]);
-sortLabels = {'Name','Year','Make','Class (body style)','Length','Score','Review (% approved)','Date built','Date reviewed'};
+sortGrid = uigridlayout(sortPanel, [1 3], 'ColumnWidth', {'1x', 48, 150}, 'Padding', [6 4 6 4], 'ColumnSpacing', 4);
+sortLabels = {'Make','Year','Class (body style)','Length','Score','Review (% approved)','Date built','Date reviewed'};
 sortDropdown = uidropdown(sortGrid, 'Items', sortLabels, 'ItemsData', sortKeys, 'Value', sortKey, ...
     'Tooltip', 'The order of the vehicles under each heading', ...
-    'ValueChangedFcn', @(source,~) setSort(source.Value, flagDescending));
-descendingBox = uicheckbox(sortGrid, 'Text', 'Descending', 'Value', flagDescending, ...
-    'ValueChangedFcn', @(source,~) setSort(sortKey, source.Value));
+    'ValueChangedFcn', @(source,~) onSortKeyChanged(source.Value));
+% (the order within each group, in words that fit the sort chosen:
+% Sean, C2S 6, 21:22; "Descending" was an odd word for alphabetical order)
+uilabel(sortGrid, 'Text', 'Order?', 'HorizontalAlignment', 'right');
+orderDropdown = uidropdown(sortGrid, 'Items', orderWords, 'ItemsData', double(orderDescending), ...
+    'Value', double(flagDescending), ...
+    'Tooltip', 'The order of the vehicles under each heading (the headings keep their own order)', ...
+    'ValueChangedFcn', @(source,~) onOrderChanged(source.Value));
 
 filterPanel = uipanel(controlGrid, 'Title', '3. Filter: keep the vehicles shown whose name, MATLAB name or class holds', 'FontWeight', 'bold');
 filterGrid = uigridlayout(filterPanel, [1 3], 'ColumnWidth', {'1x', 90, 90}, 'Padding', [6 4 6 4]);
 filterField = uieditfield(filterGrid, 'text', 'Placeholder', 'part of a name, year, make, class', ...
-    'Tooltip', 'Type, then press Apply filter: each filter narrows what is shown; Clear filters shows them all again');
-uibutton(filterGrid, 'Text', 'Apply filter', 'ButtonPushedFcn', @(~,~) applyFilter(filterField.Value));
-uibutton(filterGrid, 'Text', 'Clear filters', 'ButtonPushedFcn', @(~,~) clearFilters());
+    'Tooltip', 'Type, then press Enter or Apply filter: each filter narrows what is shown; Clear filters shows them all again', ...
+    'ValueChangedFcn', @(source,~) onFilterEnter(source.Value));
+uibutton(filterGrid, 'Text', 'Apply filter', ...
+    'Tooltip', 'Keep, of the vehicles shown, those whose name, MATLAB name or class holds every word typed. A filter that matches none is not applied.', ...
+    'ButtonPushedFcn', @(~,~) onApplyButton());
+uibutton(filterGrid, 'Text', 'Clear filters', 'Tooltip', 'Remove every filter: show all the vehicles again', ...
+    'ButtonPushedFcn', @(~,~) clearFilters());
 
 doneGrid = uigridlayout(controlGrid, [2 1], 'RowHeight', {'1x', 30}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
 countLabel = uilabel(doneGrid, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'WordWrap', 'on', 'VerticalAlignment', 'bottom');
 uibutton(doneGrid, 'Text', 'Done: close and return', 'FontWeight', 'bold', ...
+    'Tooltip', 'Close this window and return the selected vehicles'' MATLAB names (with none selected: a fresh copy of the default test vehicle)', ...
     'ButtonPushedFcn', @(~,~) closeWindow());
 
-% Row 3: the selection, as a cell array to copy
+% Row 2: the selection, as a cell array to copy
 % (shown as text, not in a text box: a box reads as a place to type, and
 % this is only what will be returned; Sean, 23:35)
-selectionGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {215, '1x', 110, 120, 80}, ...
+selectionGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {215, '1x', 110, 120, 120}, ...
     'Padding', [0 0 0 0], 'ColumnSpacing', 6);
 uilabel(selectionGrid, 'Text', {'Returned when closed:', 'the selected, in the order shown'}, 'FontWeight', 'bold');
 selectionArea = uilabel(selectionGrid, 'Text', '', 'FontName', 'Courier New', 'FontSize', 12, 'WordWrap', 'on', ...
     'VerticalAlignment', 'center', 'FontColor', [0.10 0.25 0.55]);
-uibutton(selectionGrid, 'Text', 'Copy names', 'Tooltip', 'Copy the line shown, a MATLAB cell array, to the clipboard', ...
+copyButton = uibutton(selectionGrid, 'Text', 'Copy names', 'Tooltip', 'Copy the line shown, a MATLAB cell array, to the clipboard', ...
     'ButtonPushedFcn', @(~,~) clipboard('copy', selectionArea.Text));
-uibutton(selectionGrid, 'Text', 'Select all shown', 'ButtonPushedFcn', @(~,~) selectShown(true));
-uibutton(selectionGrid, 'Text', 'Clear', 'ButtonPushedFcn', @(~,~) selectShown(false));
+uibutton(selectionGrid, 'Text', 'Select all shown', 'Tooltip', 'Tick Select on every vehicle shown (not on those the filters hide)', ...
+    'ButtonPushedFcn', @(~,~) selectShown(true));
+uibutton(selectionGrid, 'Text', 'Clear selection', 'Tooltip', 'Untick Select on every vehicle shown', ...
+    'ButtonPushedFcn', @(~,~) selectShown(false));
 
-% Row 4: the scrolling list, one row per vehicle, and a header per group
+% Row 3: the scrolling list, one row per vehicle, and a header per group
 listGrid = uigridlayout(mainGrid, [max(numVehicles,1) 1], 'Scrollable', 'on', ...
     'Padding', [0 0 0 0], 'RowSpacing', 4, 'BackgroundColor', [0.97 0.97 0.97]);
 rowPanels = gobjects(numVehicles, 1);
@@ -383,8 +472,8 @@ arrangeList();
 
 % The browser's handles and functions
 browser = struct('Figure', figureHandle, 'Vehicles', vehicles, ...
-    'Order', @getOrder, 'SetSort', @setSort, 'SetGroup', @setGroup, ...
-    'Open', @(name, toolName, varargin) openTool(find(strcmp({vehicles.ID}, name), 1), toolName, varargin{:}), ...
+    'Order', @getOrder, 'SetSort', @setSort, 'SortOrder', @getSortOrder, 'SetGroup', @setGroup, ...
+    'Open', @openByName, ...
     'ApplyFilter', @applyFilter, 'ClearFilters', @clearFilters, 'Filters', @getFilters, ...
     'Select', @(names) setSelected(names, true), 'Deselect', @(names) setSelected(names, false), ...
     'Selected', @getSelected, 'Result', @getResult, 'Close', @closeWindow);
@@ -416,7 +505,27 @@ end
 
     function arrangeList()
         % Sorts, groups and filters the rows, and places them (with a
-        % header per group) in the list
+        % header per group) in the list. In a visible window this shows a
+        % progress bar while it works (anything that can take more than 2
+        % or 3 seconds shows one: Sean, 22:15). An error is shown in the
+        % window, not lost. (The list is NOT hidden while its rows move:
+        % hiding the scrolling list stalled the window's drawing for about
+        % 60 s, measured 22:28)
+        progressBar = [];
+        if strcmp(figureHandle.Visible, 'on')
+            progressBar = uiprogressdlg(figureHandle, 'Title', functionName, ...
+                'Message', 'Arranging the list...', 'Indeterminate', 'on');
+        end
+        cleanupList = onCleanup(@() fcn_INTERNAL_endArrange(progressBar));
+        try
+            arrangeRows();
+        catch ME
+            warnUser(sprintf('The list could not be arranged: %s', ME.message));
+            fprintf(2, '%s: the list could not be arranged:\n%s\n', functionName, getReport(ME));
+        end
+    end
+
+    function arrangeRows()
         currentOrder = fcn_INTERNAL_order(vehicles, sortKey, groupKey, flagDescending);
         flagShown = fcn_INTERNAL_matchesFilter(vehicles, filterTerms);
         shownOrder = currentOrder(flagShown(currentOrder));
@@ -461,15 +570,36 @@ end
     end
 
     function setSort(newKey, newDescending)
-        if nargin < 2
-            newDescending = flagDescending;
+        % Sorts by newKey; with no newDescending, in that sort's own
+        % default order (the first of its Order? choices)
+        sortKey = fcn_INTERNAL_sortKey(newKey);
+        [newWords, newOrderDescending] = fcn_INTERNAL_orderWords(sortKey);
+        if nargin < 2 || isempty(newDescending)
+            newDescending = newOrderDescending(1);
         end
-        if strcmpi(newKey, 'reviewdate'), newKey = 'reviewDate'; else, newKey = lower(char(newKey)); end
-        sortKey = newKey;
         flagDescending = logical(newDescending);
         sortDropdown.Value = sortKey;
-        descendingBox.Value = flagDescending;
+        orderDropdown.Items = newWords;
+        orderDropdown.ItemsData = double(newOrderDescending);
+        orderDropdown.Value = double(flagDescending);
         arrangeList();
+    end
+
+    function words = getSortOrder()
+        % The Order? words shown now
+        words = orderDropdown.Items{orderDropdown.ItemsData == orderDropdown.Value};
+    end
+
+    function onSortKeyChanged(newKey)
+        % The sort drop-down: the new sort opens in its own default order
+        % (C2S 6). A nested function, so it reads the current values, not
+        % those of when the window was built (Sean's T2, 21:17)
+        setSort(newKey);
+    end
+
+    function onOrderChanged(newDescending)
+        % The Order? drop-down: keeps the sort key as it is now
+        setSort(sortKey, logical(newDescending));
     end
 
     function setGroup(newKey)
@@ -478,9 +608,18 @@ end
         arrangeList();
     end
 
+    function [toolOutput, folderUsed] = openByName(name, toolName, varargin)
+        % Opens the named vehicle (one in this list) in a tool
+        index = find(strcmp({vehicles.ID}, char(name)), 1);
+        if isempty(index)
+            error('CarMesh3D:notInList', '%s: "%s" is not among the vehicles in this list.', functionName, char(name));
+        end
+        [toolOutput, folderUsed] = openTool(index, toolName, varargin{:});
+    end
+
     function [toolOutput, folderUsed] = openTool(index, toolName, flagUseCopy)
         % Opens this vehicle in a tool: 'view' (the viewer: changes
-        % nothing), 'edit' (the mesh editor) or 'review' (the reviewer).
+        % nothing), 'edit' (the label painter) or 'review' (the reviewer).
         % The editor and the reviewer save to the vehicle, so the user is
         % asked first, and may open a fresh demo copy instead
         % (flagUseCopy: true or false skips the question, for scripts)
@@ -547,6 +686,29 @@ end
         arrangeList();
     end
 
+    function onFilterEnter(newText)
+        % Enter in the filter box (rule B9). MATLAB also calls this when
+        % the box loses focus after typing, for example when Apply filter
+        % is pressed; the button then finds the box empty and does nothing
+        if isempty(strtrim(char(newText)))
+            return;
+        end
+        applyFilter(newText);
+        lastFilterTime = now; %#ok<TNOW1>
+        lastFilterText = strtrim(char(newText));
+    end
+
+    function onApplyButton()
+        % Apply filter: when Enter (or leaving the box) has just tried this
+        % same text, the box is empty (applied) or holds that text (not
+        % applied, already warned), so do nothing more
+        textNow = strtrim(char(filterField.Value));
+        if (now - lastFilterTime) * 86400 < 2 && (isempty(textNow) || strcmp(textNow, lastFilterText)) %#ok<TNOW1>
+            return;
+        end
+        applyFilter(filterField.Value);
+    end
+
     function clearFilters()
         filterTerms = {};
         filterField.Value = '';
@@ -605,7 +767,9 @@ end
         names = getSelected();
         if isempty(names)
             selectionArea.Text = sprintf('(none selected: closing returns a fresh copy of %s)', char(options.DefaultVehicle));
+            copyButton.Enable = 'off';
         else
+            copyButton.Enable = 'on';
             selectionArea.Text = sprintf('selectedNames = {%s};   %% %d vehicle(s)', ...
                 strjoin(strcat('''', names, ''''), ', '), numel(names));
         end
@@ -619,9 +783,12 @@ end
             return;
         end
         names = getSelected();
-        if isempty(names)
+        if isempty(names) && ~isempty(defaultCopyNames)
+            names = defaultCopyNames;
+        elseif isempty(names)
             demoFiles = fcn_CarMesh3D_makeDemoCopy(char(options.DefaultVehicle), FigNum=-1);
             names = {demoFiles.Folder};
+            defaultCopyNames = names;
             fprintf(1, ['%s: no vehicle was selected, so a fresh copy of the default test vehicle is returned:\n' ...
                 '    %s\n    (changes made to it are not saved to the vehicle)\n'], functionName, demoFiles.Folder);
         end
@@ -891,8 +1058,8 @@ end % Ends fcn_INTERNAL_fill
 %% fcn_INTERNAL_buildRow
 function [rowPanel, selectBox] = fcn_INTERNAL_buildRow(listGrid, vehicle, flagSelected, onSelect, onOpen)
 % One vehicle's row: its 3D picture, its 2D picture, its details, and
-% its Select box with buttons that open it in the viewer, the mesh
-% editor, or the reviewer
+% its Select box with buttons that open it in the viewer, the label
+% painter, or the reviewer
 rowPanel = uipanel(listGrid, 'BackgroundColor', [1 1 1]);
 if vehicle.IsExemplar
     rowPanel.HighlightColor = [0.85 0.65 0];
@@ -920,20 +1087,21 @@ uilabel(detailGrid, 'Text', fcn_INTERNAL_detailsHTML(vehicle), 'Interpreter', 'h
 buttonGrid = uigridlayout(rowGrid, [5 1], 'RowHeight', {34, 8, 28, 28, 28}, 'Padding', [0 10 0 0], ...
     'RowSpacing', 4, 'BackgroundColor', [1 1 1]);
 selectBox = uicheckbox(buttonGrid, 'Text', 'Select', 'FontSize', 15, 'FontWeight', 'bold', ...
-    'Value', flagSelected, 'ValueChangedFcn', onSelect);
+    'Value', flagSelected, 'Tooltip', 'Return this vehicle''s MATLAB name when the window is closed', ...
+    'ValueChangedFcn', onSelect);
 uilabel(buttonGrid, 'Text', '');
 uibutton(buttonGrid, 'Text', 'View', 'Tooltip', 'Open in fcn_CarMesh3D_viewLabels (changes nothing)', ...
     'ButtonPushedFcn', @(~,~) onOpen('view'));
-uibutton(buttonGrid, 'Text', 'Edit labels', 'Tooltip', 'Open in fcn_CarMesh3D_paintLabels', ...
+uibutton(buttonGrid, 'Text', 'Edit labels', 'Tooltip', 'Open in the label painter, fcn_CarMesh3D_paintLabels (asks: the vehicle or a demo copy)', ...
     'ButtonPushedFcn', @(~,~) onOpen('edit'));
-uibutton(buttonGrid, 'Text', 'Review', 'Tooltip', 'Open in fcn_CarMesh3D_reviewVehicle', ...
+uibutton(buttonGrid, 'Text', 'Review', 'Tooltip', 'Open in the Model Reviewer, fcn_CarMesh3D_reviewVehicle (asks: the vehicle or a demo copy)', ...
     'ButtonPushedFcn', @(~,~) onOpen('review'));
 end % Ends fcn_INTERNAL_buildRow
 
 %% fcn_INTERNAL_toolTitle
 function title = fcn_INTERNAL_toolTitle(toolName)
 switch toolName
-    case 'edit',   title = 'mesh editor (fcn_CarMesh3D_paintLabels)';
+    case 'edit',   title = 'label painter (fcn_CarMesh3D_paintLabels)';
     case 'review', title = 'reviewer (fcn_CarMesh3D_reviewVehicle)';
     otherwise,     title = 'viewer (fcn_CarMesh3D_viewLabels)';
 end
@@ -1005,18 +1173,22 @@ end % Ends fcn_INTERNAL_thousands
 
 %% fcn_INTERNAL_order
 function order = fcn_INTERNAL_order(vehicles, sortKey, groupKey, flagDescending)
-% The vehicles' order: by group, then by the sort key, then by name
+% The vehicles' order: by group (always in the groups' own order), then
+% by the sort key (descending when asked), then ties by make and then by
+% name. For a text sort (make, class) the ties follow the same order
+% (Z to A gives Honda, Ford, CarMesh3D among the coupes when the sort is
+% Class within Class groups: Sean, 22:05); for the others, A to Z
 numVehicles = numel(vehicles);
 if numVehicles == 0
     order = zeros(1,0);
     return;
 end
-names = string({vehicles.Name})';
+names = lower(string({vehicles.Name}))';   % (text sorts ignore case: "Generic" before "GUI")
 switch sortKey
     case 'name',       sortValues = names;
     case 'year',       sortValues = [vehicles.Year]';
-    case 'make',       sortValues = string({vehicles.Make})';
-    case 'class',      sortValues = string({vehicles.ClassName})';
+    case 'make',       sortValues = lower(string({vehicles.Make}))';
+    case 'class',      sortValues = lower(string({vehicles.ClassName}))';
     case 'length',     sortValues = [vehicles.Length]';
     case 'score',      sortValues = [vehicles.Score]';
     case 'review',     sortValues = [vehicles.ReviewPercent]';
@@ -1029,10 +1201,55 @@ direction = 'ascend';
 if flagDescending
     direction = 'descend';
 end
-sortTable = table((1:numVehicles)', groupValues, sortValues, names, 'VariableNames', {'Index','Group','Value','Name'});
-sortTable = sortrows(sortTable, {'Group','Value','Name'}, {direction, direction, 'ascend'}, 'MissingPlacement', 'last');
+tieDirection = 'ascend';
+if any(strcmp(sortKey, {'make','class'}))
+    tieDirection = direction;
+end
+makes = lower(string({vehicles.Make}))';
+sortTable = table((1:numVehicles)', groupValues, sortValues, makes, names, 'VariableNames', {'Index','Group','Value','Make','Name'});
+sortTable = sortrows(sortTable, {'Group','Value','Make','Name'}, {'ascend', direction, tieDirection, tieDirection}, 'MissingPlacement', 'last');
 order = sortTable.Index';
 end % Ends fcn_INTERNAL_order
+
+%% fcn_INTERNAL_endArrange
+function fcn_INTERNAL_endArrange(progressBar)
+% After the list is arranged (or fails): close the progress bar
+if ~isempty(progressBar) && isvalid(progressBar)
+    close(progressBar);
+end
+end % Ends fcn_INTERNAL_endArrange
+
+%% fcn_INTERNAL_sortKey
+function sortKey = fcn_INTERNAL_sortKey(sortKey)
+% A sort key as the window uses it: 'reviewDate' spelled so, and the old
+% 'name' (no longer a choice: Sean, 21:54) taken as 'make'
+sortKey = lower(char(sortKey));
+if strcmp(sortKey, 'reviewdate')
+    sortKey = 'reviewDate';
+elseif strcmp(sortKey, 'name')
+    sortKey = 'make';
+end
+end % Ends fcn_INTERNAL_sortKey
+
+%% fcn_INTERNAL_orderWords
+function [words, flagDescending] = fcn_INTERNAL_orderWords(sortKey)
+% The two Order? choices for a sort, the sort's own default first, and
+% whether each one is a descending sort (Sean, C2S 6, 21:22)
+switch lower(char(sortKey))
+    case {'name','make','class'}
+        words = {'A to Z', 'Z to A'};                         flagDescending = [false true];
+    case {'year','built','reviewdate'}
+        words = {'Newest first', 'Oldest first'};             flagDescending = [true false];
+    case 'length'
+        words = {'Longest first', 'Shortest first'};          flagDescending = [true false];
+    case 'score'
+        words = {'Highest first', 'Lowest first'};            flagDescending = [true false];
+    case 'review'
+        words = {'Most approved first', 'Least approved first'}; flagDescending = [true false];
+    otherwise
+        words = {'A to Z', 'Z to A'};                         flagDescending = [false true];
+end
+end % Ends fcn_INTERNAL_orderWords
 
 %% fcn_INTERNAL_groupName
 function groupName = fcn_INTERNAL_groupName(vehicle, groupKey)

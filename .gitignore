@@ -50,3 +50,7 @@ Data/**/model/
 
 # CarMesh3D: the demo menu's saved answers (written by the DebugTools menu)
 Data/answersSoFar_*.mat
+
+# Office lock files, made while a document is open in Word, Excel or
+# PowerPoint (one was committed by mistake on 2026-11-23)
+~$*
