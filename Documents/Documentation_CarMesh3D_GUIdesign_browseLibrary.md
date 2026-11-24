@@ -12,15 +12,6 @@
 
 **First:** close any browser window and run `clear functions`, then open it from the demo menu.
 
-- **T39. The demo buttons:** in the preview, "★ Use as demo vehicle" and "Back to the repo's demo". Pick a vehicle with photos: it becomes the demo vehicle (the red **D** in the Status column moves to it). Pick one without photos: a red hint says why, nothing changes. Their place and wording?
-(Sean's result:)
-
-- **T40. Narrow window:** make the window about 640 wide and 400 tall: the table, preview and buttons stay usable (shorter button words). Looks right?
-(Sean's result:)
-
-- **T41. The highlight follows the preview:** after sorting, filtering or clicking a group header, the highlighted row is the previewed vehicle. Feels right?
-(Sean's result:)
-
 ---
 
 ## 1. What the window is for
@@ -475,3 +466,17 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   - **T47** (Reviewer right of Review; the Author column filled): **pass** (Sean, 13:08).
   - **T38** (the two ★ columns): replaced by the Status column; closed without a result.
   - Pushed by Sean at 13:29.
+- 2026-11-24 14:30 (Sean): browser review: **T40** (narrow window): **pass** ("resize worked to where image was visible even when shrunk, and button fontsize changed clearly"); **T41** (the highlight follows the preview): **pass** ("works and feels natural and obvious"). **T39**: the refusal for a vehicle without photos passes; the Transit Connect as demo vehicle failed for Sean (the D did not move); not reproduced by Claude (about 14:31, reply under T39); T39 stays open.
+- (T39 as it stood in Review now, with the replies:)
+  - **T39. The demo buttons:** in the preview, "★ Use as demo vehicle" and "Back to the repo's demo". Pick a vehicle with photos: it becomes the demo vehicle (the red **D** in the Status column moves to it). Pick one without photos: a red hint says why, nothing changes. Their place and wording?
+  (Sean's result: 
+  * PASS: Button presses using vehicle without photos were blocked.
+  * FAIL: Piced 2014 Ford Transit Connect, button seemed to allow operation but the D status didn't change. Was running it via following commands from command prompt:
+  >> clear functions
+  >> [selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary(DefaultVehicle='2009_Honda_Fit_Sport')
+  )
+  
+  **(Claude to Sean, 2026-11-24 about 14:31)** Not reproduced yet. With the window driven through its own callbacks (hidden, the same call as yours, `DefaultVehicle='2009_Honda_Fit_Sport'`): clicking the Transit Connect's row, then pressing "★ Use as demo vehicle", saved the preference, moved the red D to the Transit's row ("D, E": it is also the compact cargo van exemplar), took it off the Fit's row, and the hint said "★ Your demo vehicle ...". Picture: `Desktop\Claude\Project_CarMesh3D\pictures\browse_T39_after.png`. Two things that would look like your result: (1) the button acts on the vehicle in the **preview** (the one whose row was clicked), not on rows ticked in the Select column; (2) at about 14:31 (Claude's MATLAB) the demo-vehicle preference read as not set. **Correction (14:33):** Sean then saw in viewLabels that the demo vehicle had changed, so the button did save it; and Claude's own hook tests set and then reset this same shared preference several times around 14:31 to 14:34 (restoring "not set"), which may have undone Sean's choice on disk. Claude's times "14:35" and "14:40" here were written without reading a clock; they were about 14:31 to 14:33. Please try once more: click the Transit's row (its name shows at the top right), press the button, and note what the red or gray hint line under Select says. (The preference goes back with "Back to the repo's demo".)
+  
+  
+- 2026-11-24 14:36 (Sean): **T39 retried: pass.** In a freshly opened browser, the Transit Connect's row clicked, "★ Use as demo vehicle" pressed: "Worked exactly as expected" (the D moved at once to the Transit's row, "D, E", and left the Fit's). Sean had not pressed "Back to the repo's demo". The first failure (14:30) is put down to Claude's hook tests, which set and then cleared the same demo-vehicle preference (shared by every MATLAB session of this user) while Sean was testing, so his choice was undone. Rule since: a test that touches a shared preference saves it first and restores that same value, and no such test runs while Sean is testing a GUI. Review now for the browser is empty.
