@@ -8,14 +8,11 @@
 
 ## Review now (for Sean)
 
-*Updated 2026-11-24 07:15. Almost everything is now tested by script (automated GUI tests, Q39: Agent D, 06:06 to 07:01; checked by Claude 07:04: all pass). What is left needs your eyes only.*
+*Updated 2026-11-24 13:35. Almost everything is now tested by script (automated GUI tests, Q39: Agent D, 06:06 to 07:01; checked by Claude 07:04: all pass). What is left needs your eyes only. T38 was replaced by the Status column (T45, pass; see the change log, 2026-11-24 11:20 to 13:29).*
 
 **First:** close any browser window and run `clear functions`, then open it from the demo menu.
 
-- **T38. The Demo column:** the demo vehicle has a ★ in a new "Demo" column, next to the exemplar ★ column. Is it clear which ★ means what?
-(Sean's result:)
-
-- **T39. The demo buttons:** in the preview, "★ Use as demo vehicle" and "Back to the repo's demo". Pick a vehicle with photos: it becomes the demo vehicle (★ moves). Pick one without photos: a red hint says why, nothing changes. Their place and wording?
+- **T39. The demo buttons:** in the preview, "★ Use as demo vehicle" and "Back to the repo's demo". Pick a vehicle with photos: it becomes the demo vehicle (the red **D** in the Status column moves to it). Pick one without photos: a red hint says why, nothing changes. Their place and wording?
 (Sean's result:)
 
 - **T40. Narrow window:** make the window about 640 wide and 400 tall: the table, preview and buttons stay usable (shorter button words). Looks right?
@@ -176,6 +173,33 @@ Warnings appear in a `uialert` (in the command window when the window is hidden)
 | Review | button, tooltip "Open in fcn_CarMesh3D_reviewVehicle". |
 
 - **Edit labels and Review ask first** (`uiconfirm`, warning icon): "Changes made in the mesh editor (fcn_CarMesh3D_paintLabels) are saved to <vehicle> itself. Open the vehicle, or a fresh demo copy of it (changes not saved)?" with **Open the vehicle**, **Open a demo copy** (the default), **Cancel**. A demo copy is `fcn_CarMesh3D_makeDemoCopy` (in the temporary folder). In a hidden window, the demo copy is used without asking.
+
+### 4.3b The table's columns (as built 2026-11-24 13:20)
+
+*The list of picture rows above was replaced by a text table and a preview panel (section 3.3, Q23 (A)); these are the table's columns now.*
+
+| Column | What it shows | Width (px) |
+|---|---|---|
+| Select | a tick box: the vehicles returned when the window closes | 55 |
+| Status | **D** = the demo vehicle, in red bold (`#cc0000`); **E** = an exemplar of its class; or "D, E"; blank otherwise. The cells are HTML (`uistyle` Interpreter 'html'). | 60 |
+| Vehicle | the vehicle's name | auto |
+| Year, Make | | 55, 100 |
+| Class | the body style (left out when grouped by class) | 170 |
+| Length (m), Score | | 85, 60 |
+| Review | % of the answered review items approved | 65 |
+| Reviewer | the reviewers' initials, right of Review; **SBB** when a review has no name (Sean's initials, the default for now; the V&V GUI is to ask who is reviewing) | 75 |
+| Author | the download's author (from its LICENSE.txt), to spot good authors quickly | 120 |
+| License | the license, short | 130 |
+
+**The Status key**, above the table (tag `statusKey`), one line per letter so a narrow window cuts off only the ends of the explanations (T46):
+
+```
+Status:
+      D = the demo vehicle (the demos and tools use it when no vehicle is named)
+      E = an exemplar of its class (the finished vehicle a body style is refit from)
+```
+
+Exemplar rows keep their gold-brown text, `[0.6 0.4 0]`; group rows are white on `[0.25 0.35 0.5]`, bold.
 
 ### 4.4 Behavior
 
@@ -438,3 +462,16 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   - **Bugs found and fixed:** after a re-sort or filter the highlighted row stayed on the old row number (showing another vehicle than the preview); clicking a group header row moved the highlight off the previewed vehicle; with nothing in the preview, View, Edit labels, Review and Select were still enabled; at 640×400 the table was 142 px wide, the filter box 0 px and Done off the window (widths now follow the window; short button words when narrow).
   - **Not fixed:** the title bar's version line is cut off below about 1200 px (`fcn_CarMesh3D_addTitleBar`); long MATLAB names cut off in the preview at 640 px; Copy names not tested (it would overwrite the clipboard); the demo test changes the shared preference for a few seconds.
   - Report: `Desktop\Claude\Project_CarMesh3D\agents\D\REPORT_browseLibrary.md`. T38 to T41 in Review now.
+- 2026-11-24 11:20 to 13:29 (Sean, then Claude): **the Status, Reviewer and Author columns.** Sean, 11:20: "The demo "star" symbol and column is confusing, because there's another column whose title is "(star symbol)"." His requests:
+  - merge the two columns, titled descriptively ("Special status? D=demo, E = exemplar", or shorter, with the explanation shown plainly at the top);
+  - values D, E or "D,E";
+  - the demo vehicle's D in red and bold, "very prominent";
+  - a Reviewer Initials column, right of the Review score; "We'll need to query, during the VandV GUI usage, who the reviewer is. For now, default is SBB";
+  - the original mesh author as a column, "to rapidly ID 'good' authors".
+
+  Built 11:20 to 11:27 (Claude), as in section 4.3b: one **Status** column (header kept short, with a key line above the table), a red bold D through HTML cells, **Reviewer** right of Review (SBB when a review has no name), **Author**. `fcn_CarMesh3D_reviewVehicle`'s default reviewer is now SBB (was the computer's user name). The browser's test updated (Status values, one D, Reviewer beside Review, Author filled, the key line) and passes (305 s).
+  - **T45** (the red bold D on the demo vehicle, E on the exemplars): **pass** (Sean, 13:08). Sean then asked why classes with more than one vehicle have no exemplar; answered in the chat: exemplars are approved one by one (`Data/bodyStyles.csv`, the rule of 2026-11-21: every dimension check passed, under 1% label change, Sean has looked), and approvals wait until the GUIs are done (Sean, 2026-11-23 01:50); hatchback and full-size SUV lack one (candidates: the Fit; the Expedition XLT or Suburban LT), and full-size cargo van since the HiAce moved to `DataSomeday`.
+  - **T46** (the key line): it worked, but at about a third of the screen the "E =" part was cut off; Sean (13:08): put it on separate, indented lines ("Status:", then a tabbed D line and E line). Done 13:08; **pass** (Sean, 13:29).
+  - **T47** (Reviewer right of Review; the Author column filled): **pass** (Sean, 13:08).
+  - **T38** (the two ★ columns): replaced by the Status column; closed without a result.
+  - Pushed by Sean at 13:29.
