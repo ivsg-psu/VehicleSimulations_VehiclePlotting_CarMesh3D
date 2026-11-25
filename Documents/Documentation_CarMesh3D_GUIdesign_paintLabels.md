@@ -21,36 +21,12 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 
 ## 2. General rules for the whole window
 
-**(Sean)**
-1. **Working options for the mesh are on the left**, next to the mesh, which is on the left.
-2. **Working options for the photos are on the right**, next to the photos.
-3. **The spinner** (the dial that picks the photo by viewing angle) **stays between the two, near the top.**
-4. **The main menu is a pancake menu** (a "☰" button, top left) that lists the panels. Clicking a panel's name opens it below the pancake, against the left side of the window; clicking another closes the open one and opens the new one. One panel is open at a time.
-5. **Only three buttons along the top in normal use: Undo, Save, Exit.** Exit without saving asks whether to save.
-6. **On/off selections always use radio buttons.**
-7. **A label choice is written:** `(colored box) Name   radioOption1 radioOption2 radioOption3 ...`
-8. **A lamp choice is written:** `(colored box) Name   Off On 3rdState 4thState ...` (Off always first).
+**Follows `Documentation_CarMesh3D_GUIdesign_rules.md`** (rules G1 to G38, every CarMesh3D window), and its shared panels are in `Documentation_CarMesh3D_GUIdesign_sharedPanels.md`. This window's 26 general rules moved there on 2026-11-24 (Sean, 16:20 to 16:23); the table at the end of that file says where each went (painter rule 4, one panel at a time, became G1, up to two). The old list is kept in the change log of this file.
 
-**(Claude, to confirm: added general rules)**
-
-9. **Columns, with a header row.** In any list of label or lamp choices the radio buttons line up in columns, and the column names are written once, as a header row above the list (for example `Colored  Shown`), rather than beside every button. The colored box is 14 x 14 pixels, with a thin dark border, in the color the label or lamp has on the model.
-10. **An on/off choice is an Off/On pair**, side by side, Off first (MATLAB radio buttons cannot be clicked off once on, so a single radio button cannot turn something off again). See Q5.
-11. **Buttons are only for actions** that happen once when pressed (Undo, Save, Exit, Apply, Reset view, Browse...). Anything that stays on or off, or picks one of several, is a radio button.
-12. **Read-only information is text, never a text box** (from `claude/gui_design_notes.md`). Text boxes are only for typing (a hidden set's name, a folder).
-13. **Missing items are shown, not removed:** a label or lamp the mesh has no faces for keeps its row, its name in **gray italics**, with one note under the list ("Gray names: no faces have this label yet"), and its controls still work (a lamp with no faces still casts its light at night). (The mockup showed that "(no faces)" after each name does not fit the 320-pixel panel.)
-14. **Every control has a tooltip** that says what it does in a sentence.
-15. **The title bar** is the standard one (`fcn_CarMesh3D_addTitleBar`): the function's name, large; its file's last change; and the vehicle's name.
-16. **Colors of the bands:** paint work (Modify Labels) on a pale yellow background `[1 0.96 0.85]`; viewing work (Overall Display, Labels, Lamps) on a pale blue `[0.93 0.95 1]`; Settings on light gray `[0.94 0.94 0.94]`. The color says which kind of work a panel does.
-17. **The window remembers** the open panel, the photo folder and the timestamped-copy folder for next time (MATLAB preferences, group `CarMesh3D`).
-18. **Panels scroll** when they are taller than the window; nothing is cut off.
-19. **Keyboard:** Ctrl+Z is Undo and Ctrl+S is Save, the same as the top buttons.
-20. **A row that sets several others** ("All labels", "All lamps") shows no button selected when the rows under it differ. MATLAB always keeps one radio button of a group selected, so such a row has an unseen third button that is selected in that case (found in the mockup, 10:20).
-21. **Panel width 320 pixels**; a control that does not fit beside its name goes on its own line under it (the mockup's View and Revert buttons), never cut off.
-22. **A radio-button choice is asked as a question** and its name ends with "?" ("Turn model with photo?", "Show mesh boundaries?"), so it reads as something to answer (Sean, 13:12).
-23. **A text box that has a default shows the default under it**, in gray ("(default is "hidden")"), so the user never has to remember it; defaults are set in GUI settings (Sean, 13:12).
-24. **Every GUI setting can be put back:** GUI settings ends with "Reset to defaults" (Sean, 13:12).
-25. **Every input argument is shown in the GUI in some way:** what a call can set, the window can show or set too (a control, or text in the subtitle, status line or a panel). This rule applies to every CarMesh3D window; the viewLabels and browseLibrary design files refer to it (Sean, 18:01 and Q20, 18:02).
-26. **Anything that can take more than 2 or 3 seconds shows a progress bar** (a `uiprogressdlg` in the window; indeterminate when the length is not known), and the window says when it is done or what went wrong; it never just stops responding. An error in a callback is shown in the window, not only in the command window. This rule applies to every CarMesh3D window (Sean, 22:15, from the library browser's slow re-sort).
+**This window only:**
+- P-1. Its top bar is ☰ Menu, Undo, Save, Revert to a save..., Exit (G4; Revert to a save... agreed 2026-11-24, T36 and T52).
+- P-2. Labeling is select, pick a label, Apply: selection is a highlighter apart from labels; the label is previewed on the selection until Apply (Sean, 2026-11-24 15:19 to 15:24; T35, T49 to T51).
+- P-3. By default it opens with Labels To Display (shared) and Modify Labels (its own, yellow) both open (G1; Sean, 2026-11-24 16:12).
 
 ## 3. Layout
 
@@ -86,9 +62,9 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 
 | Control | Kind | What it does |
 |---|---|---|
-| ☰ Menu | button | Opens the list of panels: Overall Display, Labels To Display, Lamps To Display, Modify Labels, Settings. The open panel's name has a check mark. Clicking the open panel's name again closes it. |
+| ☰ Menu | button | Opens the list of panels: Overall Display, Labels To Display, Lamps To Display, Modify Labels, Shared GUI settings (the shared menu, `fcn_CarMesh3D_makePanelMenu`). Up to two panels are open at once, stacked; a third replaces the lower one. Open panels have a check mark; clicking one again closes it. It opens with Labels To Display over Modify Labels, then as left (since 2026-11-24 evening). Inside the reviewer, the painter has no menu: its panels are in the reviewer's (Q45 (A)). |
 | Undo | button | Takes back the last click or stroke of paint (press again to go further back, newest first). Ctrl+Z. |
-| Save | button | Applies the pending paint and saves the edits (`labelEdits_<ID>.mat`, used by the vehicle's script). The saved mesh becomes the working mesh: painted faces take their new label's look. With "Timestamped copy at each save" on (Settings), also keeps a timestamped copy. Ctrl+S. |
+| Save | button | Applies the pending paint and saves the edits (`labelEdits_<ID>.mat`, used by the vehicle's script). The saved mesh becomes the working mesh: painted faces take their new label's look. With "Timestamped copy at each save?" on (Shared GUI settings, Editing), also keeps a timestamped copy. Ctrl+S. |
 | Exit | button | Closes the window. With unsaved changes it asks first: "The label edits have changes that are not saved. Save them?" with **Save**, **Discard**, **Cancel** (Save is the default; Cancel keeps the window open). Built into the reviewer, Exit is not shown (the reviewer closes it). |
 | status | text | How many faces are painted and not applied, how many changes since the last save, and the time of the last save. |
 
@@ -221,7 +197,9 @@ out of view, never out of the mesh. To reach faces under others, set their label
 | Apply | button | | Makes the pending paint part of the working mesh (hidden faces go out of view). |
 | How to paint | text | | The mouse instructions above, always shown at the bottom of the panel. |
 
-### 5.5 Settings
+### 5.5 Settings (replaced, 2026-11-24 evening)
+
+**Now:** the settings are in **Shared GUI settings** (`fcn_CarMesh3D_makeSettingsPanel`; `Documentation_CarMesh3D_GUIdesign_sharedPanels.md`): "Timestamped copy at each save?" and "Folder for timestamped copies" in its Editing section. The actions moved to the foot of Modify Labels, under "Saving": Save as version, Revert to start, and the edits file. Revert to a save... is in the top bar. The old panel, kept for the record:
 
 **(Sean: Save as version, Revert to save, the timestamped copy, and where copies go move here.)** **(Claude, to confirm: Revert to start joins them.)**
 
@@ -607,3 +585,38 @@ As a process, please add this ruleset to the project: when working with MD files
   (Sean's result:
   * PASS: works as expected. "Original source mesh label" is more descriptive, but very lengthy. This behavior is very clear to me, but only after using it once. A README entry here is helpful, and the tooltip is very clear. Let's leave the wording as is, since the tooltip explains it clearly.
   )
+- 2026-11-24 16:25 (Claude, Sean 16:20 to 16:23): **the general rules moved to `Documentation_CarMesh3D_GUIdesign_rules.md`** (G1 to G38). Section 2 as it was:
+
+  ## 2. General rules for the whole window
+  
+  **(Sean)**
+  1. **Working options for the mesh are on the left**, next to the mesh, which is on the left.
+  2. **Working options for the photos are on the right**, next to the photos.
+  3. **The spinner** (the dial that picks the photo by viewing angle) **stays between the two, near the top.**
+  4. **The main menu is a pancake menu** (a "☰" button, top left) that lists the panels. Clicking a panel's name opens it below the pancake, against the left side of the window; clicking another closes the open one and opens the new one. One panel is open at a time.
+  5. **Only three buttons along the top in normal use: Undo, Save, Exit.** Exit without saving asks whether to save.
+  6. **On/off selections always use radio buttons.**
+  7. **A label choice is written:** `(colored box) Name   radioOption1 radioOption2 radioOption3 ...`
+  8. **A lamp choice is written:** `(colored box) Name   Off On 3rdState 4thState ...` (Off always first).
+  
+  **(Claude, to confirm: added general rules)**
+  
+  9. **Columns, with a header row.** In any list of label or lamp choices the radio buttons line up in columns, and the column names are written once, as a header row above the list (for example `Colored  Shown`), rather than beside every button. The colored box is 14 x 14 pixels, with a thin dark border, in the color the label or lamp has on the model.
+  10. **An on/off choice is an Off/On pair**, side by side, Off first (MATLAB radio buttons cannot be clicked off once on, so a single radio button cannot turn something off again). See Q5.
+  11. **Buttons are only for actions** that happen once when pressed (Undo, Save, Exit, Apply, Reset view, Browse...). Anything that stays on or off, or picks one of several, is a radio button.
+  12. **Read-only information is text, never a text box** (from `claude/gui_design_notes.md`). Text boxes are only for typing (a hidden set's name, a folder).
+  13. **Missing items are shown, not removed:** a label or lamp the mesh has no faces for keeps its row, its name in **gray italics**, with one note under the list ("Gray names: no faces have this label yet"), and its controls still work (a lamp with no faces still casts its light at night). (The mockup showed that "(no faces)" after each name does not fit the 320-pixel panel.)
+  14. **Every control has a tooltip** that says what it does in a sentence.
+  15. **The title bar** is the standard one (`fcn_CarMesh3D_addTitleBar`): the function's name, large; its file's last change; and the vehicle's name.
+  16. **Colors of the bands:** paint work (Modify Labels) on a pale yellow background `[1 0.96 0.85]`; viewing work (Overall Display, Labels, Lamps) on a pale blue `[0.93 0.95 1]`; Settings on light gray `[0.94 0.94 0.94]`. The color says which kind of work a panel does.
+  17. **The window remembers** the open panel, the photo folder and the timestamped-copy folder for next time (MATLAB preferences, group `CarMesh3D`).
+  18. **Panels scroll** when they are taller than the window; nothing is cut off.
+  19. **Keyboard:** Ctrl+Z is Undo and Ctrl+S is Save, the same as the top buttons.
+  20. **A row that sets several others** ("All labels", "All lamps") shows no button selected when the rows under it differ. MATLAB always keeps one radio button of a group selected, so such a row has an unseen third button that is selected in that case (found in the mockup, 10:20).
+  21. **Panel width 320 pixels**; a control that does not fit beside its name goes on its own line under it (the mockup's View and Revert buttons), never cut off.
+  22. **A radio-button choice is asked as a question** and its name ends with "?" ("Turn model with photo?", "Show mesh boundaries?"), so it reads as something to answer (Sean, 13:12).
+  23. **A text box that has a default shows the default under it**, in gray ("(default is "hidden")"), so the user never has to remember it; defaults are set in GUI settings (Sean, 13:12).
+  24. **Every GUI setting can be put back:** GUI settings ends with "Reset to defaults" (Sean, 13:12).
+  25. **Every input argument is shown in the GUI in some way:** what a call can set, the window can show or set too (a control, or text in the subtitle, status line or a panel). This rule applies to every CarMesh3D window; the viewLabels and browseLibrary design files refer to it (Sean, 18:01 and Q20, 18:02).
+  26. **Anything that can take more than 2 or 3 seconds shows a progress bar** (a `uiprogressdlg` in the window; indeterminate when the length is not known), and the window says when it is done or what went wrong; it never just stops responding. An error in a callback is shown in the window, not only in the command window. This rule applies to every CarMesh3D window (Sean, 22:15, from the library browser's slow re-sort).
+- 2026-11-24 16:25 to 21:00 (Claude, Sean away; Sean, 16:23: "Please proceed with the UI edits needed..."): the shared panels (`Documentation_CarMesh3D_GUIdesign_sharedPanels.md`). The menu is the shared one, up to two panels at once, starting with Labels To Display over Modify Labels (preference `PainterPanels`, was `PainterPanel`); Settings became Shared GUI settings (You, View, Demo vehicle and Editing used; Review greyed); Save as version, Revert to start and the edits file moved to "Saving" at the foot of Modify Labels; Who defaults to your initials; option `Menu=` for a host's menu. Tests pass (hidden). T56 in the shared-panels file.

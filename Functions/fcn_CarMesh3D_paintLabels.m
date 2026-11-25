@@ -93,22 +93,30 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show hints in the painter's own hint line.
 %
-%      Versions: true (default) to keep a timestamped copy of the edits and the
+%      Versions: true to keep a timestamped copy of the edits and the
 %      edited mesh at each save, in the VersionFolder, as
 %      <mesh name>_YYYYMMDDHHMMSS.mat (a second save in the same
-%      second overwrites the first). The window's "Timestamped copy at each
-%      save" box starts with this value; "Save as version" always keeps a
-%      copy.
+%      second overwrites the first); false not to. Default []: Shared GUI
+%      settings' "Timestamped copy at each save?" (On unless changed).
+%      "Save as version" always keeps a copy.
 %
 %      VersionFolder: where the timestamped copies go. Default: the folder
-%      last chosen in the window ("Timestamped copies go in", remembered as the
+%      last chosen ("Folder for timestamped copies" in Shared GUI settings, kept as the
 %      MATLAB preference CarMesh3D/VersionFolder); else the project's
 %      scratch folder, Project_CarMesh3D\scratch\meshVersions (for now);
 %      else a folder "versions" beside the edits file.
 %
 %      Who: who is painting, for the vehicle's change log
 %      (meshHistory_<ID>.csv; fcn_CarMesh3D_meshHistory): each save adds a
-%      row. Default: the computer's user name. (With a vehicle ID only.)
+%      row. Default: your initials in Shared GUI settings (SBB unless
+%      changed). (With a vehicle ID only.)
+%
+%      Menu: a host window's ☰ Menu (the functions fcn_CarMesh3D_makePanelMenu
+%      returns). When given, the painter puts its panels (Overall Display,
+%      Labels To Display, Lamps To Display, Modify Labels) in the host's
+%      menu and has no ☰ Menu of its own: only the top window owns the
+%      menu (Q45 (A), Sean 2026-11-24 16:25). The host takes them away
+%      again when it closes the painter (Parts().PanelNames). Default [].
 %
 %      FigNum: not used (the painter is a window); [] or -1 (fast mode:
 %      no input checks).
@@ -164,6 +172,15 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %               label per face, "" for none) and the faces drawn as pending
 %               and as applied paint
 %           ToggleMenu(), MenuOpen(): the menu's list of panels
+%           OpenPanel(name), Panel(), OpenNames(), OpenPanels(names): the
+%               panels, as the ☰ Menu opens them (up to two at once, top
+%               first)
+%           Menu(), Settings(): the ☰ Menu's functions
+%               (fcn_CarMesh3D_makePanelMenu; the host's, when given) and
+%               Shared GUI settings' (fcn_CarMesh3D_makeSettingsPanel; []
+%               inside a host)
+%           MarkPanels(): its panels showing the state now (for a host
+%               whose ☰ Menu opened one of them)
 %           Parts(): the painter's own parts (TopBar, MenuList, Panels,
 %               PanelNames), for tests of its controls
 %           SetSize(width, height): the window's size, in pixels
@@ -341,6 +358,17 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % Before, a selected face took the label at once, so Ctrl+drag over
 %   %   % faces that already had it did nothing
 %   % * New label "original" (Q44 (A)): back to the label as downloaded
+%   % * The shared panels (the shared-panels design file; Sean, 16:09 to
+%   %   % 16:25): the ☰ Menu is the shared one (fcn_CarMesh3D_makePanelMenu),
+%   %   % up to two panels open at once, Labels To Display over Modify
+%   %   % Labels at first; the panels open are remembered (preference
+%   %   % PainterPanels); Settings is now Shared GUI settings
+%   %   % (fcn_CarMesh3D_makeSettingsPanel: You, View, Demo vehicle and
+%   %   % Editing used, Review greyed), with "Timestamped copy at each
+%   %   % save?" and its folder; Save as version, Revert to start and the
+%   %   % edits file moved to the foot of Modify Labels; Who defaults to your
+%   %   % initials (SBB); Menu=, a host's menu, so a host such as the
+%   %   % reviewer holds the painter's panels (Q45 (A))
 %
 % TO-DO:
 %
@@ -361,9 +389,10 @@ arguments
     options.EditsFile = []      % Where the edits are saved; [] for the default
     options.PhotoFolder = []    % Folder of ViewInDegrees_<angle> photos; [] for the default
     options.Wait = false        % Wait until the window is closed
-    options.Versions = true     % Keep a timestamped copy of the edits and the edited mesh at each save
+    options.Versions = []       % Keep a timestamped copy at each save; [] for Shared GUI settings' choice (default true)
     options.VersionFolder = []  % Where timestamped copies go; [] for the remembered folder, else the default
-    options.Who = ''            % Who is painting (for the change log); '' for the computer's user name
+    options.Who = ''            % Who is painting (for the change log); '' for your initials in Shared GUI settings
+    options.Menu = []           % A host window's ☰ Menu (fcn_CarMesh3D_makePanelMenu); [] for a menu of its own
     options.Visible = true      % Build the window hidden (tests)
     options.OnPaint = []        % Called after each click or stroke that paints
     options.OnChange = []       % Called with the edited mesh when the applied edits change
@@ -585,11 +614,19 @@ mouseMoved = false;
 % panel at the left beside the model, the model, the photo dial, and the
 % photo with its options at the right
 flagOwnWindow = isempty(options.Parent);
-panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Settings'};
+hostMenu = options.Menu;
+flagOwnMenu = isempty(hostMenu);
+% (the panels: in its own menu, with Shared GUI settings; or in the host
+% window's menu, which has its own Shared GUI settings: Q45 (A))
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Shared GUI settings'};
 blueBand = [0.93 0.95 1];     % (viewing work)
 yellowBand = [1 0.96 0.85];   % (paint work)
 grayBand = [0.94 0.94 0.94];  % (settings)
 panelColors = {blueBand, blueBand, blueBand, yellowBand, grayBand};
+if ~flagOwnMenu
+    panelNames = panelNames(1:4);
+    panelColors = panelColors(1:4);
+end
 if flagOwnWindow
     visibleText = 'on';
     if ~options.Visible
@@ -607,11 +644,18 @@ else
 end
 mainGrid = uigridlayout(parent, [3 1], 'RowHeight', {36, '1x', 20}, 'Padding', [0 0 0 0], 'RowSpacing', 3);
 
-% The top bar: the menu, then only Undo, Save, and Exit; the status
-topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {90, 80, 80, 120, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
-uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
-    'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
-    'ButtonPushedFcn', @(~,~) toggleMenu());
+% The top bar: the menu (when it has its own), then only Undo, Save, and
+% Exit; the status
+menuWidth = 90;
+if ~flagOwnMenu
+    menuWidth = 0;
+end
+topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {menuWidth, 80, 80, 120, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
+    'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
+if ~flagOwnMenu
+    menuButton.Visible = 'off';   % (the host window's ☰ Menu holds the panels)
+end
 uibutton(topGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoEdit(), 'Tag', 'painterUndo', ...
     'Tooltip', 'Take back the last selection step (click or stroke) or the last Apply (press again to go further back, newest first). Ctrl+Z.');
 uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], 'Tag', 'painterSave', ...
@@ -628,42 +672,53 @@ if ~flagOwnWindow
 end
 editStatusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'painterStatus');
 
-% The body: the left column (the menu's list, then the open panel), and
-% the viewer (the model, the photo dial, the photo and its options)
+% The body: the left column (the ☰ Menu's list, then up to two open
+% panels: the shared menu, fcn_CarMesh3D_makePanelMenu), and the viewer
+% (the model, the photo dial, the photo and its options)
 bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-leftGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
-menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'painterMenuList');
-menuGrid = uigridlayout(menuPanel, [numel(panelNames) 1], 'RowHeight', repmat({28}, 1, numel(panelNames)), ...
-    'Padding', [4 4 4 4], 'RowSpacing', 2, 'BackgroundColor', [1 1 1]);
-menuItems = gobjects(1, numel(panelNames));
-for ith_panel = 1:numel(panelNames)
-    menuItems(ith_panel) = uibutton(menuGrid, 'Text', panelNames{ith_panel}, 'HorizontalAlignment', 'left', ...
-        'BackgroundColor', panelColors{ith_panel}, 'UserData', panelNames{ith_panel}, ...
-        'Tag', ['menu_' strrep(panelNames{ith_panel}, ' ', '')], ...
-        'ButtonPushedFcn', @(source,~) pickPanel(source.UserData));
+menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
+menuColumn.Layout.Row = 1;
+menuColumn.Layout.Column = 1;
+if flagOwnMenu
+    panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
+        OnChange=@(names) onPanelsChanged(names), FigNum=-1);
+    menuParts = panelMenu.Parts();
+    menuParts.List.Tag = 'painterMenuList';   % (its name in the painter's tests)
+else
+    panelMenu = hostMenu;
+    bodyGrid.ColumnWidth{1} = 0;   % (the host's column holds the panels)
 end
-holderGrid = uigridlayout(leftGrid, [1 1], 'Padding', [0 0 0 0]);
-holderGrid.Layout.Row = 2;
 panelHandles = gobjects(1, numel(panelNames));
 for ith_panel = 1:numel(panelNames)
-    panelHandles(ith_panel) = uipanel(holderGrid, 'Title', panelNames{ith_panel}, 'FontWeight', 'bold', 'FontSize', 13, ...
-        'BackgroundColor', panelColors{ith_panel}, 'Scrollable', 'on', 'Visible', 'off', 'Tag', panelNames{ith_panel});
-    panelHandles(ith_panel).Layout.Row = 1;
-    panelHandles(ith_panel).Layout.Column = 1;
+    panelHandles(ith_panel) = panelMenu.AddPanel(panelNames{ith_panel}, panelColors{ith_panel});
 end
-openPanelName = '';
+sharedSettings = [];   % (Shared GUI settings, fcn_CarMesh3D_makeSettingsPanel: in its own menu only)
+flagVersions = options.Versions;   % (a timestamped copy at each save)
+if isempty(flagVersions)
+    flagVersions = true;
+    if ispref('CarMesh3D', 'VersionsAtSave')
+        flagVersions = logical(getpref('CarMesh3D', 'VersionsAtSave'));
+    end
+end
+flagVersions = logical(flagVersions);
+whoName = char(options.Who);
+if isempty(whoName)
+    whoName = 'SBB';   % (your initials, Shared GUI settings; SBB by default: Sean, 2026-11-24 11:20)
+    if ispref('CarMesh3D', 'Initials')
+        whoName = char(getpref('CarMesh3D', 'Initials'));
+    end
+end
 viewerHolder = uipanel(bodyGrid, 'BorderType', 'none');
+viewerHolder.Layout.Row = 1;
+viewerHolder.Layout.Column = 2;
 hintLabel = uilabel(mainGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35], 'Tag', 'painterHint');
 hintLabel.Layout.Row = 3;
 % (the panels' controls, made once the viewer is built)
 paintGroup = [];
 mirrorGroup = [];
 showHiddenGroup = [];
-versionsGroup = [];
 hideNameField = [];
 saveVersionButton = [];
-versionFolderField = [];
-versionBrowseButton = [];
 displayPanels = [];   % (Overall Display, Labels To Display, Lamps To Display: fcn_CarMesh3D_makeDisplayPanels, shared with the viewer's own window; Q33 (A))
 % (the vehicle's history, for the fine print: with a vehicle ID only)
 historyID = '';
@@ -706,11 +761,22 @@ displayPanels = fcn_CarMesh3D_makeDisplayPanels(labelViewer, ...
     LabelColor=@(name) fcn_INTERNAL_paintColor(data, name), OnChange=@showPaint, ...
     ShowHidden=@showHiddenOn, SetShowHidden=@setShowHidden, FigNum=-1);
 buildModifyPanel();
-buildSettingsPanel();
-startPanel = 'Modify Labels';
+if flagOwnMenu
+    % (Shared GUI settings: the painter uses You, View, Demo vehicle and
+    % Editing; Review is greyed, rule G26)
+    sharedSettings = fcn_CarMesh3D_makeSettingsPanel(panelHandles(strcmp(panelNames, 'Shared GUI settings')), ...
+        Used={'You', 'View', 'Demo vehicle', 'Editing'}, OnChange=@onSharedSetting, FigNum=-1);
+end
+% (the panels open last time open again: Labels To Display over Modify
+% Labels the first time, viewing and labeling together, told apart by
+% color (the shared-panels design file, section 3))
+startPanels = {'Labels To Display', 'Modify Labels'};
 try
-    if ispref('CarMesh3D', 'PainterPanel') && any(strcmp(panelNames, getpref('CarMesh3D', 'PainterPanel')))
-        startPanel = getpref('CarMesh3D', 'PainterPanel');
+    if ispref('CarMesh3D', 'PainterPanels')
+        remembered = cellstr(getpref('CarMesh3D', 'PainterPanels'));
+        if numel(remembered) <= 2 && all(ismember(remembered, panelNames))
+            startPanels = remembered;
+        end
     end
 catch
 end
@@ -718,9 +784,11 @@ if ~flagOwnWindow
     % (inside another window, such as the Model Reviewer, the space is
     % narrow: the panels start closed, so the model shows; the menu opens
     % them)
-    startPanel = '';
+    startPanels = {};
 end
-pickPanel(startPanel);
+if flagOwnMenu
+    panelMenu.OpenPanels(startPanels);
+end
 drawnow;
 labelViewer.PlacePhoto();   % (the photo filling its box, now the layout is settled)
 
@@ -737,14 +805,15 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'MouseDownAt', @mouseDownAt, 'MouseMoveAt', @mouseMoveAt, 'MouseUpAt', @mouseUpAt, ...
     'ClickAt', @clickAt, 'DoubleClickAt', @doubleClickAt, 'DragAt', @dragAt, 'FaceAt', @faceAt, ...
     'Layers', @getLayers, 'ToggleMenu', @toggleMenu, 'MenuOpen', @menuOpen, 'SetSize', @setSize, ...
-    'Parts', @() struct('TopBar', topGrid, 'MenuList', menuPanel, 'Panels', panelHandles, 'PanelNames', {panelNames}), ...
+    'Parts', @getParts, 'Menu', @() panelMenu, 'Settings', @() sharedSettings, 'MarkPanels', @() onPanelsChanged(panelMenu.OpenNames()), ...
     'ShowLabel', @showLabel, 'SetHidden', @setHidden, ...
     'EditedMesh', @getEditedMesh, 'Edits', @getEdits, 'NumPainted', @numPainted, 'IsUnsaved', @isUnsaved, 'Status', @getStatus, ...
     'Apply', @applyEdits, 'Undo', @undoEdit, 'Save', @() saveEdits(), 'SaveVersion', @saveVersion, ...
     'LastVersionFile', @getLastVersionFile, 'VersionFolder', @getVersionFolder, 'SetVersionFolder', @setVersionFolder, 'WorkingMesh', @getWorkingMesh, 'RevertToSaved', @revertToSaved, 'RevertToStart', @revertToStart, 'SavedCopies', @listSavedCopies, 'RevertToCopy', @revertToCopy, 'PickRevert', @pickRevert, ...
     'SetTool', @setTool, 'Paint', @testPaint, 'SetPhotoAngle', labelViewer.SetPhotoAngle, 'PhotoAngle', labelViewer.PhotoAngle, 'Viewer', labelViewer, ...
     'StrokeStart', @strokeStart, 'MouseMove', @mouseMove, 'MouseUp', @mouseUp, 'Click', @click, ...
-    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
+    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'OpenNames', @getOpenNames, 'OpenPanels', @openPanels, ...
+    'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
     'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
     'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter);
 flagBuilding = false;
@@ -891,45 +960,21 @@ end
         flagGlass(changed) = paintTarget(changed) == "glass" | (strlength(paintTarget(changed)) == 0 & flagBaseGlass(changed));
     end
 
-    %% The menu and the panels (Documentation_CarMesh3D_GUIdesign_paintLabels.md)
-    function toggleMenu()
-        % The menu's list of panels, opened under the menu button (or
-        % closed)
-        if leftGrid.RowHeight{1} == 0
-            leftGrid.RowHeight{1} = numel(panelNames)*30 + 10;
-            bodyGrid.ColumnWidth{1} = 320;
-        else
-            leftGrid.RowHeight{1} = 0;
-            if isempty(openPanelName)
-                bodyGrid.ColumnWidth{1} = 0;
-            end
+    %% The menu and the panels (the shared menu, fcn_CarMesh3D_makePanelMenu)
+    function setMenuWidth(width)
+        % (the ☰ Menu's column: its width when something is shown in it,
+        % none when nothing is)
+        if ~isempty(bodyGrid) && isvalid(bodyGrid)
+            bodyGrid.ColumnWidth{1} = width;
         end
     end
 
-    function pickPanel(name)
-        % Open this panel at the left (the open one closes); the open
-        % panel picked again closes it, and the model takes its width
-        name = char(name);
-        if strcmp(name, openPanelName) && leftGrid.RowHeight{1} > 0
-            name = '';
-        end
-        openPanelName = name;
-        for ith_item = 1:numel(panelHandles)
-            flagOpen = strcmp(panelNames{ith_item}, openPanelName);
-            panelHandles(ith_item).Visible = matlab.lang.OnOffSwitchState(flagOpen);
-            mark = '    ';
-            if flagOpen
-                mark = [char(10003) ' '];
-            end
-            menuItems(ith_item).Text = [mark panelNames{ith_item}];
-        end
-        leftGrid.RowHeight{1} = 0;
-        if isempty(openPanelName)
-            bodyGrid.ColumnWidth{1} = 0;
-        else
-            bodyGrid.ColumnWidth{1} = 320;
+    function onPanelsChanged(names)
+        % (the open panels changed: remembered for next time, in its own
+        % window; they show the state now)
+        if flagOwnWindow && ~flagBuilding
             try
-                setpref('CarMesh3D', 'PainterPanel', openPanelName);
+                setpref('CarMesh3D', 'PainterPanels', names);
             catch
             end
         end
@@ -939,8 +984,80 @@ end
         markPaintButtons();
     end
 
+    function toggleMenu()
+        panelMenu.ToggleList();
+    end
+
+    function flagOpen = menuOpen()
+        flagOpen = panelMenu.ListShown();
+    end
+
+    function pickPanel(name)
+        % Open this panel, under the one open (a third one replaces the
+        % lower one); an open panel picked again closes; '' closes every
+        % panel of the painter
+        name = char(name);
+        if isempty(name)
+            for ith_name = 1:numel(panelNames)
+                panelMenu.Close(panelNames{ith_name});
+            end
+            return;
+        end
+        panelMenu.Open(name);
+        if ~flagOwnMenu
+            onPanelsChanged(panelMenu.OpenNames());
+        end
+    end
+
+    function openPanels(names)
+        % (exactly these panels open, top first: at most two)
+        panelMenu.OpenPanels(names);
+        if ~flagOwnMenu
+            onPanelsChanged(panelMenu.OpenNames());
+        end
+    end
+
     function name = getOpenPanel()
-        name = openPanelName;
+        % (the top open panel's name; '' when none is open)
+        name = '';
+        names = getOpenNames();
+        if ~isempty(names)
+            name = names{1};
+        end
+    end
+
+    function names = getOpenNames()
+        names = panelMenu.OpenNames();
+    end
+
+    function parts = getParts()
+        menuPartsNow = panelMenu.Parts();
+        parts = struct('TopBar', topGrid, 'MenuList', menuPartsNow.List, 'Panels', panelHandles, 'PanelNames', {panelNames});
+    end
+
+    function onSharedSetting(name, value)
+        % (a change in Shared GUI settings: this window follows it at once;
+        % other windows at their next open, Q46 (A))
+        switch name
+            case 'VersionsAtSave'
+                flagVersions = logical(value);
+            case 'VersionFolder'
+                % (Shared GUI settings keeps the preference; '' for the default)
+                versionFolder = strtrim(char(value));
+                if isempty(versionFolder)
+                    versionFolder = fcn_INTERNAL_versionFolder([], editsFile, true);
+                end
+            case 'Initials'
+                whoName = char(value);
+            case {'StartViewDial', 'StartViewDown'}
+                startNow = labelViewer.StartView();
+                if strcmp(name, 'StartViewDial')
+                    startNow(1) = value;
+                else
+                    startNow(2) = value;
+                end
+                labelViewer.SetStartView(startNow(1), startNow(2));
+        end
     end
 
     %% The display panels (fcn_CarMesh3D_makeDisplayPanels): their marks
@@ -969,7 +1086,7 @@ end
         rowHeight = 24;
         numRows = 1 + sum(cellfun(@(names) numel(names) + 1, groups(:,2)));
         groupHeight = numRows*rowHeight + 8;
-        outer = uigridlayout(panelHandle, [6 1], 'RowHeight', {groupHeight, 22, 24, 24, 30, 100}, 'Padding', [8 8 8 8], ...
+        outer = uigridlayout(panelHandle, [10 1], 'RowHeight', {groupHeight, 22, 24, 24, 30, 100, 22, 28, 28, 'fit'}, 'Padding', [8 8 8 8], ...
             'RowSpacing', 6, 'BackgroundColor', yellowBand, 'Scrollable', 'on');
         paintGroup = uibuttongroup(outer, 'BorderType', 'none', 'BackgroundColor', yellowBand, 'Tag', 'paintAs', ...
             'SelectionChangedFcn', @(~,event) pickTool(event.NewValue.UserData));
@@ -1019,6 +1136,23 @@ end
             'Hiding takes faces out of view, never out of the mesh. To reach faces under others, set their label to ' ...
             'Shown? No (Labels To Display).'], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.45 0.3 0], 'Tag', 'paintHowTo', ...
             'VerticalAlignment', 'top');
+        % (saving: a timestamped copy now, going back to the start, and the
+        % edits file; moved here from the painter's old Settings panel, now
+        % Shared GUI settings: the shared-panels design file, section 4)
+        heading = uilabel(outer, 'Text', 'Saving', 'FontWeight', 'bold', 'FontColor', [0.45 0.3 0]);
+        heading.Layout.Row = 7;
+        saveVersionButton = uibutton(outer, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), 'Tag', 'saveVersion', ...
+            'Tooltip', ['Save, and also keep a timestamped copy (<mesh name>_YYYYMMDDHHMMSS.mat: the edits and the edited mesh, ' ...
+            'in the folder set in Shared GUI settings)']);
+        uibutton(outer, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) askRevert('start'), 'Tag', 'revertToStart', ...
+            'Tooltip', 'Go back to the mesh before any edits (Save to make it stick)');
+        editsText = editsFile;
+        if isempty(editsText)
+            editsText = '(none: the mesh was given as a variable, so the edits are returned, not saved)';
+            saveVersionButton.Enable = 'off';
+        end
+        uilabel(outer, 'Text', ['Edits file: ' editsText], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.3 0.3 0.3], ...
+            'VerticalAlignment', 'top', 'Tag', 'editsFileText', 'Tooltip', editsText);
         markPaintButtons();
     end
 
@@ -1054,55 +1188,6 @@ end
         fcn_INTERNAL_selectRadio(mirrorGroup, logical(flagOn));
     end
 
-    function buildSettingsPanel()
-        % Settings: saving a version, timestamped copies and where they
-        % go, reverting, and the edits file
-        panelHandle = panelHandles(strcmp(panelNames, 'Settings'));
-        % (the rows' heights fixed or 'fit', never '1x', so the grid is
-        % as tall as its contents and scrolls when the panel is shorter;
-        % the edits file's path wraps, so its row fits it: Sean's T18 note,
-        % "the settings panel does not have a scroll bar if made too small")
-        grid = uigridlayout(panelHandle, [8 2], 'RowHeight', {28, 24, 18, 26, 28, 28, 18, 'fit'}, 'ColumnWidth', {165, '1x'}, ...
-            'Padding', [8 8 8 8], 'RowSpacing', 8, 'BackgroundColor', grayBand, 'Scrollable', 'on');
-        uilabel(grid, 'Text', 'Save as version');
-        saveVersionButton = uibutton(grid, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), 'Tag', 'saveVersion', ...
-            'Tooltip', 'Save, and also keep a timestamped copy (<mesh name>_YYYYMMDDHHMMSS.mat: the edits and the edited mesh, in the folder below)');
-        uilabel(grid, 'Text', 'Timestamped copy each save', ...
-            'Tooltip', ['Each save also keeps a timestamped copy, in the folder below: ' ...
-            '<mesh name>_YYYYMMDDHHMMSS.mat (two saves in the same second: the newer one is kept)']);
-        versionsGroup = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, @(~) [], 'versions');
-        fcn_INTERNAL_selectRadio(versionsGroup, options.Versions && ~isempty(editsFile));
-        label = uilabel(grid, 'Text', 'Timestamped copies go in:');
-        label.Layout.Column = [1 2];
-        folderGrid = uigridlayout(grid, [1 2], 'ColumnWidth', {'1x', 70}, 'Padding', [0 0 0 0], 'ColumnSpacing', 4, ...
-            'BackgroundColor', grayBand);
-        folderGrid.Layout.Column = [1 2];
-        versionFolderField = uieditfield(folderGrid, 'text', 'Value', versionFolder, 'Tag', 'versionFolder', ...
-            'ValueChangedFcn', @(source,~) setVersionFolder(source.Value), ...
-            'Tooltip', 'The folder for the timestamped copies (made if it does not exist); remembered for next time');
-        versionBrowseButton = uibutton(folderGrid, 'Text', 'Browse...', 'ButtonPushedFcn', @(~,~) browseVersionFolder(), 'Tag', 'versionBrowse');
-        uilabel(grid, 'Text', 'Revert');
-        uibutton(grid, 'Text', 'Revert to a save...', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'revertToSave', ...
-            'Tooltip', 'Go back to an earlier save: pick the last save or one of the timestamped copies from a list');
-        uilabel(grid, 'Text', '');
-        uibutton(grid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) askRevert('start'), 'Tag', 'revertToStart', ...
-            'Tooltip', 'Go back to the mesh before any edits (Save to make it stick)');
-        label = uilabel(grid, 'Text', 'Edits file:');
-        label.Layout.Column = [1 2];
-        editsText = editsFile;
-        if isempty(editsText)
-            editsText = '(none: the mesh was given as a variable, so the edits are returned, not saved)';
-        end
-        label = uilabel(grid, 'Text', editsText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'VerticalAlignment', 'top', 'Tag', 'editsFileText');
-        label.Layout.Column = [1 2];
-        if isempty(editsFile)
-            saveVersionButton.Enable = 'off';
-            set(versionsGroup.Children, 'Enable', 'off');
-            versionFolderField.Enable = 'off';
-            versionBrowseButton.Enable = 'off';
-        end
-    end
-
     function markCamera()
         % (the viewer's camera moved: the readout in Overall Display;
         % Show ground? is there too now, Sean's viewLabels T3, 2026-11-24)
@@ -1112,11 +1197,11 @@ end
     end
 
     function flagOn = versionsOn()
-        flagOn = ~isempty(versionsGroup) && isvalid(versionsGroup) && isequal(versionsGroup.SelectedObject.UserData, true);
+        flagOn = flagVersions && ~isempty(editsFile);
     end
 
     function setVersions(flagOn)
-        fcn_INTERNAL_selectRadio(versionsGroup, logical(flagOn));
+        flagVersions = logical(flagOn);   % (this window only; Shared GUI settings keeps the choice for next time)
     end
 
     function askRevert(which)
@@ -1521,7 +1606,7 @@ end
             % (the change log: who, when, and how many faces; and the
             % viewer's fine print again)
             try
-                meshHistory = fcn_CarMesh3D_meshHistory(historyID, Action='label edits saved', Who=options.Who, ...
+                meshHistory = fcn_CarMesh3D_meshHistory(historyID, Action='label edits saved', Who=whoName, ...
                     Details=sprintf('%d faces changed from the download (%d hidden)', nnz(strlength(savedTarget) > 0), ...
                     nnz(startsWith(savedTarget, "hide:"))), FigNum=-1);
                 labelViewer.SetHistory(meshHistory);
@@ -1567,22 +1652,11 @@ end
             folderIn = fcn_INTERNAL_versionFolder([], editsFile, true);
         end
         versionFolder = folderIn;
-        if isvalid(versionFolderField)
-            versionFolderField.Value = versionFolder;
-        end
         setpref('CarMesh3D', 'VersionFolder', versionFolder);
+        if ~isempty(sharedSettings)
+            sharedSettings.Mark();   % (Shared GUI settings shows it)
+        end
         setHint(sprintf('Timestamped copies now go in %s', versionFolder));
-    end
-
-    function browseVersionFolder()
-        startFolder = versionFolder;
-        while ~isempty(startFolder) && ~isfolder(startFolder)
-            startFolder = fileparts(startFolder);
-        end
-        picked = uigetdir(startFolder, 'Folder for the timestamped copies');
-        if ~isequal(picked, 0)
-            setVersionFolder(picked);
-        end
     end
 
     function folderOut = getVersionFolder()
@@ -2039,10 +2113,6 @@ end
             'AppliedFaces', find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown), ...
             'PendingDrawn', size(paintEdges.Faces,1), 'AppliedDrawn', size(appliedPatch.Faces,1), ...
             'StatusText', editStatusLabel.Text, 'KeptEdits', numel(keptEdits));
-    end
-
-    function flagOpen = menuOpen()
-        flagOpen = leftGrid.RowHeight{1} > 0;
     end
 
     function setSize(width, height)

@@ -157,8 +157,17 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           SetStartView(dialAngle, downAngle), StartView(): the starting
 %               view (and Reset view's), a preference shared with the
 %               painter
-%           OpenPanel(name), Panel(), Panels(): its own window's panels
-%               (Panels: fcn_CarMesh3D_makeDisplayPanels' functions)
+%           OpenPanel(name), Panel(), Panels(): its own window's panels:
+%               open one as the ☰ Menu does (under the one open; an open
+%               one closes), the top open one's name, and
+%               fcn_CarMesh3D_makeDisplayPanels' functions
+%           SetTurnPhotoWithModel(flag), TurnPhotoWithModel(): turning the
+%               model moves the photo dial and the photo (true), or not
+%           OpenNames(), OpenPanels(names): the open panels (top first),
+%               or exactly these open (at most two)
+%           Menu(), Settings(): the shared ☰ Menu's functions
+%               (fcn_CarMesh3D_makePanelMenu) and Shared GUI settings'
+%               (fcn_CarMesh3D_makeSettingsPanel)
 %           Stop() (its timer), Close()
 %           PhotoCount(): how many photos the dial has (0: no photo side)
 %           For tests (fcn_CarMesh3D_guiDriver on this window; inside a
@@ -364,6 +373,18 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % against the fit made at the last resize, not from the camera now
 %   %   % * Bug fixed: at night, All labels Shown? No (every label out of
 %   %   % view) stopped with an error in nightEdges (no vehicle patches)
+%   % * Turn photo with model? (Sean, 2026-11-23): Off, turning the model
+%   %   % leaves the dial and the photo where they are; the photo options
+%   %   % (Turn model with photo?, Turn photo with model?, Photo size?)
+%   %   % remembered from Overall Display (preferences TurnWithPhoto,
+%   %   % TurnPhotoWithModel, PhotoHeight)
+%   % * The shared panels (the shared-panels design file; Sean, 16:09 to
+%   %   % 16:23): the ☰ Menu is the shared one (fcn_CarMesh3D_makePanelMenu),
+%   %   % with up to two panels open at once; GUI settings is now Shared
+%   %   % GUI settings (fcn_CarMesh3D_makeSettingsPanel: View and Demo
+%   %   % vehicle used here, the rest greyed); the mesh file's name left
+%   %   % out of it (the title bar names the vehicle: sparse displays);
+%   %   % new hooks OpenNames, OpenPanels, Menu, Settings
 
 % TO-DO:
 %
@@ -570,7 +591,12 @@ photoGrip = [];    % (the photo's resize handle, at its bottom left corner)
 dialGrid = [];
 layout = [];
 photoAspect = 4/3;
-photoHeight = 300;
+% (the photo options, remembered from Overall Display: Show ground?'s
+% neighbors, one place for each setting, the shared-panels design file)
+photoHeight = double(fcn_INTERNAL_pref('PhotoHeight', 300));
+if ~isscalar(photoHeight) || ~any(photoHeight == [220 300 420])
+    photoHeight = 300;
+end
 dialSize = 220;    % (the dial's ring: the photo is never made shorter than it)
 dialWidth = 300;   % (wide enough for the dial's side names)
 flagPhotoResizing = false;
@@ -582,7 +608,8 @@ nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'Tur
     'Tail', 'off', 'Backup', false, 'FogLights', false, 'Hazards', false, 'Reflectors', 0);   % (the lamps switched on: none by day, at first; all, the first time night falls)
 flagLampsSet = false;
 uncoloredKeys = {};     % (labels drawn plain gray: a host's "Colored? No"; Sean, 10:24)
-flagTurnWithPhoto = true;   % (the model turns to a photo picked on the dial)
+flagTurnWithPhoto = logical(fcn_INTERNAL_pref('TurnWithPhoto', true));   % (the model turns to a photo picked on the dial)
+flagTurnPhotoWithModel = logical(fcn_INTERNAL_pref('TurnPhotoWithModel', true));   % (turning the model moves the dial and the photo: Sean, 2026-11-23)
 photoFolderLabel = [];   % (true once the lamps were set: by the list, or by the view settings)
 nightHandles = [];      % (fcn_CarMesh3D_plotVehicle's handles in it)
 nightControls = struct();   % (the lamp list's controls)
@@ -603,14 +630,12 @@ startDown = fcn_INTERNAL_pref('StartViewDown', 20);
 % (its own window: the painter's layout, Q33 (A): a top bar with the
 % menu, one panel at a time at the left)
 displayPanels = [];
-panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'};
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Shared GUI settings'};
 panelHandles = gobjects(0);
-menuItems = gobjects(0);
-openPanelName = '';
-leftGrid = [];
+panelMenu = [];      % (the shared ☰ Menu, fcn_CarMesh3D_makePanelMenu)
+sharedSettings = []; % (the shared settings panel, fcn_CarMesh3D_makeSettingsPanel)
 bodyGrid = [];
 statusLabel = [];
-settingsControls = struct();
 flagDialDragging = false;
 flagSyncingView = false;
 lastLabelView = [NaN NaN];
@@ -647,45 +672,34 @@ if flagOwnWindow
     % the photo with its options at the right)
     rootGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
     topGrid = uigridlayout(rootGrid, [1 3], 'ColumnWidth', {90, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
-    uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
-        'Tooltip', 'Pick the panel to show at the left (pick the open one again to close it)', ...
-        'ButtonPushedFcn', @(~,~) toggleMenu());
+    menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
+        'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
     uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closeViewer(), 'Tag', 'viewerExit', ...
         'Tooltip', 'Close the viewer (it returns the view settings; nothing is saved)');
     statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'viewerStatus');
     bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-    leftGrid = uigridlayout(bodyGrid, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 4);
-    % (the menu's list: hidden while closed, so a test sees it as off the
-    % screen, as a person does)
-    menuPanel = uipanel(leftGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Visible', 'off', 'Tag', 'viewerMenuList');
-    menuGrid = uigridlayout(menuPanel, [numel(panelNames) 1], 'RowHeight', repmat({28}, 1, numel(panelNames)), ...
-        'Padding', [4 4 4 4], 'RowSpacing', 2, 'BackgroundColor', [1 1 1], 'Scrollable', 'on');
+    % (the ☰ Menu and the panels it opens, up to two at once: the shared
+    % menu, fcn_CarMesh3D_makePanelMenu, as in every CarMesh3D GUI, rule G1)
+    menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
+    menuColumn.Layout.Row = 1;
+    menuColumn.Layout.Column = 1;
+    panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
+        OnChange=@(~) onPanelsChanged(), FigNum=-1);
     blueBand = [0.93 0.95 1];     % (viewing work, as in the painter)
     grayBand = [0.94 0.94 0.94];  % (settings)
     panelColors = {blueBand, blueBand, blueBand, grayBand};
-    menuItems = gobjects(1, numel(panelNames));
-    for ith_panel = 1:numel(panelNames)
-        menuItems(ith_panel) = uibutton(menuGrid, 'Text', panelNames{ith_panel}, 'HorizontalAlignment', 'left', ...
-            'BackgroundColor', panelColors{ith_panel}, 'UserData', panelNames{ith_panel}, ...
-            'Tag', ['menu_' strrep(panelNames{ith_panel}, ' ', '')], ...
-            'ButtonPushedFcn', @(source,~) pickPanel(source.UserData));
-    end
-    holderGrid = uigridlayout(leftGrid, [1 1], 'Padding', [0 0 0 0]);
-    holderGrid.Layout.Row = 2;
     panelHandles = gobjects(1, numel(panelNames));
     for ith_panel = 1:numel(panelNames)
-        panelHandles(ith_panel) = uipanel(holderGrid, 'Title', panelNames{ith_panel}, 'FontWeight', 'bold', 'FontSize', 13, ...
-            'BackgroundColor', panelColors{ith_panel}, 'Scrollable', 'on', 'Visible', 'off', 'Tag', panelNames{ith_panel});
-        panelHandles(ith_panel).Layout.Row = 1;
-        panelHandles(ith_panel).Layout.Column = 1;
+        panelHandles(ith_panel) = panelMenu.AddPanel(panelNames{ith_panel}, panelColors{ith_panel});
     end
+    menuParts = panelMenu.Parts();
+    menuParts.List.Tag = 'viewerMenuList';   % (its name in this window's tests)
     parent = uipanel(bodyGrid, 'BorderType', 'none');
     parent.Layout.Row = 1;
     parent.Layout.Column = 2;
 else
     parent = options.Parent;
     figureHandle = ancestor(parent, 'figure');
-    menuPanel = [];
 end
 toolHeight = 0;
 if options.ShowTools && ~flagOwnWindow
@@ -886,11 +900,13 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'SetUncolored', @setUncolored, 'Uncolored', @getUncolored, 'LabelKinds', @getLabelKinds, ...
     'LampTypes', @getLampTypes, 'SetNightLamp', @setNightLamp, 'CopyViewCall', @copyViewCall, ...
     'SetTurnWithPhoto', @setTurnWithPhoto, 'TurnWithPhoto', @getTurnWithPhoto, ...
+    'SetTurnPhotoWithModel', @setTurnPhotoWithModel, 'TurnPhotoWithModel', @getTurnPhotoWithModel, ...
     'SetPhotoHeight', @setPhotoHeight, 'PhotoHeight', @getPhotoHeight, 'SetPhotoFolder', @setPhotoFolder, ...
     'PhotoFolder', @getPhotoFolder, 'PlacePhoto', @placePhoto, ...
     'LabelColor', @getLabelColor, 'SetGround', @setGround, 'Ground', @getGround, 'CameraInfo', @getCameraInfo, ...
     'SetStartView', @setStartView, 'StartView', @getStartView, ...
-    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'Panels', @getPanels, 'PhotoCount', @getPhotoCount, ...
+    'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'OpenNames', @getOpenNames, 'OpenPanels', @openPanels, ...
+    'Menu', @getMenu, 'Settings', @getSharedSettings, 'Panels', @getPanels, 'PhotoCount', @getPhotoCount, ...
     'Stop', @stopTimer, 'Close', @closeViewer, ...
     'State', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'state'), ...
     'SetState', @(varargin) fcn_CarMesh3D_guiDriver(driverRoot(), 'set', varargin{:}), ...
@@ -906,7 +922,10 @@ if flagOwnWindow
     % settings; the window opens at Overall Display)
     displayPanels = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=panelHandles(1), Labels=panelHandles(2), ...
         Lamps=panelHandles(3), OnChange=@updateStatus, FigNum=-1);
-    buildSettingsPanel();
+    % (Shared GUI settings: the viewer uses View and Demo vehicle; the
+    % other sections are greyed, rule G26)
+    sharedSettings = fcn_CarMesh3D_makeSettingsPanel(panelHandles(4), Used={'View', 'Demo vehicle'}, ...
+        OnChange=@onSharedSetting, FigNum=-1);
     pickPanel('Overall Display');
     updateStatus();
     figureHandle.UserData = viewer;
@@ -1234,6 +1253,21 @@ end
     function setTurnWithPhoto(flagOn)
         flagTurnWithPhoto = logical(flagOn);
         markPhotoOptions();
+    end
+
+    function setTurnPhotoWithModel(flagOn)
+        % Turning the model moves the dial's arrow and the photo (On), or
+        % leaves them where they are (Off)
+        flagTurnPhotoWithModel = logical(flagOn);
+        if flagTurnPhotoWithModel && ~isempty(axesHandle) && isvalid(axesHandle)
+            [azimuth, ~] = fcn_INTERNAL_cameraAngles(axesHandle);
+            setDialAngle(azimuth - 90, false, false);
+        end
+        markPhotoOptions();
+    end
+
+    function flagOn = getTurnPhotoWithModel()
+        flagOn = flagTurnPhotoWithModel;
     end
 
     function setPhotoFolder(folderIn)
@@ -1624,7 +1658,9 @@ end
             return;
         end
         lastLabelView = [azimuth elevation];
-        setDialAngle(azimuth - 90, false, false);
+        if flagTurnPhotoWithModel
+            setDialAngle(azimuth - 90, false, false);   % (Turn photo with model? On: the dial and the photo follow)
+        end
         notifyView();
     end
 
@@ -2244,55 +2280,17 @@ end
     end
 
     %% Its own window: the menu, the panels, GUI settings, the status
-    function toggleMenu()
-        % The menu's list of panels, opened under the menu button (or
-        % closed), as in the painter
-        if isempty(leftGrid) || ~isvalid(leftGrid)
-            return;
-        end
-        if leftGrid.RowHeight{1} == 0
-            leftGrid.RowHeight{1} = numel(panelNames)*30 + 10;
-            menuPanel.Visible = 'on';
-            bodyGrid.ColumnWidth{1} = 320;
-        else
-            leftGrid.RowHeight{1} = 0;
-            menuPanel.Visible = 'off';
-            if isempty(openPanelName)
-                bodyGrid.ColumnWidth{1} = 0;
-            end
+    function setMenuWidth(width)
+        % (the ☰ Menu's column: its width when something is shown in it,
+        % none when nothing is)
+        if ~isempty(bodyGrid) && isvalid(bodyGrid)
+            bodyGrid.ColumnWidth{1} = width;
         end
     end
 
-    function pickPanel(name)
-        % Open this panel at the left (the open one closes); the open
-        % panel picked again closes it, and the model takes its width
-        if isempty(leftGrid) || ~isvalid(leftGrid)
-            return;
-        end
-        name = char(name);
-        if ~isempty(name) && ~any(strcmp(panelNames, name))
-            error('CarMesh3D:badInput', 'No panel named ''%s'': the panels are %s.', name, strjoin(panelNames, ', '));
-        end
-        if strcmp(name, openPanelName) && leftGrid.RowHeight{1} > 0
-            name = '';
-        end
-        openPanelName = name;
-        for ith_item = 1:numel(panelHandles)
-            flagOpen = strcmp(panelNames{ith_item}, openPanelName);
-            panelHandles(ith_item).Visible = matlab.lang.OnOffSwitchState(flagOpen);
-            mark = '    ';
-            if flagOpen
-                mark = [char(10003) ' '];
-            end
-            menuItems(ith_item).Text = [mark panelNames{ith_item}];
-        end
-        leftGrid.RowHeight{1} = 0;
-        menuPanel.Visible = 'off';
-        if isempty(openPanelName)
-            bodyGrid.ColumnWidth{1} = 0;
-        else
-            bodyGrid.ColumnWidth{1} = 320;
-        end
+    function onPanelsChanged()
+        % (the open panels changed: they show the state now, and the photo
+        % is placed again in the room left)
         if ~isempty(displayPanels)
             displayPanels.MarkAll();
         end
@@ -2300,74 +2298,69 @@ end
         placePhoto();
     end
 
+    function pickPanel(name)
+        % Open this panel at the left, under the one open (a third one
+        % replaces the lower one); an open panel picked again closes; ''
+        % closes them all (the shared menu, fcn_CarMesh3D_makePanelMenu)
+        if isempty(panelMenu)
+            return;
+        end
+        panelMenu.Open(char(name));
+    end
+
+    function openPanels(names)
+        % (exactly these panels open, top first: at most two)
+        if ~isempty(panelMenu)
+            panelMenu.OpenPanels(names);
+        end
+    end
+
     function name = getOpenPanel()
-        name = openPanelName;
+        % (the top open panel's name; '' when none is open)
+        name = '';
+        names = getOpenNames();
+        if ~isempty(names)
+            name = names{1};
+        end
+    end
+
+    function names = getOpenNames()
+        names = {};
+        if ~isempty(panelMenu)
+            names = panelMenu.OpenNames();
+        end
     end
 
     function panelsOut = getPanels()
         panelsOut = displayPanels;
     end
 
-    function buildSettingsPanel()
-        % GUI settings: only those the viewer uses (the starting view, the
-        % ground), the mesh file shown, and Reset to defaults
-        panelHandle = panelHandles(strcmp(panelNames, 'GUI settings'));
-        band = panelHandle.BackgroundColor;
-        grid = uigridlayout(panelHandle, [9 2], 'RowHeight', {22, 24, 24, 18, 24, 22, 40, 18, 30}, 'ColumnWidth', {150, '1x'}, ...
-            'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');
-        heading = uilabel(grid, 'Text', 'Starting view (and Reset view)', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
-        heading.Layout.Column = [1 2];
-        uilabel(grid, 'Text', 'On the dial (degrees)', 'Tooltip', 'Where the camera starts, as the photo dial reads it: 0 is the front');
-        % (each field's callback reads the other angle as it is now: an
-        % anonymous function would keep the value it was made with, so
-        % setting one field put the other back to its starting value)
-        settingsControls.Dial = uieditfield(grid, 'numeric', 'Limits', [-360 360], 'Value', startDial, 'Tag', 'startViewDial', ...
-            'ValueChangedFcn', @(source,~) onStartDial(source.Value));
-        uilabel(grid, 'Text', 'Looking down (degrees)', 'Tooltip', 'How far above the vehicle the camera starts');
-        settingsControls.Down = uieditfield(grid, 'numeric', 'Limits', [-89 89], 'Value', startDown, 'Tag', 'startViewDown', ...
-            'ValueChangedFcn', @(source,~) onStartDown(source.Value));
-        defaultsNote = uilabel(grid, 'Text', '(default is 60 and 20; the painter uses the same)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
-        defaultsNote.Layout.Column = [1 2];
-        groundNote = uilabel(grid, 'Text', '(Show ground? is in Overall Display)', 'FontColor', [0.45 0.45 0.45], 'FontSize', 11);
-        groundNote.Layout.Column = [1 2];
-        heading = uilabel(grid, 'Text', 'Mesh file', 'FontWeight', 'bold', 'FontColor', [0.25 0.25 0.25]);
-        heading.Layout.Column = [1 2];
-        meshText = meshFile;
-        if isempty(meshText)
-            meshText = '(a mesh variable)';
+    function menuOut = getMenu()
+        menuOut = panelMenu;   % (nested, not anonymous: made after the hooks)
+    end
+
+    function settingsOut = getSharedSettings()
+        settingsOut = sharedSettings;
+    end
+
+    function onSharedSetting(name, value)
+        % (a change in Shared GUI settings: this window follows it at once;
+        % other windows at their next open, Q46 (A))
+        switch name
+            case 'StartViewDial'
+                startDial = double(value);
+                startView = [];
+            case 'StartViewDown'
+                startDown = double(value);
+                startView = [];
         end
-        meshLabel = uilabel(grid, 'Text', meshText, 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3], 'Tooltip', meshText, 'Tag', 'meshFileText');
-        meshLabel.Layout.Column = [1 2];
-        uilabel(grid, 'Text', '');
-        resetButton = uibutton(grid, 'Text', 'Reset to defaults', 'ButtonPushedFcn', @(~,~) resetSettings(), 'Tag', 'resetSettings', ...
-            'Tooltip', 'The starting view at 60 and 20, and the ground shown');
-        resetButton.Layout.Row = 9;
-        resetButton.Layout.Column = [1 2];
-        markSettings();
-    end
-
-    function onStartDial(dialAngle)
-        % (the dial angle typed in GUI settings; the angle down kept as it is now)
-        setStartView(dialAngle, startDown);
-    end
-
-    function onStartDown(downAngle)
-        % (the angle down typed in GUI settings; the dial angle kept as it is now)
-        setStartView(startDial, downAngle);
     end
 
     function markSettings()
-        % (GUI settings showing the settings now)
-        if ~isfield(settingsControls, 'Dial') || ~isvalid(settingsControls.Dial)
-            return;
+        % (Shared GUI settings showing the settings now)
+        if ~isempty(sharedSettings)
+            sharedSettings.Mark();
         end
-        settingsControls.Dial.Value = startDial;
-        settingsControls.Down.Value = startDown;
-    end
-
-    function resetSettings()
-        setStartView(60, 20);
-        setGround(true);
     end
 
     function setStartView(dialAngle, downAngle)

@@ -5,8 +5,10 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 % question. It replaces looking through the checks folder's pictures.
 %
 % THE WINDOW:
-%   Top left: the tools, stacked: Reset view, Show all labels (on the
-%           Labels check), Save report, Close; and a hint for the check.
+%   Top left: the ☰ Menu (Shared GUI settings; on the Labels check, the
+%           painter's panels too: up to two open at once, in a column
+%           beside the tools), then the tools, stacked: Save report,
+%           Close; and a hint for the check.
 %   Middle: the check's title (in large type: the check, the item, and
 %           which check of how many), and the check itself. 3D views can
 %           be rotated (drag) and zoomed (scroll) without parts being cut
@@ -86,7 +88,8 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
 %      Reviewer: the reviewer's initials, saved with each answer. Default:
-%      'SBB' for now (Sean, 2026-11-24); the V&V GUI is to ask who is reviewing.
+%      your initials in Shared GUI settings (the preference
+%      CarMesh3D/Initials; SBB unless changed, Sean 2026-11-24).
 %
 %      Visible: true (default) to show the window; false to build it
 %      without showing it (for tests).
@@ -296,6 +299,20 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 %   % * The mesh with its saved label fixes comes from
 %   %   % fcn_CarMesh3D_meshWithLabelEdits (no window), not a hidden
 %   %   % painter (the tree rule; Q32 (A))
+%   % * The shared panels (the shared-panels design file; Sean, 16:09 to
+%   %   % 16:25): a ☰ Menu at the top of the tools (fcn_CarMesh3D_makePanelMenu),
+%   %   % with Shared GUI settings (fcn_CarMesh3D_makeSettingsPanel, every
+%   %   % section used); on the Labels check the painter's panels are in
+%   %   % this menu too, not a menu of its own (Q45 (A))
+%   % * Required and optional checks (Sean, 16:14), from one list,
+%   %   % fcn_CarMesh3D_reviewChecks: an optional check turned off in Shared
+%   %   % GUI settings is greyed in Checks, and its questions with no
+%   %   % answer are recorded as "skipped" (turned off in Shared GUI
+%   %   % settings, by the reviewer), not left blank; they are not asked,
+%   %   % and do not count as unanswered. A check turned back on asks them
+%   %   % again.
+%   % * The reviewer's initials: Reviewer=, else your initials in Shared
+%   %   % GUI settings (SBB unless changed)
 
 % TO-DO:
 %
@@ -327,7 +344,11 @@ end
 vehicleID = char(vehicleID);
 reviewerName = char(options.Reviewer);
 if isempty(reviewerName)
-    reviewerName = 'SBB';   % (the default reviewer for now, Sean's initials: Sean, 2026-11-24 11:20; the V&V GUI will ask who is reviewing)
+    % (your initials, Shared GUI settings; SBB by default: Sean, 2026-11-24 11:20)
+    reviewerName = 'SBB';
+    if ispref('CarMesh3D', 'Initials')
+        reviewerName = char(getpref('CarMesh3D', 'Initials'));
+    end
 end
 
 %% Main code
@@ -339,9 +360,14 @@ if ~vehicleFiles.HasMesh
 end
 data = fcn_INTERNAL_loadData(vehicleFiles);
 checks = fcn_INTERNAL_defineChecks(data);
+% (the required and optional checks, from the one list; an optional check
+% turned off in Shared GUI settings is skipped: Sean, 2026-11-24 16:14)
+checkList = fcn_CarMesh3D_reviewChecks(FigNum=-1);
+checksOff = cellstr(checkList.Key(~checkList.On));
+checksOff = reshape(intersect(checksOff, {checks.Key}, 'stable'), 1, []);   % (a row)
 reviewFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.mat', vehicleID));
 reportFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.md', vehicleID));
-reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile);
+reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile, checksOff, reviewerName);
 
 % The window's state (shared by the nested callbacks below)
 currentCheck = 1;
@@ -373,6 +399,9 @@ meshPieces = struct('reduced', [], 'original', []);
 % beside each label in Items, unticked to hide its faces; and the mesh
 % with the painter's applied edits, once it has changed them)
 painter = [];
+painterPanelNames = {};   % (the painter's panels, in this window's ☰ Menu while it is shown)
+reviewMenu = [];          % (the ☰ Menu, fcn_CarMesh3D_makePanelMenu)
+sharedSettings = [];      % (Shared GUI settings, fcn_CarMesh3D_makeSettingsPanel)
 hideChecks = struct();
 editedMeshNow = [];
 compareStale = false;   % (the painter changed the edited mesh since Differences found its spots)
@@ -393,12 +422,26 @@ figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_reviewVehicle: %s', vehic
     'CloseRequestFcn', @onClose, 'AutoResizeChildren', 'off');
 % (the title bar: this function's name and version; the rest under it)
 contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_reviewVehicle', Subtitle=vehicleFiles.Name, FigNum=-1);
-mainGrid = uigridlayout(contentPanel, [1 3], 'ColumnWidth', {150, '1x', 360}, 'Padding', [6 6 6 6]);
+mainGrid = uigridlayout(contentPanel, [1 4], 'ColumnWidth', {150, 0, '1x', 360}, 'Padding', [6 6 6 6]);
 
-% Left: the tools, stacked at the top, and a hint under them. (The mouse
-% works the views as in CAD programs: left-drag rotates, right-drag pans,
-% the wheel zooms; the view buttons are on the right, by the question.)
-toolGrid = uigridlayout(mainGrid, [4 1], 'RowHeight', {34, 34, 12, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
+% Left: the ☰ Menu and the tools, stacked at the top, and a hint under
+% them. (The mouse works the views as in CAD programs: left-drag rotates,
+% right-drag pans, the wheel zooms; the view buttons are on the right, by
+% the question.)
+toolGrid = uigridlayout(mainGrid, [5 1], 'RowHeight', {34, 34, 34, 12, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
+menuButton = uibutton(toolGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'reviewerMenu');
+% (the ☰ Menu's column, beside the tools: the shared menu, as in every
+% CarMesh3D GUI (rule G1); Shared GUI settings, and on the Labels check
+% the painter's panels (Q45 (A)))
+menuColumn = uipanel(mainGrid, 'BorderType', 'none');
+menuColumn.Layout.Row = 1;
+menuColumn.Layout.Column = 2;
+reviewMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
+    OnChange=@(~) onPanelsChanged(), FigNum=-1);
+settingsPanel = reviewMenu.AddPanel('Shared GUI settings', [0.94 0.94 0.94]);
+sharedSettings = fcn_CarMesh3D_makeSettingsPanel(settingsPanel, OnChange=@onSharedSetting, FigNum=-1);
+menuParts = reviewMenu.Parts();
+menuParts.List.Tag = 'reviewerMenuList';
 uibutton(toolGrid, 'Text', 'Save report', 'ButtonPushedFcn', @(~,~) fcn_INTERNAL_writeReport(reviewTable, checks, vehicleFiles, reportFile));
 uibutton(toolGrid, 'Text', 'Close', 'ButtonPushedFcn', @onClose);
 uilabel(toolGrid, 'Text', '');
@@ -407,6 +450,8 @@ hintLabel = uilabel(toolGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'WordWr
 
 % Middle: the panel's title, and the display
 centerGrid = uigridlayout(mainGrid, [3 1], 'RowHeight', {50, 40, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
+centerGrid.Layout.Row = 1;
+centerGrid.Layout.Column = 3;
 uilabel(centerGrid, 'Text', ['  ' fcn_INTERNAL_vehicleTitle(vehicleFiles)], 'FontSize', 32, 'FontWeight', 'bold', ...
     'FontColor', [1 1 1], 'BackgroundColor', [0.15 0.25 0.45], 'HorizontalAlignment', 'left');
 titleLabel = uilabel(centerGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', ...
@@ -415,12 +460,22 @@ displayPanel = uipanel(centerGrid, 'BorderType', 'none', 'BackgroundColor', [1 1
 
 % Right: the checks, the items, and the question in the bottom-right corner
 rightGrid = uigridlayout(mainGrid, [5 1], 'RowHeight', {210, '1x', 0, 34, 450}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
+rightGrid.Layout.Row = 1;
+rightGrid.Layout.Column = 4;
 checkGroup = uibuttongroup(rightGrid, 'Title', 'Checks', 'Scrollable', 'on', ...
     'SelectionChangedFcn', @onCheckChanged, 'FontWeight', 'bold');
 checkButtons = gobjects(numel(checks),1);
 for ith_check = 1:numel(checks)
     checkButtons(ith_check) = uiradiobutton(checkGroup, 'Text', checks(ith_check).Title, ...
         'Position', [10 10 330 22], 'UserData', ith_check);
+    if any(strcmp(checksOff, checks(ith_check).Key))
+        % (turned off in Shared GUI settings: greyed, never hidden, rule G26)
+        checkButtons(ith_check).Enable = 'off';
+        checkButtons(ith_check).Tooltip = 'Optional, turned off in Shared GUI settings (Review): its questions are recorded as skipped';
+    end
+end
+if ~isempty(checksOff)
+    checkGroup.Title = sprintf('Checks (%d off: Shared GUI settings)', numel(checksOff));
 end
 itemGroup = uibuttongroup(rightGrid, 'Title', 'Items', 'Scrollable', 'on', ...
     'SelectionChangedFcn', @onItemChanged, 'FontWeight', 'bold');
@@ -496,7 +551,8 @@ figureHandle.UserData = struct('ShowCheck', @showCheck, 'ShowItem', @showItem, .
     'Vote', @testVote, 'ApproveAll', @onApproveAll, 'ShowAll', @testShowAll, ...
     'Current', @getCurrent, 'SetPhotoAngle', @testPhotoAngle, 'PhotoAngle', @getPhotoAngle, ...
     'Pick', @testPick, 'Paint', @testPaint, 'EditsFile', editsFile, 'SetCause', @testSetCause, 'ReportFile', reportFile, ...
-    'Answers', @getAnswers, 'CheckKeys', {{checks.Key}}, 'Animator', @getAnimator, 'ItemKeys', @getItemKeys);
+    'Answers', @getAnswers, 'CheckKeys', {{checks.Key}}, 'Animator', @getAnimator, 'ItemKeys', @getItemKeys, ...
+    'Menu', reviewMenu, 'Settings', sharedSettings, 'ChecksOff', {checksOff}, 'Painter', @getPainter, 'ReviewerName', @() reviewerName);
 if options.Visible
     figureHandle.Visible = 'on';
 end
@@ -525,6 +581,38 @@ end
             rejectButton.Value = true;
             onVote(rejectButton, 'rejected');
         end
+    end
+
+    %% The ☰ Menu and Shared GUI settings (the shared panels)
+    function setMenuWidth(width)
+        % (the ☰ Menu's column: its width when something is shown in it,
+        % none when nothing is)
+        if isvalid(mainGrid)
+            mainGrid.ColumnWidth{2} = width;
+        end
+    end
+
+    function onPanelsChanged()
+        % (the open panels changed: the painter's show its state now)
+        if painterValid()
+            painter.MarkPanels();
+        end
+    end
+
+    function onSharedSetting(name, value)
+        % (a change in Shared GUI settings: this window follows your
+        % initials at once; the checks turned on or off apply when the
+        % reviewer is opened again, Q46 (A))
+        switch name
+            case 'Initials'
+                reviewerName = char(value);
+            case 'ReviewChecksOff'
+                setHint('Checks turned on or off apply when the reviewer is opened again.');
+        end
+    end
+
+    function painterOut = getPainter()
+        painterOut = painter;
     end
 
     function current = getCurrent()
@@ -972,8 +1060,15 @@ end
         if direction < 0
             if currentItem > 1
                 showItem(currentItem-1);
-            elseif currentCheck > 1
-                showCheck(currentCheck-1);
+            else
+                % (the check before, passing the checks turned off)
+                previousCheck = currentCheck - 1;
+                while previousCheck >= 1 && any(strcmp(checksOff, checks(previousCheck).Key))
+                    previousCheck = previousCheck - 1;
+                end
+                if previousCheck >= 1
+                    showCheck(previousCheck);
+                end
             end
             return;
         end
@@ -1063,6 +1158,8 @@ end
                     prefix = char(10003); itemColor = [0 0.5 0];
                 case "rejected"
                     prefix = char(10007); itemColor = [0.75 0 0];
+                case "skipped"
+                    prefix = char(8211); itemColor = [0.5 0.5 0.5];
                 otherwise
                     prefix = '?'; itemColor = [0 0 0];
             end
@@ -1188,8 +1285,12 @@ end
         % and photo. The reviewer passes it the mouse, the item shown, and
         % the Show boxes; it passes back each paint (the item is rejected:
         % it has a fix) and the edited mesh.
+        % (its panels go in this window's ☰ Menu: only the top window owns
+        % the menu, Q45 (A))
         [~, ~, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Parent=displayPanel, Who=reviewerName, ...
-            OnPaint=@onPainterPaint, OnChange=@onPainterChange, OnHint=@setHint, FigNum=-1);
+            OnPaint=@onPainterPaint, OnChange=@onPainterChange, OnHint=@setHint, Menu=reviewMenu, FigNum=-1);
+        painterParts = painter.Parts();
+        painterPanelNames = painterParts.PanelNames;
         labelAxes = painter.Axes;
         labelPatch = painter.Patch;
         labelPatch.ButtonDownFcn = @onPatchDown;   % (a click paints a face)
@@ -1209,6 +1310,11 @@ end
             end
         end
         painter = [];
+        % (the painter's panels out of the ☰ Menu)
+        for ith_name = 1:numel(painterPanelNames)
+            reviewMenu.RemovePanel(painterPanelNames{ith_name});
+        end
+        painterPanelNames = {};
     end
 
     function leavePainter()
@@ -1599,7 +1705,7 @@ end
         newChecks = fcn_INTERNAL_defineChecks(data);
         compareIndex = find(strcmp({checks.Key}, 'compare'), 1);
         checks(compareIndex).Items = newChecks(strcmp({newChecks.Key}, 'compare')).Items;
-        reviewTable = fcn_INTERNAL_carryAnswers(fcn_INTERNAL_startAnswers(checks, ''), reviewTable);
+        reviewTable = fcn_INTERNAL_carryAnswers(fcn_INTERNAL_startAnswers(checks, '', checksOff, reviewerName), reviewTable);
         fcn_INTERNAL_saveAnswers(reviewTable, reviewFile);
         refreshMarks();
     end
@@ -1774,10 +1880,15 @@ end
         Napproved = sum(reviewTable.Status(isQuestion)=="approved");
         Nrejected = sum(reviewTable.Status(isQuestion)=="rejected");
         NmustFix = sum(reviewTable.Severity(isQuestion)=="must fix");
-        Nopen = Nquestions - Napproved - Nrejected;
+        Nskipped = sum(reviewTable.Status(isQuestion)=="skipped");
+        Nopen = Nquestions - Napproved - Nrejected - Nskipped;
+        skippedText = '';
+        if Nskipped > 0
+            skippedText = sprintf(', %d skipped (turned off)', Nskipped);
+        end
         countLabel = uilabel(layout, 'FontSize', 14, 'FontWeight', 'bold', 'Text', ...
-            sprintf('%d questions: %d approved, %d rejected (%d must be fixed), %d not answered', ...
-            Nquestions, Napproved, Nrejected, NmustFix, Nopen));
+            sprintf('%d questions: %d approved, %d rejected (%d must be fixed)%s, %d not answered', ...
+            Nquestions, Napproved, Nrejected, NmustFix, skippedText, Nopen));
         countLabel.Layout.Column = [1 3];
         shown = reviewTable(isQuestion, {'Check','Item','Status','Severity','Cause','Comment'});
         for ith_row = 1:height(shown)
@@ -2676,8 +2787,18 @@ end
 end % Ends fcn_INTERNAL_outlineElements
 
 %% fcn_INTERNAL_startAnswers
-function reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile)
-% One row per question, with any earlier answers loaded
+function reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile, checksOff, reviewerName)
+% One row per question, with any earlier answers loaded. The questions of
+% a check turned off (Shared GUI settings) that have no answer are recorded
+% as skipped; a check turned on again asks its skipped questions again.
+% (checksOff and reviewerName may be left out: Differences remakes its
+% rows with the questions only, and carries the answers over)
+if nargin < 3
+    checksOff = {};
+end
+if nargin < 4
+    reviewerName = '';
+end
 rows = {};
 for ith_check = 1:numel(checks)
     for ith_item = 1:numel(checks(ith_check).Items)
@@ -2692,6 +2813,19 @@ if isfile(reviewFile)
     loaded = load(reviewFile, 'reviewTable');
     reviewTable = fcn_INTERNAL_carryAnswers(reviewTable, loaded.reviewTable);
 end
+flagOff = ismember(reviewTable.Check, string(checksOff));
+% (turned on again: its skipped questions asked again)
+flagAskAgain = ~flagOff & reviewTable.Status=="skipped";
+reviewTable.Status(flagAskAgain) = "";
+reviewTable.Cause(flagAskAgain) = "";
+reviewTable.Reviewer(flagAskAgain) = "";
+reviewTable.Time(flagAskAgain) = "";
+% (turned off: the questions with no answer recorded as skipped)
+flagSkip = flagOff & strlength(reviewTable.Status)==0;
+reviewTable.Status(flagSkip) = "skipped";
+reviewTable.Cause(flagSkip) = "turned off in Shared GUI settings";
+reviewTable.Reviewer(flagSkip) = string(reviewerName);
+reviewTable.Time(flagSkip) = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm'));
 end % Ends fcn_INTERNAL_startAnswers
 
 %% fcn_INTERNAL_saveAnswers
@@ -2718,6 +2852,10 @@ end
 fprintf(fileID, '\n\n%d questions: %d approved, %d rejected (%d must be fixed), %d not answered.\n\n', ...
     sum(isQuestion), sum(reviewTable.Status(isQuestion)=="approved"), sum(reviewTable.Status(isQuestion)=="rejected"), ...
     sum(reviewTable.Severity(isQuestion)=="must fix"), sum(isQuestion & strlength(reviewTable.Status)==0));
+Nskipped = sum(reviewTable.Status(isQuestion)=="skipped");
+if Nskipped > 0
+    fprintf(fileID, '%d questions skipped: their checks were turned off in Shared GUI settings (Review).\n\n', Nskipped);
+end
 if strlength(overall.Comment(1)) > 0
     fprintf(fileID, 'Overall comment: %s\n\n', overall.Comment(1));
 end

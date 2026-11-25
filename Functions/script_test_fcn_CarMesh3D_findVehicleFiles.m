@@ -178,6 +178,23 @@ assert(~priusAgain.IsSomeday);
 noSomeday = fcn_CarMesh3D_findVehicleFiles(somedayID, DataFolder=fileparts(priusAgain.Folder), FigNum=-1);
 assert(~noSomeday.Found);
 
+%% TEST case: A copy kept elsewhere reads the repo's download from LargeData
+% (since 2026_11_24 the downloads live in LargeData; a demo copy has no
+% model folder of its own. Skipped when LargeData is not on this computer.)
+fig_num = 20005;
+fitFiles = fcn_CarMesh3D_findVehicleFiles('2009_Honda_Fit_Sport', FigNum=-1);
+if contains(fitFiles.ModelFolder, 'LargeData')
+    copyRoot = tempname;
+    copyFiles = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport', DemoFolder=copyRoot, FigNum=-1);
+    copyFound = fcn_CarMesh3D_findVehicleFiles(copyFiles.Folder, FigNum=-1);
+    assert(strcmp(copyFound.ModelFolder, fitFiles.ModelFolder), 'The copy reads the repo''s download');
+    assert(strcmp(copyFound.DownloadRoot, fitFiles.DownloadRoot), 'And its modelFile is relative to the same folder');
+    assert(startsWith(copyFound.Folder, copyRoot), 'Everything else is the copy''s own');
+    rmdir(copyRoot, 's');
+else
+    fprintf(1, 'TEST 20005 skipped: no LargeData download for the Fit on this computer\n');
+end
+
 %% Fast Mode Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

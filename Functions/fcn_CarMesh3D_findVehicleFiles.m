@@ -167,6 +167,9 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %   %   % lists Data only. Added IsSomeday (Sean, 11:01 and 11:11)
 %   % * ModelFolder is the vehicle's folder in LargeData (beside Data, the
 %   %   % same layout) when the download is there (Sean, 13:17)
+%   % * A copy kept elsewhere with no download of its own (a demo copy)
+%   %   % reads the repo's download of the same vehicle from LargeData
+%   %   % (found by the reviewer's test: Differences had no spots on a copy)
 
 % TO-DO:
 %
@@ -449,6 +452,24 @@ if startsWith(vehicleFiles.Folder, [repoFolder filesep], 'IgnoreCase', true)
     largeModelFolder = fullfile(repoFolder, 'LargeData', vehicleFiles.Folder(numel(repoFolder)+2:end), 'model');
 else
     largeModelFolder = '';
+    if ~isfolder(vehicleFiles.ModelFolder)
+        % (a copy kept elsewhere, such as fcn_CarMesh3D_makeDemoCopy's, has
+        % no download of its own since the downloads moved to LargeData:
+        % the repo's download of the same vehicle is read instead, so the
+        % reviewer's Differences check works on a copy. Read only: nothing
+        % is written there.)
+        for dataName = {'Data', 'DataSomeday'}
+            [repoPaths, repoIDs] = fcn_INTERNAL_findFolders(fullfile(repoFolder, dataName{1}));
+            match = find(strcmp(repoIDs, vehicleID), 1);
+            if ~isempty(match)
+                candidate = fullfile(repoFolder, 'LargeData', repoPaths{match}(numel(repoFolder)+2:end), 'model');
+                if isfolder(candidate)
+                    largeModelFolder = candidate;
+                    break;
+                end
+            end
+        end
+    end
 end
 vehicleFiles.DownloadRoot = vehicleFiles.Folder;   % (what a script's modelFile, such as model\source\x.glb, is relative to)
 if ~isempty(largeModelFolder) && isfolder(largeModelFolder)

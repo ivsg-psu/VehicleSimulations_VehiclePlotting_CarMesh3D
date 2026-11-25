@@ -24,7 +24,7 @@ It is called on its own, `selectedNames = fcn_CarMesh3D_browseLibrary()`, often 
 
 ## 2. General rules for the whole window
 
-The painter's general rules apply where they fit a list window: see [Documentation_CarMesh3D_GUIdesign_paintLabels.md, section 2](Documentation_CarMesh3D_GUIdesign_paintLabels.md#2-general-rules-for-the-whole-window). They are not repeated here. The rules about the mesh and photo sides, the spinner, the pancake menu, label and lamp rows, and paint (painter rules 1 to 5, 7 to 9, 13, 16, 18 to 21) do not apply: this window has no model, no photos and no panels.
+**Follows `Documentation_CarMesh3D_GUIdesign_rules.md`** (rules G1 to G38, every CarMesh3D window), including its list-window rules G28 to G31. **Exceptions, with the reason:** G1 (pancake menu), G3 (mesh and photo sides), G6, G8, G12, G13 and G14 (panels, label and lamp rows) do not apply: this window is a list, with no model, no photo dial and no panels (a ☰ menu with the Shared GUI settings is for later; shared-panels file, section 7). G22: it keeps no settings (B8). G9: the Select check box (B6). The B rules below are this window's own; where an old painter rule number is cited, the rules file's last table gives its G number.
 
 **(Sean) Rules already set for this window** (2026-11-22, from the code's revision history):
 - B1. **Group, Sort, Filter, left to right, each in its own box, numbered in the order they are used** ("1. Group by", "2. Sort within each group by", "3. Filter ..."). (23:33: the sort box, read first, was taken for the main order.)
@@ -480,3 +480,4 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
   
   
 - 2026-11-24 14:36 (Sean): **T39 retried: pass.** In a freshly opened browser, the Transit Connect's row clicked, "★ Use as demo vehicle" pressed: "Worked exactly as expected" (the D moved at once to the Transit's row, "D, E", and left the Fit's). Sean had not pressed "Back to the repo's demo". The first failure (14:30) is put down to Claude's hook tests, which set and then cleared the same demo-vehicle preference (shared by every MATLAB session of this user) while Sean was testing, so his choice was undone. Rule since: a test that touches a shared preference saves it first and restores that same value, and no such test runs while Sean is testing a GUI. Review now for the browser is empty.
+- 2026-11-24 16:25 (Claude, Sean 16:20 to 16:23): section 2 now points to `Documentation_CarMesh3D_GUIdesign_rules.md` for the general rules, with this window's exceptions listed; B1 to B13 stay here.

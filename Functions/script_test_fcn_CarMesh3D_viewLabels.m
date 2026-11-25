@@ -22,6 +22,12 @@
 %   %   % resizing (framing and zoom kept), layout at several sizes, random
 %   %   % walks with the rules checked after every step, closing time and
 %   %   % the timer; on a copy of the GUI test vehicle
+%   % * Turn photo with model? Off and On; the photo options' preferences
+%   %   % cleared for the tests and put back
+%   % * The shared menu and Shared GUI settings (the shared-panels design
+%   %   % file): up to two panels at once, through the menu's own buttons
+%   %   % and in the rules; Shared GUI settings' View Reset; the sections
+%   %   % the viewer does not use greyed
 
 % TO-DO:
 %
@@ -276,25 +282,32 @@ delete(emptyFile);
 fprintf(1,'TEST case: its own window: menu, panels, GUI settings, ground\n');
 % (the GUI settings it keeps, put back at the end, even if the test stops)
 prefsBefore = struct();
-for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown', 'TurnWithPhoto', 'TurnPhotoWithModel', 'PhotoHeight'}
     if ispref('CarMesh3D', prefName{1})
         prefsBefore.(prefName{1}) = getpref('CarMesh3D', prefName{1});
     end
 end
 cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
+fcn_INTERNAL_clearPhotoPrefs();   % (the photo options at their defaults for this test; put back at the end)
 [~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
 % (the top bar: the menu and Exit; no old tool row or label list in sight)
 assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu')), 'The Menu button');
 assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Text', 'Exit')), 'The Exit button');
 assert(isempty(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Title', 'Labels')), 'No old label list');
-% (it opens at Overall Display; each panel opens alone; the open one picked again closes it)
+% (it opens at Overall Display; each panel opens alone; two at once, the
+% second under the first (the shared menu, fcn_CarMesh3D_makePanelMenu))
 assert(strcmp(viewer.Panel(), 'Overall Display'));
-for panelName = {'Labels To Display', 'Lamps To Display', 'GUI settings', 'Overall Display'}
-    viewer.OpenPanel(panelName{1});
+for panelName = {'Labels To Display', 'Lamps To Display', 'Shared GUI settings', 'Overall Display'}
+    viewer.OpenPanels(panelName);
     assert(strcmp(viewer.Panel(), panelName{1}));
     shownPanels = findall(viewer.Figure, 'Type', 'uipanel', 'Visible', 'on', '-regexp', 'Tag', '(Display|settings)$');
-    assert(isscalar(shownPanels) && strcmp(shownPanels.Tag, panelName{1}), 'One panel at a time');
+    assert(isscalar(shownPanels) && strcmp(shownPanels.Tag, panelName{1}), 'One panel alone');
 end
+viewer.OpenPanel('Lamps To Display');
+assert(isequal(viewer.OpenNames(), {'Overall Display', 'Lamps To Display'}), 'Two panels at once, the second under the first');
+shownPanels = findall(viewer.Figure, 'Type', 'uipanel', 'Visible', 'on', '-regexp', 'Tag', '(Display|settings)$');
+assert(numel(shownPanels) == 2, 'Two panels shown');
+viewer.OpenPanels({'Overall Display'});
 % (Overall Display drives the viewer: the colors)
 colorsGroup = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallColors');
 fcn_INTERNAL_pickRadio(colorsGroup, 'vehicle');
@@ -383,12 +396,13 @@ clear cleanupPrefs;   % (the GUI settings put back)
 % nothing is written to a real vehicle; GUI settings put back at the end)
 fprintf(1,'TEST case: driven by script: every control, permutations, random walks, layout\n');
 prefsBefore = struct();
-for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown', 'TurnWithPhoto', 'TurnPhotoWithModel', 'PhotoHeight'}
     if ispref('CarMesh3D', prefName{1})
         prefsBefore.(prefName{1}) = getpref('CarMesh3D', prefName{1});
     end
 end
 cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
+fcn_INTERNAL_clearPhotoPrefs();   % (the photo options at their defaults for this test; put back at the end)
 demoRoot = tempname;
 testFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
 [~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, Visible=false, Wait=false);
@@ -398,28 +412,36 @@ message = fcn_INTERNAL_invariants(viewer);
 assert(isempty(message), message);
 
 % (every control a user can click has a Tag, in every panel: no 'note'; no 'error')
-for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
-    viewer.OpenPanel(panelName{1});
+for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Shared GUI settings'}
+    viewer.OpenPanels(panelName);
     viewer.Settle();
     problems = viewer.CheckLayout();
     assert(~any(strcmp(problems.Severity, 'note')), 'Untagged controls in %s: %s', panelName{1}, strjoin(problems.Control(strcmp(problems.Severity, 'note')), '; '));
     assert(~any(strcmp(problems.Severity, 'error')), 'Layout errors in %s: %s', panelName{1}, strjoin(strcat(problems.Control(strcmp(problems.Severity, 'error')), ': ', problems.Problem(strcmp(problems.Severity, 'error'))), '; '));
 end
 
-% (the menu: one panel at a time, through the menu's own buttons)
-for panelName = {'Labels To Display', 'Lamps To Display', 'GUI settings', 'Overall Display'}
+% (the menu, through its own buttons: up to two panels at once, the
+% second under the first; a third replaces the lower one; an open one
+% picked again closes, and the one under it moves up)
+viewer.OpenPanels({});
+expected = {{'Labels To Display'}, {'Labels To Display', 'Lamps To Display'}, {'Labels To Display', 'Shared GUI settings'}, ...
+    {'Shared GUI settings'}, {'Shared GUI settings', 'Overall Display'}};
+picks = {'Labels To Display', 'Lamps To Display', 'Shared GUI settings', 'Labels To Display', 'Overall Display'};
+for ith_pick = 1:numel(picks)
     state = viewer.Press('viewerMenu');
     assert(state.OnScreen.viewerMenuList, 'The menu''s list opens');
-    state = viewer.Press(['menu_' strrep(panelName{1}, ' ', '')]);
+    state = viewer.Press(['menu_' strrep(picks{ith_pick}, ' ', '')]);
     assert(~state.OnScreen.viewerMenuList, 'The menu''s list closes when a panel is picked');
-    assert(strcmp(viewer.Panel(), panelName{1}));
+    assert(isequal(viewer.OpenNames(), expected{ith_pick}), 'After picking %s: %s', picks{ith_pick}, strjoin(viewer.OpenNames(), ', '));
     message = fcn_INTERNAL_invariants(viewer);
     assert(isempty(message), message);
 end
-% (the open panel picked again closes the column; picked again, it opens)
+% (every open panel picked again: the column closes; picked again, it opens)
+viewer.Press('viewerMenu');
+viewer.Press('menu_SharedGUIsettings');
 viewer.Press('viewerMenu');
 viewer.Press('menu_OverallDisplay');
-assert(isempty(viewer.Panel()), 'The open panel picked again closes it');
+assert(isempty(viewer.Panel()), 'The open panels picked again close');
 viewer.Press('viewerMenu');
 viewer.Press('menu_OverallDisplay');
 assert(strcmp(viewer.Panel(), 'Overall Display'));
@@ -432,7 +454,7 @@ end
 
 % (every radio group in every panel set to each of its values, as clicks; the rules after each)
 for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display'}
-    viewer.OpenPanel(panelName{1});
+    viewer.OpenPanels(panelName);
     panelHandle = findall(viewer.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
     groups = findall(panelHandle, 'Type', 'uibuttongroup');
     for ith_group = 1:numel(groups)
@@ -450,7 +472,7 @@ for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display'}
 end
 
 % (permutations that interact: night x colors x see-through x ground x boundaries)
-viewer.OpenPanel('Overall Display');
+viewer.OpenPanels({'Overall Display'});
 viewer.SetState('overallNight', false);
 for flagNight = [false true]
     for colorsName = {'labels', 'vehicle'}
@@ -497,7 +519,7 @@ end
 viewer.ShowLabel('all');
 
 % (Hazards and the two turn signals)
-viewer.OpenPanel('Lamps To Display');
+viewer.OpenPanels({'Lamps To Display'});
 viewer.SetState('lamp_All', false);
 viewer.SetState('lamp_TurnLeft', true);
 assert(~viewer.NightLights().Hazards, 'One turn signal: no hazards');
@@ -510,22 +532,25 @@ assert(viewer.NightLights().TurnLeft && viewer.NightLights().TurnRight, 'Hazards
 message = fcn_INTERNAL_invariants(viewer);
 assert(isempty(message), message);
 
-% (GUI settings: the starting view; Reset to defaults gives 60 and 20; Reset view goes there)
-viewer.OpenPanel('GUI settings');
+% (Shared GUI settings: the starting view; its Reset gives 60 and 20; Reset view goes there)
+viewer.OpenPanels({'Shared GUI settings'});
 viewer.SetState('startViewDial', 120);
 viewer.SetState('startViewDown', 35);
 assert(isequal(viewer.StartView(), [120 35]), 'Both angles kept (each field once put the other back)');
 viewer.SetState('startViewDial', 100);
 assert(isequal(viewer.StartView(), [100 35]), 'The angle down kept when the dial angle is typed');
-viewer.OpenPanel('Overall Display');
+viewer.OpenPanels({'Overall Display'});
 viewer.Press('overallResetView');
 camera = viewer.CameraInfo();
 assert(abs(camera.DialAngle - 100) < 0.01 && abs(camera.DownAngle - 35) < 0.01, 'Reset view at the starting view');
-viewer.OpenPanel('GUI settings');
-viewer.SetState('showGround', false, Force=true);   % (in Overall Display, closed now: forced)
-viewer.Press('resetSettings');
-assert(isequal(viewer.StartView(), [60 20]) && viewer.Ground(), 'Reset to defaults');
-viewer.OpenPanel('Overall Display');
+viewer.OpenPanels({'Shared GUI settings'});
+viewer.Press('settingsResetView');
+assert(isequal(viewer.StartView(), [60 20]), 'View''s Reset: the defaults');
+% (the sections the viewer does not use are greyed, never hidden: rule G26)
+assert(strcmp(findall(viewer.Figure, 'Tag', 'settingsInitials').Enable, 'off'), 'You: greyed in the viewer');
+assert(strcmp(findall(viewer.Figure, 'Tag', 'settingsResetEditing').Enable, 'off'), 'Editing: greyed in the viewer');
+assert(strcmp(findall(viewer.Figure, 'Tag', 'startViewDial').Enable, 'on'), 'View: used by the viewer');
+viewer.OpenPanels({'Overall Display'});
 viewer.Press('overallResetView');
 camera = viewer.CameraInfo();
 assert(abs(camera.DialAngle - 60) < 0.01 && abs(camera.DownAngle - 20) < 0.01, 'Reset view at the defaults: 60 on the dial, 20 down');
@@ -568,38 +593,55 @@ cameraBefore = viewer.CameraInfo();
 viewer.DialDrag(250);
 assert(abs(viewer.CameraInfo().DialAngle - cameraBefore.DialAngle) < 1e-6, 'Turn model with photo? Off: the model stays');
 viewer.SetState('turnWithPhoto', true);
+% (Turn photo with model? Off: turning the model leaves the dial and the
+% photo where they are; On again: they follow)
+viewer.SetState('turnPhotoWithModel', false);
+assert(~viewer.TurnPhotoWithModel() && isequal(getpref('CarMesh3D', 'TurnPhotoWithModel'), false), 'Turn photo with model? Off, remembered');
+angleBefore = viewer.PhotoAngle();
+viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + [300 0], 6);
+viewer.Settle();
+assert(isequal(viewer.PhotoAngle(), angleBefore), 'Turn photo with model? Off: the photo stays');
+viewer.SetState('turnPhotoWithModel', true);
+viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + [300 0], 6);
+viewer.Settle();
+assert(~isequal(viewer.PhotoAngle(), angleBefore), 'Turn photo with model? On: the photo follows the model');
+message = fcn_INTERNAL_invariants(viewer);
+assert(isempty(message), message);
 
 % (resizing keeps the whole vehicle in view, and keeps a zoom: T33)
 for windowSize = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]}
     viewer.Resize(windowSize{1});
+    viewer.Settle();
     viewer.Press('overallResetView');
     assert(fcn_INTERNAL_vehicleInView(viewer), 'Reset view at %s: the whole vehicle in view', mat2str(windowSize{1}));
     for otherSize = {[900 600], [1500 860]}
         viewer.Resize(otherSize{1});
+        viewer.Settle();   % (once more: a hidden window in a busy batch MATLAB can lay out late; the view timer would refit within 0.25 s)
         assert(fcn_INTERNAL_vehicleInView(viewer), 'Resized from %s to %s: the whole vehicle in view', mat2str(windowSize{1}), mat2str(otherSize{1}));
     end
     viewer.Scroll(-3);
     zoomBefore = viewer.FitInfo().Zoom;
     viewer.Resize(windowSize{1});
+    viewer.Settle();
     assert(abs(viewer.FitInfo().Zoom/zoomBefore - 1) < 0.01, 'Zoomed in, resized to %s: the zoom kept (%.3f, was %.3f)', mat2str(windowSize{1}), viewer.FitInfo().Zoom, zoomBefore);
     message = fcn_INTERNAL_invariants(viewer);
     assert(isempty(message), message);
     % (layout: no errors at this size, in every panel)
-    for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
-        viewer.OpenPanel(panelName{1});
+    for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Shared GUI settings'}
+        viewer.OpenPanels(panelName);
         viewer.Settle();
         problems = viewer.CheckLayout();
         flagErrors = strcmp(problems.Severity, 'error');
         assert(~any(flagErrors), 'Layout at %s, %s: %s', mat2str(windowSize{1}), panelName{1}, strjoin(strcat(problems.Control(flagErrors), ': ', problems.Problem(flagErrors)), '; '));
     end
-    viewer.OpenPanel('Overall Display');
+    viewer.OpenPanels({'Overall Display'});
 end
 viewer.Resize([1500 860]);
 
 % (random walks: seeded sequences of every action, the rules after each step; failures saved to replay)
 for seed = 1:3
     if ~strcmp(viewer.Panel(), 'Overall Display')   % (picked when open, with the menu's list open, it would close)
-        viewer.OpenPanel('Overall Display');
+        viewer.OpenPanels({'Overall Display'});
     end
     viewer.Press('overallResetView');
     [actions, invariants] = fcn_INTERNAL_walkActions(viewer, seed);
@@ -659,8 +701,8 @@ if ~isempty(getenv('CARMESH3D_TEST_VISIBLE'))
     for windowSize = {[1500 860], [800 500], [640 400], [1600 1000]}
         viewer.Resize(windowSize{1});
         pause(0.5);
-        for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'}
-            viewer.OpenPanel(panelName{1});
+        for panelName = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Shared GUI settings'}
+            viewer.OpenPanels(panelName);
             pause(0.3);
             problems = viewer.CheckLayout();
             for ith_problem = 1:height(problems)
@@ -718,9 +760,19 @@ group.SelectedObject = radio;
 group.SelectionChangedFcn(group, struct('NewValue', radio, 'OldValue', oldRadio));
 end % Ends fcn_INTERNAL_pickRadio
 
+function fcn_INTERNAL_clearPhotoPrefs()
+% The photo options remembered from Overall Display, taken away so the
+% test starts from their defaults (they are put back by restorePrefs)
+for prefName = {'TurnWithPhoto', 'TurnPhotoWithModel', 'PhotoHeight'}
+    if ispref('CarMesh3D', prefName{1})
+        rmpref('CarMesh3D', prefName{1});
+    end
+end
+end % Ends fcn_INTERNAL_clearPhotoPrefs
+
 function fcn_INTERNAL_restorePrefs(prefsBefore)
 % Puts the GUI settings back as they were before the test
-for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown'}
+for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown', 'TurnWithPhoto', 'TurnPhotoWithModel', 'PhotoHeight'}
     if isfield(prefsBefore, prefName{1})
         setpref('CarMesh3D', prefName{1}, prefsBefore.(prefName{1}));
     elseif ispref('CarMesh3D', prefName{1})
@@ -828,22 +880,25 @@ if ~isequal(values.lamp_Hazards, logical(lamps.TurnLeft) && logical(lamps.TurnRi
         logical(lamps.Hazards) ~= (logical(lamps.TurnLeft) && logical(lamps.TurnRight))
     problems{end+1} = 'Hazards is not exactly both turn signals';
 end
-% (one panel at a time, the one the viewer says; the menu's mark on it)
-panelNames = {'OverallDisplay', 'LabelsToDisplay', 'LampsToDisplay', 'GUIsettings'};
-panelTitles = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'GUI settings'};
+% (one or two panels open, those the viewer says, top first; the menu's
+% mark on each open one, and on no other)
+panelNames = {'OverallDisplay', 'LabelsToDisplay', 'LampsToDisplay', 'SharedGUIsettings'};
+panelTitles = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Shared GUI settings'};
 openNow = {};
+openSaid = viewer.OpenNames();
 for ith_panel = 1:numel(panelNames)
     if values.(matlab.lang.makeValidName(panelTitles{ith_panel}))
         openNow{end+1} = panelTitles{ith_panel}; %#ok<AGROW>
     end
     menuButton = findall(viewer.Figure, 'Tag', ['menu_' panelNames{ith_panel}]);
     menuText = char(menuButton.Text);
-    if startsWith(menuText, char(10003)) ~= strcmp(viewer.Panel(), panelTitles{ith_panel})
+    if startsWith(menuText, char(10003)) ~= any(strcmp(openSaid, panelTitles{ith_panel}))
         problems{end+1} = sprintf('the menu''s mark on %s is wrong', panelTitles{ith_panel}); %#ok<AGROW>
     end
 end
-if numel(openNow) > 1 || (isempty(openNow) ~= isempty(viewer.Panel())) || (~isempty(openNow) && ~strcmp(openNow{1}, viewer.Panel()))
-    problems{end+1} = sprintf('panels open: %s; the viewer says "%s"', strjoin(openNow, ', '), viewer.Panel());
+if numel(openSaid) > 2 || ~isempty(setxor(openNow, openSaid)) || (isempty(openSaid) ~= isempty(viewer.Panel())) || ...
+        (~isempty(openSaid) && ~strcmp(openSaid{1}, viewer.Panel()))
+    problems{end+1} = sprintf('panels open: %s; the viewer says "%s"', strjoin(openNow, ', '), strjoin(openSaid, ', '));
 end
 % (the status line: the colors, day or night, the labels not shown)
 statusText = values.viewerStatus;
@@ -916,7 +971,7 @@ state = viewer.State();
 labelTags = state.Tags(startsWith(state.Tags, {'colored_', 'shown_'}));
 lampTags = state.Tags(startsWith(state.Tags, 'lamp_') & ~strcmp(state.Tags, 'lamp_Tail'));
 kinds = viewer.LabelKinds();
-isOpen = @(name) strcmp(viewer.Panel(), name);
+isOpen = @(name) any(strcmp(viewer.OpenNames(), name));
 isDay = @() ~viewer.NightView();
 hasPhotos = @() viewer.PhotoCount() > 0;
 sizes = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]};
@@ -934,15 +989,16 @@ actionList = {
     'turn with photo on', @() viewer.SetState('turnWithPhoto', true),            @() isOpen('Overall Display') && hasPhotos(), 0.5
     'turn with photo off',@() viewer.SetState('turnWithPhoto', false),           @() isOpen('Overall Display') && hasPhotos(), 0.5
     'photo size',         @() viewer.SetState('photoSize', pick({220, 300, 420})), @() isOpen('Overall Display') && hasPhotos(), 0.5
+    'turn photo w/ model',@() viewer.SetState('turnPhotoWithModel', rand(randomStream) > 0.3), @() isOpen('Overall Display') && hasPhotos(), 0.5
     'label row',          @() viewer.SetState(pick(labelTags), rand(randomStream) > 0.5), @() isOpen('Labels To Display'), 4
     'all colored',        @() viewer.SetState('allColored', rand(randomStream) > 0.5), @() isOpen('Labels To Display'), 1
     'all shown',          @() viewer.SetState('allShown', rand(randomStream) > 0.5),   @() isOpen('Labels To Display'), 1
     'lamp row',           @() viewer.SetState(pick(lampTags), rand(randomStream) > 0.5), @() isOpen('Lamps To Display'), 4
     'tail lights',        @() viewer.SetState('lamp_Tail', pick({'off', 'on', 'brake'})), @() isOpen('Lamps To Display'), 1
-    'start view',         @() viewer.SetState(pick({'startViewDial', 'startViewDown'}), round(80*rand(randomStream))), @() isOpen('GUI settings'), 1
-    'reset settings',     @() viewer.Press('resetSettings'),                     @() isOpen('GUI settings'), 0.5
+    'start view',         @() viewer.SetState(pick({'startViewDial', 'startViewDown'}), round(80*rand(randomStream))), @() isOpen('Shared GUI settings'), 1
+    'reset settings',     @() viewer.Press('settingsResetView'),                 @() isOpen('Shared GUI settings'), 0.5
     'menu',               @() viewer.Press('viewerMenu'),                        [], 2
-    'menu pick',          @() viewer.Press(pick({'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_GUIsettings'})), ...
+    'menu pick',          @() viewer.Press(pick({'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_SharedGUIsettings'})), ...
                                                                                  @() fcn_INTERNAL_onScreen(viewer, 'viewerMenuList'), 3
     'one label alone',    @() viewer.ShowLabel(pick([{'all'}, kinds.Keys])),     [], 1
     'mouse turn',         @() viewer.MouseDrag('left', [], fcn_INTERNAL_axesCenter(viewer) + 120*(rand(randomStream,1,2) - 0.5), 4), [], 2

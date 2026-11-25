@@ -7,7 +7,8 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %                      nighttime view, the ground, Reset view, Copy view
 %                      call, the camera's angles and distance, the
 %                      see-through body, and the photos (folder, turning
-%                      the model with them, their size)
+%                      the model with them and them with the model, their
+%                      size; remembered for the next window)
 %   Labels To Display  every label, in groups (main body panels, objects
 %                      within interior, lights, visibility), each with a
 %                      colored box and Colored? and Shown? (Yes / No), and
@@ -115,6 +116,10 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %   %   % visible window, 800 x 500): long label names in Labels To Display
 %   %   % (the Colored? and Shown? columns are 62 px now, 70 before), and the
 %   %   % Lamps header "Off On 3rd state" (now "Off On Brake")
+%   % * Turn photo with model? (Sean, 2026-11-23; the shared-panels design
+%   %   % file, section 6), under Turn model with photo?; the three photo
+%   %   % options remembered when picked here (preferences TurnWithPhoto,
+%   %   % TurnPhotoWithModel, PhotoHeight)
 
 % TO-DO:
 %
@@ -305,7 +310,7 @@ end
         % (with the camera's angles and distance), the see-through body,
         % and the photos (their folder, turning the model with them, their
         % size: moved here from under the photo, Sean 2026-11-24 03:43)
-        rowHeights = {22, 24, 24, 24, 24, 28, 28, 'fit', 22, 50, 22, 28, 30, 24, 22, 24};   % (row 8, the camera readout: four lines)
+        rowHeights = {22, 24, 24, 24, 24, 28, 28, 'fit', 22, 50, 22, 28, 30, 24, 24, 22, 24};   % (row 8, the camera readout: four lines)
         grid = uigridlayout(options.Overall, [numel(rowHeights) 2], 'RowHeight', rowHeights, 'ColumnWidth', {150, '1x'}, ...
             'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');
         fcn_INTERNAL_heading(grid, 1, 'Mesh display', '');
@@ -358,10 +363,15 @@ end
         overallControls.TurnWithPhoto = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
             @(value) setTurnWithPhoto(value), 'turnWithPhoto');
         fcn_INTERNAL_place(overallControls.TurnWithPhoto, 14, 2);
-        fcn_INTERNAL_gridText(grid, 15, 1, 'Photo size?', 'normal', 'The photo''s height (its corner can also be dragged)');
+        fcn_INTERNAL_gridText(grid, 15, 1, 'Turn photo with model?', 'normal', ...
+            'On: turning the model moves the dial''s arrow and the photo to the same side');
+        overallControls.TurnPhotoWithModel = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
+            @(value) setTurnPhotoWithModel(value), 'turnPhotoWithModel');
+        fcn_INTERNAL_place(overallControls.TurnPhotoWithModel, 15, 2);
+        fcn_INTERNAL_gridText(grid, 16, 1, 'Photo size?', 'normal', 'The photo''s height (its corner can also be dragged)');
         overallControls.PhotoSize = fcn_INTERNAL_radioRow(grid, {'Small', 'Medium', 'Large'}, {220, 300, 420}, 60, ...
             @(value) setPhotoSize(value), 'photoSize', true);
-        fcn_INTERNAL_place(overallControls.PhotoSize, 16, [1 2]);
+        fcn_INTERNAL_place(overallControls.PhotoSize, 17, [1 2]);
         markOverall();
     end
 
@@ -420,6 +430,16 @@ end
             return;
         end
         viewer.SetTurnWithPhoto(logical(value));
+        fcn_INTERNAL_remember('TurnWithPhoto', logical(value));
+        notifyChange();
+    end
+
+    function setTurnPhotoWithModel(value)
+        if (isnumeric(value) && isnan(value)) || ~isfield(viewer, 'SetTurnPhotoWithModel')
+            return;
+        end
+        viewer.SetTurnPhotoWithModel(logical(value));
+        fcn_INTERNAL_remember('TurnPhotoWithModel', logical(value));
         notifyChange();
     end
 
@@ -428,6 +448,7 @@ end
             return;
         end
         viewer.SetPhotoHeight(value);
+        fcn_INTERNAL_remember('PhotoHeight', value);
         notifyChange();
     end
 
@@ -470,9 +491,13 @@ end
             overallControls.PhotoFolder.Text = '(no photos: Browse to a folder of ViewInDegrees_<angle> photos)';
         end
         photoState = matlab.lang.OnOffSwitchState(flagPhotos);
-        set([overallControls.TurnWithPhoto.Children; overallControls.PhotoSize.Children], 'Enable', photoState);
-        set([overallControls.TurnWithPhoto, overallControls.PhotoSize], 'Enable', photoState);
+        set([overallControls.TurnWithPhoto.Children; overallControls.TurnPhotoWithModel.Children; overallControls.PhotoSize.Children], ...
+            'Enable', photoState);
+        set([overallControls.TurnWithPhoto, overallControls.TurnPhotoWithModel, overallControls.PhotoSize], 'Enable', photoState);
         fcn_INTERNAL_selectRadio(overallControls.TurnWithPhoto, logical(viewer.TurnWithPhoto()));
+        if isfield(viewer, 'TurnPhotoWithModel')
+            fcn_INTERNAL_selectRadio(overallControls.TurnPhotoWithModel, logical(viewer.TurnPhotoWithModel()));
+        end
         photoHeightNow = viewer.PhotoHeight();
         if ~any(photoHeightNow == [220 300 420])
             photoHeightNow = [];   % (dragged to another size: none of the three)
@@ -786,6 +811,17 @@ end % Ends main function
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_remember
+function fcn_INTERNAL_remember(name, value)
+% A photo option picked in Overall Display, remembered for the next window
+% (a preference in the group CarMesh3D, shared by the viewer and the
+% painter: one place for each setting)
+try
+    setpref('CarMesh3D', name, value);
+catch
+end
+end % Ends fcn_INTERNAL_remember
 
 %% fcn_INTERNAL_radioRow
 function group = fcn_INTERNAL_radioRow(parent, texts, values, width, callback, tag, flagMixed)

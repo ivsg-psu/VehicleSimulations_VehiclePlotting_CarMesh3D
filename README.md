@@ -1096,7 +1096,7 @@ Test-script figures are numbered 1xxxx for demos, 2xxxx for tests, 8xxxx for fas
 
 ## Tests
 
-Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (77 functions, 75 test scripts; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`, and `fcn_CarMesh3D_guiRandomWalk` with `fcn_CarMesh3D_guiDriver`). Run one by name, or all of them:
+Every function `fcn_CarMesh3D_<name>.m` has a test script `script_test_fcn_CarMesh3D_<name>.m` beside it in `Functions` (80 functions, 78 test scripts; `fcn_CarMesh3D_saveCache` is tested with `fcn_CarMesh3D_loadCache`, and `fcn_CarMesh3D_guiRandomWalk` with `fcn_CarMesh3D_guiDriver`). Run one by name, or all of them:
 
 ```matlab
 script_test_fcn_CarMesh3D_plotVehicle            % one function
@@ -2695,7 +2695,7 @@ A window for fixing a vehicle's labels: select faces (a highlighter, whatever th
 [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleInput,...
     (Parent=container), (EditsFile=file), (PhotoFolder=folder),...
     (Wait=flag), (Visible=flag), (OnPaint=function),...
-    (OnChange=function), (OnHint=function), (FigNum=figNum))
+    (OnChange=function), (OnHint=function), (Menu=menu), (FigNum=figNum))
 ```
 
 | Variable | Kind | Meaning | Class | Size |
@@ -2712,6 +2712,7 @@ A window for fixing a vehicle's labels: select faces (a highlighter, whatever th
 | `OnPaint` | option | a function called with no inputs after each click or stroke that paints (the reviewer marks its Labels item rejected). Default `[]`. | function_handle | 1 x 1 |
 | `OnChange` | option | a function called with the edited mesh after Apply, Save, Undo of applied paint, or a Revert. Default `[]`. | function_handle | 1 x 1 |
 | `OnHint` | option | a function called with a hint (HTML text) to show; [] to show hints in the painter's own hint line. Default `[]`. | function_handle | 1 x 1 |
+| `Menu` | option | a host window's ☰ Menu (fcn_CarMesh3D_makePanelMenu): the painter puts its panels there and has no menu of its own. Default `[]`. | struct | 1 x 1 (or empty) |
 | `FigNum` | option | not used (the painter is a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
 | `editedMesh` | output | the mesh with the applied edits (from the edits file, when the painter returns at once; or as left, with Wait=true). | struct | 1 x 1 |
 | `labelEdits` | output | the applied edits, as fcn_CarMesh3D_editLabels edits (one per label, faces by their centers). | cell | 1 x n (structs) |
@@ -2933,6 +2934,61 @@ labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh,...
 **Assumptions:** A labeled mesh (PartNames, LightTypeNames and their per-face fields).
 
 ![fcn_CarMesh3D_plotLabels sample output](Images/functions/fcn_CarMesh3D_plotLabels.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_makePanelMenu</code></b> (test: <code>script_test_fcn_CarMesh3D_makePanelMenu.m</code>): The ☰ Menu every CarMesh3D GUI uses: a list of panels, and up to two of them open at once in a column beside the main view.</summary>
+
+Built once here, so every GUI's menu works the same way and one set of tests serves them all (the rules: `Documents/Documentation_CarMesh3D_GUIdesign_rules.md`, G1; the design: `Documents/Documentation_CarMesh3D_GUIdesign_sharedPanels.md`). Picking a panel opens it under the one open; a third replaces the lower one; an open one picked again closes. With nothing open the column takes no room. A host window can hold a child GUI's panels (`AddPanel`, `RemovePanel`): the Model Reviewer holds the painter's.
+
+```matlab
+menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, (Resize=function), (Width=width), (OnChange=function), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `menuButton` | input | the host's "☰ Menu" button. | uibutton | 1 x 1 |
+| `column` | input | the container for the menu's list and the open panels. | uipanel | 1 x 1 |
+| `Resize` | option | f(width): sets the column's width (Width when something is shown, 0 when not). Default none. | function handle | 1 x 1 |
+| `Width` | option | the column's width when shown, in pixels. Default 320. | double | 1 x 1 |
+| `OnChange` | option | f(openNames), after the open panels change. Default none. | function handle | 1 x 1 |
+| `FigNum` | option | not used; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `menu` | output | functions: AddPanel, RemovePanel, Open, OpenPanels, Close, OpenNames, ToggleList, ListShown, Panel, Names, SetAvailable, Parts. | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_makeSettingsPanel</code></b> (test: <code>script_test_fcn_CarMesh3D_makeSettingsPanel.m</code>): The Shared GUI settings panel: the same in every CarMesh3D GUI, with the sections a GUI does not use greyed out.</summary>
+
+Sections: **You** (your initials, default SBB), **View** (the starting view), **Demo vehicle** (yours or the repo's), **Editing** (a timestamped copy at each save, and their folder), **Review** (each review check: required ones always on, optional ones Off or On, from `fcn_CarMesh3D_reviewChecks`). The settings are MATLAB preferences in the group `CarMesh3D`, shared by every GUI; a change applies to windows opened from then on. A greyed section's tooltip names the GUIs that use it. Each section has a Reset; "Reset all to defaults" resets the sections the window uses.
+
+```matlab
+settings = fcn_CarMesh3D_makeSettingsPanel(container, (Used=sections), (Band=[r g b]), (OnChange=function), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `container` | input | the panel to build into (such as one the ☰ Menu's AddPanel gives). | uipanel | 1 x 1 |
+| `Used` | option | the sections the GUI uses: 'You', 'View', 'Demo vehicle', 'Editing', 'Review'. Default all. | cell | 1 x n |
+| `Band` | option | the background color. Default [0.94 0.94 0.94]. | double | 1 x 3 |
+| `OnChange` | option | f(name, value), after a setting changes. Default none. | function handle | 1 x 1 |
+| `FigNum` | option | not used; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `settings` | output | functions: Value, Set, Reset, ResetAll, Mark, Used, Controls, Defaults. | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_reviewChecks</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewChecks.m</code>): The one list of the Model Reviewer's checks: required or optional, and on or off.</summary>
+
+A required check is always asked. An optional check can be turned off in Shared GUI settings (Review), for every vehicle, until turned back on: for a large number of trusted models reviewed in a row. Its questions are then recorded in each review as skipped (why, and by whom), not left blank. To change which checks are required, edit the EDIT HERE block of this function.
+
+```matlab
+checkList = fcn_CarMesh3D_reviewChecks((TurnedOff=keys), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `TurnedOff` | option | keys of optional checks turned off; [] (default) for the preference `CarMesh3D/ReviewChecksOff`. | cell | 1 x n |
+| `FigNum` | option | if given, the list is printed; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `checkList` | output | one row per check: Key, Title, Required, On, Built, Description. | table | n x 6 |
 
 </details>
 

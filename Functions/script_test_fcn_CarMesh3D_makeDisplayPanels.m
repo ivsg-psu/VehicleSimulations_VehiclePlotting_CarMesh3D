@@ -12,6 +12,9 @@
 %   %   % control tagged (no layout notes or errors), each radio group set
 %   %   % to each value with the viewer followed, the photo options grayed
 %   %   % with no photos, the readout after Reset view
+%   % * Turn photo with model?; the photo options drive a viewer with
+%   %   % photos and are remembered for the next window (the preferences
+%   %   % put back as they were)
 
 %% Set up the workspace
 close all;
@@ -91,7 +94,7 @@ for panelHandle = [overallPanel, labelsPanel, lampsPanel]
 end
 state = fcn_CarMesh3D_guiDriver(overallPanel, 'state');
 assert(all(isfield(state.Values, {'overallResetView', 'overallCopyViewCall', 'overallPhotoBrowse', 'overallPhotoFolder', 'cameraReadout'})), 'The Overall Display''s Tags');
-assert(~state.Enabled.turnWithPhoto && ~state.Enabled.photoSize, 'No photos given: the photo options grayed');
+assert(~state.Enabled.turnWithPhoto && ~state.Enabled.turnPhotoWithModel && ~state.Enabled.photoSize, 'No photos given: the photo options grayed');
 % (each radio group set to each of its values; the panels then show the viewer's state)
 for panelHandle = [overallPanel, labelsPanel, lampsPanel]
     groups = findall(panelHandle, 'Type', 'uibuttongroup');
@@ -112,6 +115,39 @@ fcn_CarMesh3D_guiDriver(overallPanel, 'press', 'overallResetView');
 camera = viewer.CameraInfo();
 readout = cellstr(fcn_CarMesh3D_guiDriver(overallPanel, 'state').Values.cameraReadout);
 assert(numel(readout) == 4 && strcmp(readout{1}, 'Camera view:') && contains(readout{2}, sprintf('yaw angle: %.0f', camera.DialAngle)), 'The readout after Reset view');
+
+%% TEST case: the photo options, with photos: they drive the viewer and are remembered (preferences put back)
+figNum = 20006;
+fprintf(1,'Figure %.0f: TEST case: the photo options, remembered\n', figNum);
+photoPrefNames = {'TurnWithPhoto', 'TurnPhotoWithModel', 'PhotoHeight'};
+photoPrefsBefore = struct();
+for ith_pref = 1:numel(photoPrefNames)
+    if ispref('CarMesh3D', photoPrefNames{ith_pref})
+        photoPrefsBefore.(photoPrefNames{ith_pref}) = getpref('CarMesh3D', photoPrefNames{ith_pref});
+    end
+end
+cleanupPhotoPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(photoPrefNames, photoPrefsBefore));
+photoFigure = uifigure('Visible', 'off', 'Position', [50 50 1200 820]);
+photoGrid = uigridlayout(photoFigure, [1 2], 'ColumnWidth', {320, '1x'});
+photoOverall = uipanel(photoGrid, 'Title', 'Overall Display');
+photoViewerPanel = uipanel(photoGrid);
+[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Parent=photoViewerPanel, ShowTools=false, FigNum=-1);
+fcn_CarMesh3D_makeDisplayPanels(photoViewer, Overall=photoOverall);
+state = fcn_CarMesh3D_guiDriver(photoOverall, 'state');
+assert(state.Enabled.turnWithPhoto && state.Enabled.turnPhotoWithModel && state.Enabled.photoSize, 'With photos: the options can be picked');
+fcn_CarMesh3D_guiDriver(photoOverall, 'set', 'turnPhotoWithModel', false);
+assert(~photoViewer.TurnPhotoWithModel() && isequal(getpref('CarMesh3D', 'TurnPhotoWithModel'), false), 'Turn photo with model? Off, remembered');
+fcn_CarMesh3D_guiDriver(photoOverall, 'set', 'turnWithPhoto', false);
+assert(~photoViewer.TurnWithPhoto() && isequal(getpref('CarMesh3D', 'TurnWithPhoto'), false), 'Turn model with photo? Off, remembered');
+fcn_CarMesh3D_guiDriver(photoOverall, 'set', 'photoSize', 420);
+assert(photoViewer.PhotoHeight() == 420 && getpref('CarMesh3D', 'PhotoHeight') == 420, 'Photo size? Large, remembered');
+photoViewer.Stop();
+delete(photoFigure);
+% (a viewer opened now starts with the remembered options)
+[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Visible=false, Wait=false, FigNum=-1);
+assert(~photoViewer.TurnPhotoWithModel() && ~photoViewer.TurnWithPhoto(), 'The next window starts with them');
+photoViewer.Close();
+clear cleanupPhotoPrefs;   % (the photo options' preferences put back as they were)
 
 %% TEST case: a host keeps the hidden faces' setting (as the painter does)
 figNum = 20004;
@@ -175,6 +211,18 @@ if nargin > 0
 end
 flagOut = flagKept;
 end % Ends fcn_INTERNAL_setHostFlag
+
+function fcn_INTERNAL_restorePrefs(prefNames, prefsBefore)
+% The preferences put back as they were: their values, or none
+for ith_pref = 1:numel(prefNames)
+    name = prefNames{ith_pref};
+    if isfield(prefsBefore, name)
+        setpref('CarMesh3D', name, prefsBefore.(name));
+    elseif ispref('CarMesh3D', name)
+        rmpref('CarMesh3D', name);
+    end
+end
+end % Ends fcn_INTERNAL_restorePrefs
 
 function fcn_INTERNAL_pickRadio(group, value)
 % Picks the radio button of this value in a button group, as a click

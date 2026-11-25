@@ -26,6 +26,12 @@
 %   % * Selection as a highlighter (T35): Ctrl+drag over faces already
 %   %   % carrying the label picked selects them; the label only previewed;
 %   %   % "original"; Undo of an Apply
+%   % * The shared menu and Shared GUI settings (the shared-panels design
+%   %   % file): Labels To Display over Modify Labels at first, two panels
+%   %   % at once (remembered: PainterPanels), the rules for two open
+%   %   % panels; Shared GUI settings' Editing rows (timestamped copy at each
+%   %   % save, its folder) in place of the old Settings panel, with the
+%   %   % preference put back at the end; Review greyed
 
 % TO-DO:
 %
@@ -58,18 +64,25 @@ if flagHadFolderPref
 end
 setpref('CarMesh3D', 'VersionFolder', versionFolder);
 cleanupVersions = onCleanup(@() fcn_INTERNAL_restoreFolderPref(flagHadFolderPref, folderPrefBefore));
-% (the panel the painter opens with is remembered: put back after the tests)
-flagHadPanelPref = ispref('CarMesh3D', 'PainterPanel');
+% (the panels the painter opens with are remembered, and Shared GUI
+% settings' timestamped copies at each save: put back after the tests)
+flagHadPanelPref = ispref('CarMesh3D', 'PainterPanels');
 panelPrefBefore = '';
 if flagHadPanelPref
-    panelPrefBefore = getpref('CarMesh3D', 'PainterPanel');
+    panelPrefBefore = getpref('CarMesh3D', 'PainterPanels');
 end
 cleanupPanel = onCleanup(@() fcn_INTERNAL_restorePanelPref(flagHadPanelPref, panelPrefBefore));
+flagHadVersionsPref = ispref('CarMesh3D', 'VersionsAtSave');
+versionsPrefBefore = true;
+if flagHadVersionsPref
+    versionsPrefBefore = getpref('CarMesh3D', 'VersionsAtSave');
+end
+cleanupVersionsPref = onCleanup(@() fcn_INTERNAL_restorePref('VersionsAtSave', flagHadVersionsPref, versionsPrefBefore));
 % (the painter's own controls: every one has a Tag)
 painterTags = {'painterMenu', 'painterUndo', 'painterSave', 'painterRevert', 'painterExit', 'painterStatus', 'painterHint', ...
-    'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_ModifyLabels', 'menu_Settings', ...
+    'menu_OverallDisplay', 'menu_LabelsToDisplay', 'menu_LampsToDisplay', 'menu_ModifyLabels', 'menu_SharedGUIsettings', ...
     'paintAs', 'hideAs', 'mirror', 'showHidden', 'paintApply', 'paintHowTo', ...
-    'saveVersion', 'versions', 'versionFolder', 'versionBrowse', 'revertToSave', 'revertToStart', 'editsFileText'};
+    'saveVersion', 'revertToStart', 'editsFileText'};
 
 %% Code demos start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -205,6 +218,7 @@ fprintf(1,'TEST case: revert to a timestamped copy\n');
 pause(1.1);
 copyA = painter.SaveVersion();
 paintA = painter.Layers().Paint;
+pause(1.1);   % (the save below keeps its own timestamped copy: in the same second it would replace copyA; a flaky failure, 2026-11-24)
 painter.SetMirror(false);
 painter.Paint('backup', centers(picks(3),:), false);   % (one more face, saved)
 pause(1.1);
@@ -261,11 +275,13 @@ assert(any(painter.Patch.FaceVertexAlphaData(glassFaces) > 0));
 painter.ShowLabel('part_trim');
 painter.ShowLabel('all');
 
-%% TEST case: The menu and the panels (the design file's layout)
+%% TEST case: The menu and the panels (the design file's layout; the shared menu, two panels at once)
 fprintf(1,'TEST case: the menu and the panels\n');
-panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Settings'};
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Shared GUI settings'};
+assert(isequal(painter.OpenNames(), {'Labels To Display', 'Modify Labels'}) || flagHadPanelPref, ...
+    'It opens with Labels To Display over Modify Labels');
 for ith_panel = 1:numel(panelNames)
-    painter.OpenPanel(panelNames{ith_panel});
+    painter.OpenPanels(panelNames(ith_panel));
     assert(strcmp(painter.Panel(), panelNames{ith_panel}));
     shownPanels = findall(painter.Figure, 'Type', 'uipanel', 'Visible', 'on', 'Tag', panelNames{ith_panel});
     assert(numel(shownPanels) == 1);
@@ -273,7 +289,13 @@ for ith_panel = 1:numel(panelNames)
         assert(isempty(findall(painter.Figure, 'Type', 'uipanel', 'Visible', 'on', 'Tag', panelNames{ith_other})));
     end
 end
-assert(strcmp(getpref('CarMesh3D', 'PainterPanel'), 'Settings'));    % (remembered)
+assert(isequal(cellstr(getpref('CarMesh3D', 'PainterPanels')), {'Shared GUI settings'}));    % (remembered)
+painter.OpenPanel('Modify Labels');
+assert(isequal(painter.OpenNames(), {'Shared GUI settings', 'Modify Labels'}), 'Two panels at once, the second under the first');
+assert(isequal(cellstr(getpref('CarMesh3D', 'PainterPanels')), {'Shared GUI settings', 'Modify Labels'}));    % (both remembered)
+% (Shared GUI settings in the painter: Review greyed, Editing used)
+assert(strcmp(findall(painter.Figure, 'Tag', 'settingsResetReview').Enable, 'off'), 'Review: greyed in the painter');
+assert(strcmp(findall(painter.Figure, 'Tag', 'settingsResetEditing').Enable, 'on'), 'Editing: used by the painter');
 % (no check boxes: every on/off choice is a pair of radio buttons)
 for ith_panel = 1:numel(panelNames)
     assert(isempty(findall(findall(painter.Figure, 'Type', 'uipanel', 'Tag', panelNames{ith_panel}), 'Type', 'uicheckbox')));
@@ -305,7 +327,7 @@ paintGroup = findall(painter.Figure, 'Tag', 'paintAs');
 assert(strcmp(paintGroup.SelectedObject.UserData, 'trim'));
 painter.SetTool('');
 assert(isempty(paintGroup.SelectedObject.UserData));
-painter.OpenPanel('Modify Labels');
+painter.OpenPanels({'Modify Labels'});
 
 %% TEST case: The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, photos)
 fprintf(1,'TEST case: the GUI test vehicle\n');
@@ -368,7 +390,7 @@ assert(isempty(missingTags), 'Controls missing their Tags: %s', strjoin(missingT
 % display panels and the viewer are fcn_CarMesh3D_makeDisplayPanels' and
 % fcn_CarMesh3D_viewLabels')
 parts = gp.Parts();
-ownPanels = parts.Panels(ismember(parts.PanelNames, {'Modify Labels', 'Settings'}));
+ownPanels = parts.Panels(ismember(parts.PanelNames, {'Modify Labels', 'Shared GUI settings'}));
 untagged = {};
 for container = [{parts.TopBar, parts.MenuList}, num2cell(ownPanels)]
     for control = reshape(findall(container{1}), 1, [])
@@ -386,6 +408,7 @@ fprintf(1, '    untagged controls the layout check notes (all outside the painte
 
 %% TEST case: Script-driven: the menu opens, each panel opens from it, and the panel opened again closes
 fprintf(1,'TEST case: the menu and every panel, through the menu''s buttons\n');
+gp.OpenPanels({});
 for ith_panel = 1:numel(parts.PanelNames)
     panelName = parts.PanelNames{ith_panel};
     if ~gp.MenuOpen()
@@ -395,20 +418,21 @@ for ith_panel = 1:numel(parts.PanelNames)
     menuTag = ['menu_' strrep(panelName, ' ', '')];
     assert(state.OnScreen.(menuTag), 'The menu''s %s is on screen', panelName);
     state = gp.Press(menuTag);
-    assert(strcmp(gp.Panel(), panelName) && ~gp.MenuOpen(), 'The panel %s opened and the menu closed', panelName);
+    assert(any(strcmp(gp.OpenNames(), panelName)) && numel(gp.OpenNames()) <= 2 && ~gp.MenuOpen(), ...
+        'The panel %s opened (up to two open) and the menu closed', panelName);
     fcn_INTERNAL_checkPanels(gp);
 end
 % (the open panel picked again from the menu: it closes)
 gp.Press('painterMenu');
 gp.Press(['menu_' strrep(parts.PanelNames{end}, ' ', '')]);
-assert(isempty(gp.Panel()), 'Picking the open panel again closes it');
+assert(~any(strcmp(gp.OpenNames(), parts.PanelNames{end})), 'Picking an open panel again closes it');
 fcn_INTERNAL_checkPanels(gp);
 % (the menu button twice: open, then closed)
 gp.Press('painterMenu');
 assert(gp.MenuOpen());
 gp.Press('painterMenu');
 assert(~gp.MenuOpen());
-gp.OpenPanel('Modify Labels');
+gp.OpenPanels({'Modify Labels'});
 
 %% TEST case: Script-driven: every control of Modify Labels and Settings set to each value
 fprintf(1,'TEST case: every value of every control in Modify Labels and Settings\n');
@@ -432,16 +456,16 @@ for flagOn = [false true false true]
     fcn_INTERNAL_checkRules(gp);
 end
 gp.SetState('showHidden', false);
-gp.OpenPanel('Settings');
+gp.OpenPanels({'Shared GUI settings'});
 for flagOn = [false true]
-    gp.SetState('versions', flagOn);
+    gp.SetState('settingsVersionsAtSave', flagOn);   % (Shared GUI settings: kept as the preference, put back at the end)
     assert(gp.Versions() == flagOn);
 end
 otherFolder = fullfile(demoRoot, 'versions', 'typedFolder');
-gp.SetState('versionFolder', otherFolder);
+gp.SetState('settingsVersionFolder', otherFolder);
 assert(strcmp(gp.VersionFolder(), otherFolder));
 gp.SetVersionFolder(versionFolder);
-gp.OpenPanel('Modify Labels');
+gp.OpenPanels({'Modify Labels'});
 
 %% TEST case: Mouse (the window's own handlers): clicks, a click elsewhere fast, double-clicks
 fprintf(1,'TEST case: mouse clicks and double-clicks\n');
@@ -611,7 +635,7 @@ sizes = [1500 900; 800 500; 640 400; 1600 1000];
 for ith_size = 1:size(sizes,1)
     gp.SetSize(sizes(ith_size,1), sizes(ith_size,2));
     for ith_panel = 1:numel(parts.PanelNames)
-        gp.OpenPanel(parts.PanelNames{ith_panel});
+        gp.OpenPanels(parts.PanelNames(ith_panel));
         problems = gp.CheckLayout();
         errors = problems(strcmp(problems.Severity, 'error'), :);
         ownErrors = errors(fcn_INTERNAL_isOwn(errors.Control, painterTags), :);
@@ -626,7 +650,7 @@ for ith_size = 1:size(sizes,1)
     end
 end
 % (the panels the painter builds scroll, so their last rows can be reached)
-for panelName = {'Modify Labels', 'Settings'}
+for panelName = {'Modify Labels', 'Shared GUI settings'}
     panelHandle = parts.Panels(strcmp(parts.PanelNames, panelName{1}));
     grid = findall(panelHandle, 'Type', 'uigridlayout');
     assert(strcmp(char(grid(end).Scrollable), 'on') || strcmp(char(panelHandle.Scrollable), 'on'), '%s scrolls', panelName{1});
@@ -696,13 +720,18 @@ end
 end % Ends fcn_INTERNAL_restoreFolderPref
 
 function fcn_INTERNAL_restorePanelPref(flagHadPanelPref, panelPrefBefore)
-% Puts back the panel the painter opens with
-if flagHadPanelPref
-    setpref('CarMesh3D', 'PainterPanel', panelPrefBefore);
-elseif ispref('CarMesh3D', 'PainterPanel')
-    rmpref('CarMesh3D', 'PainterPanel');
-end
+% Puts back the panels the painter opens with
+fcn_INTERNAL_restorePref('PainterPanels', flagHadPanelPref, panelPrefBefore);
 end % Ends fcn_INTERNAL_restorePanelPref
+
+function fcn_INTERNAL_restorePref(name, flagHad, valueBefore)
+% Puts a preference back as it was: its value, or none
+if flagHad
+    setpref('CarMesh3D', name, valueBefore);
+elseif ispref('CarMesh3D', name)
+    rmpref('CarMesh3D', name);
+end
+end % Ends fcn_INTERNAL_restorePref
 
 function centers = fcn_INTERNAL_centers(vehicleMesh, faceList)
 % Face centers (of the listed faces, or all)
@@ -783,12 +812,13 @@ end
 end % Ends fcn_INTERNAL_ruleStatus
 
 function message = fcn_INTERNAL_rulePanel(painter)
-% The panel shown is the one Panel() names (or none)
+% The panels shown are those OpenNames() names (at most two), the top one Panel()
 message = '';
 parts = painter.Parts();
 shown = parts.PanelNames(arrayfun(@(p) strcmp(char(p.Visible), 'on'), parts.Panels));
-if ~isequal(shown, cellstr(painter.Panel())) && ~(isempty(shown) && isempty(painter.Panel()))
-    message = sprintf('Panel() is "%s" but shown: %s', painter.Panel(), strjoin(shown, ', '));
+openNames = painter.OpenNames();
+if numel(openNames) > 2 || ~isempty(setxor(shown, openNames)) || (~isempty(openNames) && ~strcmp(openNames{1}, painter.Panel()))
+    message = sprintf('OpenNames() is "%s" but shown: %s', strjoin(openNames, ', '), strjoin(shown, ', '));
 end
 end % Ends fcn_INTERNAL_rulePanel
 
@@ -831,7 +861,7 @@ function actions = fcn_INTERNAL_walkActions(painter, seen, centers, panelNames)
 % Every kind of user action, for the random walks
 pick = @() seen(randi(numel(seen)));
 pickTwo = @() centers(seen(randi(numel(seen), 2, 1)),:);
-modifyOpen = @() strcmp(painter.Panel(), 'Modify Labels');
+modifyOpen = @() any(strcmp(painter.OpenNames(), 'Modify Labels'));
 list = cell(0,3);   % (name, what it does, when it can be done: [] for always)
 list(end+1,:) = {'click', @() painter.ClickAt(pick()), []};
 list(end+1,:) = {'double-click', @() painter.DoubleClickAt(pick()), []};

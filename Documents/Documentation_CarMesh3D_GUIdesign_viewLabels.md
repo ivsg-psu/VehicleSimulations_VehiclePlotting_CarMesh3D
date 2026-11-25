@@ -23,12 +23,12 @@ It is used three ways:
 
 ## 2. General rules for the whole window
 
-**(Sean)** The painter's general rules apply to this window as written: see [Documentation_CarMesh3D_GUIdesign_paintLabels.md, section 2](Documentation_CarMesh3D_GUIdesign_paintLabels.md#2-general-rules-for-the-whole-window) (rules 1 to 24). They are not repeated here. Sean decided on 2026-11-23 (the painter's Q6, option A, 10:24) that the viewer gets the same menu-and-panels layout and rules as the painter, after the painter is finished, with its own design file: this file.
+**Follows `Documentation_CarMesh3D_GUIdesign_rules.md`** (rules G1 to G38, every CarMesh3D window; since 2026-11-24 16:25 the painter's general rules live there), and its panels are the shared ones of `Documentation_CarMesh3D_GUIdesign_sharedPanels.md`. Sean decided on 2026-11-23 (the painter's Q6, option A, 10:24) that the viewer gets the same menu-and-panels layout and rules as the painter, after the painter is finished, with its own design file: this file.
 
 **(Sean, 2026-11-23) Rules for this window only:**
 
 V1. **The viewer never changes a file.** It has no Undo, no Save, and no question on exit. Its top bar is the pancake menu and Exit (C2S 2).
-V2. **Its panels are the painter's viewing panels** (Overall Display, Labels To Display, Lamps To Display, GUI settings), the same controls, in the same order, with the same words and the same pale blue band; there is no Modify Labels panel. The viewing panels are built once, in `fcn_CarMesh3D_viewLabels`; the painter uses them and adds its own panels to the same menu through a hook, so a fix to a panel is a fix in both windows (C2S 1).
+V2. (Now G26 and the shared-panels file: the panels are built once, by `fcn_CarMesh3D_makeDisplayPanels`.) **Its panels are the painter's viewing panels** (Overall Display, Labels To Display, Lamps To Display, GUI settings), the same controls, in the same order, with the same words and the same pale blue band; there is no Modify Labels panel. The viewing panels are built once, in `fcn_CarMesh3D_viewLabels`; the painter uses them and adds its own panels to the same menu through a hook, so a fix to a panel is a fix in both windows (C2S 1).
 V3. **The view settings stay the window's memory.** What the user sets (camera, labels, colors, lamps, photo) is returned by the call and put in the view call, as now; MATLAB preferences hold only GUI settings (rule 17, as changed by the painter's open issue: the window always opens at Overall Display).
 V4. **Old view calls keep working.** A view call copied before the change opens the same view after it: the settings keep `Label` and `Hidden` and add `Uncolored` (C2S 3).
 V5. **Built into a host, the host decides** which parts show: the tool row (now `ShowTools`), the photo options (`PhotoOptions`), the lists (`LabelListParent`), the hint line (`OnHint`), as today.
@@ -549,3 +549,4 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
   (Sean's result:
   * PASS: very clear. 
   )
+- 2026-11-24 16:25 (Claude, Sean 16:20 to 16:23): section 2 now points to `Documentation_CarMesh3D_GUIdesign_rules.md` for the general rules; V1 to V8 stay here (this window only).
