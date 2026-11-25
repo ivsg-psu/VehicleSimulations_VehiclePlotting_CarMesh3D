@@ -106,6 +106,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   % * First write (Sean, 14:36 to 16:49; Q64 (A), Q65 (B)): the items
 %   %   % and answers files; answers as buttons; Run the commands and the
 %   %   % code tests; Done and NOW to the clipboard
+%   % * BUG fix (T73, Sean 17:03): Run closed every other figure, so a
+%   %   % test of the queue, run from the queue, closed the person's own
+%   %   % queue window; now no answer-queue window is closed, and the
+%   %   % status is not written to a window that has gone
 
 % TO-DO:
 %
@@ -388,25 +392,27 @@ end
         commands = regexprep(commands, 'clear\s+functions\s*;?', '');
         commands = regexprep(commands, 'close\s+all\s+force\s*;?', '');
         commands = regexprep(commands, 'close\s+all\s*;?', '');
-        others = setdiff(findall(groot, 'Type', 'figure'), figureHandle);
-        delete(others);
+        closeOthers();
         runStatus.Text = 'Running...';
         drawnow;
         try
             outputText = evalin('base', sprintf('evalc(%s)', fcn_INTERNAL_quote(commands)));
-            runStatus.Text = 'Ran without an error.';
-            runStatus.FontColor = [0 0.45 0];
+            statusText = 'Ran without an error.';
+            statusColor = [0 0.45 0];
         catch runError
             outputText = getReport(runError, 'extended', 'hyperlinks', 'off');
             lastError = sprintf('%s: %s', item.ID, runError.message);
-            runStatus.Text = ['Error: ' runError.message];
-            runStatus.FontColor = [0.75 0 0];
+            statusText = ['Error: ' runError.message];
+            statusColor = [0.75 0 0];
         end
         lastOutput = outputText;
-        outputArea.Value = splitlines(string(outputText));
-        if isvalid(figureHandle)
-            figure(figureHandle);   % (back in front of what the commands opened)
+        if ~isvalid(figureHandle)
+            return;   % (the commands closed this window)
         end
+        runStatus.Text = statusText;
+        runStatus.FontColor = statusColor;
+        outputArea.Value = splitlines(string(outputText));
+        figure(figureHandle);   % (back in front of what the commands opened)
     end
 
     function results = doRunCodeTests()
@@ -415,8 +421,10 @@ end
         results = strings(numel(item.CodeTests), 1);
         for ith_test = 1:numel(item.CodeTests)
             name = char(item.CodeTests{ith_test});
-            runStatus.Text = sprintf('Running %s (%d of %d)...', name, ith_test, numel(item.CodeTests));
-            drawnow;
+            if isvalid(figureHandle)
+                runStatus.Text = sprintf('Running %s (%d of %d)...', name, ith_test, numel(item.CodeTests));
+                drawnow;
+            end
             testFile = which(sprintf('script_test_fcn_CarMesh3D_%s.m', name));
             startTime = tic;
             try
@@ -429,14 +437,24 @@ end
                 results(ith_test) = sprintf('%s: FAIL: %s', name, testError.message);
                 lastError = sprintf('%s: %s', item.ID, results(ith_test));
             end
-            others = setdiff(findall(groot, 'Type', 'figure'), figureHandle);
-            delete(others);
+            closeOthers();
+        end
+        lastOutput = strjoin(results, newline);
+        if ~isvalid(figureHandle)
+            return;   % (a test closed this window)
         end
         flagFailed = any(contains(results, 'FAIL'));
         runStatus.Text = sprintf('%d of %d passed.', sum(~contains(results, 'FAIL')), numel(results));
         runStatus.FontColor = [0 0.45 0] + flagFailed*[0.75 -0.45 0];
-        lastOutput = strjoin(results, newline);
         outputArea.Value = cellstr(results);
+    end
+
+    function closeOthers()
+        % (every figure but the answer queues: this one, and any other, such
+        % as the one a person has open while a test of the queue runs in a
+        % second, hidden one: found by T73, Sean 17:03)
+        figures = findall(groot, 'Type', 'figure');
+        delete(figures(~strcmp(get(figures, {'Tag'}), 'answerQueue')));
     end
 
     %% The clipboard: Done and NOW

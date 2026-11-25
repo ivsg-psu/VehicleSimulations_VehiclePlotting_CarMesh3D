@@ -15,6 +15,7 @@
 %   %   % file; Previous, Next and the list; answering by the buttons and
 %   %   % the comment; the last answer wins; Done and NOW; Run the
 %   %   % commands (kept from closing the window) and the code tests
+%   % * BUG case (T73, Sean 17:03): Run keeps every queue window open
 
 % TO-DO:
 %
@@ -225,7 +226,23 @@ assert(isvalid(figureHandle));
 delete(figureHandle);
 
 %% BUG cases
-% (none yet)
+% (T73, Sean 17:03: Run in one queue window closed another, the person's
+% own, while the queue's test ran from it)
+fprintf(1, 'BUG case: Run keeps every queue window open\n');
+[~, personalWindow] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false);
+otherFigure = figure('Visible', 'off');
+figureHandle.UserData.Show('T90');
+runButton = findall(figureHandle, 'Tag', 'aqRun');
+runButton.ButtonPushedFcn(runButton, []);
+assert(isvalid(personalWindow), 'The other queue window was closed');
+assert(~isvalid(otherFigure));
+codeTestsButton = findall(figureHandle, 'Tag', 'aqRunCodeTests');
+codeTestsButton.ButtonPushedFcn(codeTestsButton, []);
+assert(isvalid(personalWindow) && isvalid(figureHandle));
+evalin('base', 'clear zzAQ_ran');
+delete(figureHandle);
+delete(personalWindow);
 
 %% Fail conditions
 try
