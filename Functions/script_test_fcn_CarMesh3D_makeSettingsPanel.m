@@ -14,6 +14,11 @@
 %   %   % does not use greyed, never hidden, with why; the Review rows
 %   %   % from fcn_CarMesh3D_reviewChecks (required ones fixed On, the
 %   %   % ones not built greyed)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_makeSettingsPanel
+%   % * The V&V GUI's Review rows: "Stop at the first No?" and "After an
+%   %   % answer, go to"; the rows are the assessment functions
 
 % TO-DO:
 %
@@ -22,7 +27,8 @@
 %% Set up the workspace
 close all;
 % (the preferences this test touches: saved, and put back at the end)
-prefNames = {'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff', 'DemoVehicle'};
+prefNames = {'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff', ...
+    'ReviewStopAtNo', 'ReviewGoTo', 'DemoVehicle'};
 prefsBefore = struct();
 for ith_pref = 1:numel(prefNames)
     if ispref('CarMesh3D', prefNames{ith_pref})
@@ -41,7 +47,7 @@ settings = fcn_CarMesh3D_makeSettingsPanel(hostPanel, OnChange=@(name, value) fc
 assert(all(isfield(settings, {'Value', 'Set', 'Reset', 'ResetAll', 'Mark', 'Used', 'Controls', 'Defaults'})), 'Its functions');
 controls = settings.Controls();
 assert(all(isfield(controls, {'Initials', 'StartViewDial', 'StartViewDown', 'DemoText', 'RepoDemo', 'VersionsAtSave', ...
-    'VersionFolder', 'VersionBrowse', 'Review', 'ResetAll'})), 'Its controls');
+    'VersionFolder', 'VersionBrowse', 'ReviewStopAtNo', 'ReviewGoTo', 'Review', 'ResetAll'})), 'Its controls');
 texts = arrayfun(@(label) strjoin(cellstr(label.Text), ' '), findall(hostPanel, 'Type', 'uilabel'), 'UniformOutput', false);
 assert(all(ismember({'You', 'View', 'Demo vehicle', 'Editing', 'Review'}, texts)), 'The five section headings');
 assert(any(contains(texts, 'Changes apply to windows opened from now on.')), 'When changes apply (Q46 (A))');
@@ -63,16 +69,23 @@ fcn_INTERNAL_type(controls.VersionFolder, folderNow);
 assert(strcmp(getpref('CarMesh3D', 'VersionFolder'), folderNow), 'The folder for timestamped copies');
 fcn_INTERNAL_type(controls.VersionFolder, '');
 assert(~ispref('CarMesh3D', 'VersionFolder'), 'An empty folder: the default (no preference)');
-fcn_INTERNAL_pick(controls.Review.levels, false);
-fcn_INTERNAL_pick(controls.Review.outline, false);
-assert(isequal(sort(getpref('CarMesh3D', 'ReviewChecksOff')), {'levels', 'outline'}), 'Two optional checks off');
-fcn_INTERNAL_pick(controls.Review.levels, true);
-assert(isequal(getpref('CarMesh3D', 'ReviewChecksOff'), {'outline'}), 'One back on');
+fcn_INTERNAL_pick(controls.Review.headlights, false);
+fcn_INTERNAL_pick(controls.Review.realism, false);
+assert(isequal(sort(getpref('CarMesh3D', 'ReviewChecksOff')), {'headlights', 'realism'}), 'Two optional assessments off');
+fcn_INTERNAL_pick(controls.Review.headlights, true);
+assert(isequal(getpref('CarMesh3D', 'ReviewChecksOff'), {'realism'}), 'One back on');
 checkList = fcn_CarMesh3D_reviewChecks(FigNum=-1);
-assert(~checkList.On(checkList.Key == "outline") && checkList.On(checkList.Key == "levels"), 'The reviewer''s list follows');
+assert(~checkList.On(checkList.Key == "realism") && checkList.On(checkList.Key == "headlights"), 'The V&V GUI''s list follows');
+fcn_INTERNAL_pick(controls.ReviewStopAtNo, false);
+assert(isequal(getpref('CarMesh3D', 'ReviewStopAtNo'), false), 'Stop at the first No? Off');
+fcn_INTERNAL_type(controls.ReviewGoTo, 'stay');
+assert(strcmp(getpref('CarMesh3D', 'ReviewGoTo'), 'stay'), 'After an answer, go to: Stay here');
+assert(isequal(controls.ReviewGoTo.Items, {'Next always', 'Next unanswered', 'Next unanswered or No', 'Stay here'}), ...
+    'The four choices (Sean, 23:18 and 23:21)');
 changes = fcn_INTERNAL_changes();
 changedNames = cellfun(@(change) change{1}, changes, 'UniformOutput', false);
-assert(all(ismember({'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff'}, changedNames)), ...
+assert(all(ismember({'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff', ...
+    'ReviewStopAtNo', 'ReviewGoTo'}, changedNames)), ...
     'OnChange heard every setting');
 settings.Set('Initials', 'xy');
 assert(strcmp(controls.Initials.Value, 'XY'), 'Set: the panel shows it');
@@ -90,8 +103,9 @@ for ith_check = 1:height(checkList)
     flagCanClick = strcmp(group.Children(1).Enable, 'on');
     assert(flagCanClick == checkList.Built(ith_check), 'The Review row for %s', key);
 end
-settings.Set('ReviewChecksOff', {'orientation', 'levels'});
-assert(isequal(getpref('CarMesh3D', 'ReviewChecksOff'), {'levels'}), 'A required check cannot be turned off');
+settings.Set('ReviewChecksOff', {'notAnAssessment', 'realism'});
+assert(isequal(getpref('CarMesh3D', 'ReviewChecksOff'), {'realism'}), 'Only the optional assessments listed can be turned off');
+fcn_INTERNAL_expectError(@() settings.Set('ReviewGoTo', 'sideways'), 'ReviewGoTo must be one of');
 
 %% TEST case: each section's Reset, and Reset all
 figNum = 20003;
@@ -101,12 +115,15 @@ assert(~ispref('CarMesh3D', 'StartViewDial') && settings.Value('StartViewDial') 
     'View''s Reset: the defaults');
 assert(strcmp(settings.Value('Initials'), 'XY'), 'View''s Reset leaves You alone');
 controls.ResetAll.ButtonPushedFcn(controls.ResetAll, []);
-for name = {'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff'}
+for name = {'Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave', 'VersionFolder', 'ReviewChecksOff', ...
+        'ReviewStopAtNo', 'ReviewGoTo'}
     assert(~ispref('CarMesh3D', name{1}), 'Reset all: %s back to its default', name{1});
 end
 defaults = settings.Defaults();
 assert(strcmp(controls.Initials.Value, defaults.Initials) && isequal(controls.VersionsAtSave.SelectedObject.UserData, true), ...
     'Reset all: the panel shows the defaults');
+assert(isequal(controls.ReviewStopAtNo.SelectedObject.UserData, true) && strcmp(controls.ReviewGoTo.Value, 'nextUnansweredOrNo'), ...
+    'Reset all: the Review defaults (On; Next unanswered or No)');
 delete(hostFigure);
 
 %% TEST case: the sections a GUI does not use: greyed, never hidden, with why (rule G26)

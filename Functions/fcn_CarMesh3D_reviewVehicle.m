@@ -1,116 +1,108 @@
-function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, options)
+function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, options)
 % fcn_CarMesh3D_reviewVehicle
-% The MODEL REVIEWER: a window for reviewing a finished vehicle, one check
-% at a time, and recording an approval, a rejection, or a comment for each
-% question. It replaces looking through the checks folder's pictures.
+% The V&V GUI (verification and validation): a host that plays a list of
+% ASSESSMENT FUNCTIONS for a vehicle, one question at a time, and records
+% each answer. The host holds and passes data; it makes none: each
+% question's picture is drawn by its own function
+% (fcn_CarMesh3D_assess_<name>), and its wording comes from that function's
+% describe mode. The list, and which are on, is fcn_CarMesh3D_reviewChecks.
+% (The design: Documentation_CarMesh3D_GUIdesign_VandV.md.)
 %
-% THE WINDOW:
-%   Top left: the ☰ Menu (Shared GUI settings; on the Labels check, the
-%           painter's panels too: up to two open at once, in a column
-%           beside the tools), then the tools, stacked: Save report,
-%           Close; and a hint for the check.
-%   Middle: the check's title (in large type: the check, the item, and
-%           which check of how many), and the check itself. 3D views can
-%           be rotated (drag) and zoomed (scroll) without parts being cut
-%           away; "Reset view" puts the view back. Animations have a Play
-%           button and a time slider, with the inputs plotted below and a
-%           line at the current time.
-%   Right:  the checks, as radio buttons (with how many questions are
-%           answered); the check's items (one per label, dimension, light
-%           state, outline, ...), marked with a check mark, a cross, or a
-%           question mark (no answer yet); and, in the bottom-right
-%           corner, the question for the selected item, with Approve and
-%           Reject buttons, a minor / must-be-fixed choice for a
-%           rejection, a likely cause (for differences from the
-%           download), and a comment box. Approving goes straight on to
-%           the next item with no answer (in this check first). "Next
-%           unanswered" does the same; "Approve all unanswered items in
-%           this check" approves the rest of the check and goes on.
+% THE WINDOW (rule G1, the pancake: sparse, one goal):
+%   Top bar, two rows, so moving between vehicles and moving between
+%   questions never look alike (Sean, 2026-11-25 12:16):
+%     the vehicle row: the previous and next vehicle (pictures of a
+%             vehicle with a - and a +, greyed when there is none) and
+%             "Vehicle 1 of 3: <name>";
+%     the question row: Previous and Next (the only words "Previous" and
+%             "Next" in the window), Summary (on the Summary page:
+%             Questions, back to the first question not answered), and
+%             the progress.
+%   ☰ Menu (Shared GUI settings; Questions, a list of every question with
+%   its answer; and, last, Exit) at the left.
+%   Middle:   the assessment's title, and its picture.
+%   Bottom:   the question, its answers (radio buttons) and a comment;
+%             a status line (the function's note, who answered and
+%             when).
+%   Last page: the SUMMARY: every answer, and Approve or Reject. The
+%             decision records what it rested on (each answer and the
+%             data it was given): there is no override flag.
 %
-% THE CHECKS (and the questions asked):
-%   Orientation     Does the red arrow point to the front?
-%   Dimensions      One item per dimension, drawn as on a drawing, in the
-%                   side, front (track front, widths), or rear (track
-%                   rear) view: the target (blue) and the measured value
-%                   (purple), each with arrows at both ends, its value on
-%                   top, and thin guide lines across the vehicle to check
-%                   the fit. In the table, the selected row is bold; the
-%                   error is green (passes) or red (fails).
-%   Labels          One item per label: only that label is colored, the
-%                   rest is gray. "Show all labels" shows every label,
-%                   until it is pressed again or an item is picked.
-%                   Photos of the real vehicle (put in the vehicle's
-%                   photos folder, as .jpg or .png) are shown beside the
-%                   model. Photos named ViewInDegrees_<angle> (the
-%                   camera's direction from the vehicle, counterclockwise
-%                   from the front seen from above: 0 from ahead, 90 from
-%                   the left, 180 from behind, 270 from the right) are
-%                   placed on a dial under the model: drag its red arrow
-%                   around the vehicle, and the nearest photo is shown and
-%                   the model turns to the same angle. Rotating the model
-%                   moves the arrow and the photo too.
-%   Differences     The download and the reduced mesh, side by side,
-%                   turning together. The places where they differ most
-%                   (holes, label changes) are boxed in yellow, one item
-%                   each: is the difference significant? If so, the likely
-%                   cause.
-%   Lights, Body, Steering, Wheels, Drive
-%                   The check's animation, with one item per step (a
-%                   still of that step and its question) and one for the
-%                   whole animation.
-%   Ground contact  Does the body stay above the ground?
-%   Detail levels   The detail levels and the full mesh side by side, each
-%                   pair at the distance where that level is used, seen
-%                   through a camera like the animations' (40 degrees
-%                   across 450 pixels).
-%   2D outline      One item per outline: is it one closed outline around
-%                   the part, with no lines crossing through it?
-%   Summary         Every answer, the questions not yet answered, and the
-%                   overall Approve or Reject.
+% AFTER AN ANSWER the window goes on as Shared GUI settings say (Review):
+%   "Stop at the first No?" (default On): a problem answer goes straight
+%       to the Summary.
+%   "After an answer, go to": Next always; Next unanswered; Next
+%       unanswered or No (default); Stay here.
 %
-% THE ANSWERS are saved in the vehicle's checks folder as
-% review_<ID>.mat after every change, and as review_<ID>.md (a readable
-% report) when the window is closed or "Save report" is pressed. Opening
-% the reviewer again loads the earlier answers.
+% SAFEGUARDS: every call to an assessment function is timed and caught.
+% A function that fails shows its error with Retry, Skip and Show error,
+% and is recorded as "error"; the rest of the review goes on.
+%
+% STALE ANSWERS: each answer keeps the fingerprint of the data its
+% picture was drawn from (fcn_CarMesh3D_fingerprint). If the mesh changes,
+% the fingerprint does too, and the old answer counts as unanswered.
+%
+% THE RECORD is saved in the vehicle's checks folder, review_<ID>.mat,
+% after every change: vvAnswers (one row per question), vvSummary (the
+% decision), reviewTable (the same, in the older format the library
+% browser reads) and reviewTableOld (answers from the older reviewer,
+% kept). review_<ID>.md, a readable report, is written at a decision and
+% at Close. A decision is also added to the vehicle's change log
+% (fcn_CarMesh3D_meshHistory).
 %
 % FORMAT:
 %
-%       [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID,...
-%           (Reviewer=name), (Visible=flag), (FigNum=figNum))
+%       [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput,...
+%           (Vehicles=IDs), (Reviewer=initials), (Assessments=handles),...
+%           (Visible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
-%      vehicleID: a vehicle ID (its folder name), such as
-%      '2009_Honda_Fit_Sport', or the full path of a vehicle's folder
-%      kept anywhere (such as the demo's copy, from
-%      fcn_CarMesh3D_makeDemoCopy: the review is then saved in the copy).
+%      vehicleInput: a vehicle ID (such as '2009_Honda_Fit_Sport'), a
+%      vehicle's folder (such as a demo copy), or a structure from
+%      fcn_CarMesh3D_reviewInput. [] with Vehicles: the first of them.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Reviewer: the reviewer's initials, saved with each answer. Default:
-%      your initials in Shared GUI settings (the preference
-%      CarMesh3D/Initials; SBB unless changed, Sean 2026-11-24).
+%      Vehicles: a batch, as a cell array of IDs or folders, reviewed in
+%      the order given (the window never chooses vehicles: Q48). "Next
+%      vehicle" goes on to the next. Default {} (one vehicle).
+%
+%      Reviewer: the reviewer's initials. Default: yours, from
+%      fcn_CarMesh3D_userInfo (asked once, if none are saved).
+%
+%      Assessments: a cell array of assessment function handles in place
+%      of the list in fcn_CarMesh3D_reviewChecks (a run of one's own, or
+%      tests). Default {} (the list).
 %
 %      Visible: true (default) to show the window; false to build it
-%      without showing it (for tests).
+%      hidden (tests).
 %
-%      FigNum: not used for plotting (the reviewer is its own window). If
-%      set to -1, input checking is skipped.
+%      FigNum: not used for plotting (the window is its own). If -1,
+%      input checking is skipped.
 %
 % OUTPUTS:
 %
-%      reviewTable: the answers so far (one row per question): Check,
-%      Item, Question, Status ('', 'approved', 'rejected'), Severity
-%      ('minor', 'must fix'), Cause, Comment, Reviewer, Time.
+%      answers: the answers when the window opened (one row per
+%      question): Assessment, Key, Title, Question, Answer, Problem,
+%      Comment, Who, When, Fingerprint, Status, Note, Seconds. The window
+%      keeps them up to date; read them later with
+%      figureHandle.UserData.Answers().
 %
-%      figureHandle: the reviewer's window (a uifigure).
+%      figureHandle: the window (a uifigure). Its UserData holds functions
+%      for scripts and tests: Show(page or key), Answer(text, comment),
+%      Decide(text, comment), Current(), Answers(), Summary(), Pages(),
+%      Retry(), SkipError(), LastError(), NextVehicle(), PreviousVehicle(),
+%      ToggleSummary() (the Summary, or back to the questions), ReviewFile(),
+%      ReportFile(), Menu, Settings.
 %
 % DEPENDENCIES:
 %
-%      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_plotLabels,
-%      fcn_CarMesh3D_paintLabels, fcn_CarMesh3D_animateChecks,
-%      fcn_CarMesh3D_viewOutline, fcn_CarMesh3D_viewDetailLevels,
-%      fcn_CarMesh3D_viewOrientation, fcn_CarMesh3D_viewDimensions
+%      fcn_CarMesh3D_reviewChecks, fcn_CarMesh3D_reviewInput,
+%      fcn_CarMesh3D_userInfo, fcn_CarMesh3D_addTitleBar,
+%      fcn_CarMesh3D_makePanelMenu, fcn_CarMesh3D_makeSettingsPanel,
+%      fcn_CarMesh3D_meshHistory, fcn_CarMesh3D_icons, the assessment
+%      functions
 %
 % EXAMPLES:
 %
@@ -125,210 +117,46 @@ function [reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID, op
 
 % REVISION HISTORY:
 %
-% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% 2026_11_21 to 2026_11_24 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_reviewVehicle
-%   % * First write (Sean's design, 2026_11_21): one window for reviewing
-%   %   % a vehicle's checks, with an answer for each question
+%   % * The Model Reviewer: a window of fixed checks (its history is in
+%   %   % the backup of that version, and in git)
 %
-% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_reviewVehicle
-%   % * Sean's review of the first version: a large title for every
-%   %   % check; the tools stacked at the top left; the checks, items,
-%   %   % and question all on the right; approving goes on to the next
-%   %   % item with no answer; "Approve all" for a check; a question mark
-%   %   % for an item with no answer; "Show all labels" ends when an item
-%   %   % is picked
-%   % * Dimensions drawn as on a drawing (arrows at both ends, values on
-%   %   % top, solid guide lines, no dashed lines), in front of the
-%   %   % vehicle so it hides nothing; front and rear views for the
-%   %   % tracks; front and rear tire diameters when they differ; the
-%   %   % table's colors and bold row follow the selected item
-%   % * Labels: a photo dial (Sean's design): photos named
-%   %   % ViewInDegrees_<angle> are dots around a vehicle icon; the
-%   %   % red arrow is dragged around it, the nearest photo is shown,
-%   %   % and the model turns to the same angle (and back)
-%   % * Sean's second review: the vehicle's name in very large letters;
-%   %   % every view grows with the window; Rotate/Pan and Zoom +/-
-%   %   % buttons always in view; approving the last item of a check
-%   %   % goes on to the next check, with a short notice naming any
-%   %   % checks already done; Approve on an approved item goes on (it
-%   %   % no longer takes the answer back: "Clear this answer" does)
-%   % * Orientation: FRONT (+X) and UP (+Z) arrows; on Reject, lists for
-%   %   % where the front and top really are; the report gives the
-%   %   % script's new importForwardAxis and importUpAxis
-%   % * Dimensions: the vehicle in its own colors, faded; BLUE and
-%   %   % PURPLE in color in the hint; the quantity column kept narrow
-%   % * Labels: the dial between the model and the photo, with the
-%   %   % vehicle's 2D outline and tires, and the four sides in words;
-%   %   % the photo's name above it; "Mark wrong faces": clicks on the
-%   %   % model make a yellow box, and the report gives the script's
-%   %   % labelEditsAfterFit line for what the faces should be
-%   % * Differences: large headers; the selected spot's box yellow, the
-%   %   % others gray; no "All differences" item
-%   % * Lights, Body, Steering, Wheels, Drive: drawn live from the mesh
-%   %   % and the test motion (no GIFs): crisp, rotatable while playing,
-%   %   % at night for the lights, with the view following the vehicle
-%   % * Sean's third review: the mouse works as in CAD programs (left-drag
-%   %   % rotates, right-drag pans, the wheel zooms; a click picks), done
-%   %   % by the reviewer itself, as MATLAB's own rotating did not work in
-%   %   % the linked and animated views; the view buttons beside the
-%   %   % question; a "?" button (no answer yet) between Approve and Reject
-%   % * Picking faces (Labels and Differences): a click picks the piece of
-%   %   % faces under it, Shift-click adds one; the item is rejected, and
-%   %   % the report writes the script's labelEditsAfterFit line for what
-%   %   % they should be, including "deleted" (a part of the download not
-%   %   % wanted, such as a rear wiper)
-%   % * Orientation: the axes as arrows from the vehicle's origin, through
-%   %   % the see-through body
-%   % * Differences: spots ranked by the area affected (holes count
-%   %   % double); label changes outlined on their faces; what each kind
-%   %   % means when the mouse rests on it; the zoom kept between spots
-%   % * Animations: two copies of the vehicle, from ahead-left and from
-%   %   % behind-right; matte paint; the lights seen from farther, so the
-%   %   % light on the ground shows; the player and input plot only for
-%   %   % the whole animation; skid marks under slipping tires (wheels,
-%   %   % drive)
-%   % * Ground contact taken out (a simulation test: nothing to see)
-%   % * Labels: painting (Sean's design, 03:37 to 03:46): pick a label,
-%   %   % Ctrl+drag paints faces (Ctrl+Shift+drag erases, click: one face,
-%   %   % double-click: a piece), mirrored to the other side; glass is
-%   %   % seen through except with the glass tool, so parts behind it
-%   %   % (lamps) can be reached; saved in the vehicle's labelEdits file,
-%   %   % applied by its script after simplifying; "what is wrong" list
-%   %   % (missing, hidden, wrong faces); Show all labels under the items;
-%   %   % black mesh edges for one label; Reset view fits the model
-%   % * Animations: the views stay put between items (no player or plot);
-%   %   % "The whole animation" plays over and over, its step items lit up
-%   %   % (bold, the others gray) as each step shows
-%   % * "All, in turn" (Dimensions, Labels, Differences, 2D outline): an
-%   %   % item that shows the others in turn, over and over, lit up in the
-%   %   % list; approving it approves every item not answered yet
-%   % * Detail levels: a line-up of the full mesh and every level at one
-%   %   % distance (top), and each level where it is used (bottom), all
-%   %   % turning slowly; one question for all levels
-%   % * Detail levels: the pairs fanned out across the view (none behind
-%   %   % another)
-%   % * Reject: the comment first (or "No comment"), then Minor or Must
-%   %   % fix, under the comment box, which saves and goes on
-%   % * 2D outline: "Show the 3D model (see-through)" under the items,
-%   %   % with rotating
-%   % * Minor and Must fix as two large buttons under Reject
-%   % * 2D outline and the photo dial: each wheel's rectangle placed at its
-%   %   % center (it is kept about its center, for steering); all four
-%   %   % were drawn at the origin
-%   % * Summary: where the answers are saved (they are saved as they are
-%   %   % made), and a SAVE AND CLOSE button
-
-% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
-% - In fcn_CarMesh3D_reviewVehicle
-%   % * 'interior' (fcn_CarMesh3D_labelInterior): a paint tool, a "should
-%   %   % be" choice, and a Labels item when the mesh has interior faces
-%   % * "All, in turn" starts at the first item of the check (it skipped
-%   %   % to the second; Sean, 05:07)
-%   % * Painting (Sean, 05:13): painted faces are filled in their new
-%   %   % label's color (only their edges showed), on lifted copies; a
-%   %   % second click on a painted face takes the paint off; a "Hide"
-%   %   % list (glass; glass and lights; glass and trim) makes those parts
-%   %   % see-through and unpaintable, to reach faces under them
-%   % * Labels: the model in a panel of its own (zoomed in, it drew over
-%   %   % the dial and the photo)
-%   % * Undo takes back the last click or stroke, newest first, each
-%   %   % press one more (Sean, 05:48); applied ones come back out of the
-%   %   % modified mesh too; Revert clears the steps
-%   % * The paint tool in use is marked: full color, bold, with a dot
-%   %   % (Sean, 05:34)
-%   % * Labels: a Show box beside each label in Items (Sean, 05:34);
-%   %   % unticked hides its faces, to reach the faces under them
-%   % * Label edits in three layers (Sean, 05:32): paint is pending
-%   %   % (yellow edges) until Apply, which makes it part of a temporary
-%   %   % modified mesh (deleted faces go out of view and reach); Save
-%   %   % applies and writes the labelEdits file; Undo, Revert to save,
-%   %   % Revert to start; a status line; "Show deleted faces"; closing
-%   %   % asks to save
-%   % * The animation checks (Lights, Body, Steering, Wheels, Drive) are
-%   %   % now fcn_CarMesh3D_animateChecks, built in the display panel
-%   %   % (Sean, 06:00: separate tools, so the passing of the mesh is
-%   %   % clear). It is given the mesh with the painted label edits (the
-%   %   % painter's applied edits; else the saved edits, when newer than
-%   %   % the mesh file), so a face painted as a lamp lights up in the
-%   %   % Lights check without rerunning the script
-%   % * Leaving the Labels check with label edits not saved asks to save
-%   %   % them (the painter is rebuilt from the saved edits when shown
-%   %   % again)
-%   % * The 2D outline check is now fcn_CarMesh3D_viewOutline, built in
-%   %   % the display panel; the interior outlines are an item (they were
-%   %   % not shown)
-%   % * The detail-levels check is now fcn_CarMesh3D_viewDetailLevels,
-%   %   % built in the display panel
-%   % * The orientation and dimensions checks are now
-%   %   % fcn_CarMesh3D_viewOrientation and fcn_CarMesh3D_viewDimensions,
-%   %   % built in the display panel
-%   % * The overall decision goes in the vehicle's change log
-%   %   % (fcn_CarMesh3D_meshHistory: who, when, the decision), so the
-%   %   % mesh shows as reviewed, and by whom (Sean, 13:07)
-%   % * Differences compares the download with the edited mesh (Sean,
-%   %   % 10:51): the mesh with the saved label edits, or the painter's
-%   %   % applied edits; its spots are found again when the painter has
-%   %   % changed it, and each spot's item is keyed by where it is, so
-%   %   % its answer stays with it
-%   % * The vehicle may be given as its folder (the demo's copy of a
-%   %   % vehicle, so a demo review is saved in the copy, not the vehicle)
-%   % * The items panel's title no longer has "(right column: show)"
-%   % * Its own window's title is this function's name, with the
-%   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
-%   %   % Sean, 14:31 and 14:40)
-
-% 2026_11_22 by Sean Brennan, sbrennan@psu.edu
-% - In fcn_CarMesh3D_reviewVehicle
-%   % * Multi-part faces (FaceAlsoParts): a part that faces only also
-%   %   % belong to (glass that is a lamp's clear cover) is reviewed too
-
-% 2026_11_23 by Sean Brennan, sbrennan@psu.edu
-% - In fcn_CarMesh3D_reviewVehicle
-%   % * "should be: highbeam light" among the fixes for wrong faces
-%   %   % (Sean, 03:27)
-%
-% 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
-% - In fcn_CarMesh3D_reviewVehicle
-%   % * The "should be" choices list every lamp type of
-%   %   % fcn_CarMesh3D_lampTypes (fog, reflector, licenseplate, marker and
-%   %   % warning added; Sean, task 8)
-
-% 2026_11_24 by Sean Brennan, sbrennan@psu.edu
-% - In fcn_CarMesh3D_reviewVehicle
-%   % * The mesh with its saved label fixes comes from
-%   %   % fcn_CarMesh3D_meshWithLabelEdits (no window), not a hidden
-%   %   % painter (the tree rule; Q32 (A))
-%   % * The shared panels (the shared-panels design file; Sean, 16:09 to
-%   %   % 16:25): a ☰ Menu at the top of the tools (fcn_CarMesh3D_makePanelMenu),
-%   %   % with Shared GUI settings (fcn_CarMesh3D_makeSettingsPanel, every
-%   %   % section used); on the Labels check the painter's panels are in
-%   %   % this menu too, not a menu of its own (Q45 (A))
-%   % * Required and optional checks (Sean, 16:14), from one list,
-%   %   % fcn_CarMesh3D_reviewChecks: an optional check turned off in Shared
-%   %   % GUI settings is greyed in Checks, and its questions with no
-%   %   % answer are recorded as "skipped" (turned off in Shared GUI
-%   %   % settings, by the reviewer), not left blank; they are not asked,
-%   %   % and do not count as unanswered. A check turned back on asks them
-%   %   % again.
-%   % * The reviewer's initials: Reviewer=, else your initials in Shared
-%   %   % GUI settings (SBB unless changed)
+%   % * Rewritten as the V&V GUI (Documentation_CarMesh3D_GUIdesign_VandV.md):
+%   %   % a host that plays a list of assessment functions; caught and
+%   %   % timed calls with Retry, Skip and Show error; answers with the
+%   %   % fingerprint of what they rested on (stale when the mesh
+%   %   % changes); "Stop at the first No?" and "After an answer, go to"
+%   %   % (Sean, 23:18 and 23:21); the Summary with Approve or Reject and
+%   %   % no override flag (Sean, 00:53); batches (Q48); the older
+%   %   % reviewTable kept for the library browser
+%   % * The top bar in two rows (Sean, 12:16): vehicles above (pictures of
+%   %   % a vehicle with - and +, greyed when there is none; a previous
+%   %   % vehicle added), questions below (Previous, Next, and Summary /
+%   %   % Questions to go to the Summary and back at any time)
+%   % * The status line no longer shows the drawing time (Q61 (A), Sean
+%   %   % 12:42); it stays in the record (Seconds)
+%   % * Close became Exit, the ☰ Menu's last line (Q62 (A), Sean 14:31)
+%   % * BUG fixed: Previous and Next went only to questions 1 and 2 (their
+%   %   % callbacks kept the page they were made with; Sean's T65, 12:16:
+%   %   % "I cannot figure out how to advance")
 
 % TO-DO:
 %
-% 2026_11_21 by Sean Brennan, sbrennan@psu.edu
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_reviewVehicle
-%   % * Light states drawn live (each light on, at night) in a rotatable
-%   %   % view, in place of the animation's stills
-%   % * A press-and-hold "show all labels" (uifigure buttons have no
-%   %   % press and release events: it is a toggle for now)
-
+%   % * Timeouts for computing, and drawing the next picture ahead (the
+%   %   % V&V design file, Later)
 
 arguments
-    vehicleID
-    options.Reviewer = ''
-    options.Visible = true
-    options.FigNum = []
+    vehicleInput
+    options.Vehicles = {}       % A batch: IDs or folders, in order
+    options.Reviewer = ''       % Initials; '' for yours (fcn_CarMesh3D_userInfo)
+    options.Assessments = {}    % Function handles in place of the list
+    options.Visible = true      % false: built hidden (tests)
+    options.FigNum = []         % Not used; -1 skips input checks
 end
 
 %% Debugging and Input checks
@@ -337,1657 +165,713 @@ if isequal(options.FigNum, -1)
     flag_check_inputs = 0;
 end
 if 0~=flag_check_inputs
-    if ~(ischar(vehicleID) || (isstring(vehicleID) && isscalar(vehicleID)))
-        error('CarMesh3D:badInput', 'vehicleID must be text, such as ''2009_Honda_Fit_Sport''.');
+    if isempty(vehicleInput) && isempty(options.Vehicles)
+        error('CarMesh3D:badInput', 'Give a vehicle, or a batch with Vehicles=.');
     end
-end
-vehicleID = char(vehicleID);
-reviewerName = char(options.Reviewer);
-if isempty(reviewerName)
-    % (your initials, Shared GUI settings; SBB by default: Sean, 2026-11-24 11:20)
-    reviewerName = 'SBB';
-    if ispref('CarMesh3D', 'Initials')
-        reviewerName = char(getpref('CarMesh3D', 'Initials'));
+    if ~isempty(options.Vehicles) && ~(iscellstr(options.Vehicles) || isstring(options.Vehicles))
+        error('CarMesh3D:badInput', 'Vehicles must be a cell array of vehicle IDs or folders.');
     end
 end
 
 %% Main code
-% The vehicle's files and data
-vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID);
-vehicleID = vehicleFiles.ID;   % (the input may be the vehicle's folder)
-if ~vehicleFiles.HasMesh
-    error('CarMesh3D:noMesh', 'The vehicle %s has no finished mesh yet: run its script first.', vehicleID);
-end
-data = fcn_INTERNAL_loadData(vehicleFiles);
-checks = fcn_INTERNAL_defineChecks(data);
-% (the required and optional checks, from the one list; an optional check
-% turned off in Shared GUI settings is skipped: Sean, 2026-11-24 16:14)
-checkList = fcn_CarMesh3D_reviewChecks(FigNum=-1);
-checksOff = cellstr(checkList.Key(~checkList.On));
-checksOff = reshape(intersect(checksOff, {checks.Key}, 'stable'), 1, []);   % (a row)
-reviewFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.mat', vehicleID));
-reportFile = fullfile(vehicleFiles.ChecksFolder, sprintf('review_%s.md', vehicleID));
-reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile, checksOff, reviewerName);
-
-% The window's state (shared by the nested callbacks below)
-currentCheck = 1;
-currentItem = 1;
-flagCommentTouched = false;
-cycleTimer = [];
-cycleIndex = 0;
-animator = [];   % (the animation checks: fcn_CarMesh3D_animateChecks's handles and functions)
-outlineViewer = [];   % (the 2D outline check: fcn_CarMesh3D_viewOutline's handles and functions)
-levelsViewer = [];   % (the detail-levels check: fcn_CarMesh3D_viewDetailLevels's handles and functions)
-dimensionViewer = [];   % (the dimensions check: fcn_CarMesh3D_viewDimensions's handles and functions)
-orientationViewer = [];   % (the orientation check: fcn_CarMesh3D_viewOrientation's handles and functions)
-% (the mouse, CAD-style: left-drag rotates, right-drag pans, the wheel
-% zooms; a click with no drag picks faces)
-mouseAxes = [];
-mouseMode = '';
-mouseStart = [0 0];
-mouseLast = [0 0];
-mouseMoved = false;
-mouseExtend = false;
-lastAxes = [];
-pendingPick = [];
-% (the faces picked on Labels or Differences: which mesh, and which faces)
-selectionMesh = '';
-selectedFaces = false(0,1);
-meshPieces = struct('reduced', [], 'original', []);
-% (painting labels, on the Labels check: the label painter,
-% fcn_CarMesh3D_paintLabels, built in the display panel; the Show boxes
-% beside each label in Items, unticked to hide its faces; and the mesh
-% with the painter's applied edits, once it has changed them)
-painter = [];
-painterPanelNames = {};   % (the painter's panels, in this window's ☰ Menu while it is shown)
-reviewMenu = [];          % (the ☰ Menu, fcn_CarMesh3D_makePanelMenu)
-sharedSettings = [];      % (Shared GUI settings, fcn_CarMesh3D_makeSettingsPanel)
-hideChecks = struct();
-editedMeshNow = [];
-compareStale = false;   % (the painter changed the edited mesh since Differences found its spots)
-editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleID));
-axesDefaults = struct('Axes',{},'View',{});
-linkHandle = []; %#ok<SETNU> (held, so the two Differences views stay linked)
-compareSpots = [];
-labelPatch = [];
-showAllButton = [];
-% (the Labels check's model, from the painter; the timer that turns the
-% detail levels)
-labelAxes = [];
-viewTimer = [];
-
-%% The window
-figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_reviewVehicle: %s', vehicleFiles.Name), ...
-    'Position', [40 40 1560 940], 'Visible', 'off', 'Color', [1 1 1], ...
-    'CloseRequestFcn', @onClose, 'AutoResizeChildren', 'off');
-% (the title bar: this function's name and version; the rest under it)
-contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_reviewVehicle', Subtitle=vehicleFiles.Name, FigNum=-1);
-mainGrid = uigridlayout(contentPanel, [1 4], 'ColumnWidth', {150, 0, '1x', 360}, 'Padding', [6 6 6 6]);
-
-% Left: the ☰ Menu and the tools, stacked at the top, and a hint under
-% them. (The mouse works the views as in CAD programs: left-drag rotates,
-% right-drag pans, the wheel zooms; the view buttons are on the right, by
-% the question.)
-toolGrid = uigridlayout(mainGrid, [5 1], 'RowHeight', {34, 34, 34, 12, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
-menuButton = uibutton(toolGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'reviewerMenu');
-% (the ☰ Menu's column, beside the tools: the shared menu, as in every
-% CarMesh3D GUI (rule G1); Shared GUI settings, and on the Labels check
-% the painter's panels (Q45 (A)))
-menuColumn = uipanel(mainGrid, 'BorderType', 'none');
-menuColumn.Layout.Row = 1;
-menuColumn.Layout.Column = 2;
-reviewMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
-    OnChange=@(~) onPanelsChanged(), FigNum=-1);
-settingsPanel = reviewMenu.AddPanel('Shared GUI settings', [0.94 0.94 0.94]);
-sharedSettings = fcn_CarMesh3D_makeSettingsPanel(settingsPanel, OnChange=@onSharedSetting, FigNum=-1);
-menuParts = reviewMenu.Parts();
-menuParts.List.Tag = 'reviewerMenuList';
-uibutton(toolGrid, 'Text', 'Save report', 'ButtonPushedFcn', @(~,~) fcn_INTERNAL_writeReport(reviewTable, checks, vehicleFiles, reportFile));
-uibutton(toolGrid, 'Text', 'Close', 'ButtonPushedFcn', @onClose);
-uilabel(toolGrid, 'Text', '');
-hintLabel = uilabel(toolGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'WordWrap', 'on', ...
-    'VerticalAlignment', 'top', 'Interpreter', 'html');
-
-% Middle: the panel's title, and the display
-centerGrid = uigridlayout(mainGrid, [3 1], 'RowHeight', {50, 40, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 2);
-centerGrid.Layout.Row = 1;
-centerGrid.Layout.Column = 3;
-uilabel(centerGrid, 'Text', ['  ' fcn_INTERNAL_vehicleTitle(vehicleFiles)], 'FontSize', 32, 'FontWeight', 'bold', ...
-    'FontColor', [1 1 1], 'BackgroundColor', [0.15 0.25 0.45], 'HorizontalAlignment', 'left');
-titleLabel = uilabel(centerGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', ...
-    'BackgroundColor', [0.86 0.92 1], 'HorizontalAlignment', 'left');
-displayPanel = uipanel(centerGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
-
-% Right: the checks, the items, and the question in the bottom-right corner
-rightGrid = uigridlayout(mainGrid, [5 1], 'RowHeight', {210, '1x', 0, 34, 450}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
-rightGrid.Layout.Row = 1;
-rightGrid.Layout.Column = 4;
-checkGroup = uibuttongroup(rightGrid, 'Title', 'Checks', 'Scrollable', 'on', ...
-    'SelectionChangedFcn', @onCheckChanged, 'FontWeight', 'bold');
-checkButtons = gobjects(numel(checks),1);
-for ith_check = 1:numel(checks)
-    checkButtons(ith_check) = uiradiobutton(checkGroup, 'Text', checks(ith_check).Title, ...
-        'Position', [10 10 330 22], 'UserData', ith_check);
-    if any(strcmp(checksOff, checks(ith_check).Key))
-        % (turned off in Shared GUI settings: greyed, never hidden, rule G26)
-        checkButtons(ith_check).Enable = 'off';
-        checkButtons(ith_check).Tooltip = 'Optional, turned off in Shared GUI settings (Review): its questions are recorded as skipped';
+% The batch (the caller's order; one vehicle is a batch of one)
+vehicleList = cellstr(options.Vehicles);
+vehicleIndex = 1;
+if ~isempty(vehicleInput)
+    if isstruct(vehicleInput)
+        vehicleList = [{vehicleInput.ID}, reshape(vehicleList, 1, [])];
+    else
+        vehicleList = [{char(vehicleInput)}, reshape(vehicleList, 1, [])];
     end
 end
-if ~isempty(checksOff)
-    checkGroup.Title = sprintf('Checks (%d off: Shared GUI settings)', numel(checksOff));
-end
-itemGroup = uibuttongroup(rightGrid, 'Title', 'Items', 'Scrollable', 'on', ...
-    'SelectionChangedFcn', @onItemChanged, 'FontWeight', 'bold');
-% (under the items, on the Labels check only: show every label at once)
-checkButtonGrid = uigridlayout(rightGrid, [1 2], 'ColumnWidth', {'1x', 0}, 'Padding', [0 0 0 0], 'ColumnSpacing', 0);
-showAllButton = uibutton(checkButtonGrid, 'state', 'Text', 'Show all labels', 'Enable', 'off', ...
-    'ValueChangedFcn', @onShowAll, 'Tooltip', 'Show every label at once; press again (or pick an item) to go back to one label');
-% (under the items, on the 2D outline check only: the 3D model, see-through)
-model3DButton = uibutton(checkButtonGrid, 'state', 'Text', 'Show the 3D model (see-through)', ...
-    'ValueChangedFcn', @onModel3D, 'Tooltip', 'The vehicle in 3D, see-through, over the outlines; left-drag then rotates');
-% (the view buttons, by the question, so the mouse need not cross the screen)
-viewGrid = uigridlayout(rightGrid, [1 3], 'Padding', [0 0 0 0], 'ColumnSpacing', 4);
-uibutton(viewGrid, 'Text', 'Reset view', 'ButtonPushedFcn', @onResetView, ...
-    'Tooltip', 'Put the views back as they were. Mouse: left-drag rotates, right-drag pans, the wheel zooms.');
-uibutton(viewGrid, 'Text', 'Zoom +', 'ButtonPushedFcn', @(~,~) onZoom(1.25), 'Tooltip', 'Zoom in (or the mouse wheel)');
-uibutton(viewGrid, 'Text', 'Zoom -', 'ButtonPushedFcn', @(~,~) onZoom(0.8), 'Tooltip', 'Zoom out (or the mouse wheel)');
-answerPanel = uipanel(rightGrid, 'Title', 'Question', 'FontWeight', 'bold');
-answerGrid = uigridlayout(answerPanel, [10 2], 'RowHeight', {64, 34, 36, 26, 26, 24, '1x', 34, 30, 30}, 'ColumnWidth', {'1x','1x'}, ...
-    'RowSpacing', 4, 'Padding', [8 6 8 6], 'Scrollable', 'on');
-questionLabel = uilabel(answerGrid, 'Text', '', 'WordWrap', 'on', 'FontSize', 13, 'FontWeight', 'bold', 'VerticalAlignment', 'top');
-questionLabel.Layout.Column = [1 2];
-% (Approve, "?" for no answer yet, and Reject)
-voteGrid = uigridlayout(answerGrid, [1 3], 'ColumnWidth', {'1x', 44, '1x'}, ...
-    'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-voteGrid.Layout.Column = [1 2];
-approveButton = uibutton(voteGrid, 'state', 'Text', 'Approve', 'FontSize', 13, ...
-    'ValueChangedFcn', @(src,~) onVote(src, 'approved'));
-uibutton(voteGrid, 'Text', '?', 'FontSize', 15, 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) onClearAnswer(), ...
-    'Tooltip', 'No answer yet: takes back Approve or Reject');
-rejectButton = uibutton(voteGrid, 'state', 'Text', 'Reject', 'FontSize', 13, ...
-    'ValueChangedFcn', @(src,~) onVote(src, 'rejected'));
-% (what to do on the model: shown for checks where faces can be picked)
-selectLabel = uilabel(answerGrid, 'Text', '', 'WordWrap', 'on', 'FontColor', [0.55 0.35 0], 'FontWeight', 'bold', ...
-    'VerticalAlignment', 'top');
-selectLabel.Layout.Column = [1 2];
-causeDropDown = uidropdown(answerGrid, 'Items', {'(likely cause)'}, 'ValueChangedFcn', @onCause);
-causeDropDown.Layout.Column = [1 2];
-% (orientation only: which way is really up)
-upDropDown = uidropdown(answerGrid, 'Items', {'(up is really)'}, 'ValueChangedFcn', @onCause, 'Visible', 'off');
-upDropDown.Layout.Column = [1 2];
-commentGrid = uigridlayout(answerGrid, [1 2], 'ColumnWidth', {64, 90}, 'Padding', [0 0 0 0], 'ColumnSpacing', 4);
-uilabel(commentGrid, 'Text', 'Comment:', 'FontWeight', 'bold');
-noCommentButton = uibutton(commentGrid, 'Text', 'No comment', 'ButtonPushedFcn', @(~,~) onCommentTouched(), ...
-    'Tooltip', 'Go on to the severity with no comment');
-statusLabel = uilabel(answerGrid, 'Text', '', 'HorizontalAlignment', 'right', 'FontColor', [0.4 0.4 0.4]);
-commentArea = uitextarea(answerGrid, 'ValueChangedFcn', @onComment, 'ValueChangingFcn', @(~,~) onCommentTouched());
-commentArea.Layout.Column = [1 2];
-% (after a rejection and a comment: how bad; either one saves and goes on)
-severityGrid = uigridlayout(answerGrid, [1 2], 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
-severityGrid.Layout.Column = [1 2];
-minorButton = uibutton(severityGrid, 'state', 'Text', ['Minor  ' char(9654)], 'FontSize', 13, ...
-    'ValueChangedFcn', @(src,~) onSeverityButton('minor'), 'Tooltip', 'A minor problem: saves, and goes on to the next question');
-mustFixButton = uibutton(severityGrid, 'state', 'Text', ['Must fix  ' char(9654)], 'FontSize', 13, 'FontWeight', 'bold', ...
-    'ValueChangedFcn', @(src,~) onSeverityButton('must fix'), 'Tooltip', 'Must be fixed: saves, and goes on to the next question');
-uibutton(answerGrid, 'Text', char([9664 ' Previous']), 'ButtonPushedFcn', @(~,~) onStep(-1));
-uibutton(answerGrid, 'Text', char(['Next unanswered ' 9654]), 'ButtonPushedFcn', @(~,~) onStep(+1));
-approveAllButton = uibutton(answerGrid, 'Text', 'Approve all unanswered items in this check', ...
-    'ButtonPushedFcn', @(~,~) onApproveAll(), ...
-    'Tooltip', 'Approve every item of this check that has no answer yet, then go to the next check');
-approveAllButton.Layout.Column = [1 2];
+vehicleList = reshape(vehicleList, 1, []);
 
-figureHandle.SizeChangedFcn = @(~,~) fcn_INTERNAL_placeButtons(checkGroup, checkButtons);
-figureHandle.WindowButtonDownFcn = @onFigureDown;       % (the mouse in the views)
-figureHandle.WindowButtonMotionFcn = @onFigureMotion;   % (and dragging the photo dial)
-figureHandle.WindowButtonUpFcn = @onFigureUp;
-figureHandle.WindowScrollWheelFcn = @onFigureScroll;
-figureHandle.DeleteFcn = @(~,~) stopAllTimers();     % (also when deleted without closing)
-fcn_INTERNAL_placeButtons(checkGroup, checkButtons);
-showCheck(1);
-% (for scripts and tests: show a check or an item, answer, and read the
-% answers)
-figureHandle.UserData = struct('ShowCheck', @showCheck, 'ShowItem', @showItem, ...
-    'Vote', @testVote, 'ApproveAll', @onApproveAll, 'ShowAll', @testShowAll, ...
-    'Current', @getCurrent, 'SetPhotoAngle', @testPhotoAngle, 'PhotoAngle', @getPhotoAngle, ...
-    'Pick', @testPick, 'Paint', @testPaint, 'EditsFile', editsFile, 'SetCause', @testSetCause, 'ReportFile', reportFile, ...
-    'Answers', @getAnswers, 'CheckKeys', {{checks.Key}}, 'Animator', @getAnimator, 'ItemKeys', @getItemKeys, ...
-    'Menu', reviewMenu, 'Settings', sharedSettings, 'ChecksOff', {checksOff}, 'Painter', @getPainter, 'ReviewerName', @() reviewerName);
+% Who is reviewing
+reviewerName = char(options.Reviewer);
+if isempty(reviewerName)
+    % (asked once, if none are saved; never for a hidden window, such as
+    % in a test, where no one could answer)
+    user = fcn_CarMesh3D_userInfo(Ask=logical(options.Visible), FigNum=-1);
+    reviewerName = user.Initials;
+end
+
+% The list of questions (one page each), from the assessment functions
+checkList = fcn_CarMesh3D_reviewChecks(Assessments=options.Assessments, FigNum=-1);
+pages = fcn_INTERNAL_pages(checkList);
+summaryIndex = numel(pages) + 1;   % (the last page)
+
+% The state (shared by the nested functions below)
+vehicle = [];
+reviewFile = '';
+reportFile = '';
+answers = [];
+summary = [];
+keptOld = [];             % (answers from the older reviewer, kept)
+currentFingerprints = strings(numel(pages), 1);
+currentPage = 1;
+lastError = [];
+lastSeconds = NaN;
+flagShowing = false;      % (the answer buttons being set by the window, not the user)
+
+%% The window
+figureHandle = uifigure('Name', 'fcn_CarMesh3D_reviewVehicle', 'Position', [40 40 1400 900], ...
+    'Visible', 'off', 'Color', [1 1 1], 'CloseRequestFcn', @(~,~) onClose(), 'AutoResizeChildren', 'off');
+[contentPanel, titleBar] = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_reviewVehicle', FigNum=-1);
+mainGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {72, '1x'}, 'Padding', [6 6 6 6], 'RowSpacing', 6, ...
+    'BackgroundColor', [1 1 1]);
+
+% Top bar: two rows. The vehicle row (pictures, no words) above the
+% question row (Previous, Next, Summary), so "next" on a quick glance
+% always means the next question (Sean, 2026-11-25 12:16; rule G41)
+topBar = uigridlayout(mainGrid, [2 5], 'ColumnWidth', {90, 112, 112, 130, '1x'}, 'RowHeight', {33, 33}, ...
+    'Padding', [0 0 0 0], 'ColumnSpacing', 6, 'RowSpacing', 6, 'BackgroundColor', [1 1 1]);
+menuButton = uibutton(topBar, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'Tag', 'vvMenu');
+menuButton.Layout.Row = [1 2];
+menuButton.Layout.Column = 1;
+previousVehicleButton = uibutton(topBar, 'Text', '', 'Tag', 'vvPreviousVehicle', ...
+    'Icon', fcn_CarMesh3D_icons('vehiclePrevious', Height=26, FigNum=-1), 'ButtonPushedFcn', @(~,~) previousVehicle(), ...
+    'Tooltip', 'The previous vehicle in the list (this vehicle''s answers are saved)');
+previousVehicleButton.Layout.Row = 1;
+previousVehicleButton.Layout.Column = 2;
+nextVehicleButton = uibutton(topBar, 'Text', '', 'Tag', 'vvNextVehicle', ...
+    'Icon', fcn_CarMesh3D_icons('vehicleNext', Height=26, FigNum=-1), 'ButtonPushedFcn', @(~,~) nextVehicle(), ...
+    'Tooltip', 'The next vehicle in the list (this vehicle''s answers are saved)');
+nextVehicleButton.Layout.Row = 1;
+nextVehicleButton.Layout.Column = 3;
+vehicleLabel = uilabel(topBar, 'Text', '', 'FontWeight', 'bold', 'Tag', 'vvVehicle');
+vehicleLabel.Layout.Row = 1;
+vehicleLabel.Layout.Column = [4 5];
+previousButton = uibutton(topBar, 'Text', 'Previous', 'Tag', 'vvPrevious', ...
+    'Icon', fcn_CarMesh3D_icons('questionPrevious', Height=16, FigNum=-1), 'IconAlignment', 'left', ...
+    'Tooltip', 'The previous question', 'ButtonPushedFcn', @(~,~) goPrevious());
+previousButton.Layout.Row = 2;
+previousButton.Layout.Column = 2;
+nextButton = uibutton(topBar, 'Text', 'Next', 'Tag', 'vvNext', ...
+    'Icon', fcn_CarMesh3D_icons('questionNext', Height=16, FigNum=-1), 'IconAlignment', 'right', ...
+    'Tooltip', 'The next question (after the last one: the Summary)', 'ButtonPushedFcn', @(~,~) goNext());
+nextButton.Layout.Row = 2;
+nextButton.Layout.Column = 3;
+summaryButton = uibutton(topBar, 'Text', 'Summary', 'Tag', 'vvSummaryButton', ...
+    'Icon', fcn_CarMesh3D_icons('summary', Height=20, FigNum=-1), 'IconAlignment', 'left', ...
+    'ButtonPushedFcn', @(~,~) toggleSummary());
+summaryButton.Layout.Row = 2;
+summaryButton.Layout.Column = 4;
+progressLabel = uilabel(topBar, 'Text', '', 'FontColor', [0.3 0.3 0.3], 'Tag', 'vvProgress');
+progressLabel.Layout.Row = 2;
+progressLabel.Layout.Column = 5;
+% (Exit is the ☰ Menu's last line: Q62 (A), Sean 2026-11-25 14:31)
+
+% Body: the ☰ Menu's column (no width until something is open), and the page
+bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {0, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6, ...
+    'BackgroundColor', [1 1 1]);
+menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
+pageGrid = uigridlayout(bodyGrid, [4 1], 'RowHeight', {40, '1x', 110, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 4, ...
+    'BackgroundColor', [1 1 1]);
+headingLabel = uilabel(pageGrid, 'Text', '', 'FontSize', 22, 'FontWeight', 'bold', 'FontColor', [1 1 1], ...
+    'BackgroundColor', [0.15 0.25 0.45], 'Tag', 'vvHeading');
+drawPanel = uipanel(pageGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1], 'Tag', 'vvDrawPanel', ...
+    'AutoResizeChildren', 'off');
+questionGrid = uigridlayout(pageGrid, [2 2], 'RowHeight', {34, '1x'}, 'ColumnWidth', {420, '1x'}, ...
+    'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
+questionLabel = uilabel(questionGrid, 'Text', '', 'FontSize', 18, 'FontWeight', 'bold', 'Tag', 'vvQuestion');
+questionLabel.Layout.Column = [1 2];
+answerGroup = uibuttongroup(questionGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'vvAnswers', ...
+    'SelectionChangedFcn', @(~,event) onAnswerPicked(event));
+commentArea = uitextarea(questionGrid, 'Placeholder', 'Comment (optional): what you saw', 'Tag', 'vvComment', ...
+    'ValueChangedFcn', @(~,~) onCommentChanged());
+statusLabel = uilabel(pageGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'Tag', 'vvStatus');
+
+% The ☰ Menu: Shared GUI settings, and the list of questions
+reviewMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
+    Exit=@() onClose(), ExitTag='vvExit', FigNum=-1);
+settingsPanel = reviewMenu.AddPanel('Shared GUI settings', [0.94 0.94 0.94]);
+sharedSettings = fcn_CarMesh3D_makeSettingsPanel(settingsPanel, Used={'You', 'Review'}, OnChange=@onSharedSetting, ...
+    Assessments=options.Assessments, FigNum=-1);
+questionsPanel = reviewMenu.AddPanel('Questions', [0.94 0.97 1]);
+questionsList = uilistbox(uigridlayout(questionsPanel, [1 1], 'Padding', [6 6 6 6]), 'Items', {}, 'Tag', 'vvQuestionsList', ...
+    'ValueChangedFcn', @(source,~) showPage(source.Value), ...
+    'Tooltip', [char(10003) ' answered   ' char(10007) ' a problem   ? not answered   - skipped   ! error']);
+
+loadVehicle(1);
+figureHandle.UserData = struct('Show', @testShow, 'Answer', @testAnswer, 'Decide', @testDecide, ...
+    'Current', @getCurrent, 'Answers', @getAnswers, 'Summary', @getSummary, 'Pages', @() pages, ...
+    'Retry', @testRetry, 'SkipError', @skipError, 'LastError', @getLastError, ...
+    'NextVehicle', @nextVehicle, 'PreviousVehicle', @previousVehicle, 'ToggleSummary', @toggleSummary, ...
+    'ReviewFile', @getReviewFile, 'ReportFile', @getReportFile, ...
+    'Menu', reviewMenu, 'Settings', sharedSettings);
 if options.Visible
     figureHandle.Visible = 'on';
 end
 
-%% Nested callbacks (they share the window's state above)
+%% Nested functions (they share the window's state above)
 
-    function onCheckChanged(~, event)
-        showCheck(event.NewValue.UserData);
-    end
-
-    function onItemChanged(~, event)
-        % (picking an item ends "show all labels")
-        if showAllButton.Value
-            showAllButton.Value = false;
-            onShowAll(showAllButton);
+    %% A vehicle
+    function loadVehicle(index)
+        vehicleIndex = index;
+        vehicle = fcn_CarMesh3D_reviewInput(vehicleList{index}, FigNum=-1);
+        figureHandle.Name = sprintf('fcn_CarMesh3D_reviewVehicle: %s', vehicle.Name);
+        titleBar.SetSubtitle(vehicle.Name);
+        folder = vehicle.Files.ChecksFolder;
+        if ~isfolder(folder)
+            mkdir(folder);
         end
-        showItem(event.NewValue.UserData);
+        reviewFile = fullfile(folder, sprintf('review_%s.mat', vehicle.ID));
+        reportFile = fullfile(folder, sprintf('review_%s.md', vehicle.ID));
+        [answers, summary, keptOld] = fcn_INTERNAL_startAnswers(pages, checkList, reviewFile);
+        % (the fingerprint of what each question would draw now: cheap,
+        % with no drawing, so stale answers are known before they are shown)
+        for ith_page = 1:numel(pages)
+            currentFingerprints(ith_page) = "";
+            if ~pages(ith_page).On
+                continue;
+            end
+            try
+                result = pages(ith_page).Function(vehicle, Mode='fingerprint', Key=pages(ith_page).QKey, FigNum=-1);
+                currentFingerprints(ith_page) = string(result.Fingerprint);
+                % (nothing to ask for this vehicle: known now, so it is
+                % passed over)
+                skipText = fcn_INTERNAL_text(result, 'Skip');
+                row = rowOf(ith_page);
+                if ~isempty(skipText)
+                    answers.Status(row) = "skipped";
+                    answers.Note(row) = string(skipText);
+                elseif answers.Status(row) == "skipped"
+                    answers.Status(row) = "";   % (it can be asked now)
+                    answers.Note(row) = "";
+                end
+            catch
+                % (shown, and recorded, when the page is drawn)
+            end
+        end
+        refreshVehicleRow();
+        saveAnswers();
+        showPage(firstPage());
     end
 
-    function testVote(status)
-        % (for tests: press Approve or Reject on the current item)
-        if strcmp(status, 'approved')
-            approveButton.Value = true;
-            onVote(approveButton, 'approved');
+    function index = firstPage()
+        % (the first question with no current answer; else the Summary)
+        index = summaryIndex;
+        for ith_page = 1:numel(pages)
+            if pages(ith_page).On && ~isAnswered(ith_page) && answers.Status(rowOf(ith_page)) ~= "skipped"
+                index = ith_page;
+                return;
+            end
+        end
+    end
+
+    function nextVehicle()
+        if vehicleIndex >= numel(vehicleList)
+            return;
+        end
+        writeReport();
+        loadVehicle(vehicleIndex + 1);
+    end
+
+    function previousVehicle()
+        if vehicleIndex <= 1
+            return;
+        end
+        writeReport();
+        loadVehicle(vehicleIndex - 1);
+    end
+
+    function refreshVehicleRow()
+        % (the vehicle buttons: active, or greyed with a greyed picture,
+        % when there is no vehicle that way; one vehicle: both greyed)
+        flagPrevious = vehicleIndex > 1;
+        flagNext = vehicleIndex < numel(vehicleList);
+        previousVehicleButton.Enable = matlab.lang.OnOffSwitchState(flagPrevious);
+        previousVehicleButton.Icon = fcn_CarMesh3D_icons('vehiclePrevious', Enabled=flagPrevious, Height=26, FigNum=-1);
+        nextVehicleButton.Enable = matlab.lang.OnOffSwitchState(flagNext);
+        nextVehicleButton.Icon = fcn_CarMesh3D_icons('vehicleNext', Enabled=flagNext, Height=26, FigNum=-1);
+        vehicleLabel.Text = sprintf('Vehicle %d of %d:  %s', vehicleIndex, numel(vehicleList), vehicle.Name);
+    end
+
+    % (Previous and Next as nested functions, so they read the page shown
+    % now: an anonymous function would keep the page it was made with,
+    % and the buttons went only to questions 1 and 2; found 2026-11-25 by
+    % pressing the real buttons in the test)
+    function goPrevious()
+        showPage(max(1, currentPage - 1));
+    end
+
+    function goNext()
+        showPage(min(summaryIndex, currentPage + 1));
+    end
+
+    function toggleSummary()
+        % (Summary from any question; from the Summary, back to the first
+        % question not answered, or the first question)
+        if currentPage == summaryIndex
+            index = firstPage();
+            if index == summaryIndex
+                index = find([pages.On], 1);
+                if isempty(index)
+                    index = 1;
+                end
+            end
+            showPage(index);
         else
-            rejectButton.Value = true;
-            onVote(rejectButton, 'rejected');
+            showPage(summaryIndex);
         end
     end
 
-    %% The ☰ Menu and Shared GUI settings (the shared panels)
+    %% Showing a page
+    function showPage(index)
+        if ischar(index) || isstring(index)
+            index = find(strcmp([{pages.QKey}, {'summary'}], char(index)), 1);
+        end
+        currentPage = index;
+        lastError = [];
+        lastSeconds = NaN;
+        delete(drawPanel.Children);
+        if index == summaryIndex
+            showSummary();
+        else
+            showQuestion(index);
+        end
+        flagPrevious = index > 1;
+        flagNext = index < summaryIndex;
+        previousButton.Enable = matlab.lang.OnOffSwitchState(flagPrevious);
+        previousButton.Icon = fcn_CarMesh3D_icons('questionPrevious', Enabled=flagPrevious, Height=16, FigNum=-1);
+        nextButton.Enable = matlab.lang.OnOffSwitchState(flagNext);
+        nextButton.Icon = fcn_CarMesh3D_icons('questionNext', Enabled=flagNext, Height=16, FigNum=-1);
+        if index == summaryIndex
+            summaryButton.Text = 'Questions';
+            summaryButton.Icon = fcn_CarMesh3D_icons('questions', Height=20, FigNum=-1);
+            summaryButton.Tooltip = 'Back to the questions: the first one not answered, or the first one';
+        else
+            summaryButton.Text = 'Summary';
+            summaryButton.Icon = fcn_CarMesh3D_icons('summary', Height=20, FigNum=-1);
+            summaryButton.Tooltip = 'The Summary: every answer, and Approve or Reject (come back with Questions)';
+        end
+        refreshProgress();
+    end
+
+    function showQuestion(index)
+        page = pages(index);
+        headingLabel.Text = ['  ' fcn_INTERNAL_heading(page)];
+        headingLabel.Tooltip = page.GroupHelp;
+        questionLabel.Text = page.Question;
+        questionLabel.Tooltip = page.Help;
+        if ~page.On
+            setAnswers({}, '', false);
+            fcn_INTERNAL_message(drawPanel, sprintf('%s is turned off in Shared GUI settings (Review): recorded as turned off.', page.Title));
+            statusLabel.Text = '';
+            return;
+        end
+        % (the assessment draws its picture: caught and timed)
+        startTime = tic;
+        try
+            result = page.Function(vehicle, Mode='draw', Key=page.QKey, Parent=drawPanel, FigNum=-1);
+            lastSeconds = toc(startTime);
+        catch drawError
+            lastSeconds = toc(startTime);
+            showError(index, drawError);
+            return;
+        end
+        currentFingerprints(index) = string(result.Fingerprint);
+        row = rowOf(index);
+        answers.Seconds(row) = lastSeconds;
+        answers.Note(row) = string(fcn_INTERNAL_text(result, 'Note'));
+        skipText = fcn_INTERNAL_text(result, 'Skip');
+        if ~isempty(skipText)
+            % (the function has nothing to ask for this vehicle, such as no
+            % approved exemplar to compare with)
+            delete(drawPanel.Children);
+            fcn_INTERNAL_message(drawPanel, sprintf('Skipped: %s', skipText));
+            answers.Status(row) = "skipped";
+            answers.Note(row) = string(skipText);
+            saveAnswers();
+            setAnswers({}, '', false);
+            refreshStatus(index);
+            return;
+        end
+        if any(answers.Status(row) == ["error", "not asked"])
+            answers.Status(row) = "";   % (it draws now, and is asked)
+        end
+        saveAnswers();
+        selected = '';
+        if isAnswered(index)
+            selected = char(answers.Answer(row));
+        end
+        setAnswers(page.Answers, selected, true);
+        commentArea.Value = char(answers.Comment(row));
+        refreshStatus(index);
+    end
+
+    function showError(index, drawError)
+        % (a function that failed: its error, with Retry, Skip and Show
+        % error; recorded as an error, and the review goes on)
+        lastError = drawError;
+        row = rowOf(index);
+        answers.Status(row) = "error";
+        answers.Note(row) = string(drawError.message);
+        answers.Seconds(row) = lastSeconds;
+        saveAnswers();
+        delete(drawPanel.Children);
+        grid = uigridlayout(drawPanel, [3 3], 'RowHeight', {'1x', 34, '1x'}, 'ColumnWidth', {'1x', 'fit', '1x'}, ...
+            'BackgroundColor', [1 1 1]);
+        message = uilabel(grid, 'Text', sprintf('%s could not draw this question:\n%s', func2str(pages(index).Function), ...
+            drawError.message), 'WordWrap', 'on', 'FontColor', [0.7 0 0], 'FontSize', 14, 'HorizontalAlignment', 'center', ...
+            'Tag', 'vvErrorText');
+        message.Layout.Row = 1;
+        message.Layout.Column = [1 3];
+        buttons = uigridlayout(grid, [1 3], 'ColumnWidth', {110, 110, 110}, 'Padding', [0 0 0 0], 'BackgroundColor', [1 1 1]);
+        buttons.Layout.Row = 2;
+        buttons.Layout.Column = 2;
+        uibutton(buttons, 'Text', 'Retry', 'Tag', 'vvRetry', 'ButtonPushedFcn', @(~,~) showPage(index));
+        uibutton(buttons, 'Text', 'Skip', 'Tag', 'vvSkip', 'ButtonPushedFcn', @(~,~) skipError());
+        uibutton(buttons, 'Text', 'Show error', 'Tag', 'vvShowError', ...
+            'ButtonPushedFcn', @(~,~) showErrorReport(grid, drawError));
+        setAnswers({}, '', false);
+        statusLabel.Text = sprintf('Error (recorded) after %.2f s. Retry, Skip to go on, or Show error for the details.', lastSeconds);
+        refreshProgress();
+    end
+
+    function showErrorReport(grid, drawError)
+        report = getReport(drawError, 'extended', 'hyperlinks', 'off');
+        area = uitextarea(grid, 'Value', splitlines(report), 'Editable', 'off', 'FontName', 'Consolas', 'Tag', 'vvErrorReport');
+        area.Layout.Row = 3;
+        area.Layout.Column = [1 3];
+    end
+
+    function skipError()
+        goToNext('next');
+    end
+
+    function showSummary()
+        headingLabel.Text = '  Summary';
+        headingLabel.Tooltip = 'Every answer, and the decision for this mesh';
+        questionLabel.Text = 'Approve this mesh?';
+        questionLabel.Tooltip = ['Your decision records what it rested on: each answer, and the data it was given. ' ...
+            'Stale or missing answers are listed in it.'];
+        grid = uigridlayout(drawPanel, [2 1], 'RowHeight', {30, '1x'}, 'BackgroundColor', [1 1 1]);
+        uilabel(grid, 'Text', fcn_INTERNAL_countsText(currentAnswers()), 'FontSize', 14, 'Tag', 'vvCounts');
+        shown = currentAnswers();
+        uitable(grid, 'Data', shown(:, {'Title', 'Question', 'Answer', 'Status', 'Note', 'Comment', 'Who', 'When'}), ...
+            'Tag', 'vvSummaryTable', 'ColumnWidth', {100, 360, 70, 80, '1x', '1x', 45, 130});
+        selected = '';
+        if ~isempty(summary) && ~isempty(summary.Decision)
+            selected = summary.Decision;
+            commentArea.Value = summary.Comment;
+        else
+            commentArea.Value = '';
+        end
+        setAnswers({'Approve', 'Reject'}, selected, true);
+        if isempty(selected)
+            statusLabel.Text = 'No decision yet.';
+        else
+            statusLabel.Text = sprintf('%s by %s, %s.', selected, summary.Who, summary.When);
+        end
+    end
+
+    %% Answering
+    function setAnswers(texts, selected, flagEnabled)
+        % (the answer buttons for this page; a hidden one stands for "no
+        % answer yet", since a button group always has one selected)
+        flagShowing = true;
+        delete(answerGroup.Children);
+        blank = uiradiobutton(answerGroup, 'Text', '', 'Visible', 'off', 'Position', [1 1 1 1], 'UserData', '');
+        x = 8;
+        for ith_answer = 1:numel(texts)
+            button = uiradiobutton(answerGroup, 'Text', texts{ith_answer}, 'Position', [x 8 120 26], ...
+                'FontSize', 15, 'UserData', texts{ith_answer}, 'Tag', ['vvAnswer_' texts{ith_answer}]);
+            if strcmp(texts{ith_answer}, selected)
+                answerGroup.SelectedObject = button;
+            end
+            x = x + 130;
+        end
+        if isempty(selected)
+            answerGroup.SelectedObject = blank;
+        end
+        answerGroup.Enable = matlab.lang.OnOffSwitchState(flagEnabled);
+        commentArea.Enable = matlab.lang.OnOffSwitchState(flagEnabled);
+        if ~flagEnabled
+            commentArea.Value = '';
+        end
+        drawnow limitrate;
+        flagShowing = false;
+    end
+
+    function onAnswerPicked(event)
+        if flagShowing || isempty(event.NewValue.UserData)
+            return;
+        end
+        recordAnswer(event.NewValue.UserData);
+    end
+
+    function recordAnswer(answerText)
+        commentText = strjoin(cellstr(commentArea.Value), newline);
+        if currentPage == summaryIndex
+            decide(answerText, commentText);
+            return;
+        end
+        index = currentPage;
+        row = rowOf(index);
+        answers.Answer(row) = string(answerText);
+        answers.Problem(row) = any(strcmp(pages(index).ProblemAnswers, answerText));
+        answers.Comment(row) = string(commentText);
+        answers.Who(row) = string(reviewerName);
+        answers.When(row) = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+        answers.Fingerprint(row) = currentFingerprints(index);
+        answers.Status(row) = "answered";
+        saveAnswers();
+        % (where to go now: Shared GUI settings, Review)
+        if answers.Problem(row) && fcn_INTERNAL_pref('ReviewStopAtNo', true)
+            % (the questions after it, not answered yet, are recorded as not
+            % asked: the design file, section 6)
+            for ith_page = index + 1:numel(pages)
+                laterRow = rowOf(ith_page);
+                if pages(ith_page).On && ~isAnswered(ith_page) && any(answers.Status(laterRow) == ["", "not asked"])
+                    answers.Status(laterRow) = "not asked";
+                    answers.Note(laterRow) = string(sprintf('stopped at the first No (%s)', pages(index).Title));
+                end
+            end
+            saveAnswers();
+            showPage(summaryIndex);
+            statusLabel.Text = sprintf('Stopped at the first No (%s), as set in Shared GUI settings. %s', ...
+                pages(index).Title, statusLabel.Text);
+            return;
+        end
+        goToNext(fcn_INTERNAL_pref('ReviewGoTo', 'nextUnansweredOrNo'));
+    end
+
+    function goToNext(mode)
+        index = currentPage;
+        switch mode
+            case 'stay'
+                refreshStatus(index);
+                refreshProgress();
+                return;
+            case 'next'
+                % (the next page that is on; else the Summary)
+                target = summaryIndex;
+                for ith_page = index + 1:numel(pages)
+                    if pages(ith_page).On
+                        target = ith_page;
+                        break;
+                    end
+                end
+            otherwise
+                % (the next page after this one with no current answer,
+                % or, for 'nextUnansweredOrNo', with a problem answer,
+                % wrapping around once; else the Summary)
+                target = summaryIndex;
+                order = [index + 1:numel(pages), 1:index - 1];
+                for ith_page = order
+                    if ~pages(ith_page).On || answers.Status(rowOf(ith_page)) == "skipped"
+                        continue;   % (nothing to answer there)
+                    end
+                    row = rowOf(ith_page);
+                    if ~isAnswered(ith_page) || (strcmp(mode, 'nextUnansweredOrNo') && answers.Problem(row))
+                        target = ith_page;
+                        break;
+                    end
+                end
+        end
+        showPage(target);
+    end
+
+    function onCommentChanged()
+        commentText = strjoin(cellstr(commentArea.Value), newline);
+        if currentPage == summaryIndex
+            if ~isempty(summary) && ~isempty(summary.Decision)
+                summary.Comment = commentText;
+                saveAnswers();
+            end
+            return;
+        end
+        answers.Comment(rowOf(currentPage)) = string(commentText);
+        saveAnswers();
+    end
+
+    function decide(decision, commentText)
+        % (the decision, and what it rested on: each answer now, with its
+        % fingerprint and whether it is stale; no override flag)
+        restedOn = currentAnswers();
+        summary = struct('Decision', char(decision), 'Comment', char(commentText), 'Who', reviewerName, ...
+            'When', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
+            'Counts', fcn_INTERNAL_countsText(restedOn), 'RestedOn', restedOn);
+        saveAnswers();
+        writeReport();
+        try
+            action = 'reviewed: approved';
+            if strcmpi(decision, 'Reject')
+                action = 'reviewed: rejected';
+            end
+            fcn_CarMesh3D_meshHistory(vehicle.Files.Folder, Action=action, Who=reviewerName, ...
+                Details=sprintf('%s. %s', summary.Counts, summary.Comment), FigNum=-1);
+        catch
+            % (a vehicle with no change log yet: the review file holds the decision)
+        end
+        statusLabel.Text = sprintf('%s by %s, %s. Saved, with the report.', summary.Decision, summary.Who, summary.When);
+        refreshProgress();
+    end
+
+    %% The record
+    function row = rowOf(index)
+        row = find(answers.Assessment == pages(index).FKey & answers.Key == pages(index).QKey, 1);
+    end
+
+    function flag = isAnswered(index)
+        % (answered, and on the data shown now: a changed fingerprint
+        % makes the answer stale, so it counts as unanswered)
+        row = rowOf(index);
+        flag = answers.Status(row) == "answered" && ...
+            (currentFingerprints(index) == "" || answers.Fingerprint(row) == currentFingerprints(index));
+    end
+
+    function shown = currentAnswers()
+        % (the answers, with Status "stale" where the mesh has changed, and
+        % "turned off" kept)
+        shown = answers;
+        for ith_page = 1:numel(pages)
+            row = rowOf(ith_page);
+            if shown.Status(row) == "answered" && ~isAnswered(ith_page)
+                shown.Status(row) = "stale";
+            end
+        end
+    end
+
+    function saveAnswers()
+        vvAnswers = answers; %#ok<NASGU>
+        vvSummary = summary; %#ok<NASGU>
+        reviewTable = fcn_INTERNAL_oldFormat(currentAnswers(), summary); %#ok<NASGU>
+        names = {'vvAnswers', 'vvSummary', 'reviewTable'};
+        if ~isempty(keptOld)
+            reviewTableOld = keptOld; %#ok<NASGU>
+            names{end+1} = 'reviewTableOld';
+        end
+        save(reviewFile, names{:});
+    end
+
+    function writeReport()
+        fcn_INTERNAL_writeReport(reportFile, vehicle, currentAnswers(), summary);
+    end
+
+    %% Showing the state
+    function refreshStatus(index)
+        row = rowOf(index);
+        parts = {};
+        if strlength(answers.Note(row)) > 0
+            parts{end+1} = char(answers.Note(row));
+        end
+        % (not the drawing time: it is kept in the record, Seconds; Q61 (A))
+        if answers.Status(row) == "answered"
+            if isAnswered(index)
+                parts{end+1} = sprintf('%s by %s, %s', answers.Answer(row), answers.Who(row), answers.When(row));
+            else
+                parts{end+1} = sprintf('the mesh changed since %s answered %s (%s): answer again', ...
+                    answers.Who(row), answers.Answer(row), answers.When(row));
+            end
+        end
+        statusLabel.Text = strjoin(parts, '   ·   ');
+    end
+
+    function refreshProgress()
+        shown = currentAnswers();
+        progressLabel.Text = sprintf('%s   ·   %s', fcn_INTERNAL_pageName(currentPage, summaryIndex), fcn_INTERNAL_countsText(shown));
+        % (the Questions list, with a mark for each answer)
+        items = cell(1, summaryIndex);
+        for ith_page = 1:numel(pages)
+            row = rowOf(ith_page);
+            items{ith_page} = sprintf('%s  %s', fcn_INTERNAL_mark(shown(row, :)), pages(ith_page).Title);
+        end
+        items{summaryIndex} = 'Summary';
+        if ~isempty(summary) && ~isempty(summary.Decision)
+            items{summaryIndex} = sprintf('Summary: %s', summary.Decision);
+        end
+        questionsList.Items = items;
+        questionsList.ItemsData = 1:summaryIndex;
+        questionsList.Value = currentPage;
+    end
+
     function setMenuWidth(width)
-        % (the ☰ Menu's column: its width when something is shown in it,
-        % none when nothing is)
-        if isvalid(mainGrid)
-            mainGrid.ColumnWidth{2} = width;
-        end
-    end
-
-    function onPanelsChanged()
-        % (the open panels changed: the painter's show its state now)
-        if painterValid()
-            painter.MarkPanels();
-        end
+        bodyGrid.ColumnWidth{1} = width;
     end
 
     function onSharedSetting(name, value)
-        % (a change in Shared GUI settings: this window follows your
-        % initials at once; the checks turned on or off apply when the
-        % reviewer is opened again, Q46 (A))
-        switch name
-            case 'Initials'
-                reviewerName = char(value);
-            case 'ReviewChecksOff'
-                setHint('Checks turned on or off apply when the reviewer is opened again.');
+        % (your initials apply at once; the Review settings are read at
+        % each answer)
+        if strcmp(name, 'Initials')
+            reviewerName = char(value);
         end
     end
 
-    function painterOut = getPainter()
-        painterOut = painter;
-    end
-
-    function current = getCurrent()
-        % (for tests: the check and item shown; a nested function, so it
-        % sees the values now, not when the window was made)
-        current = [currentCheck currentItem];
-    end
-
-    function answers = getAnswers()
-        answers = reviewTable;
-    end
-
-    function setHint(textIn)
-        % (the hint under the tools: plain text, or HTML for colors)
-        hintLabel.Text = strrep(char(textIn), newline, '<br>');
-    end
-
-    function testSetCause(cause, cause2)
-        % (for tests: pick from the question's lists)
-        causeDropDown.Value = cause;
-        if nargin > 1
-            upDropDown.Value = cause2;
-        end
-        onCause();
-    end
-
-    function testPhotoAngle(angle)
-        % (for tests: turn the photo dial to this angle and let go)
-        if painterValid()
-            painter.SetPhotoAngle(angle);
-        end
-    end
-
-    function angle = getPhotoAngle()
-        % (for tests: the angle of the photo shown, or NaN)
-        angle = NaN;
-        if painterValid()
-            angle = painter.PhotoAngle();
-        end
-    end
-
-    function testShowAll(flagOn)
-        % (for tests: press "Show all labels")
-        showAllButton.Value = flagOn;
-        onShowAll(showAllButton);
-    end
-
-    function onApproveAll()
-        % Approve every item of this check with no answer, then go on
-        thisCheck = checks(currentCheck);
-        if strcmp(thisCheck.Key, 'summary')
-            return;
-        end
-        for itemIndex = 1:numel(thisCheck.Items)
-            row = find(reviewTable.Check==string(thisCheck.Key) & reviewTable.Item==string(thisCheck.Items(itemIndex).Key), 1);
-            if strlength(reviewTable.Status(row))==0
-                reviewTable.Status(row) = "approved";
-                reviewTable.Reviewer(row) = string(reviewerName);
-                reviewTable.Time(row) = string(datetime('now','Format','yyyy-MM-dd HH:mm'));
-            end
-        end
-        fcn_INTERNAL_saveAnswers(reviewTable, reviewFile);
-        refreshMarks();
-        onStep(+1);
-    end
-
-    function showCheck(checkIndex)
-        leavePainter();   % (asked while the painter is still on screen)
-        stopPlaying();
-        stopCycle();
-        currentCheck = checkIndex;
-        if strcmp(checks(checkIndex).Key, 'compare')
-            refreshCompare();
-        end
-        fcn_INTERNAL_placeButtons(checkGroup, checkButtons);
-        checkGroup.SelectedObject = checkButtons(checkIndex);
-        delete(displayPanel.Children);
-        delete(itemGroup.Children);
-        linkHandle = [];
-        axesDefaults = struct('Axes',{},'View',{});
-        animator = [];
-        outlineViewer = [];
-        levelsViewer = [];
-        dimensionViewer = [];
-        orientationViewer = [];
-        labelPatch = [];
-        stopViewTimer();
-        stopPainter();
-        labelAxes = [];
-        showAllButton.Enable = 'off';
-        showAllButton.Value = false;
-        rightGrid.RowHeight{3} = 0;
-        model3DButton.Value = false;
-        checkButtonGrid.ColumnWidth = {'1x', 0};
-        hideChecks = struct();
-        selectionMesh = '';
-        selectedFaces = false(0,1);
-        mouseAxes = [];
-        lastAxes = [];
-        showAllButton.Text = 'Show all labels';
-        setHint('');
-        thisCheck = checks(checkIndex);
-        itemGroup.Title = sprintf('Items in %s', thisCheck.Title);
-        approveAllButton.Enable = ~strcmp(thisCheck.Key, 'summary');
-        itemButtons = gobjects(numel(thisCheck.Items),1);
-        for ith_item = 1:numel(thisCheck.Items)
-            itemButtons(ith_item) = uiradiobutton(itemGroup, 'Text', thisCheck.Items(ith_item).Label, ...
-                'Position', [8 8 330 22], 'UserData', ith_item, 'Tooltip', thisCheck.Items(ith_item).Tooltip);
-        end
-        fcn_INTERNAL_placeButtons(itemGroup, itemButtons);
-        if strcmp(thisCheck.Key, 'labels')
-            % (a second column: a Show box beside each label; untick it to
-            % hide that label's faces and reach the faces under them)
-            itemGroup.Title = sprintf('Items in %s', thisCheck.Title);
-            for ith_item = 1:numel(thisCheck.Items)
-                itemKey = thisCheck.Items(ith_item).Key;
-                if strcmp(itemKey, 'all')
-                    continue;
-                end
-                radioPosition = itemButtons(ith_item).Position;
-                itemButtons(ith_item).Position(3) = radioPosition(3) - 30;
-                hideChecks.(matlab.lang.makeValidName(itemKey)) = uicheckbox(itemGroup, 'Text', '', 'Value', true, ...
-                    'Position', [radioPosition(1) + radioPosition(3) - 24, radioPosition(2), 22, 22], 'UserData', itemKey, ...
-                    'ValueChangedFcn', @(~,~) applyShowBoxes(), ...
-                    'Tooltip', 'Show these faces (untick to hide them, to see and paint the faces under them)');
-            end
-        end
-        drawCheck(thisCheck);
-        showItem(1);
-        refreshMarks();
-    end
-
-    function radios = itemRadios()
-        % The item list's radio buttons, top to bottom (the Show boxes of
-        % the Labels check are left out)
-        radios = flipud(findobj(itemGroup.Children, 'flat', 'Type', 'uiradiobutton'));
-    end
-
-    function showItem(itemIndex)
-        currentItem = itemIndex;
-        flagCommentTouched = false;
-        itemButtons = itemRadios();
-        if ~isempty(itemButtons)
-            itemGroup.SelectedObject = itemButtons(itemIndex);
-        end
-        thisItem = checks(currentCheck).Items(itemIndex);
-        titleLabel.Text = sprintf('  %s  %c  %s      (check %d of %d)', upper(checks(currentCheck).Title), 8212, ...
-            thisItem.Label, currentCheck, numel(checks));
-        if numel(checks(currentCheck).Items) == 1
-            titleLabel.Text = sprintf('  %s      (check %d of %d)', upper(checks(currentCheck).Title), currentCheck, numel(checks));
-        end
-        questionLabel.Text = thisItem.Question;
-        approveButton.Text = thisItem.ApproveText;
-        rejectButton.Text = thisItem.RejectText;
-        drawItem(checks(currentCheck), thisItem);
-        showAnswer();
-    end
-
-    function showAnswer()
-        row = answerRow();
-        answer = reviewTable(row,:);
-        approveButton.Value = strcmp(answer.Status, 'approved');
-        rejectButton.Value = strcmp(answer.Status, 'rejected');
-        flagRejected = strcmp(answer.Status, 'rejected');
-        severityGrid.Visible = flagRejected;
-        noCommentButton.Visible = flagRejected;
-        % (Minor and Must fix wait for a comment, or "No comment")
-        flagCommentTouched = flagCommentTouched || strlength(answer.Comment) > 0;
-        minorButton.Enable = flagRejected && flagCommentTouched;
-        mustFixButton.Enable = flagRejected && flagCommentTouched;
-        minorButton.Value = flagRejected && strcmp(answer.Severity, 'minor') && flagCommentTouched;
-        mustFixButton.Value = flagRejected && strcmp(answer.Severity, 'must fix') && flagCommentTouched;
-        minorButton.BackgroundColor = [0.96 0.96 0.96] - 0.12*minorButton.Value*[0 0 1];
-        mustFixButton.BackgroundColor = [0.96 0.96 0.96] - 0.25*mustFixButton.Value*[0 1 1];
-        thisItem = checks(currentCheck).Items(currentItem);
-        if strcmp(checks(currentCheck).Key, 'labels')
-            Npainted = 0;
-            if painterValid()
-                Npainted = painter.NumPainted();
-            end
-            selectLabel.Text = sprintf(['To fix: pick a label above the model, then Ctrl+drag over the wrong faces ' ...
-                '(%d faces painted so far, for all labels).'], Npainted);
-        elseif strcmp(checks(currentCheck).Key, 'compare')
-            if strlength(answer.Region) > 0
-                selectLabel.Text = sprintf('Faces picked (%s). Pick what they should be below. Click again to change them.', ...
-                    fcn_INTERNAL_orText(answer.SelectionPart, 'box saved'));
-            else
-                selectLabel.Text = 'To fix: click the wrong faces on the model (Shift-click adds a piece), then pick what they should be.';
-            end
-        else
-            selectLabel.Text = '';
-        end
-        causeParts = strsplit(char(answer.Cause), ' | ');
-        causeDropDown.Visible = flagRejected && ~isempty(thisItem.Causes);
-        if ~isempty(thisItem.Causes)
-            causeDropDown.Items = [{thisItem.CausePrompt}, thisItem.Causes];
-            if any(strcmp(causeDropDown.Items, causeParts{1}))
-                causeDropDown.Value = causeParts{1};
-            else
-                causeDropDown.Value = thisItem.CausePrompt;
-            end
-        end
-        upDropDown.Visible = flagRejected && ~isempty(thisItem.Causes2);
-        if ~isempty(thisItem.Causes2)
-            upDropDown.Items = [{thisItem.Cause2Prompt}, thisItem.Causes2];
-            if numel(causeParts) >= 2 && any(strcmp(upDropDown.Items, causeParts{2}))
-                upDropDown.Value = causeParts{2};
-            else
-                upDropDown.Value = thisItem.Cause2Prompt;
-            end
-        end
-        commentArea.Value = char(answer.Comment);
-        if strlength(answer.Status) > 0
-            statusLabel.Text = sprintf('%s by %s, %s', answer.Status, answer.Reviewer, answer.Time);
-            if flagRejected && ~flagCommentTouched
-                statusLabel.Text = 'comment first, then Minor or Must fix';
-            end
-        else
-            statusLabel.Text = 'not answered yet';
-        end
-    end
-
-    function row = answerRow()
-        row = find(reviewTable.Check==string(checks(currentCheck).Key) & ...
-            reviewTable.Item==string(checks(currentCheck).Items(currentItem).Key), 1);
-    end
-
-    function onVote(source, status)
-        % Approve or Reject. Pressing a button that is already down keeps
-        % the answer (it does not take it back: "Clear this answer" does).
-        % Approving goes straight on to the next item with no answer; a
-        % rejection stays, for its severity, cause, and comment.
-        row = answerRow();
-        source.Value = true;
-        if reviewTable.Status(row) ~= string(status)
-            reviewTable.Status(row) = status;
-            if strcmp(status, 'rejected')
-                % (the severity is chosen after the comment)
-            else
-                reviewTable.Severity(row) = "";
-                reviewTable.Cause(row) = "";
-            end
-            stampAndSave(row);
-        end
-        showAnswer();
-        refreshMarks();
-        if strcmp(status, 'approved') && strcmp(checks(currentCheck).Items(currentItem).Key, 'all')
-            onApproveAll();   % ("All, in turn" approved: every item not answered yet, then on)
-            return;
-        end
-        if strcmp(status, 'approved') && ~strcmp(checks(currentCheck).Key, 'summary')
-            onStep(+1);
-        end
-    end
-
-    function onClearAnswer()
-        row = answerRow();
-        reviewTable.Status(row) = "";
-        reviewTable.Severity(row) = "";
-        reviewTable.Cause(row) = "";
-        stampAndSave(row);
-        showAnswer();
-        refreshMarks();
-    end
-
-    %% The mouse, CAD-style
-    function onFigureDown(~, ~)
-        % Left button: rotate (pan, in the 2D views); right button: pan.
-        % A press and release with no drag is a click: it picks faces.
-        pendingPick = [];
-        clicked = figureHandle.CurrentObject;
-        axesHandle = [];
-        if ~isempty(clicked) && isvalid(clicked)
-            axesHandle = ancestor(clicked, 'axes');
-        end
-        if isempty(axesHandle) || ~any(arrayfun(@(entry) isequal(entry.Axes, axesHandle), axesDefaults))
-            mouseAxes = [];
-            return;
-        end
-        mouseAxes = axesHandle;
-        lastAxes = axesHandle;
-        selection = figureHandle.SelectionType;
-        modifiers = figureHandle.CurrentModifier;
-        mouseExtend = strcmp(selection, 'extend');
-        if isequal(axesHandle, labelAxes) && any(strcmp(modifiers, 'control'))
-            % (MATLAB reports Ctrl+click as 'alt', like a right click: the
-            % Ctrl key is what tells painting apart)
-            % (Ctrl+drag paints on the Labels model; Ctrl+Shift+drag
-            % erases; the painter does it)
-            mouseMode = 'stroke';
-            painter.StrokeStart(any(strcmp(modifiers, 'shift')));
-        elseif strcmp(selection, 'open') && isequal(axesHandle, labelAxes)
-            mouseMode = 'piece';   % (a double-click: the whole piece, on release)
-        elseif strcmp(selection, 'alt') || isappdata(axesHandle, 'mouse2D')
-            mouseMode = 'pan';
-        else
-            mouseMode = 'rotate';
-        end
-        mouseStart = figureHandle.CurrentPoint;
-        mouseLast = mouseStart;
-        mouseMoved = false;
-    end
-
-    function onFigureScroll(~, event)
-        % The wheel zooms the view under the mouse
-        axesHandle = axesUnderMouse();
-        if isempty(axesHandle)
-            return;
-        end
-        camzoom(axesHandle, 1.15^(-event.VerticalScrollCount));
-    end
-
-    function axesHandle = axesUnderMouse()
-        % (the view the mouse is over; else the last one used)
-        axesHandle = [];
-        point = figureHandle.CurrentPoint;
-        for ith_axes = 1:numel(axesDefaults)
-            candidate = axesDefaults(ith_axes).Axes;
-            if ~isvalid(candidate)
-                continue;
-            end
-            try
-                position = getpixelposition(candidate, true);
-            catch
-                position = [];
-            end
-            if numel(position)==4 && point(1)>=position(1) && point(1)<=position(1)+position(3) && ...
-                    point(2)>=position(2) && point(2)<=position(2)+position(4)
-                axesHandle = candidate;
-                lastAxes = candidate;
-                return;
-            end
-        end
-        if ~isempty(lastAxes) && isvalid(lastAxes)
-            axesHandle = lastAxes;
-        end
-    end
-
-    function onPatchDown(source, event)
-        % (a click on a pickable mesh: remembered, and picked on release
-        % if the mouse did not drag)
-        pendingPick = struct('Mesh', source.UserData, 'Point', event.IntersectionPoint);
-    end
-
-    function testPaint(tool, points, flagErase)
-        % (for tests: paint the faces nearest these points with a tool, and
-        % save, in the painter)
-        if painterValid()
-            painter.Paint(tool, points, flagErase);
-        end
-    end
-
-    function testPick(meshKey, point, flagExtend)
-        % (for tests: a click on a mesh at this point)
-        handlePick(meshKey, point, flagExtend);
-    end
-
-    function onZoom(factor)
-        allAxes = [axesDefaults.Axes];
-        for ith_axes = 1:numel(allAxes)
-            if isvalid(allAxes(ith_axes))
-                camzoom(allAxes(ith_axes), factor);
-            end
-        end
-    end
-
-    function onSeverityButton(severity)
-        % Minor or Must fix: saved with the comment, then on to the next
-        % question with no answer
-        row = answerRow();
-        reviewTable.Severity(row) = string(severity);
-        reviewTable.Comment(row) = string(strjoin(cellstr(commentArea.Value), newline));
-        stampAndSave(row);
-        showAnswer();
-        refreshMarks();
-        onStep(+1);
-    end
-
-    function onCommentTouched()
-        % (a comment typed, or "No comment": Minor and Must fix can be used)
-        flagCommentTouched = true;
-        minorButton.Enable = true;
-        mustFixButton.Enable = true;
-        if strcmp(statusLabel.Text, 'comment first, then Minor or Must fix')
-            statusLabel.Text = 'now Minor or Must fix';
-        end
-    end
-
-    function onCause(~, ~)
-        % The likely cause (and, for the orientation, which way is really
-        % up), saved as "cause" or "cause | up"
-        row = answerRow();
-        thisItem = checks(currentCheck).Items(currentItem);
-        cause = causeDropDown.Value;
-        if strcmp(cause, thisItem.CausePrompt)
-            cause = '';
-        end
-        if ~isempty(thisItem.Causes2)
-            upCause = upDropDown.Value;
-            if strcmp(upCause, thisItem.Cause2Prompt)
-                upCause = '';
-            end
-            if ~isempty(cause) || ~isempty(upCause)
-                cause = [cause ' | ' upCause];
-            end
-        end
-        reviewTable.Cause(row) = string(cause);
-        stampAndSave(row);
-    end
-
-    function onComment(source, ~)
-        row = answerRow();
-        reviewTable.Comment(row) = string(strjoin(cellstr(source.Value), newline));
-        stampAndSave(row);
-        refreshMarks();
-    end
-
-    function stampAndSave(row)
-        reviewTable.Reviewer(row) = string(reviewerName);
-        reviewTable.Time(row) = string(datetime('now','Format','yyyy-MM-dd HH:mm'));
-        fcn_INTERNAL_saveAnswers(reviewTable, reviewFile);
-        showAnswerStatusOnly(row);
-        if reviewTable.Check(row) == "summary" && strlength(reviewTable.Status(row)) > 0
-            % (the overall decision goes in the vehicle's change log: who
-            % reviewed it, when, and the decision)
-            try
-                fcn_CarMesh3D_meshHistory(vehicleFiles.Folder, Action=sprintf('reviewed: %s', reviewTable.Status(row)), ...
-                    Who=reviewerName, Details=char(reviewTable.Comment(row)), FigNum=-1);
-            catch
-            end
-        end
-    end
-
-    function showAnswerStatusOnly(row)
-        if strlength(reviewTable.Status(row)) > 0
-            statusLabel.Text = sprintf('%s by %s, %s', reviewTable.Status(row), reviewTable.Reviewer(row), reviewTable.Time(row));
-        else
-            statusLabel.Text = 'not answered yet (comment saved)';
-        end
-    end
-
-    function onStep(direction)
-        % Previous: the item before. Next: the next item with no answer,
-        % in this check, then in the checks after it.
-        if direction < 0
-            if currentItem > 1
-                showItem(currentItem-1);
-            else
-                % (the check before, passing the checks turned off)
-                previousCheck = currentCheck - 1;
-                while previousCheck >= 1 && any(strcmp(checksOff, checks(previousCheck).Key))
-                    previousCheck = previousCheck - 1;
-                end
-                if previousCheck >= 1
-                    showCheck(previousCheck);
-                end
-            end
-            return;
-        end
-        % (this check first: the items after this one, then those before
-        % it; then the checks after this one)
-        Nchecks = numel(checks);
-        for offset = 0:Nchecks
-            checkIndex = mod(currentCheck-1+offset, Nchecks) + 1;
-            itemOrder = 1:numel(checks(checkIndex).Items);
-            if offset==0
-                itemOrder = [currentItem+1:numel(checks(checkIndex).Items), 1:currentItem-1];
-            end
-            for itemIndex = itemOrder
-                row = reviewTable.Check==string(checks(checkIndex).Key) & reviewTable.Item==string(checks(checkIndex).Items(itemIndex).Key);
-                if strlength(reviewTable.Status(row))==0
-                    if checkIndex ~= currentCheck
-                        announceMove(currentCheck, checkIndex);
-                        showCheck(checkIndex);
-                    end
-                    showItem(itemIndex);
-                    return;
-                end
-            end
-        end
-        % Everything is answered: the summary
-        if currentCheck ~= numel(checks)
-            announceMove(currentCheck, numel(checks));
-            showCheck(numel(checks));
-        end
-    end
-
-    function announceMove(fromCheck, toCheck)
-        % A short notice before moving to another check: this check is
-        % done, and any checks skipped were done already
-        if ~strcmp(figureHandle.Visible, 'on')
-            return;   % (hidden, for tests: no pause)
-        end
-        skipped = {};
-        index = fromCheck;
-        while true
-            index = mod(index, numel(checks)) + 1;
-            if index == toCheck || index == fromCheck
-                break;
-            end
-            skipped{end+1} = checks(index).Title; %#ok<AGROW>
-        end
-        message = sprintf('%s: every item is answered.', upper(checks(fromCheck).Title));
-        if ~isempty(skipped)
-            message = sprintf('%s  Already done: %s.', message, strjoin(skipped, ', '));
-        end
-        message = sprintf('  %s  Moving to %s ...', message, upper(checks(toCheck).Title));
-        oldColor = titleLabel.BackgroundColor;
-        titleLabel.Text = message;
-        titleLabel.BackgroundColor = [1 0.9 0.5];
-        drawnow;
-        pause(0.9);
-        if isvalid(titleLabel)
-            titleLabel.BackgroundColor = oldColor;
-        end
-    end
-
-    function refreshMarks()
-        % Marks on the check and item buttons: answered / total, and a
-        % check mark, a cross, or a dot for each item
-        for checkIndex = 1:numel(checks)
-            rows = reviewTable.Check==string(checks(checkIndex).Key);
-            Nanswered = sum(strlength(reviewTable.Status(rows))>0);
-            Nrejected = sum(reviewTable.Status(rows)=="rejected");
-            mark = '';
-            if Nrejected > 0
-                mark = sprintf('  %c%d', 10007, Nrejected);
-            end
-            checkButtons(checkIndex).Text = sprintf('%s (%d/%d)%s', checks(checkIndex).Title, Nanswered, sum(rows), mark);
-            if Nrejected > 0
-                checkButtons(checkIndex).FontColor = [0.75 0 0];
-            elseif Nanswered == sum(rows)
-                checkButtons(checkIndex).FontColor = [0 0.5 0];
-            else
-                checkButtons(checkIndex).FontColor = [0 0 0];
-            end
-        end
-        itemButtons = itemRadios();
-        for itemIndex = 1:numel(itemButtons)
-            row = reviewTable.Check==string(checks(currentCheck).Key) & reviewTable.Item==string(checks(currentCheck).Items(itemIndex).Key);
-            switch reviewTable.Status(row)
-                case "approved"
-                    prefix = char(10003); itemColor = [0 0.5 0];
-                case "rejected"
-                    prefix = char(10007); itemColor = [0.75 0 0];
-                case "skipped"
-                    prefix = char(8211); itemColor = [0.5 0.5 0.5];
-                otherwise
-                    prefix = '?'; itemColor = [0 0 0];
-            end
-            itemButtons(itemIndex).Text = sprintf('%s %s', prefix, checks(currentCheck).Items(itemIndex).Label);
-            itemButtons(itemIndex).FontColor = itemColor;
-        end
-        if strcmp(checks(currentCheck).Key, 'summary')
-            drawSummary();
-        end
-    end
-
-    %% Drawing each check
-    function drawCheck(thisCheck)
-        switch thisCheck.Kind
-            case 'orientation'
-                % (from its tool, fcn_CarMesh3D_viewOrientation)
-                orientationViewer = fcn_CarMesh3D_viewOrientation(data.Mesh, Parent=displayPanel, OnHint=@setHint, FigNum=-1);
-                axesDefaults(end+1) = struct('Axes', orientationViewer.Axes, 'View', fcn_INTERNAL_getView(orientationViewer.Axes));
-            case 'labels'
-                showAllButton.Enable = 'on';
-                rightGrid.RowHeight{3} = 34;
-                drawLabels();
-            case 'dimensions'
-                drawDimensions();
-            case 'compare'
-                drawCompare();
-            case 'animation'
-                drawAnimation(thisCheck);
-            case 'image'
-                layout = uigridlayout(displayPanel, [1 1], 'Padding', [0 0 0 0]);
-                if isfile(thisCheck.File)
-                    uiimage(layout, 'ImageSource', thisCheck.File, 'ScaleMethod', 'fit');
-                else
-                    uilabel(layout, 'Text', sprintf('Not made yet: %s', thisCheck.File), 'HorizontalAlignment', 'center');
-                end
-            case 'levels'
-                drawLevels();
-            case 'outline'
-                rightGrid.RowHeight{3} = 34;
-                checkButtonGrid.ColumnWidth = {0, '1x'};
-                drawOutline();
-            case 'summary'
-                drawSummary();
-        end
-    end
-
-    function drawItem(thisCheck, thisItem)
-        stopCycle();
-        if strcmp(thisItem.Key, 'all')
-            startCycle();
-            return;
-        end
-        switch thisCheck.Kind
-            case 'labels'
-                if ~showAllButton.Value
-                    colorLabel(thisItem.Key);
-                end
-                selectionMesh = '';
-                selectedFaces = false(0,1);
-                showSelection();
-            case 'dimensions'
-                drawDimensionItem(thisItem);
-            case 'compare'
-                drawCompareItem(thisItem);
-            case 'animation'
-                showAnimationItem(thisItem);
-            case 'outline'
-                drawOutlineItem(thisItem);
-        end
-    end
-
-    %% 3D axes: rotate and zoom with nothing cut away; reset
-    function axesHandle = newAxes3D(parent)
-        if ~isa(parent, 'matlab.ui.container.GridLayout')
-            % (in a grid of its own, so it grows with the window)
-            parent = uigridlayout(parent, [1 1], 'Padding', [0 0 0 0]);
-        end
-        axesHandle = uiaxes(parent);
-        hold(axesHandle, 'on');
-        axis(axesHandle, 'off');
-        axesHandle.Color = [1 1 1];
-        axesHandle.Clipping = 'off';
-    end
-
-    function finishAxes3D(axesHandle)
-        axis(axesHandle, 'equal');
-        axis(axesHandle, 'vis3d');
-        set(findobj(axesHandle, '-property', 'Clipping'), 'Clipping', 'off');
-        camlight(axesHandle, 'headlight');
-        % Drag rotates, scroll zooms. Every object is drawn unclipped, so
-        % zooming in (which narrows the axes limits) cuts nothing away.
-        fcn_INTERNAL_quietAxes(axesHandle);
-        axesDefaults(end+1) = struct('Axes', axesHandle, 'View', fcn_INTERNAL_getView(axesHandle));
-        hintLabel.Text = 'Mouse: left-drag rotates, right-drag pans, the wheel zooms.';
-    end
-
-    function onResetView(~, ~)
-        % 3D views: fitted again to the whole scene, from the direction
-        % they started from; the fixed views (dimensions, levels, outline)
-        % and the animations: as they were made
-        for ith_axes = 1:numel(axesDefaults)
-            axesHandle = axesDefaults(ith_axes).Axes;
-            if ~isvalid(axesHandle)
-                continue;
-            end
-            if isappdata(axesHandle, 'mouse2D') || isappdata(axesHandle, 'lastPose')
-                fcn_INTERNAL_setView(axesHandle, axesDefaults(ith_axes).View);
-            else
-                startView = axesDefaults(ith_axes).View;
-                direction = startView.CameraPosition - startView.CameraTarget;
-                set(axesHandle, 'XLimMode', 'auto', 'YLimMode', 'auto', 'ZLimMode', 'auto', ...
-                    'CameraTargetMode', 'auto', 'CameraPositionMode', 'auto', 'CameraViewAngleMode', 'auto', ...
-                    'CameraUpVector', [0 0 1]);
-                view(axesHandle, atan2d(direction(1), -direction(2)), atan2d(direction(3), norm(direction(1:2))));
-            end
-        end
-    end
-
-    %% Labels
-    function drawLabels()
-        % The label painter (fcn_CarMesh3D_paintLabels), built in the
-        % display panel: the model with its paint tools, and the photo dial
-        % and photo. The reviewer passes it the mouse, the item shown, and
-        % the Show boxes; it passes back each paint (the item is rejected:
-        % it has a fix) and the edited mesh.
-        % (its panels go in this window's ☰ Menu: only the top window owns
-        % the menu, Q45 (A))
-        [~, ~, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Parent=displayPanel, Who=reviewerName, ...
-            OnPaint=@onPainterPaint, OnChange=@onPainterChange, OnHint=@setHint, Menu=reviewMenu, FigNum=-1);
-        painterParts = painter.Parts();
-        painterPanelNames = painterParts.PanelNames;
-        labelAxes = painter.Axes;
-        labelPatch = painter.Patch;
-        labelPatch.ButtonDownFcn = @onPatchDown;   % (a click paints a face)
-        axesDefaults(end+1) = struct('Axes', labelAxes, 'View', fcn_INTERNAL_getView(labelAxes));
-        applyShowBoxes();
-    end
-
-    function flagValid = painterValid()
-        flagValid = isstruct(painter) && isfield(painter, 'Axes') && isvalid(painter.Axes);
-    end
-
-    function stopPainter()
-        if isstruct(painter)
-            try
-                painter.Stop();
-            catch
-            end
-        end
-        painter = [];
-        % (the painter's panels out of the ☰ Menu)
-        for ith_name = 1:numel(painterPanelNames)
-            reviewMenu.RemovePanel(painterPanelNames{ith_name});
-        end
-        painterPanelNames = {};
-    end
-
-    function leavePainter()
-        % Leaving the Labels check: the painter is rebuilt from the saved
-        % edits when it is shown again, so changes not saved are asked
-        % about (saved, in a hidden window, as in the tests). Discarded:
-        % the animations go back to the saved edits too.
-        if ~painterValid() || ~painter.IsUnsaved()
-            return;
-        end
-        choice = 'Save';
-        if strcmp(figureHandle.Visible, 'on')
-            choice = uiconfirm(figureHandle, ['The label edits have changes that are not saved. Save them? ' ...
-                '(Discarded, they are gone when Labels is shown again.)'], ...
-                'Label edits', 'Options', {'Save', 'Discard'}, 'DefaultOption', 1, 'CancelOption', 2);
-        end
-        if strcmp(choice, 'Save')
-            painter.Save();
-        else
-            editedMeshNow = [];
-            compareStale = true;
-        end
-    end
-
-    function onPainterPaint()
-        % A click or stroke painted: the Labels item is rejected (it has a
-        % fix now), and the count of painted faces shown
-        if ~strcmp(checks(currentCheck).Key, 'labels')
-            return;
-        end
-        row = answerRow();
-        if reviewTable.Status(row) ~= "rejected"
-            reviewTable.Status(row) = "rejected";
-            reviewTable.Severity(row) = "minor";
-            reviewTable.Cause(row) = "some faces have the wrong label (painted)";
-            stampAndSave(row);
-            refreshMarks();
-        end
-        showAnswer();
-    end
-
-    function onPainterChange(meshNow)
-        % The edited mesh, as applied in the painter (for the checks after)
-        editedMeshNow = meshNow;
-        compareStale = true;   % (Differences finds its spots again)
-    end
-
-    function applyShowBoxes()
-        % The Show boxes beside the labels in Items: the unticked ones'
-        % faces are hidden in the painter
-        if ~painterValid()
-            return;
-        end
-        hiddenNow = {};
-        boxNames = fieldnames(hideChecks);
-        for ith_box = 1:numel(boxNames)
-            thisBox = hideChecks.(boxNames{ith_box});
-            if isvalid(thisBox) && ~thisBox.Value
-                hiddenNow{end+1} = thisBox.UserData; %#ok<AGROW>
-            end
-        end
-        painter.SetHidden(hiddenNow);
-    end
-
-    function onFigureMotion(~, ~)
-        % (the painter first: dragging its photo dial, or a paint stroke)
-        if painterValid() && painter.MouseMove()
-            drawnow limitrate;
-            return;
-        end
-        if isempty(mouseAxes) || ~isvalid(mouseAxes)
-            return;
-        end
-        point = figureHandle.CurrentPoint;
-        if ~mouseMoved && norm(point - mouseStart) < 4
-            return;   % (a click, so far)
-        end
-        mouseMoved = true;
-        delta = point - mouseLast;
-        mouseLast = point;
-        if strcmp(mouseMode, 'stroke')
-            return;
-        elseif strcmp(mouseMode, 'rotate')
-            camorbit(mouseAxes, -0.5*delta(1), -0.5*delta(2), 'data', [0 0 1]);
-        else
-            camdolly(mouseAxes, -delta(1), -delta(2), 0, 'movetarget', 'pixels');
-        end
-        drawnow limitrate;
-    end
-
-    function onFigureUp(~, ~)
-        % (the painter first: the dial snaps to a photo, or a stroke ends)
-        flagPainterUsed = painterValid() && painter.MouseUp();
-        if flagPainterUsed || strcmp(mouseMode, 'stroke')
-            % (done)
-        elseif ~isempty(mouseAxes) && ~mouseMoved && ~isempty(pendingPick)
-            handlePick(pendingPick.Mesh, pendingPick.Point, mouseExtend);
-        end
-        mouseAxes = [];
-        mouseMode = '';
-        pendingPick = [];
-    end
-
-    function stopAllTimers()
-        stopViewTimer();
-        stopPlaying();
-        stopCycle();
-    end
-
-    function stopViewTimer()
-        if ~isempty(viewTimer) && isvalid(viewTimer)
-            stop(viewTimer);
-            delete(viewTimer);
-        end
-        viewTimer = [];
-        if ~isempty(levelsViewer) && isstruct(levelsViewer)
-            levelsViewer.Stop();   % (the detail levels' turning)
-        end
-    end
-
-    function colorLabel(labelKey)
-        % One label in its colors, the rest gray (in the painter)
-        if painterValid()
-            painter.ShowLabel(labelKey);
-        end
-    end
-
-
-    function handlePick(meshKey, point, flagExtend)
-        % A click on a mesh (Labels or Differences): the connected piece
-        % of faces with one label under the click is picked; Shift-click
-        % adds or takes away a piece. Picking rejects the item, and the
-        % faces' box (and their part) is saved for the script's fix.
-        if ~any(strcmp(checks(currentCheck).Key, {'labels', 'compare'}))
-            return;
-        end
-        if strcmp(checks(currentCheck).Key, 'labels')
-            % (Labels: a click paints the face under it with the tool; a
-            % double-click paints the whole piece; the painter does it)
-            if painterValid()
-                painter.Click(strcmp(mouseMode, 'piece'));
-            end
-            return;
-        end
-        if strcmp(meshKey, 'original')
-            pickMesh = data.OriginalMesh;
-        else
-            pickMesh = data.CompareMesh;
-        end
-        if isempty(pickMesh)
-            return;
-        end
-        if isempty(meshPieces.(meshKey))
-            meshPieces.(meshKey) = fcn_INTERNAL_meshPieces(pickMesh);
-        end
-        pieces = meshPieces.(meshKey);
-        centers = fcn_INTERNAL_faceCenters(pickMesh);
-        [~, face] = min(sum((centers - point(:)').^2, 2));
-        piece = pieces == pieces(face);
-        if ~strcmp(selectionMesh, meshKey) || numel(selectedFaces) ~= numel(piece)
-            selectionMesh = meshKey;
-            selectedFaces = false(size(piece));
-        end
-        if flagExtend
-            if all(selectedFaces(piece))
-                selectedFaces(piece) = false;
-            else
-                selectedFaces(piece) = true;
-            end
-        elseif isequal(selectedFaces, piece)
-            selectedFaces(:) = false;
-        else
-            selectedFaces = piece;
-        end
-        row = answerRow();
-        if any(selectedFaces)
-            pickedVertices = pickMesh.Vertices(unique(pickMesh.Faces(selectedFaces,:)),:);
-            region = [min(pickedVertices,[],1); max(pickedVertices,[],1)];
-            region = region(:)' + 0.01*[-1 1 -1 1 -1 1];
-            reviewTable.Region(row) = string(mat2str(round(region, 3)));
-            reviewTable.SelectionPart(row) = string(fcn_INTERNAL_mainPart(pickMesh, selectedFaces));
-            if reviewTable.Status(row) ~= "rejected"
-                reviewTable.Status(row) = "rejected";
-                reviewTable.Severity(row) = "minor";
-            end
-        else
-            reviewTable.Region(row) = "";
-            reviewTable.SelectionPart(row) = "";
-        end
-        stampAndSave(row);
-        showAnswer();
-        refreshMarks();
-        showSelection();
-    end
-
-    function showSelection()
-        % The picked faces, outlined in yellow on their mesh; with no
-        % faces picked in this session, the item's saved box
-        allAxes = [axesDefaults.Axes];
-        for ith_axes = 1:numel(allAxes)
-            if isvalid(allAxes(ith_axes))
-                delete(findobj(allAxes(ith_axes), 'Tag', 'selection'));
-            end
-        end
-        if any(selectedFaces)
-            if strcmp(selectionMesh, 'original')
-                pickMesh = data.OriginalMesh;
-            else
-                pickMesh = data.CompareMesh;
-            end
-            for ith_axes = 1:numel(allAxes)
-                meshPatch = findobj(allAxes(ith_axes), 'Type', 'patch', 'UserData', selectionMesh);
-                if isvalid(allAxes(ith_axes)) && ~isempty(meshPatch)
-                    patch(allAxes(ith_axes), 'Faces', pickMesh.Faces(selectedFaces,:), 'Vertices', pickMesh.Vertices, ...
-                        'FaceColor', [1 0.85 0], 'FaceAlpha', 0.35, 'EdgeColor', [1 0.75 0], 'LineWidth', 1.5, ...
-                        'Tag', 'selection', 'HitTest', 'off', 'Clipping', 'off');
-                end
-            end
-            return;
-        end
-        region = str2num(char(reviewTable.Region(answerRow()))); %#ok<ST2NM>
-        if numel(region) == 6
-            for ith_axes = 1:numel(allAxes)
-                if isvalid(allAxes(ith_axes)) && ~isappdata(allAxes(ith_axes), 'mouse2D')
-                    fcn_INTERNAL_drawBox(allAxes(ith_axes), reshape(region, 2, 3), [1 0.75 0], 3, 'selection');
-                end
-            end
-        end
-    end
-
-    function onShowAll(source, ~)
-        if ~painterValid()
-            source.Value = false;
-        end
-        if source.Value
-            painter.ShowLabel('all');
-            source.Text = 'All labels: ON (stop)';
-            source.BackgroundColor = [1 0.85 0.4];
-        else
-            source.Text = 'Show all labels';
-            source.BackgroundColor = [0.96 0.96 0.96];
-            colorLabel(checks(currentCheck).Items(currentItem).Key);
-        end
-    end
-
-    %% Dimensions
-    function drawDimensions()
-        % The dimensions check, from its tool (fcn_CarMesh3D_viewDimensions),
-        % built in the display panel; a click on a row of its table goes to
-        % that item
-        dimensionViewer = fcn_CarMesh3D_viewDimensions(data.Mesh, DimensionTable=data.DimensionTable, ...
-            Parent=displayPanel, OnSelect=@onDimensionRow, OnHint=@setHint, FigNum=-1);
-        for axesHandle = dimensionViewer.Axes
-            axesDefaults(end+1) = struct('Axes', axesHandle, 'View', fcn_INTERNAL_getView(axesHandle)); %#ok<AGROW>
-        end
-    end
-
-    function onDimensionRow(quantity)
-        % (the table's rows are the dimensions; the items start with "All,
-        % in turn")
-        itemIndex = find(strcmp({checks(currentCheck).Items.Key}, quantity), 1);
-        if ~isempty(itemIndex) && itemIndex ~= currentItem
-            showItem(itemIndex);
-        end
-    end
-
-    function drawDimensionItem(thisItem)
-        if ~isempty(dimensionViewer)
-            dimensionViewer.ShowDimension(thisItem.Key);
-        end
-    end
-
-    %% Differences from the download
-    function drawCompare()
-        if isempty(data.OriginalMesh)
-            uilabel(displayPanel, 'Text', 'The download''s mesh is not in the cache (run the vehicle''s script with the comparison on).', ...
-                'Position', [20 20 700 30]);
-            return;
-        end
-        layout = uigridlayout(displayPanel, [2 2], 'RowHeight', {44, '1x'}, 'ColumnWidth', {'1x','1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 0);
-        uilabel(layout, 'Text', sprintf('THE DOWNLOAD  (%d faces)', size(data.OriginalMesh.Faces,1)), ...
-            'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'FontSize', 20, 'BackgroundColor', [0.86 0.92 1]);
-        uilabel(layout, 'Text', sprintf('THE REDUCED MESH, WITH THE LABEL EDITS  (%d faces)', size(data.CompareMesh.Faces,1)), ...
-            'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'FontSize', 20, 'BackgroundColor', [1 0.93 0.8]);
-        leftAxes = newAxes3D(layout);
-        leftPatch = fcn_INTERNAL_drawMesh(leftAxes, data.OriginalMesh, data.OriginalMesh.FaceColors, data.OriginalMesh.FaceAlpha);
-        set(leftPatch, 'UserData', 'original', 'ButtonDownFcn', @onPatchDown);   % (a click picks faces)
-        rightAxes = newAxes3D(layout);
-        rightPatch = fcn_INTERNAL_drawMesh(rightAxes, data.CompareMesh, data.CompareMesh.FaceColors, data.CompareMesh.FaceAlpha);
-        set(rightPatch, 'UserData', 'reduced', 'ButtonDownFcn', @onPatchDown);
-        for axesHandle = [leftAxes rightAxes]
-            view(axesHandle, -40, 20);
-            finishAxes3D(axesHandle);
-            axesHandle.Color = [0.86 0.92 1];   % (sky)
-        end
-        linkHandle = linkprop([leftAxes rightAxes], {'CameraPosition','CameraTarget','CameraUpVector','CameraViewAngle','XLim','YLim','ZLim'});
-        compareSpots = data.Spots;
-        for ith_spot = 1:numel(compareSpots)
-            for axesHandle = [leftAxes rightAxes]
-                fcn_INTERNAL_drawSpot(axesHandle, data.OriginalMesh, compareSpots(ith_spot), ith_spot);
-            end
-        end
-        setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms (both views turn together).<br><br>' ...
-            'A <b>hole</b> is a box; a <b>label change</b> is outlined on its faces. The selected spot is yellow.<br><br>' ...
-            'To fix a spot (such as a part to delete): Reject, then click its faces on either mesh.']);
-    end
-
-    function drawCompareItem(thisItem)
-        allAxes = findobj(displayPanel, 'Type', 'axes');
-        selectionMesh = '';
-        selectedFaces = false(0,1);
-        showSelection();
-        for ith_axes = 1:numel(allAxes)
-            set(findobj(allAxes(ith_axes), '-regexp', 'Tag', '^spot', 'Type', 'line'), 'LineWidth', 1, 'Color', [0.6 0.6 0.6]);
-            set(findobj(allAxes(ith_axes), '-regexp', 'Tag', '^spot', 'Type', 'patch'), 'EdgeColor', [0.55 0.55 0.55], 'LineWidth', 0.75);
-        end
-        spotIndex = [];
-        if isstruct(compareSpots) && ~isempty(compareSpots) && isfield(thisItem, 'Key')   % (no spots: compareSpots is [] until the Differences view is drawn)
-            spotIndex = find(strcmp({compareSpots.Key}, thisItem.Key), 1);
-        end
-        if isempty(spotIndex) || spotIndex > numel(compareSpots) || isempty(allAxes)
-            onResetView();
-            return;
-        end
-        for ith_axes = 1:numel(allAxes)
-            set(findobj(allAxes(ith_axes), 'Tag', sprintf('spot%d', spotIndex), 'Type', 'line'), 'LineWidth', 5, 'Color', [1 0.85 0]);
-            set(findobj(allAxes(ith_axes), 'Tag', sprintf('spot%d', spotIndex), 'Type', 'patch'), 'EdgeColor', [1 0.8 0], 'LineWidth', 2.5);
-        end
-        % Look at the spot from outside the vehicle, toward its center,
-        % keeping the zoom (the view's distance and angle) as it is
-        box = compareSpots(spotIndex).Box;
-        spotCenter = mean(reshape(box,2,3),1);
-        direction = spotCenter - [mean(data.Mesh.Vertices(:,1:2),1) 0.5];
-        direction(3) = max(direction(3), 0.3);
-        direction = direction/norm(direction);
-        axesHandle = allAxes(1);
-        distance = norm(axesHandle.CameraPosition - axesHandle.CameraTarget);
-        set(axesHandle, 'CameraTarget', spotCenter, 'CameraPosition', spotCenter + direction*distance, 'CameraUpVector', [0 0 1]);
-        drawnow;
-    end
-
-    %% Animations (lights, body, steering, wheels, drive)
-    function drawAnimation(thisCheck)
-        % The check's motion, from the animation tool
-        % (fcn_CarMesh3D_animateChecks), built in the display panel. The
-        % mesh given is the mesh with the painted label edits (the
-        % painter's, as applied there; else as saved), so a face painted as
-        % a lamp lights up in the Lights check. Its steps are this check's
-        % items after "The whole animation".
-        stepRows = [thisCheck.Items.Row];   % (the whole animation has no row)
-        animator = fcn_CarMesh3D_animateChecks(animationMesh(), thisCheck.Key, TestMotion=data.TestMotion, ...
-            Rows=thisCheck.Rows, StepRows=stepRows, Parent=displayPanel, ...
-            OnStep=@lightStepItem, OnHint=@setHint, FigNum=-1);
-        for ith_view = 1:numel(animator.Axes)
-            if isgraphics(animator.Axes(ith_view))
-                axesDefaults(end+1) = struct('Axes', animator.Axes(ith_view), ...
-                    'View', fcn_INTERNAL_getView(animator.Axes(ith_view))); %#ok<AGROW>
-            end
-        end
-    end
-
-    function meshOut = animationMesh()
-        % The mesh the animations use: the painter's edited mesh (once it
-        % has applied edits), else the mesh with the saved edits
-        if ~isempty(editedMeshNow)
-            meshOut = editedMeshNow;
-        else
-            meshOut = data.CompareMesh;
-        end
-    end
-
-    function refreshCompare()
-        % Differences compares the download with the edited mesh (Sean,
-        % 10:51). When the painter has changed it since the spots were
-        % found, find them again, and remake the check's items; answers
-        % stay with their spots (keyed by where they are)
-        if ~compareStale || isempty(data.OriginalMesh)
-            return;
-        end
-        compareStale = false;
-        if isempty(editedMeshNow)
-            data.CompareMesh = fcn_INTERNAL_meshWithSavedEdits(vehicleFiles, data.Mesh);
-        else
-            data.CompareMesh = editedMeshNow;
-        end
-        meshPieces.reduced = [];
-        data.Spots = fcn_INTERNAL_spotsOf(data.OriginalMesh, data.CompareMesh);
-        newChecks = fcn_INTERNAL_defineChecks(data);
-        compareIndex = find(strcmp({checks.Key}, 'compare'), 1);
-        checks(compareIndex).Items = newChecks(strcmp({newChecks.Key}, 'compare')).Items;
-        reviewTable = fcn_INTERNAL_carryAnswers(fcn_INTERNAL_startAnswers(checks, '', checksOff, reviewerName), reviewTable);
-        fcn_INTERNAL_saveAnswers(reviewTable, reviewFile);
-        refreshMarks();
-    end
-
-    function keys = getItemKeys()
-        % (for tests: the current check's item keys)
-        keys = {checks(currentCheck).Items.Key};
-    end
-
-    function animatorOut = getAnimator()
-        % (for tests: the animation tool now shown)
-        animatorOut = animator;
-    end
-
-    function flag = animatorValid()
-        flag = ~isempty(animator) && isstruct(animator) && ~isempty(animator.Axes) && all(isgraphics(animator.Axes));
-    end
-
-    function showAnimationItem(thisItem)
-        % A step: its scene, in the same views (they are not moved). The
-        % whole animation: played over and over, its step items lit up
-        % in turn.
-        if ~animatorValid()
-            return;
-        end
-        if isempty(thisItem.Row)
-            animator.ShowStep(0);
-        else
-            stepIndex = find([animator.Steps.Row] == thisItem.Row, 1);
-            if ~isempty(stepIndex)
-                animator.ShowStep(stepIndex);
-            end
-        end
-    end
-
-    function startCycle()
-        % "All, in turn": each item of the check shown for 2.5 s, over and
-        % over, lit up in the list; the selection stays on "All, in turn".
-        % It starts at the first item (showCycleItem steps before it shows,
-        % so the count starts at 0; starting at 1 skipped the first item)
-        cycleIndex = 0;
-        showCycleItem();
-        cycleTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 2.5, 'BusyMode', 'drop', ...
-            'TimerFcn', @(~,~) showCycleItem());
-        start(cycleTimer);
-    end
-
-    function showCycleItem()
-        thisCheck = checks(currentCheck);
-        if numel(thisCheck.Items) < 2 || ~strcmp(thisCheck.Items(currentItem).Key, 'all')
-            stopCycle();
-            return;
-        end
-        cycleIndex = mod(cycleIndex, numel(thisCheck.Items)-1) + 1;   % (items 2 to N)
-        itemIndex = cycleIndex + 1;
-        thisItem = thisCheck.Items(itemIndex);
-        switch thisCheck.Kind
-            case 'labels'
-                if ~showAllButton.Value
-                    colorLabel(thisItem.Key);
-                end
-            case 'dimensions'
-                drawDimensionItem(thisItem);
-            case 'compare'
-                drawCompareItem(thisItem);
-            case 'outline'
-                drawOutlineItem(thisItem);
-        end
-        titleLabel.Text = sprintf('  %s  %c  All, in turn: %s      (check %d of %d)', upper(thisCheck.Title), 8212, ...
-            thisItem.Label, currentCheck, numel(checks));
-        itemButtons = itemRadios();
-        for ith_button = 2:numel(itemButtons)
-            if ith_button == itemIndex
-                set(itemButtons(ith_button), 'FontWeight', 'bold', 'FontColor', [0 0 0]);
-            else
-                set(itemButtons(ith_button), 'FontWeight', 'normal', 'FontColor', [0.65 0.65 0.65]);
-            end
-        end
-        drawnow limitrate;
-    end
-
-    function stopCycle()
-        if ~isempty(cycleTimer)
-            if isvalid(cycleTimer)
-                stop(cycleTimer);
-                delete(cycleTimer);
-            end
-            cycleTimer = [];
-            if isvalid(itemGroup)
-                set(itemRadios(), 'FontWeight', 'normal');
-                refreshMarks();
-            end
-        end
-    end
-
-    function lightStepItem(stepIndex)
-        % (as the whole animation plays: the item of the step now showing
-        % in bold, the other steps in gray; 0, when it stops: the items
-        % back to their usual look). Step k is item k+1.
-        if ~isvalid(itemGroup)
-            return;
-        end
-        itemButtons = itemRadios();
-        if stepIndex == 0
-            set(itemButtons, 'FontWeight', 'normal');
-            refreshMarks();
-            return;
-        end
-        for ith_button = 2:numel(itemButtons)
-            if ith_button == stepIndex + 1
-                set(itemButtons(ith_button), 'FontWeight', 'bold', 'FontColor', [0 0 0]);
-            else
-                set(itemButtons(ith_button), 'FontWeight', 'normal', 'FontColor', [0.65 0.65 0.65]);
-            end
-        end
-    end
-
-    function stopPlaying()
-        % (the animation tool's timer, before its panel is cleared)
-        if ~isempty(animator) && isstruct(animator)
-            animator.Stop();
-        end
-    end
-
-
-    %% Detail levels
-    function drawLevels()
-        % The detail-levels check, from its tool
-        % (fcn_CarMesh3D_viewDetailLevels), built in the display panel:
-        % a line-up at one distance, and each level beside the full mesh
-        % where it is used; all turning slowly
-        levelsViewer = fcn_CarMesh3D_viewDetailLevels(data.Levels, Mesh=data.Mesh, Parent=displayPanel, ...
-            OnHint=@setHint, FigNum=-1);
-        for axesHandle = [levelsViewer.LineupAxes, levelsViewer.SceneAxes]
-            axesDefaults(end+1) = struct('Axes', axesHandle, 'View', fcn_INTERNAL_getView(axesHandle)); %#ok<AGROW>
-        end
-    end
-
-    %% 2D outline
-    function drawOutline()
-        % The 2D outline check, from its tool (fcn_CarMesh3D_viewOutline),
-        % built in the display panel
-        outlineViewer = fcn_CarMesh3D_viewOutline(data.Outline, Mesh=data.Mesh, Parent=displayPanel, ...
-            OnHint=@setHint, FigNum=-1);
-        if ~isempty(outlineViewer.Axes)
-            axesDefaults(end+1) = struct('Axes', outlineViewer.Axes, 'View', fcn_INTERNAL_getView(outlineViewer.Axes));
-        end
-    end
-
-    function onModel3D(source, ~)
-        % The 3D model over the outlines (see-through), with rotating; or
-        % back to the flat view from above
-        if isempty(outlineViewer) || isempty(outlineViewer.Axes) || ~isvalid(outlineViewer.Axes)
-            source.Value = false;
-            return;
-        end
-        outlineViewer.SetModel3D(source.Value);
-    end
-
-    function drawOutlineItem(thisItem)
-        if ~isempty(outlineViewer)
-            outlineViewer.ShowElement(thisItem.Key);
-        end
-    end
-
-    %% Summary
-    function drawSummary()
-        delete(displayPanel.Children);
-        layout = uigridlayout(displayPanel, [5 3], 'RowHeight', {30, '1x', 70, 30, 56}, 'ColumnWidth', {'1x', 200, 200}, 'Padding', [4 4 4 4]);
-        isQuestion = reviewTable.Check ~= "summary";
-        Nquestions = sum(isQuestion);
-        Napproved = sum(reviewTable.Status(isQuestion)=="approved");
-        Nrejected = sum(reviewTable.Status(isQuestion)=="rejected");
-        NmustFix = sum(reviewTable.Severity(isQuestion)=="must fix");
-        Nskipped = sum(reviewTable.Status(isQuestion)=="skipped");
-        Nopen = Nquestions - Napproved - Nrejected - Nskipped;
-        skippedText = '';
-        if Nskipped > 0
-            skippedText = sprintf(', %d skipped (turned off)', Nskipped);
-        end
-        countLabel = uilabel(layout, 'FontSize', 14, 'FontWeight', 'bold', 'Text', ...
-            sprintf('%d questions: %d approved, %d rejected (%d must be fixed)%s, %d not answered', ...
-            Nquestions, Napproved, Nrejected, NmustFix, skippedText, Nopen));
-        countLabel.Layout.Column = [1 3];
-        shown = reviewTable(isQuestion, {'Check','Item','Status','Severity','Cause','Comment'});
-        for ith_row = 1:height(shown)
-            checkIndex = find(strcmp({checks.Key}, shown.Check(ith_row)), 1);
-            itemIndex = find(strcmp({checks(checkIndex).Items.Key}, shown.Item(ith_row)), 1);
-            shown.Check(ith_row) = string(checks(checkIndex).Title);
-            shown.Item(ith_row) = string(checks(checkIndex).Items(itemIndex).Label);
-        end
-        tableHandle = uitable(layout, 'Data', shown, 'RowName', {}, 'CellSelectionCallback', @onSummaryCell);
-        tableHandle.Layout.Column = [1 3];
-        openRows = find(strlength(shown.Status)==0);
-        rejectedRows = find(shown.Status=="rejected");
-        if ~isempty(openRows)
-            addStyle(tableHandle, uistyle('BackgroundColor', [1 0.93 0.75]), 'row', openRows);
-        end
-        if ~isempty(rejectedRows)
-            addStyle(tableHandle, uistyle('FontColor', [0.8 0 0], 'FontWeight', 'bold'), 'row', rejectedRows);
-        end
-        overallRow = find(reviewTable.Check=="summary", 1);
-        overallLabel = uilabel(layout, 'WordWrap', 'on', 'Text', ...
-            sprintf('Overall decision: %s. Click a row to go to that question. Unanswered rows are shaded.', ...
-            fcn_INTERNAL_orText(reviewTable.Status(overallRow), 'none yet')));
-        overallLabel.Layout.Column = 1;
-        bigApprove = uibutton(layout, 'Text', 'APPROVE VEHICLE', 'FontSize', 16, 'FontWeight', 'bold', ...
-            'BackgroundColor', [0.75 0.92 0.75], 'ButtonPushedFcn', @(~,~) onOverall("approved"));
-        bigApprove.Layout.Column = 2;
-        bigReject = uibutton(layout, 'Text', 'REJECT VEHICLE', 'FontSize', 16, 'FontWeight', 'bold', ...
-            'BackgroundColor', [0.98 0.78 0.78], 'ButtonPushedFcn', @(~,~) onOverall("rejected"));
-        bigReject.Layout.Column = 3;
-        warnLabel = uilabel(layout, 'Text', '', 'FontColor', [0.7 0.4 0]);
-        warnLabel.Layout.Row = 4;
-        warnLabel.Layout.Column = [1 3];
-        if Nopen > 0
-            warnLabel.Text = sprintf('%d questions have no answer yet (shaded).', Nopen);
-        end
-        % (where the answers are, and that they are saved; and a way out)
-        savedLabel = uilabel(layout, 'WordWrap', 'on', 'FontColor', [0 0.45 0], 'Text', sprintf(['Every answer is saved ' ...
-            'as it is made, in %s (open the reviewer again to carry on). The readable report, %s, is written when ' ...
-            'the window closes, on Save report, and on the overall decision.'], reviewFile, reportFile));
-        savedLabel.Layout.Row = 5;
-        savedLabel.Layout.Column = [1 2];
-        closeButton = uibutton(layout, 'Text', 'SAVE AND CLOSE', 'FontSize', 16, 'FontWeight', 'bold', ...
-            'ButtonPushedFcn', @onClose, 'Tooltip', 'Saves the answers and the report, and closes the reviewer');
-        closeButton.Layout.Row = 5;
-        closeButton.Layout.Column = 3;
-        function onSummaryCell(~, event)
-            if isempty(event.Indices)
-                return;
-            end
-            questionRows = find(isQuestion);
-            row = questionRows(event.Indices(1));
-            checkIndex = find(strcmp({checks.Key}, reviewTable.Check(row)), 1);
-            itemIndex = find(strcmp({checks(checkIndex).Items.Key}, reviewTable.Item(row)), 1);
-            showCheck(checkIndex);
-            showItem(itemIndex);
-        end
-    end
-
-    function onOverall(status)
-        row = find(reviewTable.Check=="summary", 1);
-        reviewTable.Status(row) = status;
-        stampAndSave(row);
-        fcn_INTERNAL_writeReport(reviewTable, checks, vehicleFiles, reportFile);
-        showCheck(numel(checks));
-    end
-
-    function onClose(~, ~)
-        stopPlaying();
-        stopCycle();
-        % (label edits not saved: asked, when the window is on screen; a
-        % hidden window, as in the tests, saves them)
+    function onClose()
         try
-            if painterValid() && painter.IsUnsaved()
-                choice = 'Save';
-                if strcmp(figureHandle.Visible, 'on')
-                    choice = uiconfirm(figureHandle, 'The label edits have changes that are not saved. Save them?', ...
-                        'Label edits', 'Options', {'Save', 'Discard'}, 'DefaultOption', 1, 'CancelOption', 2);
-                end
-                if strcmp(choice, 'Save')
-                    painter.Save();
-                end
+            if ~isempty(answers)
+                saveAnswers();
+                writeReport();
             end
         catch
         end
-        stopPainter();
-        stopViewTimer();
-        try
-            fcn_INTERNAL_saveAnswers(reviewTable, reviewFile);
-            fcn_INTERNAL_writeReport(reviewTable, checks, vehicleFiles, reportFile);
-        catch closeError
-            warning('CarMesh3D:reviewSave', 'Could not save the review: %s', closeError.message);
-        end
         delete(figureHandle);
+    end
+
+    %% For scripts and tests
+    function testShow(index)
+        showPage(index);
+    end
+
+    function testAnswer(answerText, commentText)
+        if nargin >= 2
+            commentArea.Value = commentText;
+        end
+        recordAnswer(char(answerText));
+    end
+
+    function testDecide(decision, commentText)
+        if currentPage ~= summaryIndex
+            showPage(summaryIndex);
+        end
+        if nargin < 2
+            commentText = '';
+        end
+        commentArea.Value = commentText;
+        recordAnswer(char(decision));
+    end
+
+    % (nested functions, so they see the values now: an anonymous function
+    % would keep the values it was made with)
+    function value = getAnswers()
+        value = answers;
+    end
+
+    function value = getSummary()
+        value = summary;
+    end
+
+    function value = getLastError()
+        value = lastError;
+    end
+
+    function value = getReviewFile()
+        value = reviewFile;
+    end
+
+    function value = getReportFile()
+        value = reportFile;
+    end
+
+    function testRetry()
+        showPage(currentPage);
+    end
+
+    function current = getCurrent()
+        key = 'summary';
+        if currentPage < summaryIndex
+            key = pages(currentPage).QKey;
+        end
+        current = struct('Page', currentPage, 'Key', key, 'Vehicle', vehicle.ID, 'VehicleIndex', vehicleIndex, ...
+            'Seconds', lastSeconds, 'Status', statusLabel.Text);
     end
 
 end % Ends main function
 
 %% Functions follow
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
 %  |  ____|              | | (_)
 %  | |__ _   _ _ __   ___| |_ _  ___  _ __  ___
@@ -1996,1007 +880,228 @@ end % Ends main function
 %  |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% fcn_INTERNAL_loadData
-function data = fcn_INTERNAL_loadData(vehicleFiles)
-% Everything the reviewer shows: the mesh and its label colors, the
-% download's mesh, the test motion and dimension check (from the checks'
-% cache), the detail levels, and the 2D outline
-loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
-data.Mesh = loaded.vehicleMesh;
-if ~isfield(data.Mesh, 'FaceAlpha') || isempty(data.Mesh.FaceAlpha)
-    data.Mesh.FaceAlpha = ones(size(data.Mesh.Faces,1),1);
-end
-labelMesh = fcn_CarMesh3D_plotLabels(data.Mesh, FigNum=-1);
-data.LabelColors = labelMesh.FaceColors;
-data.LabelAlpha = labelMesh.FaceAlpha(:);
-if isscalar(data.LabelAlpha)
-    data.LabelAlpha = repmat(data.LabelAlpha, size(data.Mesh.Faces,1), 1);
-end
-data.ChecksFolder = vehicleFiles.ChecksFolder;
-
-cacheFolder = fullfile(vehicleFiles.Folder, 'cache');
-data.OriginalMesh = [];
-stage1File = fullfile(cacheFolder, 'stage1_mesh.mat');
-if isfile(stage1File)
-    stage1 = load(stage1File, 'cacheOutputs');
-    if isfield(stage1.cacheOutputs, 'originalMesh') && ~isempty(stage1.cacheOutputs.originalMesh)
-        data.OriginalMesh = stage1.cacheOutputs.originalMesh;
-        if ~isfield(data.OriginalMesh, 'FaceAlpha') || isempty(data.OriginalMesh.FaceAlpha)
-            data.OriginalMesh.FaceAlpha = ones(size(data.OriginalMesh.Faces,1),1);
-        end
+%% fcn_INTERNAL_pages
+function pages = fcn_INTERNAL_pages(checkList)
+% One page per question: each assessment function's questions, from its
+% describe mode, in the list's order
+pages = struct('Function', {}, 'FKey', {}, 'QKey', {}, 'Title', {}, 'Question', {}, 'Answers', {}, ...
+    'ProblemAnswers', {}, 'Help', {}, 'GroupTitle', {}, 'GroupHelp', {}, 'On', {}, 'Built', {});
+for ith_row = 1:height(checkList)
+    described = checkList.Questions{ith_row};
+    functionHandle = checkList.Function{ith_row};
+    if isempty(described)
+        % (its describe mode failed: one page, which shows the error)
+        described = struct('Key', char(checkList.Key(ith_row)), 'Title', char(checkList.Title(ith_row)), ...
+            'Question', char(checkList.Description(ith_row)), 'Answers', {{}}, 'ProblemAnswers', {{}}, 'Help', '', ...
+            'GroupTitle', char(checkList.Title(ith_row)), 'GroupHelp', char(checkList.Description(ith_row)));
+    end
+    for ith_question = 1:numel(described)
+        question = described(ith_question);
+        pages(end+1) = struct('Function', functionHandle, 'FKey', string(checkList.Key(ith_row)), ...
+            'QKey', char(question.Key), 'Title', char(question.Title), 'Question', char(question.Question), ...
+            'Answers', {cellstr(question.Answers)}, 'ProblemAnswers', {cellstr(question.ProblemAnswers)}, ...
+            'Help', char(question.Help), 'GroupTitle', char(question.GroupTitle), 'GroupHelp', char(question.GroupHelp), ...
+            'On', checkList.On(ith_row), 'Built', checkList.Built(ith_row)); %#ok<AGROW>
     end
 end
-
-% (the mesh with the label edits saved: Differences compares the download
-% with it, and the animations show it; Sean, 10:51)
-data.CompareMesh = fcn_INTERNAL_meshWithSavedEdits(vehicleFiles, data.Mesh);
-data.Spots = fcn_INTERNAL_spotsOf(data.OriginalMesh, data.CompareMesh);
-
-data.TestMotion = [];
-data.DimensionTable = table(strings(0,1), zeros(0,1), zeros(0,1), zeros(0,1), false(0,1));
-stage3File = fullfile(cacheFolder, 'stage3_checks.mat');
-if isfile(stage3File)
-    stage3 = load(stage3File, 'cacheOutputs');
-    if isfield(stage3.cacheOutputs, 'checkResults')
-        checkResults = stage3.cacheOutputs.checkResults;
-        data.TestMotion = checkResults.TestMotion;
-        validation = checkResults.ValidationTable;
-        data.DimensionTable = table(string(validation.Quantity), round(validation.Target_m,4), ...
-            round(validation.Measured_m,4), round(validation.PercentError,2), logical(validation.Pass));
-    end
-end
-data.Geometry = fcn_INTERNAL_geometry(data.Mesh);
-
-data.Levels = [];
-if vehicleFiles.HasLevels
-    loaded = load(vehicleFiles.LevelsFile, 'detailLevels');
-    data.Levels = loaded.detailLevels;
-end
-data.Outline = [];
-data.OutlineElements = struct('Key',{},'Label',{},'Polygons',{});
-if vehicleFiles.HasOutline
-    loaded = load(vehicleFiles.OutlineFile, 'vehicleOutline');
-    data.Outline = loaded.vehicleOutline;
-    data.OutlineElements = fcn_INTERNAL_outlineElements(data.Outline);
-end
-end % Ends fcn_INTERNAL_loadData
-
-%% fcn_INTERNAL_meshWithSavedEdits
-function meshOut = fcn_INTERNAL_meshWithSavedEdits(vehicleFiles, vehicleMesh)
-% The mesh with the label edits saved: the mesh file, unless the edits
-% were saved after it was made (the script not run since); then the
-% stage-1 mesh with the saved edits applied (fcn_CarMesh3D_meshWithLabelEdits)
-meshOut = vehicleMesh;
-editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
-if isfile(editsFile) && isfile(vehicleFiles.MeshFile)
-    editsInfo = dir(editsFile);
-    meshInfo = dir(vehicleFiles.MeshFile);
-    if editsInfo.datenum > meshInfo.datenum
-        % (from a plain function with no window: the tree rule, Q32 (A),
-        % Sean 2026_11_24 01:55; this was a hidden painter)
-        meshOut = fcn_CarMesh3D_meshWithLabelEdits(vehicleFiles.Folder, FigNum=-1);
-    end
-end
-if ~isfield(meshOut, 'FaceAlpha') || numel(meshOut.FaceAlpha) ~= size(meshOut.Faces,1)
-    meshOut.FaceAlpha = ones(size(meshOut.Faces,1),1);
-end
-end % Ends fcn_INTERNAL_meshWithSavedEdits
-
-%% fcn_INTERNAL_spotsOf
-function spots = fcn_INTERNAL_spotsOf(originalMesh, reducedMesh)
-% The spots where the reduced mesh differs from the download, each with a
-% key from where it is (its center, to 10 cm), so an answer stays with
-% its spot when edits add or remove other spots
-spots = struct('Box',{},'Label',{},'Description',{},'Count',{},'Kind',{},'Faces',{},'Area',{},'Severity',{},'Key',{});
-if isempty(originalMesh)
-    return;
-end
-spots = fcn_INTERNAL_findSpots(originalMesh, reducedMesh);
-keys = cell(1, numel(spots));
-for ith_spot = 1:numel(spots)
-    center = mean(reshape(spots(ith_spot).Box, 2, 3), 1);
-    key = sprintf('spot_%d_%d_%d', round(10*center));
-    while any(strcmp(keys(1:ith_spot-1), key))
-        key = [key 'b']; %#ok<AGROW>
-    end
-    keys{ith_spot} = key;
-end
-[spots.Key] = keys{:};
-end % Ends fcn_INTERNAL_spotsOf
-
-%% fcn_INTERNAL_carryAnswers
-function reviewTable = fcn_INTERNAL_carryAnswers(reviewTable, earlier)
-% The earlier answers copied into a new table of questions, by check and
-% item (by column name: earlier reviews may have fewer columns)
-for ith_row = 1:height(earlier)
-    match = find(reviewTable.Check==earlier.Check(ith_row) & reviewTable.Item==earlier.Item(ith_row), 1);
-    if ~isempty(match)
-        for name = intersect(earlier.Properties.VariableNames(4:end), reviewTable.Properties.VariableNames(4:end))
-            reviewTable.(name{1})(match) = earlier.(name{1})(ith_row);
-        end
-    end
-end
-end % Ends fcn_INTERNAL_carryAnswers
-
-%% fcn_INTERNAL_geometry
-function geometry = fcn_INTERNAL_geometry(vehicleMesh)
-% Extents, and each wheel's center and diameter (from its faces)
-vertices = vehicleMesh.Vertices;
-geometry.Min = min(vertices,[],1);
-geometry.Max = max(vertices,[],1);
-geometry.WheelCenters = nan(0,3);
-geometry.WheelDiameters = nan(0,1);
-if isfield(vehicleMesh, 'FaceWheelIndex')
-    wheelNumbers = unique(vehicleMesh.FaceWheelIndex(vehicleMesh.FaceWheelIndex>0));
-    for ith_wheel = 1:numel(wheelNumbers)
-        wheelVertices = vertices(unique(vehicleMesh.Faces(vehicleMesh.FaceWheelIndex==wheelNumbers(ith_wheel),:)),:);
-        boxMin = min(wheelVertices,[],1);
-        boxMax = max(wheelVertices,[],1);
-        geometry.WheelCenters(end+1,:) = (boxMin+boxMax)/2;
-        geometry.WheelDiameters(end+1,1) = boxMax(3) - boxMin(3);
-    end
-end
-geometry.AxleX = [];
-if isfield(vehicleMesh, 'AxleX')
-    geometry.AxleX = sort(vehicleMesh.AxleX(:), 'descend');   % front first
-elseif ~isempty(geometry.WheelCenters)
-    geometry.AxleX = sort(uniquetol(geometry.WheelCenters(:,1), 0.05), 'descend');
-end
-end % Ends fcn_INTERNAL_geometry
-
-%% fcn_INTERNAL_defineChecks
-function checks = fcn_INTERNAL_defineChecks(data)
-% The checks, their items, and each item's question
-checks = struct('Key',{},'Title',{},'Kind',{},'File',{},'Rows',{},'Inputs',{},'Items',{});
-folder = data.ChecksFolder;
-
-orientationItem = fcn_INTERNAL_item('orientation', 'Orientation', ...
-    ['Does the red FRONT arrow point to the front of the vehicle, and the blue UP arrow to its top? ' ...
-    'If not, Reject and pick where they really are: the report gives the script''s new settings.']);
-orientationItem.CausePrompt = '(the front is really toward)';
-orientationItem.Causes = {'front: +X (as shown)', 'front: -X', 'front: +Y', 'front: -Y', 'front: +Z', 'front: -Z'};
-orientationItem.Cause2Prompt = '(the top is really toward)';
-orientationItem.Causes2 = {'up: +Z (as shown)', 'up: -Z', 'up: +X', 'up: -X', 'up: +Y', 'up: -Y'};
-checks(end+1) = fcn_INTERNAL_check('orientation', 'Orientation', 'orientation', orientationItem);
-
-dimensionItems = fcn_INTERNAL_item('', '', '');
-dimensionItems(:) = [];
-for ith_row = 1:height(data.DimensionTable)
-    quantity = char(data.DimensionTable{ith_row,1});
-    target = data.DimensionTable{ith_row,2};
-    name = fcn_INTERNAL_dimensionName(quantity, data.DimensionTable);
-    switch quantity
-        case 'OverallWidth'
-            question = sprintf(['Overall width (FRONT VIEW; not measured, because the fitted width includes the mirrors): ' ...
-                'does the body, without its mirrors, just fit between the blue guide lines (%.3f m apart)?'], target);
-        case 'TrackFront'
-            question = sprintf(['Front track (FRONT VIEW, from ahead): do the purple guide lines pass through the middle ' ...
-                'of the front tires, and is the purple MEASURED close to the blue TARGET (%.3f m)?'], target);
-        case 'TrackRear'
-            question = sprintf(['Rear track (REAR VIEW, from behind): do the purple guide lines pass through the middle ' ...
-                'of the rear tires, and is the purple MEASURED close to the blue TARGET (%.3f m)?'], target);
-        case 'WidthWithMirrors'
-            question = sprintf(['Width with mirrors (FRONT VIEW): do the purple guide lines touch the mirror tips, ' ...
-                'and is the purple MEASURED close to the blue TARGET (%.3f m)?'], target);
-        case {'TireDiameter', 'TireDiameterRear'}
-            question = sprintf(['%s (SIDE VIEW): does the purple circle (as measured) match the tire''s outer edge, ' ...
-                'and is it close to the blue TARGET circle (%.3f m)?'], name, target);
-        case 'TireRoundMin'
-            question = sprintf(['Tire roundness, smallest (SIDE VIEW): the tire''s outer edge is measured from the wheel ' ...
-                'center in 36 directions; the purple circle is the SMALLEST of those diameters. A tire with too few ' ...
-                'sides, or squashed, comes out small here. Is the purple circle close to the blue TARGET (the tire ' ...
-                'size, %.3f m)?'], target);
-        case 'TireRoundMax'
-            question = sprintf(['Tire roundness, largest (SIDE VIEW): the tire''s outer edge is measured from the wheel ' ...
-                'center in 36 directions; the purple circle is the LARGEST of those diameters. A tire that bulges, or ' ...
-                'has stray parts (such as a mud flap), comes out large here. Is the purple circle close to the blue ' ...
-                'TARGET (the tire size, %.3f m)?'], target);
-        case 'GroundClearance'
-            question = sprintf(['Ground clearance (SIDE VIEW): is the purple guide line at the lowest point of the ' ...
-                'body (not the tires), and is the purple MEASURED close to the blue TARGET (%.3f m)?'], target);
-        otherwise
-            question = sprintf(['%s (SIDE VIEW): do the purple guide lines meet the vehicle where they should, ' ...
-                'and is the purple MEASURED close to the blue TARGET (%.3f m)?'], name, target);
-    end
-    dimensionItems(end+1) = fcn_INTERNAL_item(quantity, name, question); %#ok<AGROW>
-end
-dimensionItems = fcn_INTERNAL_withAllItem(dimensionItems);   % (an item that shows the others in turn)
-checks(end+1) = fcn_INTERNAL_check('dimensions', 'Dimensions', 'dimensions', dimensionItems);
-
-labelItems = fcn_INTERNAL_item('', '', '');
-labelItems(:) = [];
-[labelKeys, labelNames] = fcn_INTERNAL_labelKinds(data.Mesh);
-% (what wrong faces should be: each part, and each type of light)
-fixChoices = strcat({'should be: '}, {'body', 'glass', 'trim', 'interior', 'wheel'});
-lightTypeNames = {fcn_CarMesh3D_lampTypes().Name};   % (every lamp type: one list for every function)
-if isfield(data.Mesh, 'LightTypeNames')
-    lightTypeNames = union(lightTypeNames, data.Mesh.LightTypeNames(:)', 'stable');
-end
-fixChoices = [fixChoices, strcat({'should be: '}, lightTypeNames, {' light'}), {'should be: deleted'}];
-for ith_label = 1:numel(labelKeys)
-    labelItem = fcn_INTERNAL_item(labelKeys{ith_label}, labelNames{ith_label}, ...
-        sprintf(['Only the %s faces are colored. Are they all %s, and is nothing %s missing ' ...
-        '(left gray)? Rotate and zoom to check. To fix faces: paint them (the buttons above the model).'], ...
-        labelNames{ith_label}, labelNames{ith_label}, labelNames{ith_label}));
-    labelItem.CausePrompt = '(what is wrong)';
-    labelItem.Causes = {'some faces have the wrong label (painted)', ...
-        'missing: not in the mesh at all', ...
-        'hidden: inside or behind another part (such as a lamp under its lens)', ...
-        'other (see comment)'};
-    labelItems(end+1) = labelItem; %#ok<AGROW>
-end
-labelItems = fcn_INTERNAL_withAllItem(labelItems);   % (an item that shows the others in turn)
-checks(end+1) = fcn_INTERNAL_check('labels', 'Labels', 'labels', labelItems);
-
-compareItems = fcn_INTERNAL_item('overall', 'All differences', ...
-    'Turn the two views together. Is the reduced mesh (right) free of differences from the download (left) that would be noticed in an animation?');
-compareItems(1).Causes = {'labeling', 'missing surface or face', 'gap between surfaces', ...
-    'surfaces colliding or overlapping', 'dark or flipped faces', 'wrong color', 'other (see comment)'};
-if ~isempty(data.OriginalMesh)
-    spots = data.Spots;
-    for ith_spot = 1:numel(spots)
-        spotItem = fcn_INTERNAL_item(spots(ith_spot).Key, spots(ith_spot).Label, ...
-            sprintf(['Spot %d (yellow; the other spots are gray): %s. Rotate and zoom both views (they turn together). ' ...
-            'Is this difference significant?'], ith_spot, spots(ith_spot).Description));
-        spotItem.ApproveText = 'Not significant';
-        spotItem.RejectText = 'Significant';
-        spotItem.Causes = {'labeling', 'missing surface or face', 'gap between surfaces', ...
-            'surfaces colliding or overlapping', 'dark or flipped faces', 'wrong color', ...
-            'a part of the download to delete (wiper, antenna, ...)', 'other (see comment)'};
-        spotItem.Cause2Prompt = '(the picked faces should be)';
-        spotItem.Causes2 = fixChoices;
-        spotItem.Tooltip = fcn_INTERNAL_spotTooltip(spots(ith_spot).Kind);
-        compareItems(end+1) = spotItem; %#ok<AGROW>
-    end
-    if numel(compareItems) > 1
-        compareItems(1) = [];   % (the spots, and "Approve all", take its place)
-    end
-end
-compareItems = fcn_INTERNAL_withAllItem(compareItems);   % (an item that shows the others in turn)
-checks(end+1) = fcn_INTERNAL_check('compare', 'Differences', 'compare', compareItems);
-
-% The animations: one item per step, and one for the whole animation
-animationList = {
-    'lights',   'Lights',   'check_05_lights.gif',   {'Lights'},              1, 'lights', ...
-        '%s: do exactly the right lamps light up, and no others?';
-    'body',     'Body',     'check_06_body.gif',     {'Body'},                1, 'body', ...
-        '%s: does the body move this way, with the tires staying on the ground (except a lifted tire)?';
-    'steering', 'Steering', 'check_07_steering.gif', {'Steering'},            1, 'steering', ...
-        ['%s: do the front wheels steer this way, with the inner wheel turned more, ' ...
-        'and does each dashed line end at the black turn-center dot?'];
-    'wheels',   'Wheels',   'check_08_wheels.gif',   {'Wheels'},              1, 'wheels', ...
-        '%s: do the wheels turn this way (spinning, locked, or backward), matching the vehicle''s motion and the lights named?';
-    'drive',    'Drive',    'check_09_drive.gif',    {'Steering','Wheels'},   2, 'drive', ''};
-for ith_animation = 1:size(animationList,1)
-    [key, title, fileName, prefixes, ~, inputs, questionFormat] = animationList{ith_animation,:};
-    rows = [];
-    if ~isempty(data.TestMotion)
-        rows = find(startsWith(data.TestMotion.Caption, strcat(prefixes, ':')));   % (every row: drawn live)
-    end
-    items = fcn_INTERNAL_item('whole', 'The whole animation', ...
-        'Play the whole animation. Does everything look right?');
-    if strcmp(key, 'drive')
-        items.Question = ['Play the whole animation. Does the vehicle drive smoothly: tires on the ground and turning ' ...
-            'with the motion, steering into the turns, and no parts lagging behind or coming apart?'];
-    end
-    if ~isempty(questionFormat) && ~isempty(rows)
-        [stepNames, firstIndex] = unique(data.TestMotion.Caption(rows), 'stable');
-        for ith_step = 1:numel(stepNames)
-            stepRows = rows(strcmp(data.TestMotion.Caption(rows), stepNames{ith_step}));
-            row = stepRows(min(2, numel(stepRows)));   % (signals blink: "on" first)
-            if ~strcmp(key, 'lights')
-                row = stepRows(ceil(end/2));
-            end
-            shortName = strtrim(regexprep(stepNames{ith_step}, '^[A-Za-z]+:\s*', ''));
-            stepItem = fcn_INTERNAL_item(sprintf('step%d', ith_step), shortName, sprintf(questionFormat, shortName));
-            stepItem.Row = row;
-            items(end+1) = stepItem; %#ok<AGROW>
-        end
-        firstIndex; %#ok<VUNUS>
-    end
-    thisCheck = fcn_INTERNAL_check(key, title, 'animation', items);
-    thisCheck.File = fullfile(folder, fileName);
-    thisCheck.Rows = rows;
-    thisCheck.Inputs = inputs;
-    checks(end+1) = thisCheck; %#ok<AGROW>
-end
-
-% (ground contact is a simulation test, with nothing for a reviewer to
-% see: it stays in the checks run, not here)
-
-levelItems = fcn_INTERNAL_item('overall', 'All detail levels', ...
-    ['Top: the full mesh and each level, side by side. Bottom: each level where it is used. Do the levels look like ' ...
-    'the full mesh where they are used (no missing wheels, no holes, the colors kept)?']);
-checks(end+1) = fcn_INTERNAL_check('levels', 'Detail levels', 'levels', levelItems);
-
-outlineItems = fcn_INTERNAL_item('', '', '');
-outlineItems(:) = [];
-for ith_element = 1:numel(data.OutlineElements)
-    element = data.OutlineElements(ith_element);
-    outlineItems(end+1) = fcn_INTERNAL_item(element.Key, element.Label, ...
-        sprintf(['%s (orange): is each outline one closed loop that encircles the part, ' ...
-        'with no lines crossing through it?'], element.Label)); %#ok<AGROW>
-end
-if isempty(outlineItems)
-    outlineItems = fcn_INTERNAL_item('none', 'No outline', 'There is no 2D outline yet. Approve to skip.');
-end
-outlineItems = fcn_INTERNAL_withAllItem(outlineItems);   % (an item that shows the others in turn)
-checks(end+1) = fcn_INTERNAL_check('outline', '2D outline', 'outline', outlineItems);
-
-summaryItem = fcn_INTERNAL_item('overall', 'Overall decision', ...
-    'Overall: is the vehicle approved for use? (Use the big buttons, or these.)');
-checks(end+1) = fcn_INTERNAL_check('summary', 'Summary', 'summary', summaryItem);
-end % Ends fcn_INTERNAL_defineChecks
-
-%% fcn_INTERNAL_withAllItem
-function items = fcn_INTERNAL_withAllItem(items)
-% An "All, in turn" item first: it shows each of the others in turn, over
-% and over; approving it approves every item not answered yet
-if numel(items) < 2
-    return;
-end
-allItem = fcn_INTERNAL_item('all', 'All, in turn', ...
-    ['Each item is shown in turn (in bold), over and over. If every one is right, Approve: that approves all of ' ...
-    'them not answered yet. If one is wrong, click it to stop there, and answer it.']);
-items = [allItem, items];
-end % Ends fcn_INTERNAL_withAllItem
-
-%% fcn_INTERNAL_check
-function thisCheck = fcn_INTERNAL_check(key, title, kind, items)
-thisCheck = struct('Key',key,'Title',title,'Kind',kind,'File','','Rows',[],'Inputs','','Items',items);
-end % Ends fcn_INTERNAL_check
-
-%% fcn_INTERNAL_item
-function item = fcn_INTERNAL_item(key, label, question)
-item = struct('Key',key,'Label',label,'Question',question,'ApproveText','Approve', ...
-    'RejectText','Reject','Causes',{{}},'CausePrompt','(likely cause)', ...
-    'Causes2',{{}},'Cause2Prompt','','Tooltip','','Row',[]);
-end % Ends fcn_INTERNAL_item
-
-%% fcn_INTERNAL_words
-function words = fcn_INTERNAL_words(name)
-% 'WidthWithMirrors' -> 'Width with mirrors'
-words = regexprep(char(name), '([a-z])([A-Z])', '$1 $2');
-words = [words(1) lower(words(2:end))];
-end % Ends fcn_INTERNAL_words
-
-%% fcn_INTERNAL_orText
-function textOut = fcn_INTERNAL_orText(textIn, fallback)
-textOut = char(textIn);
-if isempty(textOut)
-    textOut = fallback;
-end
-end % Ends fcn_INTERNAL_orText
-
-%% fcn_INTERNAL_labelKinds
-function [keys, names] = fcn_INTERNAL_labelKinds(vehicleMesh)
-% The labels on this mesh: parts (other than light), each light type, and
-% "light with no type" if there are any
-keys = {};
-names = {};
-lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
-for ith_part = 1:numel(vehicleMesh.PartNames)
-    flagHasPart = any(vehicleMesh.FacePartIndex==ith_part);
-    if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==size(vehicleMesh.Faces,1) && ith_part <= size(vehicleMesh.FaceAlsoParts,2)
-        flagHasPart = flagHasPart || any(vehicleMesh.FaceAlsoParts(:,ith_part));   % (a part only some faces also belong to)
-    end
-    if ith_part == lightPart || ~flagHasPart
-        continue;
-    end
-    keys{end+1} = ['part_' vehicleMesh.PartNames{ith_part}]; %#ok<AGROW>
-    names{end+1} = vehicleMesh.PartNames{ith_part}; %#ok<AGROW>
-end
-if isfield(vehicleMesh, 'LightTypeNames')
-    for ith_type = 1:numel(vehicleMesh.LightTypeNames)
-        if any(vehicleMesh.FaceLightType==ith_type)
-            keys{end+1} = ['light_' vehicleMesh.LightTypeNames{ith_type}]; %#ok<AGROW>
-            names{end+1} = [vehicleMesh.LightTypeNames{ith_type} ' light']; %#ok<AGROW>
-        end
-    end
-end
-if ~isempty(lightPart)
-    flagUntyped = vehicleMesh.FacePartIndex==lightPart;
-    if isfield(vehicleMesh, 'FaceLightType')
-        flagUntyped = flagUntyped & vehicleMesh.FaceLightType==0;
-    end
-    if any(flagUntyped)
-        keys{end+1} = 'light_none';
-        names{end+1} = 'light with no type';
-    end
-end
-end % Ends fcn_INTERNAL_labelKinds
-
-%% fcn_INTERNAL_drawMesh
-function patchHandle = fcn_INTERNAL_drawMesh(axesHandle, vehicleMesh, faceColors, faceAlpha)
-% One patch, colored and see-through by face, unclipped
-faceAlpha = faceAlpha(:);
-if isscalar(faceAlpha)
-    faceAlpha = repmat(faceAlpha, size(vehicleMesh.Faces,1), 1);
-end
-patchHandle = patch(axesHandle, 'Faces', vehicleMesh.Faces, 'Vertices', vehicleMesh.Vertices, ...
-    'FaceVertexCData', faceColors, 'FaceColor', 'flat', 'EdgeColor', 'none', ...
-    'FaceVertexAlphaData', faceAlpha, 'FaceAlpha', 'flat', 'AlphaDataMapping', 'none', ...
-    'FaceLighting', 'flat', 'AmbientStrength', 0.7, 'DiffuseStrength', 0.45, 'SpecularStrength', 0.05, ...
-    'BackFaceLighting', 'lit', 'Clipping', 'off');
-end % Ends fcn_INTERNAL_drawMesh
-
-%% fcn_INTERNAL_quietAxes
-function fcn_INTERNAL_quietAxes(axesHandle)
-% No built-in mouse interactions or toolbar: the reviewer's own mouse
-% handling (CAD-style) works every view
-axesHandle.Interactions = [];
-try
-    disableDefaultInteractivity(axesHandle);
-catch
-end
-try
-    axesHandle.Toolbar.Visible = 'off';
-catch
-end
-axesHandle.PickableParts = 'all';
-axesHandle.HitTest = 'on';
-end % Ends fcn_INTERNAL_quietAxes
-
-%% fcn_INTERNAL_vehicleTitle
-function titleText = fcn_INTERNAL_vehicleTitle(vehicleFiles)
-% '2009 Honda Fit Sport' (the trim left out when not known: XXX)
-titleText = vehicleFiles.Name;
-if isfield(vehicleFiles, 'Trim') && strcmpi(vehicleFiles.Trim, 'XXX')
-    titleText = strtrim(strrep(titleText, 'XXX', ''));
-end
-end % Ends fcn_INTERNAL_vehicleTitle
-
-%% fcn_INTERNAL_getView / fcn_INTERNAL_setView
-function viewState = fcn_INTERNAL_getView(axesHandle)
-drawnow;
-viewState = struct('CameraPosition', axesHandle.CameraPosition, 'CameraTarget', axesHandle.CameraTarget, ...
-    'CameraUpVector', axesHandle.CameraUpVector, 'CameraViewAngle', axesHandle.CameraViewAngle, ...
-    'XLim', axesHandle.XLim, 'YLim', axesHandle.YLim, 'ZLim', axesHandle.ZLim);
-end % Ends fcn_INTERNAL_getView
-
-function fcn_INTERNAL_setView(axesHandle, viewState)
-set(axesHandle, 'XLim', viewState.XLim, 'YLim', viewState.YLim, 'ZLim', viewState.ZLim, ...
-    'CameraPosition', viewState.CameraPosition, 'CameraTarget', viewState.CameraTarget, ...
-    'CameraUpVector', viewState.CameraUpVector, 'CameraViewAngle', viewState.CameraViewAngle);
-end % Ends fcn_INTERNAL_setView
-
-%% fcn_INTERNAL_placeButtons
-function fcn_INTERNAL_placeButtons(group, buttons)
-% Radio buttons stacked from the top of their group
-if isempty(buttons) || ~isvalid(group)
-    return;
-end
-drawnow limitrate;
-groupHeight = group.InnerPosition(4);
-rowHeight = 24;
-top = max(groupHeight, rowHeight*numel(buttons) + 8);
-width = max(120, group.InnerPosition(3) - 30);   % (room for the scroll bar)
-for ith_button = 1:numel(buttons)
-    buttons(ith_button).Position = [8, top - rowHeight*ith_button, width, 22];
-end
-end % Ends fcn_INTERNAL_placeButtons
-
-%% fcn_INTERNAL_dimensionName
-function name = fcn_INTERNAL_dimensionName(quantity, dimensionTable)
-% A quantity's name in words. With different front and rear tires (a
-% TireDiameterRear row), the tire diameter is the front's.
-quantity = char(quantity);
-flagStaggered = any(dimensionTable{:,1}=="TireDiameterRear");
-switch quantity
-    case 'OverallWidth',     name = 'Overall width (body)';
-    case 'TrackFront',       name = 'Track, front';
-    case 'TrackRear',        name = 'Track, rear';
-    case 'TireRoundMin',     name = 'Tire roundness, smallest';
-    case 'TireRoundMax',     name = 'Tire roundness, largest';
-    case 'TireDiameterRear', name = 'Tire diameter, rear';
-    case 'TireDiameter'
-        name = 'Tire diameter';
-        if flagStaggered
-            name = 'Tire diameter, front';
-        end
-    otherwise
-        name = fcn_INTERNAL_words(quantity);
-end
-end % Ends fcn_INTERNAL_dimensionName
-
-%% fcn_INTERNAL_drawSpot
-function fcn_INTERNAL_drawSpot(axesHandle, originalMesh, spot, spotIndex)
-% A spot, in gray: a hole as a box; a label change outlined on its faces
-% (the download's faces, which the reduced mesh labels differently)
-tag = sprintf('spot%d', spotIndex);
-if strcmp(spot.Kind, 'label change')
-    patch(axesHandle, 'Faces', originalMesh.Faces(spot.Faces,:), 'Vertices', originalMesh.Vertices, ...
-        'FaceColor', 'none', 'EdgeColor', [0.55 0.55 0.55], 'LineWidth', 0.75, 'Tag', tag, ...
-        'HitTest', 'off', 'Clipping', 'off');
-else
-    fcn_INTERNAL_drawBox(axesHandle, spot.Box, [0.6 0.6 0.6], 1, tag);
-end
-end % Ends fcn_INTERNAL_drawSpot
-
-%% fcn_INTERNAL_spotTooltip
-function tooltip = fcn_INTERNAL_spotTooltip(kind)
-% What a kind of spot means (shown when the mouse rests on its item)
-switch kind
-    case 'hole'
-        tooltip = ['Hole: the download has surface here that the reduced mesh does not (no reduced face ' ...
-            'within about one edge length). It may be a gap, a missing part, or a small part removed on purpose.'];
-    case 'label change'
-        tooltip = ['Label change: the reduced mesh is here, but with another label than the download''s faces ' ...
-            '(for example glass in the download, trim in the reduced mesh). Colors and lights follow the label.'];
-    otherwise
-        tooltip = '';
-end
-end % Ends fcn_INTERNAL_spotTooltip
-
-%% fcn_INTERNAL_meshPieces
-function pieceIndex = fcn_INTERNAL_meshPieces(vehicleMesh)
-% Each face's piece: faces with the same label that share a corner are in
-% one piece (a lamp, a window, a wiper arm)
-faces = vehicleMesh.Faces;
-Nfaces = size(faces,1);
-labelCode = fcn_INTERNAL_labelCode(vehicleMesh);
-parent = 1:Nfaces;
-    function root = findRoot(index)
-        root = index;
-        while parent(root) ~= root
-            parent(root) = parent(parent(root));
-            root = parent(root);
-        end
-    end
-% (faces meeting at each vertex, joined when their labels match)
-faceList = repmat((1:Nfaces)', 3, 1);
-vertexList = faces(:);
-[vertexList, order] = sort(vertexList);
-faceList = faceList(order);
-for ith_entry = 2:numel(vertexList)
-    if vertexList(ith_entry) == vertexList(ith_entry-1)
-        faceA = faceList(ith_entry);
-        faceB = faceList(ith_entry-1);
-        if labelCode(faceA) == labelCode(faceB)
-            rootA = findRoot(faceA);
-            rootB = findRoot(faceB);
-            if rootA ~= rootB
-                parent(rootA) = rootB;
-            end
-        end
-    end
-end
-pieceIndex = zeros(Nfaces,1);
-for ith_face = 1:Nfaces
-    pieceIndex(ith_face) = findRoot(ith_face);
-end
-end % Ends fcn_INTERNAL_meshPieces
-
-%% fcn_INTERNAL_mainPart
-function partName = fcn_INTERNAL_mainPart(vehicleMesh, flagFaces)
-% The part most of these faces are labeled as
-partName = '';
-if ~isfield(vehicleMesh, 'FacePartIndex') || ~isfield(vehicleMesh, 'PartNames')
-    return;
-end
-partIndex = vehicleMesh.FacePartIndex(flagFaces);
-partIndex = partIndex(partIndex > 0);
-if isempty(partIndex)
-    return;
-end
-partName = vehicleMesh.PartNames{mode(partIndex)};
-end % Ends fcn_INTERNAL_mainPart
-
-%% fcn_INTERNAL_findSpots
-function spots = fcn_INTERNAL_findSpots(originalMesh, reducedMesh)
-% The places where the reduced mesh differs most from the download, in 3D:
-% "holes" (download surface far from the reduced mesh) and "label
-% changes" (the nearest reduced face has another label). Each place is a
-% cluster of the download's face centers, in 10 cm cells, with a box.
-spots = struct('Box',{},'Label',{},'Description',{},'Count',{},'Kind',{},'Faces',{},'Area',{},'Severity',{});
-originalCenters = fcn_INTERNAL_faceCenters(originalMesh);
-reducedPoints = fcn_INTERNAL_samplePoints(reducedMesh);
-[nearestIndex, nearestDistance] = fcn_INTERNAL_nearest(reducedPoints.XYZ, originalCenters);
-edgeLength = median(vecnorm(reducedMesh.Vertices(reducedMesh.Faces(:,1),:) - reducedMesh.Vertices(reducedMesh.Faces(:,2),:), 2, 2));
-holeDistance = max(0.03, 0.75*edgeLength);
-flagHole = nearestDistance > holeDistance;
-originalLabel = fcn_INTERNAL_labelCode(originalMesh);
-reducedLabel = fcn_INTERNAL_labelCode(reducedMesh);
-flagChanged = ~flagHole & originalLabel ~= reducedLabel(reducedPoints.Face(nearestIndex));
-vertices = originalMesh.Vertices;
-faces = originalMesh.Faces;
-faceAreas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
-kinds = {'hole', flagHole; 'label change', flagChanged};
-cellSize = 0.10;
-for ith_kind = 1:2
-    flagKind = kinds{ith_kind,2};
-    if ~any(flagKind)
-        continue;
-    end
-    kindFaces = find(flagKind);
-    points = originalCenters(flagKind,:);
-    clusterIndex = fcn_INTERNAL_cluster(points, cellSize);
-    for ith_cluster = 1:max(clusterIndex)
-        inCluster = clusterIndex==ith_cluster;
-        clusterPoints = points(inCluster,:);
-        if size(clusterPoints,1) < 4
-            continue;
-        end
-        clusterFaces = kindFaces(inCluster);
-        area = sum(faceAreas(clusterFaces));
-        boxMin = min(clusterPoints,[],1) - 0.02;
-        boxMax = max(clusterPoints,[],1) + 0.02;
-        % (severity: the area affected; a hole counts double, since it can
-        % be seen through)
-        severity = area*(1 + strcmp(kinds{ith_kind,1}, 'hole'));
-        spots(end+1) = struct('Box', [boxMin; boxMax], 'Label', '', ...
-            'Description', sprintf('a %s, %.0f cm%c of the download''s surface (%d faces), at x %.2f, y %.2f, z %.2f m', ...
-            kinds{ith_kind,1}, 1e4*area, 178, size(clusterPoints,1), mean(clusterPoints,1)), 'Count', size(clusterPoints,1), ...
-            'Kind', kinds{ith_kind,1}, 'Faces', clusterFaces, 'Area', area, 'Severity', severity); %#ok<AGROW>
-        spots(end).Label = sprintf('%s, %.0f cm%c', kinds{ith_kind,1}, 1e4*area, 178);
-    end
-end
-if isempty(spots)
-    return;
-end
-[~, order] = sort([spots.Severity], 'descend');
-spots = spots(order(1:min(12, numel(order))));
-for ith_spot = 1:numel(spots)
-    spots(ith_spot).Label = sprintf('Spot %d: %s', ith_spot, spots(ith_spot).Label);
-end
-end % Ends fcn_INTERNAL_findSpots
-
-function centers = fcn_INTERNAL_faceCenters(vehicleMesh)
-vertices = vehicleMesh.Vertices;
-faces = vehicleMesh.Faces;
-centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
-end
-
-function points = fcn_INTERNAL_samplePoints(vehicleMesh)
-% Points spread over each face (corners, edge middles, center, and points
-% between), so the distance to them is close to the distance to the surface
-vertices = vehicleMesh.Vertices;
-faces = vehicleMesh.Faces;
-weights = [1 0 0; 0 1 0; 0 0 1; 0.5 0.5 0; 0 0.5 0.5; 0.5 0 0.5; 1/3 1/3 1/3; ...
-    2/3 1/6 1/6; 1/6 2/3 1/6; 1/6 1/6 2/3];
-Nweights = size(weights,1);
-Nfaces = size(faces,1);
-xyz = zeros(Nfaces*Nweights, 3);
-for ith_weight = 1:Nweights
-    rows = (ith_weight-1)*Nfaces + (1:Nfaces);
-    xyz(rows,:) = weights(ith_weight,1)*vertices(faces(:,1),:) + weights(ith_weight,2)*vertices(faces(:,2),:) + ...
-        weights(ith_weight,3)*vertices(faces(:,3),:);
-end
-points.XYZ = xyz;
-points.Face = repmat((1:Nfaces)', Nweights, 1);
-end
-
-function [nearestIndex, nearestDistance] = fcn_INTERNAL_nearest(points, queries)
-% The nearest of points to each query (knnsearch if there, else in blocks)
-if exist('knnsearch', 'file') == 2
-    [nearestIndex, nearestDistance] = knnsearch(points, queries);
-    return;
-end
-Nqueries = size(queries,1);
-nearestIndex = zeros(Nqueries,1);
-nearestDistance = zeros(Nqueries,1);
-blockSize = 500;
-for first = 1:blockSize:Nqueries
-    rows = first:min(Nqueries, first+blockSize-1);
-    squaredDistance = sum(queries(rows,:).^2,2) + sum(points.^2,2)' - 2*queries(rows,:)*points';
-    [minimum, index] = min(squaredDistance, [], 2);
-    nearestIndex(rows) = index;
-    nearestDistance(rows) = sqrt(max(minimum,0));
-end
-end
-
-function code = fcn_INTERNAL_labelCode(vehicleMesh)
-% One number per face for its label: part index, or 100 + light type
-code = double(vehicleMesh.FacePartIndex(:));
-if isfield(vehicleMesh, 'FaceLightType')
-    flagLight = vehicleMesh.FaceLightType(:) > 0;
-    code(flagLight) = 100 + double(vehicleMesh.FaceLightType(flagLight));
-end
-end
-
-function clusterIndex = fcn_INTERNAL_cluster(points, cellSize)
-% Groups points whose cells touch (26 neighbors)
-cells = floor(points/cellSize);
-[uniqueCells, ~, cellOfPoint] = unique(cells, 'rows');
-Ncells = size(uniqueCells,1);
-cellCluster = zeros(Ncells,1);
-cellKey = containers.Map('KeyType','char','ValueType','double');
-for ith_cell = 1:Ncells
-    cellKey(sprintf('%d_%d_%d', uniqueCells(ith_cell,:))) = ith_cell;
-end
-[dx, dy, dz] = ndgrid(-1:1, -1:1, -1:1);
-neighbors = [dx(:) dy(:) dz(:)];
-Nclusters = 0;
-for ith_cell = 1:Ncells
-    if cellCluster(ith_cell) > 0
-        continue;
-    end
-    Nclusters = Nclusters + 1;
-    stack = ith_cell;
-    cellCluster(ith_cell) = Nclusters;
-    while ~isempty(stack)
-        current = stack(end);
-        stack(end) = [];
-        for ith_neighbor = 1:size(neighbors,1)
-            key = sprintf('%d_%d_%d', uniqueCells(current,:) + neighbors(ith_neighbor,:));
-            if isKey(cellKey, key)
-                other = cellKey(key);
-                if cellCluster(other) == 0
-                    cellCluster(other) = Nclusters;
-                    stack(end+1) = other; %#ok<AGROW>
-                end
-            end
-        end
-    end
-end
-clusterIndex = cellCluster(cellOfPoint);
-end
-
-%% fcn_INTERNAL_drawBox
-function fcn_INTERNAL_drawBox(axesHandle, box, color, lineWidth, tag)
-% A wire box (2 x 3: min and max corners)
-corners = [box(1,1) box(1,2) box(1,3); box(2,1) box(1,2) box(1,3); box(2,1) box(2,2) box(1,3); box(1,1) box(2,2) box(1,3); ...
-    box(1,1) box(1,2) box(2,3); box(2,1) box(1,2) box(2,3); box(2,1) box(2,2) box(2,3); box(1,1) box(2,2) box(2,3)];
-edges = [1 2; 2 3; 3 4; 4 1; 5 6; 6 7; 7 8; 8 5; 1 5; 2 6; 3 7; 4 8];
-xyz = nan(3*size(edges,1), 3);
-for ith_edge = 1:size(edges,1)
-    xyz(3*ith_edge-2:3*ith_edge-1,:) = corners(edges(ith_edge,:),:);
-end
-plot3(axesHandle, xyz(:,1), xyz(:,2), xyz(:,3), '-', 'Color', color, 'LineWidth', lineWidth, 'Tag', tag, 'Clipping', 'off');
-end % Ends fcn_INTERNAL_drawBox
-
-%% fcn_INTERNAL_outlineElements
-function elements = fcn_INTERNAL_outlineElements(outline)
-% The outline's parts, one item each: the body, each window, each wheel,
-% and the lights grouped by type and side
-elements = struct('Key',{},'Label',{},'Polygons',{});
-if ~isempty(outline.Body)
-    elements(end+1) = struct('Key','body','Label','Body outline','Polygons',{{outline.Body}});
-end
-for ith_window = 1:numel(outline.Windows)
-    elements(end+1) = struct('Key', sprintf('window%d', ith_window), ...
-        'Label', sprintf('Window: %s', outline.Windows(ith_window).Name), ...
-        'Polygons', {{outline.Windows(ith_window).Polygon}}); %#ok<AGROW>
-end
-for ith_wheel = 1:numel(outline.Wheels)
-    elements(end+1) = struct('Key', sprintf('wheel%d', ith_wheel), ...
-        'Label', sprintf('Wheel: %s', outline.Wheels(ith_wheel).Name), ...
-        'Polygons', {{outline.Wheels(ith_wheel).Rectangle + outline.Wheels(ith_wheel).Center}}); %#ok<AGROW>
-    % (a wheel's rectangle is kept about its own center, so it can steer)
-end
-if ~isempty(outline.Lights)
-    types = string({outline.Lights.Type});
-    sides = string({outline.Lights.Side});
-    groups = unique(types + "|" + sides, 'stable');
-    for ith_group = 1:numel(groups)
-        parts = split(groups(ith_group), "|");
-        flagGroup = types==parts(1) & sides==parts(2);
-        elements(end+1) = struct('Key', sprintf('lights_%s_%s', parts(1), parts(2)), ...
-            'Label', sprintf('Lights: %s, %s (%d outlines)', parts(1), parts(2), sum(flagGroup)), ...
-            'Polygons', {{outline.Lights(flagGroup).Polygon}}); %#ok<AGROW>
-    end
-end
-if isfield(outline, 'Interior') && ~isempty(outline.Interior)
-    % (as fcn_CarMesh3D_viewOutline's elements: one for all the pieces)
-    elements(end+1) = struct('Key', 'interior', ...
-        'Label', sprintf('Interior (%d outlines)', numel(outline.Interior)), ...
-        'Polygons', {{outline.Interior.Polygon}});
-end
-end % Ends fcn_INTERNAL_outlineElements
+end % Ends fcn_INTERNAL_pages
 
 %% fcn_INTERNAL_startAnswers
-function reviewTable = fcn_INTERNAL_startAnswers(checks, reviewFile, checksOff, reviewerName)
-% One row per question, with any earlier answers loaded. The questions of
-% a check turned off (Shared GUI settings) that have no answer are recorded
-% as skipped; a check turned on again asks its skipped questions again.
-% (checksOff and reviewerName may be left out: Differences remakes its
-% rows with the questions only, and carries the answers over)
-if nargin < 3
-    checksOff = {};
-end
-if nargin < 4
-    reviewerName = '';
-end
-rows = {};
-for ith_check = 1:numel(checks)
-    for ith_item = 1:numel(checks(ith_check).Items)
-        rows(end+1,:) = {checks(ith_check).Key, checks(ith_check).Items(ith_item).Key, checks(ith_check).Items(ith_item).Question}; %#ok<AGROW>
+function [answers, summary, keptOld] = fcn_INTERNAL_startAnswers(pages, checkList, reviewFile) %#ok<INUSD>
+% One row per question, with the answers saved earlier for the same
+% assessment and question; answers from the older reviewer are kept apart
+numPages = numel(pages);
+blank = strings(numPages, 1);
+answers = table([pages.FKey]', string({pages.QKey})', string({pages.Title})', string({pages.Question})', ...
+    blank, false(numPages, 1), blank, blank, blank, blank, blank, blank, NaN(numPages, 1), ...
+    'VariableNames', {'Assessment', 'Key', 'Title', 'Question', 'Answer', 'Problem', 'Comment', 'Who', 'When', ...
+    'Fingerprint', 'Status', 'Note', 'Seconds'});
+summary = [];
+keptOld = [];
+if isfile(reviewFile)
+    saved = load(reviewFile);
+    if isfield(saved, 'vvAnswers')
+        for ith_row = 1:height(saved.vvAnswers)
+            row = find(answers.Assessment == saved.vvAnswers.Assessment(ith_row) & answers.Key == saved.vvAnswers.Key(ith_row), 1);
+            if ~isempty(row)
+                kept = {'Answer', 'Problem', 'Comment', 'Who', 'When', 'Fingerprint', 'Status', 'Note', 'Seconds'};
+                answers(row, kept) = saved.vvAnswers(ith_row, kept);
+            end
+        end
+        if isfield(saved, 'vvSummary')
+            summary = saved.vvSummary;
+        end
+        if isfield(saved, 'reviewTableOld')
+            keptOld = saved.reviewTableOld;
+        end
+    elseif isfield(saved, 'reviewTable')
+        keptOld = saved.reviewTable;   % (the older reviewer's answers)
     end
 end
-N = size(rows,1);
-reviewTable = table(string(rows(:,1)), string(rows(:,2)), string(rows(:,3)), strings(N,1), strings(N,1), ...
-    strings(N,1), strings(N,1), strings(N,1), strings(N,1), strings(N,1), strings(N,1), ...
-    'VariableNames', {'Check','Item','Question','Status','Severity','Cause','Comment','Reviewer','Time','Region','SelectionPart'});
-if isfile(reviewFile)
-    loaded = load(reviewFile, 'reviewTable');
-    reviewTable = fcn_INTERNAL_carryAnswers(reviewTable, loaded.reviewTable);
+% (turned off now: recorded as such; on again: asked again)
+for ith_page = 1:numPages
+    if ~pages(ith_page).On
+        answers.Status(ith_page) = "turned off";
+        answers.Note(ith_page) = "turned off in Shared GUI settings (Review)";
+    elseif answers.Status(ith_page) == "turned off"
+        % (an answer from before it was turned off comes back; its
+        % fingerprint still says whether it is current)
+        answers.Status(ith_page) = "";
+        if strlength(answers.Answer(ith_page)) > 0 && strlength(answers.Fingerprint(ith_page)) > 0
+            answers.Status(ith_page) = "answered";
+        end
+        answers.Note(ith_page) = "";
+    end
 end
-flagOff = ismember(reviewTable.Check, string(checksOff));
-% (turned on again: its skipped questions asked again)
-flagAskAgain = ~flagOff & reviewTable.Status=="skipped";
-reviewTable.Status(flagAskAgain) = "";
-reviewTable.Cause(flagAskAgain) = "";
-reviewTable.Reviewer(flagAskAgain) = "";
-reviewTable.Time(flagAskAgain) = "";
-% (turned off: the questions with no answer recorded as skipped)
-flagSkip = flagOff & strlength(reviewTable.Status)==0;
-reviewTable.Status(flagSkip) = "skipped";
-reviewTable.Cause(flagSkip) = "turned off in Shared GUI settings";
-reviewTable.Reviewer(flagSkip) = string(reviewerName);
-reviewTable.Time(flagSkip) = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm'));
 end % Ends fcn_INTERNAL_startAnswers
 
-%% fcn_INTERNAL_saveAnswers
-function fcn_INTERNAL_saveAnswers(reviewTable, reviewFile)
-save(reviewFile, 'reviewTable');
-end % Ends fcn_INTERNAL_saveAnswers
+%% fcn_INTERNAL_oldFormat
+function reviewTable = fcn_INTERNAL_oldFormat(answers, summary)
+% The answers in the older reviewer's format, which the library browser
+% reads: Status approved (an answer that is not a problem), rejected (a
+% problem answer), skipped, error or '' (not answered, or stale)
+numRows = height(answers);
+status = strings(numRows, 1);
+status(answers.Status == "answered" & ~answers.Problem) = "approved";
+status(answers.Status == "answered" & answers.Problem) = "rejected";
+status(answers.Status == "skipped" | answers.Status == "turned off") = "skipped";
+status(answers.Status == "error") = "error";
+% (times as the library browser reads them: to the minute)
+times = answers.When;
+times(strlength(times) > 16) = extractBefore(times(strlength(times) > 16), 17);
+reviewTable = table(answers.Assessment, answers.Key, answers.Question, status, strings(numRows, 1), ...
+    strings(numRows, 1), answers.Comment, answers.Who, times, ...
+    'VariableNames', {'Check', 'Item', 'Question', 'Status', 'Severity', 'Cause', 'Comment', 'Reviewer', 'Time'});
+summaryStatus = "";
+summaryRow = {"", "", ""};
+if ~isempty(summary) && ~isempty(summary.Decision)
+    summaryStatus = "approved";
+    if strcmpi(summary.Decision, 'Reject')
+        summaryStatus = "rejected";
+    end
+    summaryRow = {string(summary.Comment), string(summary.Who), string(extractBefore(string(summary.When), 17))};
+end
+reviewTable = [reviewTable; table("summary", "summary", "Approve this mesh?", summaryStatus, "", "", ...
+    summaryRow{:}, 'VariableNames', reviewTable.Properties.VariableNames)];
+end % Ends fcn_INTERNAL_oldFormat
 
 %% fcn_INTERNAL_writeReport
-function fcn_INTERNAL_writeReport(reviewTable, checks, vehicleFiles, reportFile)
-% A readable report of the answers (Markdown)
-fileID = fopen(reportFile, 'w');
+function fcn_INTERNAL_writeReport(reportFile, vehicle, answers, summary)
+% A readable report of the review, in Markdown
+lines = {sprintf('# Review of %s', vehicle.Name), '', sprintf('Vehicle ID: %s', vehicle.ID), ''};
+if ~isempty(summary) && ~isempty(summary.Decision)
+    lines = [lines, {sprintf('**Decision: %s** by %s, %s', summary.Decision, summary.Who, summary.When), ''}];
+    if ~isempty(summary.Comment)
+        lines = [lines, {sprintf('Comment: %s', summary.Comment), ''}];
+    end
+    lines = [lines, {sprintf('It rested on: %s', summary.Counts), ''}];
+else
+    lines = [lines, {'**No decision yet.**', ''}];
+end
+lines = [lines, {fcn_INTERNAL_countsText(answers), '', '| Assessment | Question | Answer | Status | Comment | Who | When |', ...
+    '|---|---|---|---|---|---|---|'}];
+for ith_row = 1:height(answers)
+    cells = cellfun(@(value) strrep(strrep(char(value), '|', '/'), newline, ' '), ...
+        {answers.Title(ith_row), answers.Question(ith_row), answers.Answer(ith_row), answers.Status(ith_row), ...
+        answers.Comment(ith_row), answers.Who(ith_row), answers.When(ith_row)}, 'UniformOutput', false);
+    lines{end+1} = ['| ' strjoin(cells, ' | ') ' |']; %#ok<AGROW>
+end
+lines = [lines, {'', sprintf('Written by fcn_CarMesh3D_reviewVehicle, %s', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')))}];
+fileID = fopen(reportFile, 'w', 'n', 'UTF-8');
 if fileID < 0
-    warning('CarMesh3D:reviewReport', 'Could not write %s', reportFile);
+    warning('CarMesh3D:reportNotWritten', 'Could not write the report %s.', reportFile);
     return;
 end
-cleanup = onCleanup(@() fclose(fileID));
-isQuestion = reviewTable.Check ~= "summary";
-overall = reviewTable(reviewTable.Check=="summary", :);
-fprintf(fileID, '# Review: %s\n\n', vehicleFiles.Name);
-fprintf(fileID, 'Overall decision: **%s**', fcn_INTERNAL_orText(overall.Status(1), 'none yet'));
-if strlength(overall.Reviewer(1)) > 0
-    fprintf(fileID, ' (%s, %s)', overall.Reviewer(1), overall.Time(1));
-end
-fprintf(fileID, '\n\n%d questions: %d approved, %d rejected (%d must be fixed), %d not answered.\n\n', ...
-    sum(isQuestion), sum(reviewTable.Status(isQuestion)=="approved"), sum(reviewTable.Status(isQuestion)=="rejected"), ...
-    sum(reviewTable.Severity(isQuestion)=="must fix"), sum(isQuestion & strlength(reviewTable.Status)==0));
-Nskipped = sum(reviewTable.Status(isQuestion)=="skipped");
-if Nskipped > 0
-    fprintf(fileID, '%d questions skipped: their checks were turned off in Shared GUI settings (Review).\n\n', Nskipped);
-end
-if strlength(overall.Comment(1)) > 0
-    fprintf(fileID, 'Overall comment: %s\n\n', overall.Comment(1));
-end
-for ith_check = 1:numel(checks)
-    if strcmp(checks(ith_check).Key, 'summary')
-        continue;
-    end
-    fprintf(fileID, '## %s\n\n| Item | Answer | Cause | Comment | By |\n|---|---|---|---|---|\n', checks(ith_check).Title);
-    for ith_item = 1:numel(checks(ith_check).Items)
-        row = find(reviewTable.Check==string(checks(ith_check).Key) & reviewTable.Item==string(checks(ith_check).Items(ith_item).Key), 1);
-        answer = fcn_INTERNAL_orText(reviewTable.Status(row), '(none)');
-        if reviewTable.Status(row)=="rejected"
-            answer = sprintf('**rejected, %s**', reviewTable.Severity(row));
-        end
-        fprintf(fileID, '| %s | %s | %s | %s | %s |\n', checks(ith_check).Items(ith_item).Label, answer, ...
-            reviewTable.Cause(row), strrep(reviewTable.Comment(row), newline, ' '), ...
-            strtrim(reviewTable.Reviewer(row) + " " + reviewTable.Time(row)));
-    end
-    fprintf(fileID, '\n');
-end
-% Fixes to make in the vehicle's script
-fixLines = {};
-orientationRow = find(reviewTable.Check=="orientation", 1);
-if ~isempty(orientationRow) && reviewTable.Status(orientationRow)=="rejected" && strlength(reviewTable.Cause(orientationRow))>0
-    fixLines = [fixLines, fcn_INTERNAL_axisFix(vehicleFiles.ScriptFile, char(reviewTable.Cause(orientationRow)))];
-end
-labelRows = find(reviewTable.Check=="compare" & reviewTable.Status=="rejected" & strlength(reviewTable.Region)>0);
-% (the painted label fixes, kept in the vehicle's labelEdits file)
-editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
-if isfile(editsFile)
-    loaded = load(editsFile, 'labelEditsAfterSimplify');
-    if isfield(loaded, 'labelEditsAfterSimplify') && ~isempty(loaded.labelEditsAfterSimplify)
-        fprintf(fileID, '## Painted label fixes\n\nIn %s, applied by the vehicle''s script after simplifying:\n\n', editsFile);
-        for ith_edit = 1:numel(loaded.labelEditsAfterSimplify)
-            fprintf(fileID, '- %s\n', loaded.labelEditsAfterSimplify{ith_edit}.Name);
-        end
-        fprintf(fileID, '\n');
-    end
-end
-for ith_row = 1:numel(labelRows)
-    fixLines = [fixLines, fcn_INTERNAL_labelFix(reviewTable(labelRows(ith_row),:))]; %#ok<AGROW>
-end
-if ~isempty(fixLines)
-    fprintf(fileID, ['## Fixes for the vehicle''s script\n\nPaste into the script (label edits go after ' ...
-        'labelEditsAfterFit = {};), then run it again.\n\n```matlab\n%s\n```\n'], strjoin(fixLines, newline));
-end
+fprintf(fileID, '%s\n', lines{:});
+fclose(fileID);
 end % Ends fcn_INTERNAL_writeReport
 
-%% fcn_INTERNAL_labelFix
-function fixLine = fcn_INTERNAL_labelFix(answer)
-% A labelEditsAfterFit line from a rejected item with picked faces (a
-% label, or a spot of the differences): the faces of their part, inside
-% their box, become what the reviewer picked ('delete' takes them away)
-itemKey = char(answer.Item);
-currentPart = char(answer.SelectionPart);
-if isempty(currentPart)
-    if startsWith(itemKey, 'part_')
-        currentPart = itemKey(6:end);
-    else
-        currentPart = 'light';
+%% fcn_INTERNAL_countsText
+function textOut = fcn_INTERNAL_countsText(answers)
+% How many answered (and how many of those are problems), unanswered,
+% stale, skipped, errors
+status = answers.Status;
+numAnswered = sum(status == "answered");
+numProblems = sum(status == "answered" & answers.Problem);
+numOpen = sum(status == "" | status == "stale" | status == "not asked");
+numStale = sum(status == "stale");
+numSkipped = sum(status == "skipped" | status == "turned off");
+numErrors = sum(status == "error");
+numNotAsked = sum(status == "not asked");
+textOut = sprintf('%d answered (%d a problem), %d not answered', numAnswered, numProblems, numOpen);
+if numStale > 0 || numNotAsked > 0
+    parts = {};
+    if numStale > 0
+        parts{end+1} = sprintf('%d stale', numStale);
     end
-end
-causeText = char(answer.Cause);
-target = regexp(causeText, 'should be: (\w+)( light)?', 'tokens', 'once');
-if isempty(target)
-    fixLine = {sprintf('%% (%s %s: faces were picked, but not what they should be)', char(answer.Check), itemKey)};
-    return;
-end
-region = str2num(char(answer.Region)); %#ok<ST2NM>
-if contains(causeText, 'this side only')
-    flagBothSides = false;
-elseif contains(causeText, 'both sides')
-    flagBothSides = true;
-else
-    flagBothSides = ~(numel(region)==6 && region(3) < 0 && region(4) > 0);   % (a part across the middle is not mirrored)
-end
-if strcmp(target{1}, 'deleted')
-    change = '''Part'',''delete''';
-    name = sprintf('review: delete (%s %s)', char(answer.Check), itemKey);
-elseif isempty(target{2})
-    change = sprintf('''Part'',''%s''', target{1});
-    name = sprintf('review: %s -> %s', currentPart, target{1});
-else
-    change = sprintf('''LightType'',''%s''', target{1});
-    name = sprintf('review: %s -> %s light', currentPart, target{1});
-end
-fixLine = {sprintf('labelEditsAfterFit{end+1} = struct(''Name'',''%s'', ''Region'',%s, ''BothSides'',%s, ''CurrentPart'',''%s'', %s);', ...
-    name, char(answer.Region), mat2str(flagBothSides), currentPart, change)};
-end % Ends fcn_INTERNAL_labelFix
-
-%% fcn_INTERNAL_axisFix
-function fixLines = fcn_INTERNAL_axisFix(scriptFile, causeText)
-% The script's new importForwardAxis and importUpAxis, from the reviewer's
-% "front: -X | up: +Z" (directions in the vehicle frame as shown) and the
-% script's present settings
-fixLines = {};
-if ~isfile(scriptFile)
-    return;
-end
-scriptText = fileread(scriptFile);
-forwardToken = regexp(scriptText, 'importForwardAxis\s*=\s*''([+-]?[xyzXYZ])''', 'tokens', 'once');
-upToken = regexp(scriptText, 'importUpAxis\s*=\s*''([+-]?[xyzXYZ])''', 'tokens', 'once');
-if isempty(forwardToken) || isempty(upToken)
-    fixLines = {'% (the script''s importForwardAxis and importUpAxis were not found)'};
-    return;
-end
-forwardFile = fcn_INTERNAL_axisVector(forwardToken{1});
-upFile = fcn_INTERNAL_axisVector(upToken{1});
-% (the shown frame's axes, as file directions: X = forward, Z = up)
-shownToFile = [forwardFile(:), cross(upFile(:), forwardFile(:)), upFile(:)];
-parts = strsplit(causeText, ' | ');
-newForward = forwardToken{1};
-newUp = upToken{1};
-frontWord = regexp(parts{1}, 'front:\s*([+-][XYZ])', 'tokens', 'once');
-if ~isempty(frontWord)
-    newForward = fcn_INTERNAL_axisText(shownToFile*fcn_INTERNAL_axisVector(frontWord{1})');
-end
-if numel(parts) >= 2
-    upWord = regexp(parts{2}, 'up:\s*([+-][XYZ])', 'tokens', 'once');
-    if ~isempty(upWord)
-        newUp = fcn_INTERNAL_axisText(shownToFile*fcn_INTERNAL_axisVector(upWord{1})');
+    if numNotAsked > 0
+        parts{end+1} = sprintf('%d not asked after the first No', numNotAsked);
     end
+    textOut = sprintf('%s (%s)', textOut, strjoin(parts, ', '));
 end
-fixLines = {sprintf('importUpAxis = ''%s'';        %% (was ''%s''; from the review: %s)', newUp, upToken{1}, causeText), ...
-    sprintf('importForwardAxis = ''%s'';   %% (was ''%s'')', newForward, forwardToken{1})};
-end % Ends fcn_INTERNAL_axisFix
+textOut = sprintf('%s, %d skipped, %d error(s)', textOut, numSkipped, numErrors);
+end % Ends fcn_INTERNAL_countsText
 
-function vector = fcn_INTERNAL_axisVector(axisText)
-% '+y' -> [0 1 0], '-X' -> [-1 0 0]
-axisText = lower(strtrim(axisText));
-sign = 1;
-if axisText(1)=='-'
-    sign = -1;
+%% fcn_INTERNAL_mark
+function mark = fcn_INTERNAL_mark(row)
+% The mark for a question in the Questions list
+switch row.Status
+    case "answered"
+        mark = char(10003);
+        if row.Problem
+            mark = char(10007);
+        end
+    case {"skipped", "turned off"}
+        mark = '-';
+    case "error"
+        mark = '!';
+    otherwise
+        mark = '?';
 end
-vector = sign*double(axisText(end)=='xyz');
-end
+end % Ends fcn_INTERNAL_mark
 
-function axisText = fcn_INTERNAL_axisText(vector)
-% [0 -1 0] -> '-y'
-[~, index] = max(abs(vector));
-signs = '+-';
-axisText = [signs(1 + (vector(index) < 0)) 'xyz'];
-axisText = axisText([1 1+index]);
+%% fcn_INTERNAL_heading
+function textOut = fcn_INTERNAL_heading(page)
+textOut = page.GroupTitle;
+if ~strcmp(page.Title, page.GroupTitle)
+    textOut = sprintf('%s: %s', page.GroupTitle, page.Title);
 end
+end % Ends fcn_INTERNAL_heading
+
+%% fcn_INTERNAL_pageName
+function textOut = fcn_INTERNAL_pageName(index, summaryIndex)
+if index == summaryIndex
+    textOut = 'Summary';
+else
+    textOut = sprintf('Question %d of %d', index, summaryIndex - 1);
+end
+end % Ends fcn_INTERNAL_pageName
+
+%% fcn_INTERNAL_message
+function fcn_INTERNAL_message(panel, textIn)
+% A message in the middle of the picture's panel
+grid = uigridlayout(panel, [3 1], 'RowHeight', {'1x', 'fit', '1x'}, 'BackgroundColor', [1 1 1]);
+label = uilabel(grid, 'Text', textIn, 'FontSize', 16, 'FontColor', [0.35 0.35 0.35], 'WordWrap', 'on', ...
+    'HorizontalAlignment', 'center', 'Tag', 'vvMessage');
+label.Layout.Row = 2;
+end % Ends fcn_INTERNAL_message
+
+%% fcn_INTERNAL_text
+function value = fcn_INTERNAL_text(structure, name)
+% A text field of a function's result, or '' when it has none
+value = '';
+if isfield(structure, name) && ~isempty(structure.(name))
+    value = char(structure.(name));
+end
+end % Ends fcn_INTERNAL_text
+
+%% fcn_INTERNAL_pref
+function value = fcn_INTERNAL_pref(name, default)
+% A Review setting (Shared GUI settings), or its default
+value = default;
+if ispref('CarMesh3D', name)
+    value = getpref('CarMesh3D', name);
+end
+end % Ends fcn_INTERNAL_pref

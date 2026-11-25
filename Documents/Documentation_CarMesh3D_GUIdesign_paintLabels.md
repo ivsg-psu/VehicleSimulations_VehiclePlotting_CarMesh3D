@@ -24,7 +24,7 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 **Follows `Documentation_CarMesh3D_GUIdesign_rules.md`** (rules G1 to G38, every CarMesh3D window), and its shared panels are in `Documentation_CarMesh3D_GUIdesign_sharedPanels.md`. This window's 26 general rules moved there on 2026-11-24 (Sean, 16:20 to 16:23); the table at the end of that file says where each went (painter rule 4, one panel at a time, became G1, up to two). The old list is kept in the change log of this file.
 
 **This window only:**
-- P-1. Its top bar is ☰ Menu, Undo, Save, Revert to a save..., Exit (G4; Revert to a save... agreed 2026-11-24, T36 and T52).
+- P-1. Its top bar is ☰ Menu, Undo, Save, Revert to a save... (G4; Revert to a save... agreed 2026-11-24, T36 and T52); Exit is the ☰ Menu's last line (Q62 (A), Sean 2026-11-25 14:31: Exit is the ☰ Menu's last line in every GUI).
 - P-2. Labeling is select, pick a label, Apply: selection is a highlighter apart from labels; the label is previewed on the selection until Apply (Sean, 2026-11-24 15:19 to 15:24; T35, T49 to T51).
 - P-3. By default it opens with Labels To Display (shared) and Modify Labels (its own, yellow) both open (G1; Sean, 2026-11-24 16:12).
 
@@ -34,7 +34,7 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 +-----------------------------------------------------------------------------------------+
 | fcn_CarMesh3D_paintLabels            (title bar: version, vehicle name)                 |
 +-----------------------------------------------------------------------------------------+
-| [☰ Menu]  [Undo]  [Save]  [Exit]     status: "12 faces painted, not applied | saved 09:58"|
+| [☰ Menu]  [Undo]  [Save]  (Exit: in the menu)  status: "12 faces painted, not applied | saved 09:58"|
 +----------------------+--------------------------------+---------+-----------------------+
 | (open panel, e.g.    |                                | spinner |  photo                |
 |  Modify Labels)      |        3D model                | (dial)  |  (name on the photo,  |
@@ -51,7 +51,7 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 
 **(Claude, to confirm)**
 - Window: 1500 x 900 pixels at [60 60], resizable.
-- Top bar: 36 pixels high; the pancake button 90 pixels wide with the text "☰ Menu"; Undo, Save and Exit 80 pixels each; Save bold, with a pale green background `[0.85 0.95 0.85]`; the status text fills the rest, read-only, 11 point.
+- Top bar: 36 pixels high; the pancake button 90 pixels wide with the text "☰ Menu"; Undo and Save 80 pixels each (Exit is the menu's last line); Save bold, with a pale green background `[0.85 0.95 0.85]`; the status text fills the rest, read-only, 11 point.
 - Left column (the open panel): 320 pixels wide, against the left edge, from under the top bar to the hint line. With no panel open, the column closes and the model takes its width.
 - Model: fills the space between the left column and the spinner, white background.
 - Spinner: about 190 pixels wide, its top level with the photo's top (as now).
@@ -65,7 +65,7 @@ It is called on its own, `fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport')`, or
 | ☰ Menu | button | Opens the list of panels: Overall Display, Labels To Display, Lamps To Display, Modify Labels, Shared GUI settings (the shared menu, `fcn_CarMesh3D_makePanelMenu`). Up to two panels are open at once, stacked; a third replaces the lower one. Open panels have a check mark; clicking one again closes it. It opens with Labels To Display over Modify Labels, then as left (since 2026-11-24 evening). Inside the reviewer, the painter has no menu: its panels are in the reviewer's (Q45 (A)). |
 | Undo | button | Takes back the last click or stroke of paint (press again to go further back, newest first). Ctrl+Z. |
 | Save | button | Applies the pending paint and saves the edits (`labelEdits_<ID>.mat`, used by the vehicle's script). The saved mesh becomes the working mesh: painted faces take their new label's look. With "Timestamped copy at each save?" on (Shared GUI settings, Editing), also keeps a timestamped copy. Ctrl+S. |
-| Exit | button | Closes the window. With unsaved changes it asks first: "The label edits have changes that are not saved. Save them?" with **Save**, **Discard**, **Cancel** (Save is the default; Cancel keeps the window open). Built into the reviewer, Exit is not shown (the reviewer closes it). |
+| Exit | the ☰ Menu's last line (Q62 (A), Sean 2026-11-25 14:31: Exit is the ☰ Menu's last line in every GUI) | Closes the window. With unsaved changes it asks first: "The label edits have changes that are not saved. Save them?" with **Save**, **Discard**, **Cancel** (Save is the default; Cancel keeps the window open). Built into the reviewer, Exit is not shown (the reviewer closes it). |
 | status | text | How many faces are painted and not applied, how many changes since the last save, and the time of the last save. |
 
 ## 5. The panels
@@ -238,30 +238,7 @@ With no edits file (a mesh given as a variable), the save-related controls are g
 - Built into the reviewer: the window is the reviewer's panel; the top bar keeps Undo and Save, and the reviewer's own Close replaces Exit.
 - Hidden test hooks in the figure's `UserData` (for scripted tests without showing the window).
 
-## 8. Open questions
-
-**(Sean to Claude)**
-S2C 1: The edits herein pertain to the GUI design itself primarily. But when this is done, please remind me to return to the question of how the interior mesh is generated. Most of the discrepancies in the Honda Fit appear to be in the interfaces between the Interior, Trim, and Body, and sometimes even with Glass. If we are the ones creating this definition in an earlier processing step, that step needs to be revisited, ideally to fix them before the user is put into this paintLabels interface.
-
-Re **C2S 7**: Agree. Lets queue this change.
-
-Re **C2S 8**: Agree with suggested changes (off/on option list) and let's add a warning text, if user selects all off: "All Off means never. No autosaves will be generated." Feel free to reword.
-
-Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S 7 and 8 appropriately into these tasks or as new tasks, please.
-
-**(Claude to Sean)**
-- *Re S2C 1 (stays open as a reminder):* Claude will remind Sean when this GUI's edits are done. It now ties in with C2S 7 below: if "interior" keeps only the objects inside the cabin, the step that labels it changes too.
-
-**(Claude to Sean)** No questions open from Claude (C2S 1 to 8 are closed into the change log). S2C 1 stays open above as a reminder.
-
-**Plan of work** (agreed by Sean, 15:39; C2S 7 and 8 merged in):
-- **P1. The GUI test vehicle**, the painter's test on it, the demo menu's two items. *(Done 2026-11-23; every lamp type added 2026-11-24.)*
-- **P2. The GUI edits** of section 9, including: Labels To Display in groups, with the interior group shown as "objects within interior" (C2S 7); timestamped copies as Off/On rows ("At each save?", "Every 10 minutes?", "When the paint label changes?"), with the warning "All off: no timestamped copies will be made." when all are off (C2S 8); the recovery file of unsaved paint and its folder (C2S 4); then a T1, T2 ... test list for Sean.
-- **P3. Body color** (saved with the vehicle's edits, C2S 1), the color picker, the contrast shift, GUI colors.
-- **P4. Lamp covers:** clear covers, glowing with the lit lamp under them (C2S 6).
-- **P5. Interior objects** (C2S 7): sub-labels seat, steering wheel, console under `interior` (`FaceSubPart`, `SubPartNames`); cabin surfaces no longer labeled interior; automatic interior labeling off by default; later rewritten to find only the seats, wheel and console (with S2C 1, the interior review, and task 9, the steering wheel). Needs a library rebuild, so it waits until P1 to P4 are done.
-
-## 9. Open issues
+## 8. Open issues
 
 **(Sean to Claude)**
 For the GUI testing, the Honda Fit is missing some key elements (hidden faces, certain light bulbs, etc.). Can you create a generic test vehicle that has all the features, only for the purpose of exercising the GUI? We should keep that mesh somewhere and incorporate it as part of the unit tests for the GUI. The Fit model does not seem completely suited for this. Make a note, in an upcoming task, to do the same for the viewer. In the main script_demo menu interface for the repo, please edit the script_demo menu items to change the current option to one that repeats the paintLabels test calls as two menu choices - one for the generic test vehicle, and one for the Honda Fit.
@@ -276,7 +253,7 @@ In the "Labels to Display" panel:
 - If possible, add subsection titles that group the labels listed matching these to the "Modify Labels". Subsections would be: main body panels (body, glass, wheel, trim), interior (interior), lights (low beam, high beam, etc.), visibility (hidden). The visibility and interior only have one member each, but this is likely to change. For example, in interior labels, we already know that we want or may need the steering wheel, to animate it turning. Other obvious items would be 'seat' labeling, as this determines driver / passenger / rear passenger viewpoints. For perspectives from the driver view, which may be used in virtual reality versions of this tool, we may need as well 'driver console' labels. In the 2009 Fit for example, the driver console mesh is clearly there as part of the import mesh, just not labeled clearly.
 
 In the "Lamps to Display" panel:
-- See queestion to Claude in "Open Questions"
+- See question to Claude in "Open questions"
 
 In the "Modify Labels" panel:
 - Let's reopen, at the top part of the sidebar, the Labels to Display. The reasoining: these will often be used for modifications to the painting. Underneath, as a separate panel (with the current off-yellow background), open the "Paint as" panel. The reason for displaying them both with different colors is that we want to differentiate normal viewing versus editing, while still exposing both functions at the same time. The yellow background of the "Modify" panel makes this very clear.  
@@ -297,7 +274,7 @@ In the "Settings" panel:
 
 Please review each of the above selections critically, and suggest improvements as appropriate.
 
-**(Claude to Sean)** Review of the open issues, item by item. "Agree" means Claude builds it as written; anything else is a suggestion or a question (C2S, in section 8).
+**(Claude to Sean)** Review of the open issues, item by item. "Agree" means Claude builds it as written; anything else is a suggestion or a question (C2S, in "Open questions").
 
 *GUI test vehicle.* Agree, and it is the right first step: the Fit has no running, turn or backup faces and only 7 hidden faces. Proposal: a vehicle folder `Data/Samples/2026_CarMesh3D_Sample_GUITestVehicle`, made by a script from the built-in sample sedan (`fcn_CarMesh3D_fillSampleMesh`), with every part (body, glass, wheel, trim, interior), all six lamp types on both sides (low and high beams, running, turn, tail, backup), a glass cover over a lamp, a lamp with two functions, two hidden sets ('hidden' and 'hard top'), and its own photos: pictures of the test vehicle itself rendered every 30 degrees as `ViewInDegrees_<angle>.jpg`, so the dial and photo options are exercised too. Its files are small and made by its script, so they can live in git and the tests can always rebuild them. The painter's test then runs on it (the Fit stays as a second, real case), and a matching task is queued for the viewer. The demo menu gets two items: "paintLabels: GUI test vehicle" and "paintLabels: 2009 Honda Fit".
 
@@ -351,7 +328,58 @@ As a process, please add this ruleset to the project: when working with MD files
 - **Ctrl+Z and Ctrl+S** (T4): did not seem to work.
 - **No Revert button in the top bar** (T6): only Undo, Save, Exit (the agreed 'Revert to prior save' is part of P2).
 
-## 10. Change log
+## Tests for Sean
+
+*Kept at the bottom, before "Open questions" and the "Change log", so it is easy to jump to; named, not numbered, so it never moves.*
+
+Key:
+- **Only what a person must judge** (Sean, 2026-11-25 13:15 and 14:24, for every file): look, feel, clarity, and other human-only checks. Anything of the form "does X show Y" or "does pressing X do Y" is a code test instead; this section names those code tests, so it is clear what is covered.
+- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all force; clear functions; clc`, even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
+- (Sean's results are in parentheses under the step.)
+- Expected outcomes are labeled (A), (B), (both) and so on, as answers are, so a review can be quick: "confirm (A)". A bug is marked **BUG**; an uncertain or unexpected outcome **???**.
+- Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
+- A finished round (every step with a result) moves to the change log, with the results.
+
+(none open: earlier rounds and their results are in the change log)
+
+## Open questions
+
+*Kept at the bottom, before the "Change log"; named, not numbered.*
+
+Key:
+- **QNN.** A question. Q-numbers run on across every file and the chat (Q1 to Q99, then wrap).
+- Options are lettered, the recommended one first and marked *Recommended*.
+- (Answers are in parentheses.)
+- Each question is separated by a blank line.
+
+When a question is answered, its content moves into the right section above, and a summary of it goes to the change log: the question, the context in which it came up (in development, in an automated test, in use), the answer, when, and by whom. This section then lists only the questions still open.
+
+### Question list
+
+**(Sean to Claude)**
+S2C 1: The edits herein pertain to the GUI design itself primarily. But when this is done, please remind me to return to the question of how the interior mesh is generated. Most of the discrepancies in the Honda Fit appear to be in the interfaces between the Interior, Trim, and Body, and sometimes even with Glass. If we are the ones creating this definition in an earlier processing step, that step needs to be revisited, ideally to fix them before the user is put into this paintLabels interface.
+
+Re **C2S 7**: Agree. Lets queue this change.
+
+Re **C2S 8**: Agree with suggested changes (off/on option list) and let's add a warning text, if user selects all off: "All Off means never. No autosaves will be generated." Feel free to reword.
+
+Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S 7 and 8 appropriately into these tasks or as new tasks, please.
+
+**(Claude to Sean)**
+- *Re S2C 1 (stays open as a reminder):* Claude will remind Sean when this GUI's edits are done. It now ties in with C2S 7 below: if "interior" keeps only the objects inside the cabin, the step that labels it changes too.
+
+**(Claude to Sean)** No questions open from Claude (C2S 1 to 8 are closed into the change log). S2C 1 stays open above as a reminder.
+
+**Plan of work** (agreed by Sean, 15:39; C2S 7 and 8 merged in):
+- **P1. The GUI test vehicle**, the painter's test on it, the demo menu's two items. *(Done 2026-11-23; every lamp type added 2026-11-24.)*
+- **P2. The GUI edits** of section 8, including: Labels To Display in groups, with the interior group shown as "objects within interior" (C2S 7); timestamped copies as Off/On rows ("At each save?", "Every 10 minutes?", "When the paint label changes?"), with the warning "All off: no timestamped copies will be made." when all are off (C2S 8); the recovery file of unsaved paint and its folder (C2S 4); then a T1, T2 ... test list for Sean.
+- **P3. Body color** (saved with the vehicle's edits, C2S 1), the color picker, the contrast shift, GUI colors.
+- **P4. Lamp covers:** clear covers, glowing with the lit lamp under them (C2S 6).
+- **P5. Interior objects** (C2S 7): sub-labels seat, steering wheel, console under `interior` (`FaceSubPart`, `SubPartNames`); cabin surfaces no longer labeled interior; automatic interior labeling off by default; later rewritten to find only the seats, wheel and console (with S2C 1, the interior review, and task 9, the steering wheel). Needs a library rebuild, so it waits until P1 to P4 are done.
+
+## Change log
+
+*Always last.*
 
 - 2026-11-23 10:05: started (Sean's guidelines; Claude's fill-ins from the 04:35 window).
 - 2026-11-23 10:24 (Sean's review):

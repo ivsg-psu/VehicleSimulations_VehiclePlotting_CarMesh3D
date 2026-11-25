@@ -24,7 +24,7 @@ function menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, options)
 %
 %       menu = fcn_CarMesh3D_makePanelMenu(menuButton, column,...
 %           (Resize=function), (Width=width), (OnChange=function),...
-%           (FigNum=figNum))
+%           (Exit=function), (ExitTag=tag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -44,6 +44,15 @@ function menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, options)
 %
 %      OnChange: f(openNames), called after the open panels change, with
 %      their names (top first). Default: none.
+%
+%      Exit: f(), the host's close; when given, "Exit" is the last line of
+%      the menu's list, set apart from the panels (Q62 (A), Sean
+%      2026-11-25 14:31: "put the Exit button as option (last) in Menu -
+%      this cleans up visuals"). Default: none (no Exit line: a window
+%      hosted inside another is closed by its host).
+%
+%      ExitTag: the Exit line's Tag, for the host's tests. Default
+%      'menu_Exit'.
 %
 %      FigNum: not used (nothing is plotted). If set to -1, input checking
 %      is skipped (fast mode). Default [].
@@ -68,7 +77,9 @@ function menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, options)
 %           Names(): every panel's name, in the list's order
 %           SetAvailable(name, flag, why): grey a panel's line in the list
 %               (and close the panel) or make it available again
-%           Parts(): the list, its buttons and the panels, for tests
+%           Parts(): the list, its buttons, the Exit line and the panels,
+%               for tests
+%           Exit(): what the Exit line does (the host's close)
 %
 % DEPENDENCIES:
 %
@@ -92,6 +103,11 @@ function menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, options)
 %   %   % open at once (Sean, 16:12); AddPanel and RemovePanel for nested
 %   %   % GUIs (Q45 (A))
 
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makePanelMenu
+%   % * Exit as the last line of the list (Exit=, ExitTag=; Q62 (A), Sean
+%   %   % 14:31), so the window's top bar holds only the ☰ Menu button
+
 % TO-DO:
 %
 % (none)
@@ -102,6 +118,8 @@ arguments
     options.Resize = []     % f(width) to size the column; [] for none
     options.Width = 320     % The column's width when shown
     options.OnChange = []   % f(openNames) after the open panels change
+    options.Exit = []       % f(): the host's close; adds "Exit" as the list's last line
+    options.ExitTag = 'menu_Exit'   % The Exit line's Tag
     options.FigNum = []     % Not used; -1 for fast mode
 end
 
@@ -125,7 +143,7 @@ if 0==flag_max_speed && flag_check_inputs
     if ~isgraphics(column)
         error('CarMesh3D:badInput', 'column must be a container (uipanel or uigridlayout).');
     end
-    for functionOption = {'Resize', 'OnChange'}
+    for functionOption = {'Resize', 'OnChange', 'Exit'}
         if ~isempty(options.(functionOption{1})) && ~isa(options.(functionOption{1}), 'function_handle')
             error('CarMesh3D:badInput', '%s must be a function handle or empty.', functionOption{1});
         end
@@ -148,6 +166,13 @@ listGrid = uigridlayout(listPanel, [1 1], 'RowHeight', {28}, 'Padding', [4 4 4 4
     'BackgroundColor', [1 1 1], 'Scrollable', 'on');
 % (the open panels, stacked: one row, or two)
 holderGrid = uigridlayout(columnGrid, [1 1], 'RowHeight', {'1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 6);
+% (Exit: the list's last line, after a gap, so it is never taken for a panel)
+exitItem = gobjects(0);
+if ~isempty(options.Exit)
+    exitItem = uibutton(listGrid, 'Text', '    Exit', 'HorizontalAlignment', 'left', 'BackgroundColor', [1 1 1], ...
+        'FontWeight', 'bold', 'Tag', char(options.ExitTag), 'Tooltip', 'Close this window', ...
+        'ButtonPushedFcn', @(~,~) doExit());
+end
 holderGrid.Layout.Row = 2;
 
 menuButton.ButtonPushedFcn = @(~,~) toggleList();
@@ -158,7 +183,8 @@ end
 % opens or closes: resizing it while the host is still being built moved
 % the host's view, found by the viewer's tests)
 
-menu = struct('AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openPanel, 'OpenPanels', @openPanels, 'Close', @closePanel, ...
+placeExit();
+menu = struct('Exit', @doExit, 'AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openPanel, 'OpenPanels', @openPanels, 'Close', @closePanel, ...
     'OpenNames', @getOpenNames, 'ToggleList', @toggleList, 'ListShown', @listShown, 'Panel', @getPanel, ...
     'Names', @getNames, 'SetAvailable', @setAvailable, 'Parts', @getParts);
 
@@ -176,7 +202,7 @@ menu = struct('AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openP
         end
         names{end+1} = name;
         available(end+1) = true;
-        listGrid.RowHeight = repmat({28}, 1, numel(names));
+        placeExit();
         items(end+1) = uibutton(listGrid, 'Text', ['    ' name], 'HorizontalAlignment', 'left', ...
             'BackgroundColor', color, 'UserData', name, 'Tag', ['menu_' strrep(name, ' ', '')], ...
             'ButtonPushedFcn', @(source,~) openPanel(source.UserData));
@@ -208,7 +234,7 @@ menu = struct('AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openP
         panels(index) = [];
         items(index) = [];
         available(index) = [];
-        listGrid.RowHeight = repmat({28}, 1, max(1, numel(names)));
+        placeExit();
         for ith_item = 1:numel(items)
             items(ith_item).Layout.Row = ith_item;
         end
@@ -309,6 +335,26 @@ menu = struct('AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openP
 
     function height = listHeight()
         height = max(1, numel(names))*listRowHeight + 10;
+        if ~isempty(exitItem)
+            height = height + listRowHeight + 8;   % (Exit, after a gap)
+        end
+    end
+
+    function placeExit()
+        % (the list's rows: one per panel, then a gap and Exit, last)
+        numRows = max(1, numel(names));
+        if isempty(exitItem)
+            listGrid.RowHeight = repmat({28}, 1, numRows);
+        else
+            listGrid.RowHeight = [repmat({28}, 1, numRows), {6}, {28}];
+            exitItem.Layout.Row = numRows + 2;
+        end
+    end
+
+    function doExit()
+        if ~isempty(options.Exit)
+            options.Exit();
+        end
     end
 
     function showList(flagOn)
@@ -366,7 +412,7 @@ menu = struct('AddPanel', @addPanel, 'RemovePanel', @removePanel, 'Open', @openP
     end
 
     function parts = getParts()
-        parts = struct('List', listPanel, 'Items', items, 'Panels', panels, 'Holder', holderGrid, 'Names', {names});
+        parts = struct('List', listPanel, 'Items', items, 'Exit', exitItem, 'Panels', panels, 'Holder', holderGrid, 'Names', {names});
     end
 
 end % Ends main function

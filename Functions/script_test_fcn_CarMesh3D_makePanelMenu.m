@@ -12,6 +12,10 @@
 %   %   % up to two panels at once, a third replacing the lower one, an
 %   %   % open one closing, greyed panels, a host's panels added and taken
 %   %   % away, the column's width, random sequences against the rules
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_makePanelMenu
+%   % * Exit as the list's last line (Q62 (A))
 
 % TO-DO:
 %
@@ -127,6 +131,37 @@ for ith_step = 1:200
 end
 delete(hostFigure);
 
+%% TEST case: Exit, the list's last line (Q62 (A), Sean 2026-11-25 14:31)
+figNum = 20009;
+fprintf(1,'Figure %.0f: TEST case: Exit, last\n', figNum);
+[hostFigure, ~, menuButton, column] = fcn_INTERNAL_host();
+menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, Exit=@() delete(hostFigure), ExitTag='testExit');
+menu.AddPanel('One', []);
+menu.AddPanel('Two', []);
+parts = menu.Parts();
+exitItem = findall(hostFigure, 'Tag', 'testExit');
+assert(isscalar(exitItem) && isequal(parts.Exit, exitItem) && contains(exitItem.Text, 'Exit'), 'One Exit line, with its Tag');
+assert(exitItem.Layout.Row > max(arrayfun(@(item) item.Layout.Row, parts.Items)), 'Exit after every panel');
+menu.AddPanel('Three', []);
+parts = menu.Parts();
+assert(exitItem.Layout.Row > max(arrayfun(@(item) item.Layout.Row, parts.Items)), 'Still last after a panel is added');
+menu.RemovePanel('Two');
+parts = menu.Parts();
+assert(exitItem.Layout.Row > max(arrayfun(@(item) item.Layout.Row, parts.Items)), 'Still last after a panel is removed');
+assert(~any(strcmp(menu.Names(), 'Exit')), 'Exit is not a panel');
+menu.ToggleList();
+listGrid = parts.List.Children(1);
+assert(numel(listGrid.RowHeight) == exitItem.Layout.Row, 'The list''s rows end with Exit');
+exitItem.ButtonPushedFcn(exitItem, []);
+assert(~isvalid(hostFigure), 'Exit runs the host''s close');
+% (no Exit given: no Exit line)
+[hostFigure, ~, menuButton, column] = fcn_INTERNAL_host();
+menu = fcn_CarMesh3D_makePanelMenu(menuButton, column);
+menu.AddPanel('One', []);
+parts = menu.Parts();
+assert(isempty(parts.Exit) && isempty(findall(hostFigure, 'Tag', 'menu_Exit')), 'No Exit without Exit=');
+delete(hostFigure);
+
 %% FAST mode cases
 figNum = 30001;
 fprintf(1,'Figure %.0f: FAST mode: FigNum=-1\n', figNum);
@@ -149,6 +184,7 @@ fcn_INTERNAL_expectError(@() menu.Open('Two'), 'No panel named');
 fcn_INTERNAL_expectError(@() menu.OpenPanels({'One', 'One', 'One'}), 'At most two');
 fcn_INTERNAL_expectError(@() fcn_CarMesh3D_makePanelMenu(42, column), 'menuButton must be');
 fcn_INTERNAL_expectError(@() fcn_CarMesh3D_makePanelMenu(menuButton, column, Resize=3), 'Resize must be');
+fcn_INTERNAL_expectError(@() fcn_CarMesh3D_makePanelMenu(menuButton, column, Exit='close'), 'Exit must be');
 delete(hostFigure);
 
 fprintf(1,'All tests of fcn_CarMesh3D_makePanelMenu passed\n');

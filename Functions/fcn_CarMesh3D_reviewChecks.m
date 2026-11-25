@@ -1,53 +1,64 @@
 function checkList = fcn_CarMesh3D_reviewChecks(options)
 % fcn_CarMesh3D_reviewChecks
-% The list of the Model Reviewer's checks, in ONE place: each check's key,
-% its title, whether it is required or optional, and what it checks. The
-% reviewer (fcn_CarMesh3D_reviewVehicle) and the Review section of Shared
-% GUI settings (fcn_CarMesh3D_makeSettingsPanel) both build from this list,
-% so they cannot disagree (rule G27: one list in one place).
+% The list of the V&V GUI's assessments, in ONE place: which assessment
+% functions are asked, in what order, and whether each is required or
+% optional. The V&V GUI (fcn_CarMesh3D_reviewVehicle) plays this list, and
+% the Review section of Shared GUI settings (fcn_CarMesh3D_makeSettingsPanel)
+% shows it, so they cannot disagree (rules G27 and G39).
 %
-% A REQUIRED check must be answered before a vehicle is approved; it
-% cannot be turned off. An OPTIONAL check can be turned off in Shared GUI
-% settings (Review), for every vehicle, until turned back on (Sean,
-% 2026-11-24 16:14: "This will let the user permanently shut off requested
-% reviews for large numbers of models that they trust"). A check turned off
-% is recorded in the vehicle's review as skipped, not left blank.
+% The list holds only the functions and their settings. Each function's
+% title, question and tooltip come from the function itself, asked in its
+% describe mode (Mode='describe'), so editing a function's wording changes
+% every menu (Sean, 2026-11-25 01:22). The order matters: with "Stop at
+% the first No?", the first No ends the review, so basic assessments come
+% first (Sean, 2026-11-24 23:18: this replaces a dependency matrix).
+%
+% A REQUIRED assessment is always asked; an OPTIONAL one can be turned off
+% in Shared GUI settings (Review), and is then recorded as skipped. Every
+% human assessment is optional (Sean, 2026-11-25 00:53: a check whose
+% failure would break code is a code check in the build, not a question).
 %
 % FORMAT:
 %
-%       checkList = fcn_CarMesh3D_reviewChecks((TurnedOff=keys), (FigNum=figNum))
+%       checkList = fcn_CarMesh3D_reviewChecks((TurnedOff=keys),...
+%           (Assessments=handles), (FigNum=figNum))
 %
 % INPUTS:
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      TurnedOff: the keys of the optional checks turned off, as a cell
-%      array of keys (such as {'levels'}); [] (default) for the user's own
-%      setting, the MATLAB preference CarMesh3D/ReviewChecksOff. A
-%      required check's key here is ignored (it cannot be turned off).
+%      TurnedOff: the keys of the optional assessments turned off, as a
+%      cell array (such as {'realism'}); [] (default) for the user's own
+%      setting, the MATLAB preference CarMesh3D/ReviewChecksOff.
+%
+%      Assessments: a cell array of assessment function handles to use in
+%      place of the list below (for a run of one's own, or tests); each is
+%      optional. Default {} (the list below).
 %
 %      FigNum: if given (and not -1), the list is printed. If -1, input
 %      checking is skipped (fast mode) and nothing is printed.
 %
 % OUTPUTS:
 %
-%      checkList: a table with one row per check, in the reviewer's order:
-%           Key: the check's key ('orientation', 'dimensions', ...)
-%           Title: its title in the reviewer ('Orientation', ...)
-%           Required: true for a required check
-%           On: false for an optional check turned off
-%           Built: false for a check listed here but not yet in the
-%               reviewer (its row in Shared GUI settings says so)
-%           Description: what it checks, in a few words (the tooltip)
+%      checkList: a table with one row per assessment function, in order:
+%           Key: the function's key: its name after fcn_CarMesh3D_assess_
+%               (such as "patchyLabels")
+%           Title: its title, from its describe mode
+%           Required: true for a required assessment
+%           On: false for an optional assessment turned off
+%           Built: false when its describe mode failed (Shared GUI
+%               settings shows the row greyed, with the error)
+%           Description: its tooltip, from its describe mode (or the error)
+%           Function: the function handle
+%           Questions: its questions (describe mode's structure array)
 %
 % DEPENDENCIES:
 %
-%      (none)
+%      the assessment functions (fcn_CarMesh3D_assess_*)
 %
 % EXAMPLES:
 %
-%       checkList = fcn_CarMesh3D_reviewChecks();
-%       optionalKeys = checkList.Key(~checkList.Required);
+%       checkList = fcn_CarMesh3D_reviewChecks(FigNum=1);
 %
 %       See the script: script_test_fcn_CarMesh3D_reviewChecks.m for a
 %       full test suite.
@@ -60,21 +71,24 @@ function checkList = fcn_CarMesh3D_reviewChecks(options)
 %
 % 2026_11_24 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_reviewChecks
-%   % * First write (Sean, 16:14: required and optional review checks;
-%   %   % the shared-panels design file, section 5): the list proposed
-%   %   % there, with the five animation checks (Lights, Body, Steering,
-%   %   % Wheels, Drive) as optional. The two new checks (interior objects,
-%   %   % photos) are listed as optional and not built, until Sean marks
-%   %   % them.
+%   % * First write (Sean, 16:14: required and optional review checks)
+
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewChecks
+%   % * The V&V redesign (Documentation_CarMesh3D_GUIdesign_VandV.md): the
+%   %   % list is now a list of assessment functions; titles and tooltips
+%   %   % come from each function's describe mode; the first round of six
+%   %   % (Sean, 2026-11-25 01:22 to 01:36), every one optional; Function
+%   %   % and Questions columns; Assessments= for a list of one's own
 
 % TO-DO:
 %
-% (Sean's marks on the required and optional list: the design file
-% Documentation_CarMesh3D_GUIdesign_sharedPanels.md, section 5)
+% (the "later" assessments in the V&V design file, section 5)
 
 arguments
-    options.TurnedOff = []   % Keys of optional checks turned off; [] for the preference
-    options.FigNum = []      % Prints the list if given; -1 for fast mode
+    options.TurnedOff = []     % Keys turned off; [] for the preference
+    options.Assessments = {}   % Function handles in place of the list
+    options.FigNum = []        % Prints the list if given; -1 for fast mode
 end
 
 %% Debugging and Input checks
@@ -92,31 +106,31 @@ end
 
 if 0==flag_max_speed && flag_check_inputs
     if ~isempty(options.TurnedOff) && ~iscellstr(options.TurnedOff) && ~isstring(options.TurnedOff)
-        error('CarMesh3D:badInput', 'TurnedOff must be a cell array of check keys, or [].');
+        error('CarMesh3D:badInput', 'TurnedOff must be a cell array of keys, or [].');
+    end
+    if ~isempty(options.Assessments) && ~(iscell(options.Assessments) && all(cellfun(@(f) isa(f, 'function_handle'), options.Assessments)))
+        error('CarMesh3D:badInput', 'Assessments must be a cell array of function handles.');
     end
 end
 
 %% Main code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% EDIT HERE: the checks, in the reviewer's order.
-%   Key          Title                Required  Built  Description
+% EDIT HERE: the assessments, in the order asked (the first round,
+% Sean 2026-11-25; the later ones are in the V&V design file, section 5).
+%   Function                                   Required
 rows = {
-    'orientation', 'Orientation',      true,  true,  'The front and up arrows point the right way';
-    'dimensions',  'Dimensions',       true,  true,  'The measured sizes match the vehicle''s data';
-    'labels',      'Labels',           true,  true,  'Each label is on the right faces (with the painter)';
-    'compare',     'Differences',      false, true,  'The places where the mesh differs most from the download';
-    'lights',      'Lights',           false, true,  'The lights animation: the right lamps light up';
-    'body',        'Body',             false, true,  'The body animation: the body moves, the tires stay on the ground';
-    'steering',    'Steering',         false, true,  'The steering animation: the front wheels steer';
-    'wheels',      'Wheels',           false, true,  'The wheels animation: the wheels turn with the motion';
-    'drive',       'Drive',            false, true,  'The drive animation: steering and wheels together';
-    'levels',      'Detail levels',    false, true,  'The detail levels look right at their distances';
-    'outline',     '2D outline',       false, true,  'Each 2D outline is one closed line around its part';
-    'interior',    'Interior objects', false, false, 'The seats and the steering wheel are found (not built yet)';
-    'photos',      'Photos',           false, false, 'A set of photos all around the vehicle (not built yet)';
-    'summary',     'Summary',          true,  true,  'Every answer, and the overall decision'};
+    @fcn_CarMesh3D_assess_overall,             false;
+    @fcn_CarMesh3D_assess_labels,              false;
+    @fcn_CarMesh3D_assess_patchyLabels,        false;
+    @fcn_CarMesh3D_assess_headlights,          false;
+    @fcn_CarMesh3D_assess_brakeLights,         false;
+    @fcn_CarMesh3D_assess_realism,             false};
 % END OF EDIT HERE
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+if ~isempty(options.Assessments)
+    rows = [reshape(options.Assessments, [], 1), num2cell(false(numel(options.Assessments), 1))];
+end
 
 turnedOff = options.TurnedOff;
 if isempty(turnedOff) && ~iscell(turnedOff)
@@ -127,11 +141,33 @@ if isempty(turnedOff) && ~iscell(turnedOff)
 end
 turnedOff = cellstr(turnedOff);
 
-keys = rows(:,1);
-required = cell2mat(rows(:,3));
-onFlags = required | ~ismember(keys, turnedOff);
-checkList = table(string(keys), string(rows(:,2)), required, onFlags, cell2mat(rows(:,4)), string(rows(:,5)), ...
-    'VariableNames', {'Key', 'Title', 'Required', 'On', 'Built', 'Description'});
+numRows = size(rows, 1);
+keys = strings(numRows, 1);
+titles = strings(numRows, 1);
+descriptions = strings(numRows, 1);
+built = true(numRows, 1);
+questions = cell(numRows, 1);
+for ith_row = 1:numRows
+    functionHandle = rows{ith_row, 1};
+    keys(ith_row) = string(regexprep(func2str(functionHandle), '^(@\(\)\s*)?fcn_CarMesh3D_assess_', ''));
+    try
+        % (describe mode: no vehicle, no file, no figure: the title,
+        % questions and tooltip, from the function itself)
+        described = functionHandle([], Mode='describe');
+        questions{ith_row} = described;
+        titles(ith_row) = string(described(1).GroupTitle);
+        descriptions(ith_row) = string(described(1).GroupHelp);
+    catch describeError
+        built(ith_row) = false;
+        questions{ith_row} = struct([]);
+        titles(ith_row) = keys(ith_row);
+        descriptions(ith_row) = string(sprintf('(could not describe: %s)', describeError.message));
+    end
+end
+required = cell2mat(rows(:, 2));
+onFlags = required | ~ismember(keys, string(turnedOff));
+checkList = table(keys, titles, required, onFlags, built, descriptions, rows(:, 1), questions, ...
+    'VariableNames', {'Key', 'Title', 'Required', 'On', 'Built', 'Description', 'Function', 'Questions'});
 
 %% Any debugging?
 if 0==flag_max_speed && ~isempty(options.FigNum)
@@ -144,7 +180,7 @@ if 0==flag_max_speed && ~isempty(options.FigNum)
         if ~checkList.On(ith_row)
             onText = 'OFF';
         end
-        fprintf(1, '%-18s %-9s %s\n', checkList.Title(ith_row), kind, onText);
+        fprintf(1, '%-16s %-9s %-4s %d question(s)\n', checkList.Title(ith_row), kind, onText, numel(checkList.Questions{ith_row}));
     end
 end
 

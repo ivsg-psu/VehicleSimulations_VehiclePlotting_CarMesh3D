@@ -94,6 +94,7 @@ Each GUI file's section 2 says: "Follows `Documentation_CarMesh3D_GUIdesign_rule
 - **G17. Every control has a tooltip** that says what it does in a sentence (painter rule 14).
 - **G18. The primary action is set apart:** bold, at the end of its row ("Done: close and return", "Save").
 - **G19. Keyboard:** Ctrl+Z is Undo and Ctrl+S is Save, as the top buttons; Esc clears a selection (painter rule 19; 2026-11-24).
+- **G41. A goal, not a requirement: pictures before words on buttons** (Sean, 2026-11-25 12:16: "For the GUIs, I'd like to start transitioning buttons with text to buttons with very simple images (icons). The reason: many of the students have English as 2nd language, so GUIs as they are now may be difficult to understand."). Buttons move over time from text to very simple icons; an inactive button shows a greyed version of its icon (Sean's example: a small vehicle picture with a + on it for the next vehicle, a - for the previous one). *Claude's proposals for how, not yet agreed:* while a button moves over, it shows its icon with one short word, and the icon alone once its meaning is settled; the tooltip (G17) always keeps the full words; the same action has the same icon in every GUI (P1), and the icons come from one function (G27), drawn in code so no image files have to be kept in step.
 
 ## C. Behavior
 
@@ -109,7 +110,7 @@ Each GUI file's section 2 says: "Follows `Documentation_CarMesh3D_GUIdesign_rule
 - **G26. A panel used by more than one GUI is built once, by the shared helper** (`fcn_CarMesh3D_makeDisplayPanels`), never copied into a GUI. A part a GUI does not use is **greyed out, never hidden**, with a tooltip naming the GUI that uses it, so every GUI shows the same panel and it is tested once (Sean, 2026-11-24 16:09 and 16:12). See the shared-panels file.
 - **G27. One list in one place:** a list used by a panel and by a GUI (the review checks, the label groups, the lamp types) lives in one function with an "EDIT HERE" block, and both build from it.
 - **G39. Code is the source; documents describe it** (Q52 (A), Sean 2026-11-25 01:15: "almost as a rule"): a list that code uses lives in code (one EDIT HERE block, G27). Documents describe it and never feed it, so a formatting slip in a document cannot break a GUI. Where a document repeats the list (a design file's table), a test checks that the two match. Wording a GUI shows comes from the function that owns it (as the V&V assessments' describe mode does), not from a copy kept elsewhere.
-- **G40. Data about a vehicle lives with the vehicle; lists of vehicles are found, not stored** (Q56 (A), Sean 2026-11-25 02:08: "a rough tradeoff between different types of failure"; from Sean's note of 01:53: "variables about a vehicle are stored with the vehicle, not kept separate. And variables about vehicle data should not assume the data is static from run-to-run"). (1) Data about one vehicle is kept in its own folder. (2) A list of vehicles is never stored as the truth: it is found by scanning the folders when needed, or, if kept for speed, it carries a fingerprint of the folder listing and is rebuilt when that differs. (3) Anything kept outside a vehicle that names vehicles (`Data/bodyStyles.csv`, the demo-vehicle preference) is checked when read, and says plainly which named vehicle is missing. Why: with many people adding and merging vehicles, a stored copy goes stale silently, and the failure shows up far from its cause. An example is in the V&V design file, section 10.
+- **G40. Data about a vehicle lives with the vehicle; lists of vehicles are found, not stored** (Q56 (A), Sean 2026-11-25 02:08: "a rough tradeoff between different types of failure"; from Sean's note of 01:53: "variables about a vehicle are stored with the vehicle, not kept separate. And variables about vehicle data should not assume the data is static from run-to-run"). (1) Data about one vehicle is kept in its own folder. (2) A list of vehicles is never stored as the truth: it is found by scanning the folders when needed, or, if kept for speed, it carries a fingerprint of the folder listing and is rebuilt when that differs. (3) Anything kept outside a vehicle that names vehicles (`Data/bodyStyles.csv`, the demo-vehicle preference) is checked when read, and says plainly which named vehicle is missing. Why: with many people adding and merging vehicles, a stored copy goes stale silently, and the failure shows up far from its cause. An example is in the V&V design file, section 9.
 
 ## E. List windows (the browser, and any later list)
 
@@ -122,11 +123,12 @@ Each GUI file's section 2 says: "Follows `Documentation_CarMesh3D_GUIdesign_rule
 
 - **G32. Every control has a unique Tag,** and every GUI has hooks (`State`, `SetState`, `Press`, `Key`, `CheckLayout`, and the mouse at a face or point) so scripts drive it through its real callbacks (Q39, 2026-11-24). Automated tests cover every value of every control, random walks with the window's rules checked after every step, and the layout at several sizes, the smallest first (G2).
 - **G33. A test for a function lives in that function's documentation only** (Sean, 2026-11-24 14:47: "Rare exceptions to this may be allowed, for example a common helper function that is not otherwise exposed to the user"). A behavior two GUIs share gets a T-step in each one's file; the shared panels' steps are in the shared-panels file.
-- **G34. Each review list starts with its exact MATLAB setup commands** (Sean, 2026-11-24 14:40 and 14:43), beginning with `close all force; clear functions; clc`, naming the vehicle by its ID (not the demo vehicle, which a user may change), and using a demo copy (`fcn_CarMesh3D_makeDemoCopy`) for anything that saves.
-- **G35. T-step numbers are unique** across every design file (Sean, 2026-11-24 03:43). Each step has a "(Sean's result:)" line; a finished round moves to the change log.
+- **G34. Every test step for Sean carries its own exact MATLAB commands, right under it** (Sean, 2026-11-24 14:40 and 14:43; 2026-11-25 14:24: "keep the commands next to the T items ... a rule across all Documentation_ MD files"), beginning with `close all force; clear functions; clc`, naming the vehicle by its ID (not the demo vehicle, which a user may change), and using a demo copy (`fcn_CarMesh3D_makeDemoCopy`) for anything that saves. A step never relies on another step's commands ("same window"), so any step can be run alone. **Steps for Sean are only what a person must judge** (look, feel, clarity, human-only checks; Sean, 2026-11-25 13:15 and 14:24); what a window does is tested in code, and the design file names those tests.
+- **G35. T-step numbers are unique** across every design file (Sean, 2026-11-24 03:43). Sean's results go in parentheses under each step, marked as in the "Tests for Sean" key (an expected outcome as a letter, **BUG**, **???**; Sean, 2026-11-25 12:16); a finished round moves to the change log.
 - **G36. GUIs are tested on a purpose-made test vehicle** with every feature (`2026_CarMesh3D_Sample_GUITestVehicle`), as well as on real ones (Sean, 2026-11-23 13:12).
 - **G37. Tests never change a real vehicle's files or a user's setting:** they work on demo copies, and save each preference they touch and put back the value they found; no such test runs while Sean is testing a GUI (2026-11-24 02:06 and 14:36).
 - **G38. The design files are the record** (Sean, 2026-11-24 01:40): questions (S2C / C2S, numbered by direction; closed ones moved to the change log), test steps and results, decisions. Claude writes to a design file only after Sean says he is done with it.
+- **G42. Every design file has the same layout** (Sean, 2026-11-25 12:16 and 12:42; Q60 (A)): `Documentation_CarMesh3D_template.md`. At the top, "Review now (for Sean)"; in the middle, numbered sections (cited by number; when one is added, removed or moved, every citation of the numbers after it is fixed in the same edit, in every file and in code); at the bottom, always in this order and named, not numbered: "Tests for Sean", "Open questions", "Change log". An answered question's content moves into the sections above, and its summary into the change log.
 
 ## G. MATLAB notes (from building these windows)
 
@@ -168,9 +170,28 @@ Each GUI file's section 2 says: "Follows `Documentation_CarMesh3D_GUIdesign_rule
 | GUI design notes 8 to 13 (2026-11-24) | G1, G2, G26, G7, G11, G25 |
 | Browser B3, B4 | G15, G5 (B1, B2 also G28 to G30; the browser's other rules stay in its file) |
 
+## Tests for Sean
+
+*(This file describes rules, not a window: its rules are tested in each GUI's own file, G33.)* The key is in `Documentation_CarMesh3D_template.md`.
+
+(none)
+
+## Open questions
+
+The key is in `Documentation_CarMesh3D_template.md`.
+
+### Question list
+
+(none)
+
 ## Change log
+
+*Always last.*
 
 - 2026-11-24 16:25 (Claude, Sean's request 16:20 to 16:23): this file started; the global rules gathered and numbered G1 to G38; the four GUI files' rule sections trimmed to point here; the project notes `claude/gui_design_notes.md` point here. Two rules changed in the gathering, both from Sean's decisions of the day: up to two panels open at once (G1, was one), and settings in the shared panel (G22). Q45 (G1, nested windows) and Q46 (G22, when a change applies) were answered (A) by Sean at 16:25.
 - 2026-11-24 23:00 (Claude, Sean 23:00 "Please edit"): Sean's design principles (added 22:54) numbered P1 to P5; typos fixed (significant, implication, perceive, vertices, GUI's).
 - 2026-11-25 01:40 (Claude): G39 added (Q52 (A), Sean 01:15).
 - 2026-11-25 02:10 (Claude): G40 added (Q56 (A), Sean 02:08).
+- 2026-11-25 12:18 (Claude): G41 added as a goal (Sean, 12:16), with Claude's proposals for how marked as not yet agreed.
+- 2026-11-25 12:50 (Claude, Q60 (A), Sean 12:42): G42 added (every design file's layout, from `Documentation_CarMesh3D_template.md`); G35 takes Sean's test-result marks; the bottom sections added here; G40's example now cites the V&V file's section 9 (its sections were renumbered).
+- 2026-11-25 14:25 (Claude, Sean 14:24): G34 covers every design file: commands with every test step, and Sean's steps only for what a person must judge; the template's key says the same.

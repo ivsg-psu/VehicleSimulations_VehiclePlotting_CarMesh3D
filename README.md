@@ -63,17 +63,16 @@ flowchart TB
   VM --> BL["browseLibrary / listVehicles / showVehicle"]
   DM --> BL
   BL -- "picked vehicles, nextStep (View, Edit labels, Review)" --> DM
-  OT --> RV["reviewVehicle: viewOrientation, viewDimensions, viewLabels + paintLabels, viewOutline, viewDetailLevels, animateChecks"]
+  OT --> RV["reviewVehicle (the V&V GUI): plays reviewChecks' list of assess_* functions"]
   OT --> VLB["viewLabels"] & PLB["paintLabels (holds viewLabels)"]
   VM & E --> MW["meshWithLabelEdits (no window)"] --> RV
-  RV -- "Save paint" --> E
   PLB -- "Save paint" --> E
   VM --> AN["Animation (and AnimateCar3D): plotVehicle, plotScene, loadMotionCSV, fillTrajectory, calcAckermannSteering, fillCameraSettings, updateCamera, saveGifFrame"]
 ```
 
 **Tools form a tree** (2026_11_24): only the trunk (the demo menu, or your own script) opens a tool. A tool may hold child tools in its own window (the reviewer holds the painter; the painter holds the label viewer), but never opens a sibling: the library browser's View, Edit labels and Review buttons close the browser and return the step (`nextStep`), which `fcn_CarMesh3D_openTool` opens. Work that several tools need, such as the mesh with its saved label fixes, is a plain function with no window (`fcn_CarMesh3D_meshWithLabelEdits`).
 
-Two loops close the chart. **Painting:** the label painter (in the Model Reviewer, or `fcn_CarMesh3D_paintLabels` alone) saves its fixes in `labelEdits_<ID>.mat`, and the next build applies them, so a fix is never lost when the vehicle is built again. **Caching:** each slow stage (the mesh, the comparison, the checks) is saved in the vehicle's `cache` folder with the dates of every file and function it depends on (`fcn_CarMesh3D_saveCache`, `fcn_CarMesh3D_loadCache`, `fcn_CarMesh3D_fileStamps`), and reused when none of them changed.
+Two loops close the chart. **Painting:** the label painter (`fcn_CarMesh3D_paintLabels`) saves its fixes in `labelEdits_<ID>.mat`, and the next build applies them, so a fix is never lost when the vehicle is built again. **Caching:** each slow stage (the mesh, the comparison, the checks) is saved in the vehicle's `cache` folder with the dates of every file and function it depends on (`fcn_CarMesh3D_saveCache`, `fcn_CarMesh3D_loadCache`, `fcn_CarMesh3D_fileStamps`), and reused when none of them changed.
 
 ## Inputs: what CarMesh3D needs
 
@@ -174,7 +173,7 @@ Flow 1 writes each finished vehicle (mesh, detail levels, 2D outline, check pict
 | 2 | List the vehicles | `fcn_CarMesh3D_browseLibrary` (the library browser: a sortable table with a preview; returns the vehicles picked and the next step), `fcn_CarMesh3D_browseVehicles` (a menu with quality scores), `fcn_CarMesh3D_listVehicles` (scores; up to date or not), `fcn_CarMesh3D_loadBodyStyles` | the demo menu (`script_demo_CarMesh3D.m`), which opens the step picked with `fcn_CarMesh3D_openTool` (see [Browsing the vehicles](#browsing-the-vehicles)) |
 | 2 | View in 3D and 2D | `fcn_CarMesh3D_viewLabels` (the label viewer, by day and at night, beside the photos), `fcn_CarMesh3D_showVehicle` (3D and 2D, or parts by label or material, with a summary), `fcn_CarMesh3D_plotLabels`, `fcn_CarMesh3D_plotVehicle`, the outline in `vehicleOutline_<ID>.mat` | |
 | 2 | Compare | the pictures in each vehicle's `checks` folder; `fcn_CarMesh3D_compareToOriginal`; `fcn_CarMesh3D_validateMesh` | |
-| 2 | Small changes | `fcn_CarMesh3D_paintLabels` (the label painter; fixes saved in `labelEdits_<ID>.mat`), `fcn_CarMesh3D_editLabels` (fixes by script: by position, region, material), `fcn_CarMesh3D_reviewVehicle` (the model reviewer), the vehicle script's settings (body color, part rules) | the demo menu, or the vehicle's own script |
+| 2 | Small changes | `fcn_CarMesh3D_paintLabels` (the label painter; fixes saved in `labelEdits_<ID>.mat`), `fcn_CarMesh3D_editLabels` (fixes by script: by position, region, material), `fcn_CarMesh3D_reviewVehicle` (the V&V GUI: is the mesh right?), the vehicle script's settings (body color, part rules) | the demo menu, or the vehicle's own script |
 | 2 | Refit from a body style | `fcn_CarMesh3D_fillBodyStyleMesh` (an approved exemplar refit to new dimensions) | `Data/script_CarMesh3D_bodyStyle_TEMPLATE.m`; the generic vehicles in `Data/Samples` |
 | 3 | Find and check | `fcn_CarMesh3D_findVehicleFiles`, `fcn_CarMesh3D_version` (`AtLeast=`, mesh version), `fcn_CarMesh3D_listVehicles` | AnimateCar3D |
 | 3 | Load the mesh | `vehicleMesh_<ID>.mat`, `vehicleLevels_<ID>.mat` (detail levels), `vehicleOutline_<ID>.mat` (2D) | |
@@ -276,11 +275,11 @@ A mesh moves from `DataSomeday` into `Data` only when **all** of these hold. The
    Fix labels in the label painter, `fcn_CarMesh3D_paintLabels(ID)`.
 7. **It is light enough to animate:** a sparse mesh with sensible face counts and its detail levels made (`vehicleLevels_<ID>.mat`). The goal is a good likeness, not photorealism.
 8. **Its license allows our use:** CC0 or Free Standard, written in `LICENSE.txt` in the standard format below.
-9. **Its checks have been looked at and pass:** the pictures and animations in `checks/`, and a review in the label viewer or the Model Reviewer.
+9. **Its checks have been looked at and pass:** the pictures and animations in `checks/`, and a review in the V&V GUI (`fcn_CarMesh3D_reviewVehicle`).
 10. **It has a set of photos of the real vehicle all around** (Sean, 2026_11_24), in a `photos` folder in the vehicle's folder:
     - **Names:** `ViewInDegrees_<angle>.jpg`. The angle is where the camera stands, in degrees around the vehicle, three digits from 000 to 359 (000 is the front, 090 the left side, 180 the rear, 270 the right side).
     - **Coverage:** enough views to go all the way around; the angles need not be even.
-    - **Use:** the label viewer, the label painter and the Model Reviewer show the photo nearest to the view beside the mesh, so labels and colors can be checked against the real vehicle.
+    - **Use:** the label viewer and the label painter show the photo nearest to the view beside the mesh, so labels and colors can be checked against the real vehicle.
     - **Other formats:** photos found on the web come in many formats (WebP, AVIF, PNG, HEIC ...). Name them `ViewInDegrees_<angle>.<extension>`, then run `fcn_CarMesh3D_convertPhotos(ID)`. It makes the standard `.jpg` for each angle, and when two photos share an angle, it keeps the one with more pixels. Other photos (close-ups of a lamp, the interior) may stay in the folder under other names: they are skipped, with a warning.
 
 A vehicle that cannot meet a requirement yet (no seats or no steering wheel in the download, say) stays in `DataSomeday` with a README.md in its folder saying what is missing. The [Someday vehicles](#someday-vehicles-datasomeday) section has more.
@@ -348,7 +347,7 @@ The whole file becomes the mesh's `License` field. The [Vehicles available](#veh
 
 1. Make the folder `DataSomeday/BodyStyles/<Style>/<ID>` (new vehicles start in `DataSomeday`; the style folders are listed in `Data/bodyStyles.csv`; for example `DataSomeday/BodyStyles/Sedan/2025_Toyota_Camry_XV80`), and put the parameters file and the model in it as above. `fcn_CarMesh3D_findVehicleFiles(ID)` finds the folder wherever it is filed, so scripts and functions only need the ID. A download left directly in the vehicle folder (not yet moved into `model/`) is found too (`ModelFiles`).
 2. Copy `Data/script_CarMesh3D_vehicle_TEMPLATE.m` into the folder as `script_CarMesh3D_vehicle_<ID>.m`. Change only its **Vehicle settings** section: the ID, the model file, the import axes, any faces to delete (`removeFaces`: stray pieces that would spoil the fit, such as a lone point above the roof), the part rules, and the width reference. Keep the standard blue body color (`[0.05 0.20 0.60]`) at least until every check looks right: against the blue, trim (near black), glass (gray, see-through), and panels shaded wrongly stand out. The color can be changed later.
-3. Run it, and look at the checks it writes (`check_00_orientation.png`, `check_02_dimensions.png`, `check_03_labels.png`; see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run)), or open the vehicle in the Model Reviewer, `fcn_CarMesh3D_reviewVehicle(ID)`. The first run usually shows something to fix: the orientation, the labels, or the lamps (`fcn_CarMesh3D_viewLabels`, "Nighttime view").
+3. Run it, and look at the checks it writes (`check_00_orientation.png`, `check_02_dimensions.png`, `check_03_labels.png`; see [Mesh families and the checks to run](#mesh-families-and-the-checks-to-run)), or open the vehicle in the V&V GUI, `fcn_CarMesh3D_reviewVehicle(ID)`. The first run usually shows something to fix: the orientation, the labels, or the lamps (`fcn_CarMesh3D_viewLabels`, "Nighttime view").
 4. Fix the settings and run again. Most fixes are label fixes, painted in the label painter (`fcn_CarMesh3D_paintLabels(ID)`; saved in `labelEdits_<ID>.mat` and applied by every later build), or written as regions in the script (`labelEditsAfterFit`: meters, with the origin on the ground below the rear axle). Pieces that should not be seen are **hidden, not deleted** (see [Hidden faces](#hidden-faces-never-deleted)); `removeFaces` is only for stray pieces that would spoil the fit (a lone point above the roof, a ground plane). Fixes that must move with the wheels (for example, tires that are stored as part of the body) go in `fcn_INTERNAL_editsBeforeFit` at the end of the script; the Transit Connect script has an example.
 5. **When the mesh meets every [core requirement](#what-makes-a-good-mesh-the-core-requirements)**, move its folder from `DataSomeday/BodyStyles/<Style>/<ID>` to `Data/BodyStyles/<Style>/<ID>` and run its script once more. From then on it is part of the working library.
 6. When every check looks right, set `flag_addThisVehicleToReferenceList = 1` and run it once more (this also makes its drive GIF). This copies `check_09_drive.gif` to `Images/vehicles/<ID>.gif`, adds (or updates) the vehicle's row in `Data/referenceVehicles.csv`, and rewrites the [Vehicles available](#vehicles-available) table in this README (`fcn_CarMesh3D_addReferenceVehicle`).
@@ -428,7 +427,7 @@ A model is never rejected for having an open underside. The checks every build w
 | `check_01_inputs.png`, `check_04_lightStates.png`, `check_10_groundContact.png` | The standard test motion's inputs, each light alone, body contact with the road | **optional**: `checksToRun = 'all'` |
 | `check_05_lights.gif` to `check_09_drive.gif` | The test motion's lights, body, steering, wheels, and drive segments | **optional**: `checksToRun = 'all'` and `flag_saveGifs = 1` (about 30 MB per vehicle). `check_09_drive.gif` is made when the vehicle is added to the reference list |
 
-The optional checks have never failed on a vehicle that passed the required ones, so they stay off unless asked for; the Model Reviewer (`fcn_CarMesh3D_reviewVehicle`) draws them live under "More checks". `.fig` copies of the pictures are saved only with `flag_saveFigs = 1`.
+The optional checks have never failed on a vehicle that passed the required ones, so they stay off unless asked for; the V&V GUI (`fcn_CarMesh3D_reviewVehicle`) asks a person only what a person sees at a glance; exact checks stay in the build. `.fig` copies of the pictures are saved only with `flag_saveFigs = 1`.
 
 The **standard test motion** (`fcn_CarMesh3D_fillTestMotion`, in the [motion CSV format](#inputs-what-carmesh3d-needs)) drives the vehicle through four segments in the standard scene (a gray grid with colored cubes), with cameras placed as fractions of the vehicle's size:
 
@@ -845,11 +844,10 @@ edits{end+1} = struct('Name','tail lights', ...
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
 ```
 
-**3. By painting, in the Model Reviewer or the label painter** (the usual way for a finished vehicle):
+**3. By painting, in the label painter** (the usual way for a finished vehicle):
 
 ```matlab
-fcn_CarMesh3D_reviewVehicle('2009_Honda_Fit_Sport');   % every check of one vehicle, with the painter in its Labels panel
-fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');     % the painter alone
+fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');     % the painter
 fcn_CarMesh3D_viewLabels('2009_Honda_Fit_Sport');      % look only
 ```
 
@@ -1108,7 +1106,7 @@ Each test script runs as a plain script, top to bottom: its sections share varia
 
 **Required before a commit:** the tests of every function changed, and of the functions that call it (the [chart](#how-the-functions-fit-together) shows them). **Optional:** the full set, about 10 minutes (the GUI tests open hidden windows; `fcn_CarMesh3D_compareToOriginal`'s takes about 2 minutes).
 
-**Known failures** (on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check), and `script_test_fcn_CarMesh3D_reviewVehicle` at its Differences case (hiding part of the roof makes no difference spot, since hidden faces are not deleted; waits on the reviewer's redesign).
+**Known failures** (on the TO-DO list): `script_test_fcn_CarMesh3D_makeOutline2D` at line 220 (the one-sided interior case), and `script_test_fcn_CarMesh3D_runVehicleChecks` at line 83 (its figure-number check). (The old reviewer's Differences failure went with the V&V redesign, 2026-11-25.)
 
 **Run tests the way a user does**, in MATLAB's base workspace (as above): some tests use the base workspace or the current figure, and fail falsely when run from inside a function. **Tests never write to a real vehicle's files:** a test that saves works on a temporary copy (`fcn_CarMesh3D_makeDemoCopy`) and puts anything it changes back through `onCleanup`, so the put-back runs even if the test stops.
 
@@ -2547,7 +2545,7 @@ history = fcn_CarMesh3D_meshHistory(vehicleInput,...
 | `FigNum` | option | not used (no plot); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
 | `history` | output | a structure: ID, Folder, HistoryFile Entries: a table (Time, Who, Action, Details), oldest first, with the build (from BuildInfo) put in its place License: Name, Author, Source, Text (from LICENSE.txt; '' if none) Built: Date, Script, MeshVersion ('' if not known) LastChange: Time, Who, Action (the newest entry) Review: Status ('not reviewed', 'approved', 'rejected'), By, Date, Current (false when the mesh changed after it) FinePrint: one line for the bottom of a viewer | struct | 1 x 1 |
 
-**Assumptions:** The change log is meshHistory_<ID>.csv in the vehicle's folder (one row per change); the painter and the Model Reviewer add rows to it.
+**Assumptions:** The change log is meshHistory_<ID>.csv in the vehicle's folder (one row per change); the painter and the V&V GUI add rows to it.
 
 </details>
 
@@ -2620,28 +2618,149 @@ vehicleTable = fcn_CarMesh3D_listVehicles(...
 
 ### Review and edit (GUIs)
 
-<details><summary><b><code>fcn_CarMesh3D_reviewVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewVehicle.m</code>): The MODEL REVIEWER: a window for reviewing a finished vehicle, one check at a time, and recording an approval, a rejection, or a comment for each question.</summary>
+<details><summary><b><code>fcn_CarMesh3D_reviewVehicle</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewVehicle.m</code>): The V&V GUI (verification and validation): is the mesh right? A host that plays a list of assessment functions, one question at a time, and records each answer.</summary>
 
-The MODEL REVIEWER: a window for reviewing a finished vehicle, one check at a time, and recording an approval, a rejection, or a comment for each question. It replaces looking through the checks folder's pictures.
+The V&V GUI asks a person short questions that only a person answers quickly (a few seconds each), and records the answers. It is a **host**: each question's pictures are drawn by its own assessment function (`fcn_CarMesh3D_assess_<name>`), and its wording comes from that function's describe mode; the list, and which are on, is `fcn_CarMesh3D_reviewChecks`. The design: `Documents/Documentation_CarMesh3D_GUIdesign_VandV.md`.
+
+- **The window:** the title bar; a top bar in two rows, so moving between vehicles never looks like moving between questions: the vehicle row (pictures of a vehicle with a - and a +, greyed when there is no vehicle that way, and "Vehicle 1 of 3") above the question row (Previous, Next, and Summary, which on the Summary page becomes Questions, back to the first question not answered), with ☰ Menu (Shared GUI settings; Questions: every question with its answer; and, last, Exit, as in every CarMesh3D GUI) at the left; the assessment's pictures; the question, its answers and a comment; a status line (the function's note, how long it took to draw, who answered and when). The last page is the **Summary**: every answer, and Approve or Reject.
+- **After an answer** (Shared GUI settings, Review): "Stop at the first No?" (default On: a problem answer goes to the Summary, and the questions after it are recorded as not asked) and "After an answer, go to" (Next always; Next unanswered; Next unanswered or No, the default; Stay here).
+- **Safeguards:** every call to an assessment function is timed and caught; one that fails shows its error with Retry, Skip and Show error, and is recorded as "error".
+- **Stale answers:** each answer keeps the fingerprint of the data its pictures were drawn from (`fcn_CarMesh3D_fingerprint`); when the mesh changes, the old answer counts as unanswered.
+- **No override flag:** a decision records what it rested on (every answer, and the data it was given).
+- **The record:** `review_<ID>.mat` in the vehicle's checks folder, after every change (`vvAnswers`, `vvSummary`; `reviewTable`, the same in the format the library browser reads; `reviewTableOld`, answers from the older reviewer, kept), and `review_<ID>.md`, a readable report, at a decision and at Close. A decision is added to the vehicle's change log.
+- **Batches:** `Vehicles={...}` plays the caller's vehicles in the order given; the V&V GUI never chooses vehicles.
 
 ```matlab
-[reviewTable, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleID,...
-    (Reviewer=name), (Visible=flag), (FigNum=figNum))
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput,...
+    (Vehicles=IDs), (Reviewer=initials), (Assessments=handles),...
+    (Visible=flag), (FigNum=figNum))
 ```
-
 
 | Variable | Kind | Meaning | Class | Size |
 |---|---|---|---|---|
-| `vehicleID` | input | a vehicle ID (its folder name), such as '2009_Honda_Fit_Sport', or the full path of a vehicle's folder kept anywhere (such as the demo's copy, from | char or string | 1 x n |
-| `Reviewer` | option | the reviewer's name, saved with each answer. Default: the computer's user name. | char | 1 x n |
-| `Visible` | option | true (default) to show the window; false to build it without showing it (for tests). Default `true`. | logical | 1 x 1 |
-| `FigNum` | option | not used for plotting (the reviewer is its own window). If set to -1, input checking is skipped. Default `[]`. | double | 1 x 1 (or empty) |
-| `reviewTable` | output | the answers so far (one row per question): Check, Item, Question, Status ('', 'approved', 'rejected'), Severity ('minor', 'must fix'), Cause, Comment, Reviewer, Time. | table | questions x 11 |
-| `figureHandle` | output | the reviewer's window (a uifigure). | graphics handle | 1 x 1 |
+| `vehicleInput` | input | a vehicle ID, a vehicle's folder (such as a demo copy), or a structure from `fcn_CarMesh3D_reviewInput`; [] with Vehicles for the first of them. | char, string or struct | 1 x n |
+| `Vehicles` | option | a batch: IDs or folders, reviewed in the order given. Default {}. | cell | 1 x n |
+| `Reviewer` | option | the reviewer's initials. Default: yours, from `fcn_CarMesh3D_userInfo` (asked once if none are saved; never for a hidden window). | char | 1 x n |
+| `Assessments` | option | assessment function handles in place of the list (a run of one's own, or tests). Default {}. | cell | 1 x n |
+| `Visible` | option | true (default) to show the window; false to build it hidden (tests). | logical | 1 x 1 |
+| `FigNum` | option | not used for plotting; -1 skips input checks. | double | 1 x 1 (or empty) |
+| `answers` | output | the answers when the window opened, one row per question: Assessment, Key, Title, Question, Answer, Problem, Comment, Who, When, Fingerprint, Status, Note, Seconds. Later: `figureHandle.UserData.Answers()`. | table | questions x 13 |
+| `figureHandle` | output | the window (a uifigure). Its UserData holds functions for scripts and tests: Show, Answer, Decide, Current, Answers, Summary, Pages, Retry, SkipError, LastError, NextVehicle, PreviousVehicle, ToggleSummary, ReviewFile, ReportFile, Menu, Settings. | graphics handle | 1 x 1 |
 
-**Assumptions:** The vehicle has a finished mesh and its checks have run; the reviewer's answers are saved beside the vehicle.
+**Assumptions:** The vehicle has a finished mesh. Each assessment function follows the interface in the design file, section 3.
 
 ![fcn_CarMesh3D_reviewVehicle sample output](Images/functions/fcn_CarMesh3D_reviewVehicle.png)
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_assess_overall</code>, <code>_labels</code>, <code>_patchyLabels</code>, <code>_headlights</code>, <code>_brakeLights</code>, <code>_realism</code></b> (tests: <code>script_test_fcn_CarMesh3D_assess_&lt;name&gt;.m</code>): The V&V GUI's first round of assessments, one question each.</summary>
+
+| Function | Question | Answers (the problem answer last) | Pictures |
+|---|---|---|---|
+| `fcn_CarMesh3D_assess_overall` | Does this mesh pass a first glance? | Yes / No | the vehicle, front left and rear right |
+| `fcn_CarMesh3D_assess_labels` | Are the labels on the correct portions of the mesh? | Yes / No | the label colors, front left and rear right |
+| `fcn_CarMesh3D_assess_patchyLabels` | Are the labels clean, with no blotchy or patchy areas? | Yes / No | the label colors, lit from the front only: faces pointing the wrong way show nearly black |
+| `fcn_CarMesh3D_assess_headlights` | Do the headlights go off, low, high as expected in these three pictures? | Yes / No | the front at night: off, low beam, high beam |
+| `fcn_CarMesh3D_assess_brakeLights` | Do the brake lights come on as expected in these pictures? | Yes / No | the rear at night: off, tail lamps on, braking |
+| `fcn_CarMesh3D_assess_realism` | Is the realism of this mesh (Fig 1) higher than, equal to, or lower than this approved mesh (Fig 2)? | Higher / Equal / Lower | this mesh beside its body style's approved exemplar; skipped, with why, when there is none |
+
+Every assessment function works the same way, so it can be run and debugged alone:
+
+```matlab
+result = fcn_CarMesh3D_assess_<name>(vehicleInput, (Mode=mode), (Key=key), (Parent=panel), (FigNum=figNum))
+described = fcn_CarMesh3D_assess_labels([], Mode='describe');          % wording only: no vehicle, no file, no figure
+result = fcn_CarMesh3D_assess_labels('2009_Honda_Fit_Sport', FigNum=1); % its pictures, in a figure of its own
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID or folder, or a structure from `fcn_CarMesh3D_reviewInput` ([] to describe). | char, string or struct | 1 x n |
+| `Mode` | option | 'draw' (default: draws, then returns), 'describe' (its wording only) or 'fingerprint' (the fingerprint of what it would draw, without drawing). | char | 1 x n |
+| `Key` | option | which question, for a function with more than one. Default: the first. | char | 1 x n |
+| `Parent` | option | the panel to draw in; [] (default) for a figure of its own. | uipanel | 1 x 1 |
+| `FigNum` | option | the figure to use with no Parent; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `result` | output | Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey, GroupTitle, GroupHelp; and, but in describe mode, Fingerprint, Skip ('' or why it cannot be asked for this vehicle) and Note. | struct | 1 x 1 (1 x questions to describe) |
+
+**To add an assessment:** write `fcn_CarMesh3D_assess_<name>` by this interface (copy one of these), give it a test, add its line to the EDIT HERE block of `fcn_CarMesh3D_reviewChecks`, and add its row to the design file's table (section 5; a test checks they match).
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_icons</code></b> (test: <code>script_test_fcn_CarMesh3D_icons.m</code>): The small pictures on CarMesh3D's buttons, drawn in code, active and greyed (rule G41: pictures before words, a goal).</summary>
+
+```matlab
+iconImage = fcn_CarMesh3D_icons(iconName, (Enabled=flag), (Height=pixels), (FigNum=figNum))
+uibutton(uifigure, 'Text', '', 'Icon', fcn_CarMesh3D_icons('vehicleNext'));
+fcn_CarMesh3D_icons('list', FigNum=1);   % every icon, active and greyed
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `iconName` | input | 'vehicleNext' (a vehicle with a +), 'vehiclePrevious' (with a -), 'questionNext', 'questionPrevious' (arrows), 'summary' (a checked list), 'questions' (a question mark); 'list' for the names. | char | 1 x n |
+| `Enabled` | option | true (default) for the active look; false for the greyed look of a button that cannot be pressed now. | logical | 1 x 1 |
+| `Height` | option | pixels (default 24); the width follows the shape. | double | 1 x 1 |
+| `FigNum` | option | show it in that figure; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `iconImage` | output | the picture on a button's light gray, colors 0 to 1, for a uibutton's Icon; for 'list', the names. | double | rows x columns x 3 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_assessAxes</code></b> (test: <code>script_test_fcn_CarMesh3D_assessAxes.m</code>): The pictures of a V&V assessment, side by side: axes in a figure of its own, or in the V&V GUI's panel.</summary>
+
+```matlab
+axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, (Captions=captions), (Dark=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `parent` | input | the panel to draw in (cleared first), or [] for a figure of its own. | uipanel | 1 x 1 (or empty) |
+| `numViews` | input | how many pictures, side by side (1 to 4). | double | 1 x 1 |
+| `Captions` | option | a caption above each picture. Default none. | cell | 1 x n |
+| `Dark` | option | true for a night background (lit lamps). Default false. | logical | 1 x 1 |
+| `FigNum` | option | the figure to use with no parent (cleared first); -1 for fast mode. | double | 1 x 1 (or empty) |
+| `axesHandles` | output | the axes, ready for `fcn_CarMesh3D_plotVehicle(..., AxesHandle=)`. | graphics handles | 1 x numViews |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_reviewInput</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewInput.m</code>): The vehicle as the V&V GUI and its assessments take it: loaded once and passed to each.</summary>
+
+```matlab
+vehicle = fcn_CarMesh3D_reviewInput(vehicleInput, (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `vehicleInput` | input | a vehicle ID or folder (a structure from this function is passed back as it is). | char, string or struct | 1 x n |
+| `vehicle` | output | ID, Name, Files (`fcn_CarMesh3D_findVehicleFiles`), Mesh (the finished mesh with its saved label fixes, `fcn_CarMesh3D_meshWithLabelEdits`), MeshSource, BodyStyle (for a copy outside the repo, the repo vehicle's). | struct | 1 x 1 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_fingerprint</code></b> (test: <code>script_test_fcn_CarMesh3D_fingerprint.m</code>): A fingerprint (SHA-256) of data, so an answer can tell when what it was about has changed.</summary>
+
+The fingerprint of the data an assessment drew, not of a file: file dates and bytes change with copies, git and re-saving when the mesh has not. Each input's class and size count; numbers are rounded to 1e-6 first, so a rebuild that changes only round-off gives the same fingerprint. Cell arrays are walked; structures are refused (pass their fields). 200,000 vertices and 400,000 faces take about 0.07 s.
+
+```matlab
+fingerprint = fcn_CarMesh3D_fingerprint(data1, data2, ...)
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `data1, data2, ...` | input | numbers, logicals, text, or cell arrays of them. | any but struct | any |
+| `fingerprint` | output | 64 hexadecimal characters. | char | 1 x 64 |
+
+</details>
+
+<details><summary><b><code>fcn_CarMesh3D_userInfo</code></b> (test: <code>script_test_fcn_CarMesh3D_userInfo.m</code>): Who is using the tools: your initials and name, saved once (the V&V GUI's answers, the painter's change log, Shared GUI settings' You section).</summary>
+
+```matlab
+user = fcn_CarMesh3D_userInfo((Ask=flag), (Set={initials, name}), (Answer={initials, name}), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `Ask` | option | true to ask once (a small dialog) when no initials are saved. Default false. | logical | 1 x 1 |
+| `Set` | option | {initials, name} to save. Default {}. | cell | 1 x 2 |
+| `Answer` | option | {initials, name} in place of the dialog (tests). Default {}. | cell | 1 x 2 |
+| `FigNum` | option | not used; -1 for fast mode. | double | 1 x 1 (or empty) |
+| `user` | output | Initials, Name, and Source ('preference', 'asked', 'set' or 'default': SBB). | struct | 1 x 1 |
 
 </details>
 
@@ -2689,7 +2808,7 @@ A viewer for looking at a vehicle's labels next to its photos: the mesh with eac
 
 <details><summary><b><code>fcn_CarMesh3D_paintLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_paintLabels.m</code>): A window for fixing a vehicle's labels: select faces, pick a label, then Apply.</summary>
 
-A window for fixing a vehicle's labels: select faces (a highlighter, whatever their labels), pick a label (body, glass, trim, interior, wheel, a light type, hide, unhide, or original, the label as downloaded), then Apply. It works on its own (its own window), or inside another window, such as the Model Reviewer (fcn_CarMesh3D_reviewVehicle), which gives it a panel to build into.
+A window for fixing a vehicle's labels: select faces (a highlighter, whatever their labels), pick a label (body, glass, trim, interior, wheel, a light type, hide, unhide, or original, the label as downloaded), then Apply. It works on its own (its own window), or inside another window that gives it a panel to build into.
 
 ```matlab
 [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleInput,...
@@ -2939,7 +3058,7 @@ labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh,...
 
 <details><summary><b><code>fcn_CarMesh3D_makePanelMenu</code></b> (test: <code>script_test_fcn_CarMesh3D_makePanelMenu.m</code>): The ☰ Menu every CarMesh3D GUI uses: a list of panels, and up to two of them open at once in a column beside the main view.</summary>
 
-Built once here, so every GUI's menu works the same way and one set of tests serves them all (the rules: `Documents/Documentation_CarMesh3D_GUIdesign_rules.md`, G1; the design: `Documents/Documentation_CarMesh3D_GUIdesign_sharedPanels.md`). Picking a panel opens it under the one open; a third replaces the lower one; an open one picked again closes. With nothing open the column takes no room. A host window can hold a child GUI's panels (`AddPanel`, `RemovePanel`): the Model Reviewer holds the painter's.
+Built once here, so every GUI's menu works the same way and one set of tests serves them all (the rules: `Documents/Documentation_CarMesh3D_GUIdesign_rules.md`, G1; the design: `Documents/Documentation_CarMesh3D_GUIdesign_sharedPanels.md`). Picking a panel opens it under the one open; a third replaces the lower one; an open one picked again closes. With nothing open the column takes no room. A host window can hold a child GUI's panels (`AddPanel`, `RemovePanel`).
 
 ```matlab
 menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, (Resize=function), (Width=width), (OnChange=function), (FigNum=figNum))
@@ -2959,10 +3078,10 @@ menu = fcn_CarMesh3D_makePanelMenu(menuButton, column, (Resize=function), (Width
 
 <details><summary><b><code>fcn_CarMesh3D_makeSettingsPanel</code></b> (test: <code>script_test_fcn_CarMesh3D_makeSettingsPanel.m</code>): The Shared GUI settings panel: the same in every CarMesh3D GUI, with the sections a GUI does not use greyed out.</summary>
 
-Sections: **You** (your initials, default SBB), **View** (the starting view), **Demo vehicle** (yours or the repo's), **Editing** (a timestamped copy at each save, and their folder), **Review** (each review check: required ones always on, optional ones Off or On, from `fcn_CarMesh3D_reviewChecks`). The settings are MATLAB preferences in the group `CarMesh3D`, shared by every GUI; a change applies to windows opened from then on. A greyed section's tooltip names the GUIs that use it. Each section has a Reset; "Reset all to defaults" resets the sections the window uses.
+Sections: **You** (your initials, default SBB), **View** (the starting view), **Demo vehicle** (yours or the repo's), **Editing** (a timestamped copy at each save, and their folder), **Review** (the V&V GUI: "Stop at the first No?", "After an answer, go to", and each assessment: required ones always on, optional ones Off or On, from `fcn_CarMesh3D_reviewChecks`). The settings are MATLAB preferences in the group `CarMesh3D`, shared by every GUI; a change applies to windows opened from then on. A greyed section's tooltip names the GUIs that use it. Each section has a Reset; "Reset all to defaults" resets the sections the window uses.
 
 ```matlab
-settings = fcn_CarMesh3D_makeSettingsPanel(container, (Used=sections), (Band=[r g b]), (OnChange=function), (FigNum=figNum))
+settings = fcn_CarMesh3D_makeSettingsPanel(container, (Used=sections), (Band=[r g b]), (OnChange=function), (Assessments=handles), (FigNum=figNum))
 ```
 
 | Variable | Kind | Meaning | Class | Size |
@@ -2971,24 +3090,26 @@ settings = fcn_CarMesh3D_makeSettingsPanel(container, (Used=sections), (Band=[r 
 | `Used` | option | the sections the GUI uses: 'You', 'View', 'Demo vehicle', 'Editing', 'Review'. Default all. | cell | 1 x n |
 | `Band` | option | the background color. Default [0.94 0.94 0.94]. | double | 1 x 3 |
 | `OnChange` | option | f(name, value), after a setting changes. Default none. | function handle | 1 x 1 |
+| `Assessments` | option | the host's assessment functions, when it plays a list of its own, so the Review rows match. Default {} (the list). | cell | 1 x n |
 | `FigNum` | option | not used; -1 for fast mode. | double | 1 x 1 (or empty) |
 | `settings` | output | functions: Value, Set, Reset, ResetAll, Mark, Used, Controls, Defaults. | struct | 1 x 1 |
 
 </details>
 
-<details><summary><b><code>fcn_CarMesh3D_reviewChecks</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewChecks.m</code>): The one list of the Model Reviewer's checks: required or optional, and on or off.</summary>
+<details><summary><b><code>fcn_CarMesh3D_reviewChecks</code></b> (test: <code>script_test_fcn_CarMesh3D_reviewChecks.m</code>): The one list of the V&V GUI's assessment functions, in order, each required or optional, and on or off.</summary>
 
-A required check is always asked. An optional check can be turned off in Shared GUI settings (Review), for every vehicle, until turned back on: for a large number of trusted models reviewed in a row. Its questions are then recorded in each review as skipped (why, and by whom), not left blank. To change which checks are required, edit the EDIT HERE block of this function.
+The list holds only the functions and whether each is required; each one's title, question and tooltip come from the function itself (its describe mode), so editing a function's wording changes every menu. The order matters: with "Stop at the first No?", the first No ends the review, so basic assessments come first. Every human assessment is optional (a check whose failure would break code is a code check in the build). An optional assessment turned off in Shared GUI settings (Review) is recorded in each review as turned off. To change the list, edit the EDIT HERE block, and the design file's table (a test checks they match).
 
 ```matlab
-checkList = fcn_CarMesh3D_reviewChecks((TurnedOff=keys), (FigNum=figNum))
+checkList = fcn_CarMesh3D_reviewChecks((TurnedOff=keys), (Assessments=handles), (FigNum=figNum))
 ```
 
 | Variable | Kind | Meaning | Class | Size |
 |---|---|---|---|---|
-| `TurnedOff` | option | keys of optional checks turned off; [] (default) for the preference `CarMesh3D/ReviewChecksOff`. | cell | 1 x n |
+| `TurnedOff` | option | keys of optional assessments turned off; [] (default) for the preference `CarMesh3D/ReviewChecksOff`. | cell | 1 x n |
+| `Assessments` | option | function handles in place of the list (each optional). Default {}. | cell | 1 x n |
 | `FigNum` | option | if given, the list is printed; -1 for fast mode. | double | 1 x 1 (or empty) |
-| `checkList` | output | one row per check: Key, Title, Required, On, Built, Description. | table | n x 6 |
+| `checkList` | output | one row per function: Key (its name after `fcn_CarMesh3D_assess_`), Title, Required, On, Built (false if its describe mode failed), Description (its tooltip, or the error), Function, Questions. | table | n x 8 |
 
 </details>
 
@@ -3058,7 +3179,7 @@ demoFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID,...
 
 <details><summary><b><code>fcn_CarMesh3D_openTool</code></b> (test: <code>script_test_fcn_CarMesh3D_openTool.m</code>): Opens the vehicle tool picked in the library browser (called by the trunk).</summary>
 
-Opens one of the vehicle tools (the label viewer, the label painter or the model reviewer) for a vehicle: the step a user asked for with the library browser's View, Edit labels or Review buttons, returned by `fcn_CarMesh3D_browseLibrary` as `nextStep`. It is called by the trunk (the demo menu, or your own script), never by another tool, so that tools never open each other (the tree rule). With no step (no button pressed) it does nothing.
+Opens one of the vehicle tools (the label viewer, the label painter or the V&V GUI) for a vehicle: the step a user asked for with the library browser's View, Edit labels or Review buttons, returned by `fcn_CarMesh3D_browseLibrary` as `nextStep`. It is called by the trunk (the demo menu, or your own script), never by another tool, so that tools never open each other (the tree rule). With no step (no button pressed) it does nothing.
 
 ```matlab
 [selectedNames, ~, nextStep] = fcn_CarMesh3D_browseLibrary();
@@ -3499,7 +3620,7 @@ Six lists, kept in step with the project's work queue: **Claude work** (developm
 1. **The driver's view in the label viewer** (agreed 2026_11_24): a "Driver's view" option from the driver's eye point, estimated from the glass and roof, with a `DriverEye = [x y z]` override in each vehicle's script; from the found steering wheel once task 9 is done.
 2. **The label painter's P2 layout edits** (`Documents/Documentation_CarMesh3D_GUIdesign_paintLabels.md`, sections 8 and 9). Its mouse bugs (single clicks, Ctrl+drag, double-click on glass, picking after Apply, Ctrl+Z / Ctrl+S) were fixed 2026_11_24 (the point under the mouse was taken from the 3D axes, about 400 px off in that window), as was the loss of the scripted fixes' Material and Color when the painter saved; painted edits on layered lamp faces are still stored by face center.
 3. **Interior objects** (the painter's P5): DONE as a build step 2026_11_24: `fcn_CarMesh3D_findInteriorObjects` finds both front seats and the steering wheel in every vehicle script (the library rebuilt; seats on 35 of 36 vehicles, the wheel on 31), and the 2D outlines draw only those three objects as the interior. Still to do: the objects shown and edited as interior sub-labels in the viewer and painter; the driver's view from the seat's hip point.
-4. **The Model Reviewer by mesh family, and the GUI rules applied to it** (tasks 6 and 7): archived until the verification workflow is finished; listed in `Documents/Documentation_CarMesh3D_GUIdesign_reviewVehicle.md`, with its open question (should hidden faces show in Differences?).
+4. **The V&V GUI's later assessments** (orientation, dimensioning lines, tires, blinkers, fog lights, seats and wheel, photos, 2D outline and interior): listed in `Documents/Documentation_CarMesh3D_GUIdesign_VandV.md`, section 5, to add once the first round has been worked through on real vehicles.
 5. **The steering wheel as an object** (task 9): found automatically as an interior part (painting as the fallback), turned by the road-wheel angle times the steering ratio, riding with the body. (Its center, plane and radius now come from the template fit above.)
 6. **The high-beam split** (`AutoHighBeams`): it looked wrong on the 2009 Fit and 2009 Corolla; on the Fit the high beams are now labeled by hand (the main headlight is low and high beam). Check the Corolla.
 7. **Known test failures** (see [Tests](#tests)).

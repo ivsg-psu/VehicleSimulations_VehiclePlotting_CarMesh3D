@@ -12,8 +12,10 @@ function settings = fcn_CarMesh3D_makeSettingsPanel(container, options)
 %                 how far the camera looks down
 %   Demo vehicle  the demo vehicle now, and "Back to the repo's demo"
 %   Editing       a timestamped copy at each save?, and the folder for them
-%   Review        one row per review check: required checks On (greyed),
-%                 optional checks Off or On (fcn_CarMesh3D_reviewChecks)
+%   Review        the V&V GUI: "Stop at the first No?", "After an answer,
+%                 go to", and one row per assessment: required ones On
+%                 (greyed), optional ones Off or On
+%                 (fcn_CarMesh3D_reviewChecks)
 %
 % A section the host GUI does not use is GREYED OUT, NEVER HIDDEN, with a
 % tooltip naming the GUIs that use it (rule G26). Each section has its own
@@ -48,7 +50,12 @@ function settings = fcn_CarMesh3D_makeSettingsPanel(container, options)
 %
 %      OnChange: f(name, value), called after a setting changes, with its
 %      name ('Initials', 'StartViewDial', 'StartViewDown', 'VersionsAtSave',
-%      'VersionFolder', 'ReviewChecksOff', 'DemoVehicle') and its new value.
+%      'VersionFolder', 'ReviewChecksOff', 'ReviewStopAtNo', 'ReviewGoTo',
+%      'DemoVehicle') and its new value.
+%
+%      Assessments: the host's assessment functions, when it plays a list
+%      of its own (fcn_CarMesh3D_reviewVehicle's Assessments=), so the
+%      Review rows match what it asks. Default {} (fcn_CarMesh3D_reviewChecks's list).
 %      Default: none.
 %
 %      FigNum: not used (nothing is plotted). If set to -1, input checking
@@ -88,6 +95,14 @@ function settings = fcn_CarMesh3D_makeSettingsPanel(container, options)
 %   %   % the viewer's GUI settings and the painter's Settings made one
 %   %   % shared panel, with the sections a GUI does not use greyed out;
 %   %   % the Review section's required and optional checks
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_makeSettingsPanel
+%   % * Review, for the V&V GUI: "Stop at the first No?" (default On,
+%   %   % Sean 23:18) and "After an answer, go to" (Next always, Next
+%   %   % unanswered, Next unanswered or No (default), Stay here: Sean
+%   %   % 23:18 and 23:21); the rows are the assessment functions, with
+%   %   % titles and tooltips from their describe mode
 
 % TO-DO:
 %
@@ -100,6 +115,7 @@ arguments
     options.Used = {'You', 'View', 'Demo vehicle', 'Editing', 'Review'}   % The sections the host uses
     options.Band = [0.94 0.94 0.94]   % Background color (gray: settings)
     options.OnChange = []             % f(name, value) after a change; [] for none
+    options.Assessments = {}          % The host's assessment functions, if not the list (tests)
     options.FigNum = []               % Not used; -1 for fast mode
 end
 
@@ -134,15 +150,15 @@ end
 used = cellstr(options.Used);
 band = options.Band;
 defaults = struct('Initials', 'SBB', 'StartViewDial', 60, 'StartViewDown', 20, 'VersionsAtSave', true, ...
-    'VersionFolder', '', 'ReviewChecksOff', {{}});
+    'VersionFolder', '', 'ReviewChecksOff', {{}}, 'ReviewStopAtNo', true, 'ReviewGoTo', 'nextUnansweredOrNo');
 sectionNames = struct('You', {{'Initials'}}, 'View', {{'StartViewDial', 'StartViewDown'}}, ...
-    'DemoVehicle', {{'DemoVehicle'}}, 'Editing', {{'VersionsAtSave', 'VersionFolder'}}, 'Review', {{'ReviewChecksOff'}});
+    'DemoVehicle', {{'DemoVehicle'}}, 'Editing', {{'VersionsAtSave', 'VersionFolder'}}, 'Review', {{'ReviewChecksOff', 'ReviewStopAtNo', 'ReviewGoTo'}});
 usedBy = struct('You', 'the painter and the reviewer', 'View', 'the viewer, the painter and the reviewer', ...
-    'DemoVehicle', 'every GUI', 'Editing', 'the painter (and the reviewer, which holds it)', 'Review', 'the reviewer');
+    'DemoVehicle', 'every GUI', 'Editing', 'the painter (and the reviewer, which holds it)', 'Review', 'the V&V GUI (fcn_CarMesh3D_reviewVehicle)');
 controls = struct();
 sectionControls = struct();
 sectionStack = {''};   % (the section being built)
-checkList = fcn_CarMesh3D_reviewChecks(TurnedOff={}, FigNum=-1);
+checkList = fcn_CarMesh3D_reviewChecks(TurnedOff={}, Assessments=options.Assessments, FigNum=-1);
 
 % The rows: built in order, each section's heights noted
 rowHeights = {};
@@ -203,8 +219,20 @@ noteSection(controls.VersionFolder);
 endSection();
 
 % (Review: one row per check, from the one list)
-startSection('Review', 'Review', ['The Model Reviewer''s checks. Required: always asked. Optional: turn off to skip it for every ' ...
-    'vehicle (recorded as skipped in each review)']);
+startSection('Review', 'Review', ['The V&V GUI: where it goes after an answer, and its assessments. Required: always asked. ' ...
+    'Optional: turn off to skip it for every vehicle (recorded as turned off in each review)']);
+addText('Stop at the first No?', ['On: an answer that means a problem goes straight to the Summary, since the ' ...
+    'list puts basic assessments first. Off: the review goes on (default On)']);
+controls.ReviewStopAtNo = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
+    @(value) setValue('ReviewStopAtNo', value), 'settingsReviewStopAtNo');
+placeRight(controls.ReviewStopAtNo, 24);
+addText('After an answer, go to', ['Next always: the next question, answered or not. Next unanswered: the next ' ...
+    'question with no answer (or a stale one). Next unanswered or No: the same, and also questions answered No, ' ...
+    'to look again (default). Stay here: stay on this question']);
+controls.ReviewGoTo = uidropdown(grid, 'Items', {'Next always', 'Next unanswered', 'Next unanswered or No', 'Stay here'}, ...
+    'ItemsData', {'next', 'nextUnanswered', 'nextUnansweredOrNo', 'stay'}, 'Tag', 'settingsReviewGoTo', ...
+    'ValueChangedFcn', @(source,~) setValue('ReviewGoTo', source.Value));
+placeRight(controls.ReviewGoTo, 24);
 controls.Review = struct();
 for ith_check = 1:height(checkList)
     key = char(checkList.Key(ith_check));
@@ -221,7 +249,7 @@ for ith_check = 1:height(checkList)
         group = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, @(value) setCheck(key, value), ['review_' key]);
         if ~checkList.Built(ith_check)
             set([group; group.Children], 'Enable', 'off');
-            group.Tooltip = 'Not built in the reviewer yet';
+            group.Tooltip = sprintf('Not available: %s', tip);
             set(label, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic');
         end
     end
@@ -229,7 +257,7 @@ for ith_check = 1:height(checkList)
     placeRight(group, 24);
     controls.Review.(key) = group;
 end
-addNote('Required checks cannot be turned off. Gray: not built yet.');
+addNote('Required assessments cannot be turned off. Gray: its function could not describe itself (see its tooltip).');
 endSection();
 
 % (Reset all, and when changes apply)
@@ -350,6 +378,14 @@ settings = struct('Value', @getValue, 'Set', @setValue, 'Reset', @resetSection, 
                 value = logical(value);
             case 'VersionFolder'
                 value = strtrim(char(value));
+            case 'ReviewStopAtNo'
+                value = logical(value);
+            case 'ReviewGoTo'
+                value = char(value);
+                goToValues = {'next', 'nextUnanswered', 'nextUnansweredOrNo', 'stay'};
+                if ~any(strcmp(goToValues, value))
+                    error('CarMesh3D:badInput', 'ReviewGoTo must be one of: %s.', strjoin(goToValues, ', '));
+                end
             case 'ReviewChecksOff'
                 value = cellstr(value);
                 optionalKeys = cellstr(checkList.Key(~checkList.Required));
@@ -449,6 +485,8 @@ settings = struct('Value', @getValue, 'Set', @setValue, 'Reset', @resetSection, 
         end
         fcn_INTERNAL_selectRadio(controls.VersionsAtSave, logical(getValue('VersionsAtSave')));
         controls.VersionFolder.Value = getValue('VersionFolder');
+        fcn_INTERNAL_selectRadio(controls.ReviewStopAtNo, logical(getValue('ReviewStopAtNo')));
+        controls.ReviewGoTo.Value = getValue('ReviewGoTo');
         turnedOff = getValue('ReviewChecksOff');
         for ith_row = 1:height(checkList)
             key = char(checkList.Key(ith_row));

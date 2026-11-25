@@ -386,6 +386,11 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % out of it (the title bar names the vehicle: sparse displays);
 %   %   % new hooks OpenNames, OpenPanels, Menu, Settings
 
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * Exit moved from the top bar to the ☰ Menu's last line (Q62 (A),
+%   %   % Sean 14:31; same Tag, viewerExit)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -671,11 +676,10 @@ if flagOwnWindow
     % panel at the left beside the model, the model, the photo dial, and
     % the photo with its options at the right)
     rootGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
-    topGrid = uigridlayout(rootGrid, [1 3], 'ColumnWidth', {90, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+    topGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {90, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
     menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
         'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
-    uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closeViewer(), 'Tag', 'viewerExit', ...
-        'Tooltip', 'Close the viewer (it returns the view settings; nothing is saved)');
+    % (Exit is the ☰ Menu's last line: Q62 (A), Sean 2026-11-25 14:31)
     statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'viewerStatus');
     bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
     % (the ☰ Menu and the panels it opens, up to two at once: the shared
@@ -684,7 +688,7 @@ if flagOwnWindow
     menuColumn.Layout.Row = 1;
     menuColumn.Layout.Column = 1;
     panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
-        OnChange=@(~) onPanelsChanged(), FigNum=-1);
+        OnChange=@(~) onPanelsChanged(), Exit=@() closeViewer(), ExitTag='viewerExit', FigNum=-1);
     blueBand = [0.93 0.95 1];     % (viewing work, as in the painter)
     grayBand = [0.94 0.94 0.94];  % (settings)
     panelColors = {blueBand, blueBand, blueBand, grayBand};

@@ -27,7 +27,7 @@ It is used three ways:
 
 **(Sean, 2026-11-23) Rules for this window only:**
 
-V1. **The viewer never changes a file.** It has no Undo, no Save, and no question on exit. Its top bar is the pancake menu and Exit (C2S 2).
+V1. **The viewer never changes a file.** It has no Undo, no Save, and no question on exit. Its top bar is the pancake menu (C2S 2); Exit is the menu's last line (Q62 (A), Sean 2026-11-25 14:31: Exit is the ☰ Menu's last line in every GUI).
 V2. (Now G26 and the shared-panels file: the panels are built once, by `fcn_CarMesh3D_makeDisplayPanels`.) **Its panels are the painter's viewing panels** (Overall Display, Labels To Display, Lamps To Display, GUI settings), the same controls, in the same order, with the same words and the same pale blue band; there is no Modify Labels panel. The viewing panels are built once, in `fcn_CarMesh3D_viewLabels`; the painter uses them and adds its own panels to the same menu through a hook, so a fix to a panel is a fix in both windows (C2S 1).
 V3. **The view settings stay the window's memory.** What the user sets (camera, labels, colors, lamps, photo) is returned by the call and put in the view call, as now; MATLAB preferences hold only GUI settings (rule 17, as changed by the painter's open issue: the window always opens at Overall Display).
 V4. **Old view calls keep working.** A view call copied before the change opens the same view after it: the settings keep `Label` and `Hidden` and add `Uncolored` (C2S 3).
@@ -77,7 +77,7 @@ The painter's layout (its section 3) without the paint parts:
 +-----------------------------------------------------------------------------------------+
 | fcn_CarMesh3D_viewLabels            (title bar: version, vehicle name)                  |
 +-----------------------------------------------------------------------------------------+
-| [☰ Menu]  [Exit]           status: "Labels colors | 2 labels not shown | night: off"    |
+| [☰ Menu]  (Exit: the menu's last line)  status: "Labels colors | 2 labels not shown | night: off"    |
 +----------------------+--------------------------------+---------+-----------------------+
 | (open panel, e.g.    |                                | spinner |  photo                |
 |  Overall Display)    |        3D model                | (dial)  |                       |
@@ -233,7 +233,7 @@ The painter's panels, minus painting, in the painter's words, so a user who know
 | Control | Kind | What it does |
 |---|---|---|
 | ☰ Menu | button, 90 px | Lists the panels: Overall Display, Labels To Display, Lamps To Display, GUI settings. One open at a time; the window opens at Overall Display. |
-| Exit | button, 80 px | Closes the window and returns the view settings. Nothing is saved, so it never asks. Not shown inside a host. (Today "Close": renamed to match the painter; C2S 2.) |
+| Exit | the ☰ Menu's last line (Q62 (A), Sean 2026-11-25 14:31: Exit is the ☰ Menu's last line in every GUI) | Closes the window and returns the view settings. Nothing is saved, so it never asks. Not shown inside a host. (Today "Close": renamed to match the painter; C2S 2.) |
 | status | text | What is shown now (to confirm, or left out). |
 
 ### 5.2 Overall Display (pale blue)
@@ -318,7 +318,37 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
 - Lines 23-30 and 123-140: the FORMAT line leaves out `History`; the list of hooks leaves out about 20 that exist (section 4.9 has them all). Line 337: `OnLamps` is not checked to be a function handle like the other callbacks.
 - README line 764: `fcn_CarMesh3D_viewLabels('2009_Honda_Fit_Sport')` gives a vehicle ID, which the viewer refuses ("The mesh file ... does not exist"); it needs the mesh file (`fcn_CarMesh3D_findVehicleFiles(ID).MeshFile`).
 
-## 8. Open questions
+## 8. Open issues
+
+*(Sean adds issues here.)*
+
+## Tests for Sean
+
+*Kept at the bottom, before "Open questions" and the "Change log", so it is easy to jump to; named, not numbered, so it never moves.*
+
+Key:
+- **Only what a person must judge** (Sean, 2026-11-25 13:15 and 14:24, for every file): look, feel, clarity, and other human-only checks. Anything of the form "does X show Y" or "does pressing X do Y" is a code test instead; this section names those code tests, so it is clear what is covered.
+- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all force; clear functions; clc`, even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
+- (Sean's results are in parentheses under the step.)
+- Expected outcomes are labeled (A), (B), (both) and so on, as answers are, so a review can be quick: "confirm (A)". A bug is marked **BUG**; an uncertain or unexpected outcome **???**.
+- Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
+- A finished round (every step with a result) moves to the change log, with the results.
+
+(none open: earlier rounds and their results are in the change log)
+
+## Open questions
+
+*Kept at the bottom, before the "Change log"; named, not numbered.*
+
+Key:
+- **QNN.** A question. Q-numbers run on across every file and the chat (Q1 to Q99, then wrap).
+- Options are lettered, the recommended one first and marked *Recommended*.
+- (Answers are in parentheses.)
+- Each question is separated by a blank line.
+
+When a question is answered, its content moves into the right section above, and a summary of it goes to the change log: the question, the context in which it came up (in development, in an automated test, in use), the answer, when, and by whom. This section then lists only the questions still open.
+
+### Question list
 
 **(Claude to Sean)**
 
@@ -328,11 +358,9 @@ As noted in the painter file's open issues (Sean): the viewer gets the same gene
 
 *(None open.)*
 
-## 9. Open issues
+## Change log
 
-*(Sean adds issues here.)*
-
-## 10. Change log
+*Always last.*
 
 - 2026-11-23 15:50: started by Claude (thread C) from the window as built (code last changed 11:00, for the painter's hooks) and its picture; the painter file's rules referred to, not repeated; proposal and C2S 1 to 6 for Sean's review. No code changed.
 - 2026-11-23 18:01: reviewed by Sean; C2S 1 to 6 answered and closed (thread below). Rules V1 to V5 confirmed; V6 to V8 added from the answers; sections 3.2 and 5 marked agreed and their references updated. Sean's C2S 5 note (a global, user-editable list of labels that MATLAB reads, perhaps an MD file) is put on the Someday list. No code changed yet.

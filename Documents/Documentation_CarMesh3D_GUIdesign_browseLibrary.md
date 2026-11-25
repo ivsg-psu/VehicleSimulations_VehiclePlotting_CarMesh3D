@@ -283,7 +283,37 @@ The list (4.3), the pictures and their cache, the review status rules, the openi
 
 The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the real library (more than 10 vehicles, with exemplars). No change proposed; the GUI test vehicle (painter task P1) will appear in the list like any other finished vehicle, unless Sean wants it left out (to check: it lives under `Data/Samples`).
 
-## 8. Open questions
+## 8. Open issues
+
+*(Sean adds issues here.)*
+
+## Tests for Sean
+
+*Kept at the bottom, before "Open questions" and the "Change log", so it is easy to jump to; named, not numbered, so it never moves.*
+
+Key:
+- **Only what a person must judge** (Sean, 2026-11-25 13:15 and 14:24, for every file): look, feel, clarity, and other human-only checks. Anything of the form "does X show Y" or "does pressing X do Y" is a code test instead; this section names those code tests, so it is clear what is covered.
+- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all force; clear functions; clc`, even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
+- (Sean's results are in parentheses under the step.)
+- Expected outcomes are labeled (A), (B), (both) and so on, as answers are, so a review can be quick: "confirm (A)". A bug is marked **BUG**; an uncertain or unexpected outcome **???**.
+- Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
+- A finished round (every step with a result) moves to the change log, with the results.
+
+(none open: earlier rounds and their results are in the change log)
+
+## Open questions
+
+*Kept at the bottom, before the "Change log"; named, not numbered.*
+
+Key:
+- **QNN.** A question. Q-numbers run on across every file and the chat (Q1 to Q99, then wrap).
+- Options are lettered, the recommended one first and marked *Recommended*.
+- (Answers are in parentheses.)
+- Each question is separated by a blank line.
+
+When a question is answered, its content moves into the right section above, and a summary of it goes to the change log: the question, the context in which it came up (in development, in an automated test, in use), the answer, when, and by whom. This section then lists only the questions still open.
+
+### Question list
 
 **(Claude to Sean)**
 
@@ -294,11 +324,9 @@ The browser's test (`script_test_fcn_CarMesh3D_browseLibrary.m`) runs on the rea
 
 *(None open.)*
 
-## 9. Open issues
+## Change log
 
-*(Sean adds issues here.)*
-
-## 10. Change log
+*Always last.*
 
 - 2026-11-23 16:20: started by Claude (thread C) from the window as built (code of 2026-11-22 23:38) and its picture; Sean's rules for this window (B1 to B5) gathered from the code's revision history; the painter file's rules referred to, not repeated; proposal and C2S 1 to 5 for Sean's review. No code changed.
 - 2026-11-23 17:56: reviewed by Sean; C2S 1 to 5 answered and closed (thread below). Rules B6 to B9 added from the answers; sections 3.2, 5.2 to 5.5 updated to match. No code changed yet.

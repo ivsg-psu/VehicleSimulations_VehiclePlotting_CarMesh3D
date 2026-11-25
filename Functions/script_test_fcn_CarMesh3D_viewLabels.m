@@ -29,6 +29,10 @@
 %   %   % and in the rules; Shared GUI settings' View Reset; the sections
 %   %   % the viewer does not use greyed
 
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_viewLabels
+%   % * Exit is the ☰ Menu's last line (Q62 (A))
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -290,9 +294,12 @@ end
 cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
 fcn_INTERNAL_clearPhotoPrefs();   % (the photo options at their defaults for this test; put back at the end)
 [~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
-% (the top bar: the menu and Exit; no old tool row or label list in sight)
+% (the top bar: the menu; Exit is the menu's last line, Q62 (A), Sean
+% 2026-11-25 14:31; no old tool row or label list in sight)
 assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu')), 'The Menu button');
-assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Text', 'Exit')), 'The Exit button');
+exitItem = findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerExit');
+assert(isscalar(exitItem) && strcmp(strtrim(exitItem.Text), 'Exit'), 'Exit, in the menu''s list');
+assert(strcmp(ancestor(exitItem, 'uipanel').Tag, 'viewerMenuList'), 'Exit is in the menu''s list, not the top bar');
 assert(isempty(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Title', 'Labels')), 'No old label list');
 % (it opens at Overall Display; each panel opens alone; two at once, the
 % second under the first (the shared menu, fcn_CarMesh3D_makePanelMenu))
@@ -656,7 +663,7 @@ end
 
 % (close: quick, the timer gone)
 tic;
-viewer.Press('viewerExit');
+fcn_INTERNAL_exitByMenu(viewer);   % (Exit is the menu's last line: opened from the menu, as a user would)
 closeTime = toc;
 assert(~isvalid(viewer.Figure), 'Exit closes the window');
 assert(closeTime < 1, 'Closing took %.2f s', closeTime);
@@ -674,7 +681,7 @@ if ~report.Passed
 end
 fprintf(1, '    demo vehicle walk: %d steps, every rule held\n', numel(report.Steps));
 tic;
-viewer.Press('viewerExit');
+fcn_INTERNAL_exitByMenu(viewer);   % (Exit is the menu's last line: opened from the menu, as a user would)
 assert(toc < 1 && ~isvalid(viewer.Figure) && isempty(timerfindall), 'The demo vehicle''s viewer closed quickly, its timer gone');
 
 % (a mesh with no photos: the photo options grayed, the dial hook says so)
@@ -1064,3 +1071,12 @@ if isvalid(viewer.Figure)
     viewer.Close();
 end
 end % Ends fcn_INTERNAL_closeViewer
+
+function fcn_INTERNAL_exitByMenu(viewer)
+% Exit as a user does it: open the ☰ Menu's list if it is closed, then
+% press Exit, its last line (Q62 (A))
+if ~strcmp(findall(viewer.Figure, 'Tag', 'viewerMenuList').Visible, 'on')
+    viewer.Press('viewerMenu');
+end
+viewer.Press('viewerExit');
+end % Ends fcn_INTERNAL_exitByMenu

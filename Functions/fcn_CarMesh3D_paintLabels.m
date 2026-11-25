@@ -370,6 +370,11 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % initials (SBB); Menu=, a host's menu, so a host such as the
 %   %   % reviewer holds the painter's panels (Q45 (A))
 %
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * Exit moved from the top bar to the ☰ Menu's last line (Q62 (A),
+%   %   % Sean 14:31; same Tag, painterExit; only in its own window)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -650,7 +655,7 @@ menuWidth = 90;
 if ~flagOwnMenu
     menuWidth = 0;
 end
-topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {menuWidth, 80, 80, 120, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+topGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {menuWidth, 80, 80, 120, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
 menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
     'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
 if ~flagOwnMenu
@@ -665,11 +670,8 @@ uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveEdits(), 'FontWe
 % file, P2; it asks first)
 uibutton(topGrid, 'Text', 'Revert to a save...', 'ButtonPushedFcn', @(~,~) askRevert('save'), 'Tag', 'painterRevert', ...
     'Tooltip', 'Go back to an earlier save: pick the last save or one of the timestamped copies from a list (paint since then is taken off)');
-exitButton = uibutton(topGrid, 'Text', 'Exit', 'ButtonPushedFcn', @(~,~) closePainter(), 'Tag', 'painterExit', ...
-    'Tooltip', 'Close the painter (it asks first when there are changes not saved)');
-if ~flagOwnWindow
-    exitButton.Visible = 'off';   % (the host window closes it)
-end
+% (Exit is the ☰ Menu's last line in its own window: Q62 (A), Sean
+% 2026-11-25 14:31; a hosted painter is closed by its host)
 editStatusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'painterStatus');
 
 % The body: the left column (the ☰ Menu's list, then up to two open
@@ -681,7 +683,8 @@ menuColumn.Layout.Row = 1;
 menuColumn.Layout.Column = 1;
 if flagOwnMenu
     panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
-        OnChange=@(names) onPanelsChanged(names), FigNum=-1);
+        OnChange=@(names) onPanelsChanged(names), Exit=fcn_INTERNAL_exitIf(flagOwnWindow, @() closePainter()), ...
+        ExitTag='painterExit', FigNum=-1);
     menuParts = panelMenu.Parts();
     menuParts.List.Tag = 'painterMenuList';   % (its name in the painter's tests)
 else
@@ -2247,6 +2250,16 @@ end % Ends main function
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_exitIf
+function exitFunction = fcn_INTERNAL_exitIf(flagOwnWindow, closeFunction)
+% The ☰ Menu's Exit: the painter's close in its own window; none when it is
+% inside another window, which closes it
+exitFunction = [];
+if flagOwnWindow
+    exitFunction = closeFunction;
+end
+end % Ends fcn_INTERNAL_exitIf
 
 %% fcn_INTERNAL_geometry
 function geometry = fcn_INTERNAL_geometry(vehicleMesh)

@@ -39,7 +39,37 @@ These were agreed on 2026-11-23 (the V&V simplification, `claude/vandv_simplific
 - **The tree rule:** the reviewer builds a hidden painter to get "the mesh with its saved label fixes" (search `savedPainter` in the code); the animation checks do the same. **Done 2026-11-24 02:05** (chat Q32 (A), Sean 01:55): a plain function with no window, `fcn_CarMesh3D_meshWithLabelEdits`, that both now call; it gives the same mesh as the vehicle's script (checked on the Fit: light types, parts, covers and colors identical) in 0.1 s.
 - **Short windows** (Sean, 01:28): "we may need to check if panels disappear if user's vertical resizing shrinks." The Question panel's grid now scrolls (2026-11-24 01:00); the Checks and Items lists already did. To test by shrinking the window.
 
-## 4. Open questions
+## 4. Open issues
+
+*(Sean adds issues here.)*
+
+## Tests for Sean
+
+*Kept at the bottom, before "Open questions" and the "Change log", so it is easy to jump to; named, not numbered, so it never moves.*
+
+Key:
+- **Only what a person must judge** (Sean, 2026-11-25 13:15 and 14:24, for every file): look, feel, clarity, and other human-only checks. Anything of the form "does X show Y" or "does pressing X do Y" is a code test instead; this section names those code tests, so it is clear what is covered.
+- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all force; clear functions; clc`, even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
+- (Sean's results are in parentheses under the step.)
+- Expected outcomes are labeled (A), (B), (both) and so on, as answers are, so a review can be quick: "confirm (A)". A bug is marked **BUG**; an uncertain or unexpected outcome **???**.
+- Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
+- A finished round (every step with a result) moves to the change log, with the results.
+
+(none open: earlier rounds and their results are in the change log)
+
+## Open questions
+
+*Kept at the bottom, before the "Change log"; named, not numbered.*
+
+Key:
+- **QNN.** A question. Q-numbers run on across every file and the chat (Q1 to Q99, then wrap).
+- Options are lettered, the recommended one first and marked *Recommended*.
+- (Answers are in parentheses.)
+- Each question is separated by a blank line.
+
+When a question is answered, its content moves into the right section above, and a summary of it goes to the change log: the question, the context in which it came up (in development, in an automated test, in use), the answer, when, and by whom. This section then lists only the questions still open.
+
+### Question list
 
 **(Claude to Sean)**
 
@@ -51,11 +81,9 @@ These were agreed on 2026-11-23 (the V&V simplification, `claude/vandv_simplific
 
 *(None open.)*
 
-## 5. Open issues
+## Change log
 
-*(Sean adds issues here.)*
-
-## 6. Change log
+*Always last.*
 
 - 2026-11-24 01:28 (Sean, T12): the Question panel had room enough that no scroll was needed; the Checks panel scrolls. Many agreed fixes are not in this GUI yet (section 3).
 - 2026-11-24 01:45 (Claude): this file started.

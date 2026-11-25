@@ -95,6 +95,11 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 %   %   % on the demo vehicle; both wait for the window to close, so the
 %   %   % outputs come back
 
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runDemoExample
+%   % * The reviewer example is the V&V GUI now (its title, description
+%   %   % and outputs)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -361,15 +366,16 @@ examples(end).SavesChanges = true;
 
 % The reviewer
 examples(end+1).Name = 'reviewer';
-examples(end).Title = 'reviewVehicle: review a finished vehicle, check by check';
-examples(end).Description = ['Each check (dimensions, labels, lights, wheels, outline, detail levels, ...) with its items to ' ...
-    'approve or reject, and an overall decision. On the demo copy, the answers are saved only in the copy.'];
+examples(end).Title = 'reviewVehicle: the V&V GUI: is the mesh right? One question at a time';
+examples(end).Description = ['Each assessment (a first glance, labels, patchy labels, headlights, brake lights, realism) ' ...
+    'draws its pictures and asks one question; then the Summary, Approve or Reject. On the demo copy, the answers ' ...
+    'are saved only in the copy.'];
 examples(end).DemoCommands = [copyLines; {
-    '% Opens the reviewer; answers are saved in the COPY''s checks folder'
-    '[reviewTable, reviewWindow] = fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);'}];
+    '% Opens the V&V GUI; answers are saved in the COPY''s checks folder'
+    '[answers, reviewWindow] = fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);'}];
 examples(end).VehicleCommands = [vehicleLines; {
-    '% Answers are saved in the VEHICLE''s checks folder, with the reviewer''s name'
-    '[reviewTable, reviewWindow] = fcn_CarMesh3D_reviewVehicle(vehicleFiles.Folder, Reviewer=''Your Name'');'}];
+    '% Answers are saved in the VEHICLE''s checks folder, with your initials'
+    '[answers, reviewWindow] = fcn_CarMesh3D_reviewVehicle(vehicleFiles.Folder, Reviewer=''ABC'');'}];
 examples(end).SavesChanges = true;
 
 % Plot and animate
