@@ -19,6 +19,7 @@ function result = fcn_CarMesh3D_assess_brakeLights(vehicleInput, options)
 % FORMAT:
 %
 %       result = fcn_CarMesh3D_assess_brakeLights(vehicleInput,...
+%           (Mode=mode), (Key=key), (Parent=panel), (FigNum=figNum))
 %
 % INPUTS:
 %
