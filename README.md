@@ -2764,6 +2764,33 @@ user = fcn_CarMesh3D_userInfo((Ask=flag), (Set={initials, name}), (Answer={initi
 
 </details>
 
+<details><summary><b><code>fcn_CarMesh3D_answerQueue</code></b> (test: <code>script_test_fcn_CarMesh3D_answerQueue.m</code>): The answer queue: open questions and human-judgment tests, answered by clicking.</summary>
+
+Claude writes the open items to `openItems.json`; each click adds a line to `answers.jsonl` (never rewritten; the last line per item wins); Claude reads the answers and merges them into the design files, so the two sides never write the same file. The design: `Documents/Documentation_CarMesh3D_GUIdesign_answerQueue.md`.
+
+- **The window:** ☰ Menu (Shared GUI settings; Exit), Previous, Next, the progress; the items with their marks at the left; the item, and for a test its commands with **Run the commands** and **Run the code tests**; the answers as buttons (lettered, BUG, ???, Later) and a comment.
+- **Done: copy the answers** puts the new answers on the clipboard, to paste into the chat; **NOW** (red) copies one urgent answer and the last error, for an answer that must change the work at once or a crash.
+- **Run the commands** runs them as at the prompt, but `close all force` closes only other figures and `clear functions` is left out, so the window stays open.
+
+```matlab
+[answers, figureHandle] = fcn_CarMesh3D_answerQueue((queueFolder),...
+    (Who=initials), (Clipboard=flag), (Visible=flag), (FigNum=figNum))
+```
+
+| Variable | Kind | Meaning | Class | Size |
+|---|---|---|---|---|
+| `queueFolder` | input | the folder with `openItems.json`. Default: the one used last, else `Desktop\Claude\Project_CarMesh3D\answerQueue`. | char | 1 x n |
+| `Who` | option | the initials recorded with each answer. Default: yours (`fcn_CarMesh3D_userInfo`). | char | 1 x n |
+| `Clipboard` | option | true (default) to put Done's and NOW's text on the clipboard; false for tests. | logical | 1 x 1 |
+| `Visible` | option | true (default); false builds the window hidden (tests). | logical | 1 x 1 |
+| `FigNum` | option | not used; -1 skips input checks. | double | 1 x 1 (or empty) |
+| `answers` | output | the answers when the window opened (the last per item): ID, Choice, Comment, Who, When. | table | answers x 5 |
+| `figureHandle` | output | the window. Its UserData holds Show, Answer, Done, Now, Run, RunCodeTests, Items, Answers, Current, Reload, Menu. | graphics handle | 1 x 1 |
+
+**Assumptions:** `openItems.json` follows the format in the design file, section 2.
+
+</details>
+
 <details><summary><b><code>fcn_CarMesh3D_viewLabels</code></b> (test: <code>script_test_fcn_CarMesh3D_viewLabels.m</code>): A viewer for looking at a vehicle's labels next to its photos: the mesh with each label in its own color (or in the vehicle's colors), and the photos of the real vehicle with the photo dial (drag its arrow around the vehicle; the model turns to the same side, and turning the model moves the arrow and the photo).</summary>
 
 A viewer for looking at a vehicle's labels next to its photos: the mesh with each label in its own color (or in the vehicle's colors), and the photos of the real vehicle with the photo dial (drag its arrow around the vehicle; the model turns to the same side, and turning the model moves the arrow and the photo). Pick a label to see it alone; untick a label's box to hide it and see what is under it.
