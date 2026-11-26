@@ -50,7 +50,7 @@ figure(figNum); clf;
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Radius=15, Speed=10, Duration=5, FigNum=-1);
 K = length(trajectory.Time);
 csvFile = fullfile(tempdir,'CarMesh3D_testCircle.csv');
-writtenFile = fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, Lights=struct('headlights',2,'runningLights',1));
+writtenFile = fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, Signals=struct('LowBeam',true,'HighBeam',true,'Running',true));
 
 % Show the first rows, as a spreadsheet would
 csvData = readtable(writtenFile, 'VariableNamingRule','preserve');
@@ -62,19 +62,20 @@ title(titleString, 'Interpreter','none');
 % Check variable types
 assert(ischar(writtenFile) && isfile(writtenFile));
 
-% Check variable sizes: one row per time step, the 30 usual columns
+% Check variable sizes: one row per time step, the 36 usual columns
 assert(height(csvData)==K);
-assert(width(csvData)==30);
+assert(width(csvData)==36);
 
 % Check variable values
 expectedNames = {'time','X','Y','Z','roll','pitch','yaw','U','V','W','roll_rate','pitch_rate','yaw_rate', ...
     'wheelSpeed_FL','wheelSpeed_RL','wheelSpeed_RR','wheelSpeed_FR', ...
     'wheelLift_FL','wheelLift_RL','wheelLift_RR','wheelLift_FR','roadRoll','roadPitch','steer_FL','steer_FR', ...
-    'headlights','indicator','brakeLight','reverseLight','runningLights'};
+    'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
+    'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
 assert(isequal(csvData.Properties.VariableNames, expectedNames));
 assert(max(abs(csvData.U - 10)) < 1e-9);
 assert(abs(median(csvData.yaw_rate) - 10/15) < 1e-3);    % speed / radius
-assert(all(csvData.headlights==2) && all(csvData.runningLights==1));
+assert(all(csvData.signalLowBeam==1) && all(csvData.signalHighBeam==1) && all(csvData.signalRunning==1) && all(csvData.signalBrake==0));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -183,6 +184,14 @@ assert(~any(figHandles==figNum));
 %% Fail conditions
 % Each block below should throw an error. Change 1==0 to 1==1 to run them.
 
+%% TEST case: Signals as one structure per time step (as motion.Signals)
+fprintf(1,'TEST case: Signals as one structure per time step\n');
+perStep = repmat(struct('Tail',true,'Brake',false), K, 1);
+[perStep(1:5).Brake] = deal(true);
+fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, Signals=perStep, FigNum=-1);
+csvData = readtable(csvFile, 'VariableNamingRule','preserve');
+assert(isequal(csvData.signalBrake, double((1:K)' <= 5)) && all(csvData.signalTail==1) && all(csvData.signalLowBeam==0));
+
 %% FAIL case: A motion with no Pose
 if 1==0
     fcn_CarMesh3D_saveMotionCSV(fullfile(tempdir,'bad.csv'), struct('Time',(0:3)'));
@@ -191,7 +200,7 @@ end
 %% FAIL case: A light column of the wrong length
 if 1==0
     fcn_CarMesh3D_saveMotionCSV(fullfile(tempdir,'bad.csv'), struct('Time',(0:3)','Pose',zeros(4,3)), ...
-        Lights=struct('headlights',[1 2]));
+        Signals=struct('LowBeam',[true false]));
 end
 
 %% Functions follow

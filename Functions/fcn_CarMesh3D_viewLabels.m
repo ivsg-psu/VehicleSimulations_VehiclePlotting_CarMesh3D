@@ -34,7 +34,7 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           (FlagShowTools=flag), (OnHint=function), (ColorFilter=function),...
 %           (HiddenFaces=function), (FlagPhotoOptions=flag), (OnLamps=function),...
 %           (OnView=function), (OnNight=function), (QuickBar=grid),...
-%           (FlagWait=flag), (FlagVisible=flag),...
+%           (FlagWait=flag), (FlagVisible=flag), (FlagClipboard=flag),...
 %           (FlagCheckStale=flag),...
 %           (FigNum=figNum))
 %
@@ -148,6 +148,12 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      edits not yet saved).
 %
 %      FlagVisible: false to build the window hidden (for tests). Default true.
+%
+%      FlagClipboard: true to put Copy view call's text on the clipboard,
+%      false to only return and print it. Default []: true for a shown
+%      window, false for a hidden one, so a test never replaces what the
+%      user copied (Sean, 2026-11-26 15:41: a test's view call was on the
+%      clipboard in place of answerQueue's Done text).
 %
 %      FigNum: not used (a window); [] or -1 (fast mode: no input checks).
 %
@@ -499,6 +505,7 @@ arguments
     options.OnNight = []        % Called with true/false when day and night switch (a host's panels)
     options.QuickBar = []       % A host's top bar (a grid) whose last three columns take the Mesh, Grid and sun/moon buttons; [] for the viewer's own
     options.FlagVisible = true      % Build the window hidden (tests)
+    options.FlagClipboard = []      % Copy view call to the clipboard; [] for "when shown"
     options.FlagCheckStale = []     % Warn when a vehicle's mesh variable is older than its saved labels
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
@@ -1604,8 +1611,17 @@ end
         textOut = fcn_INTERNAL_viewCall(getView());
     end
 
-    function copyViewCall()
+    function textOut = copyViewCall()
         textOut = viewCall();
+        flagClipboard = options.FlagClipboard;
+        if isempty(flagClipboard)
+            flagClipboard = logical(options.FlagVisible);   % (hidden: a test; the user's clipboard is left alone)
+        end
+        if ~flagClipboard
+            setHint('The call that opens this exact view is in the command window.');
+            fprintf(1, '%s\n', textOut);
+            return;
+        end
         try
             clipboard('copy', textOut);
             setHint('The call that opens this exact view is on the clipboard: paste it into MATLAB, or send it.');

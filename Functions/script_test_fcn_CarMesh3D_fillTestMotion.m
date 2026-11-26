@@ -71,6 +71,10 @@ inLights = testMotion.Time <= testMotion.Segments(1).EndTime;
 signals = testMotion.Signals(inLights);
 assert(any([signals.HighBeam]) && any([signals.TurnLeft]) && any([signals.Backup]));
 assert(any([signals.Brake]));
+assert(any([signals.Parking]) && any([signals.Fog]) && any([signals.Tail]) && any([signals.Running]));
+hazardRows = contains(testMotion.Caption(inLights), 'hazards');
+assert(any([signals(hazardRows).TurnLeft] & [signals(hazardRows).TurnRight]), 'Hazards: both turn signals blink together');
+assert(~all([signals(hazardRows).TurnLeft]), 'Hazards blink');
 % Body: roll reaches 5 degrees; each tire is lifted at some time
 assert(abs(max(testMotion.BodyRoll) - deg2rad(5)) < deg2rad(0.1));
 assert(all(max(testMotion.WheelLift,[],1) > 0.07));

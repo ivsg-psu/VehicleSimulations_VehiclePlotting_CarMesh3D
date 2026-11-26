@@ -100,7 +100,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show hints in the painter's own hint line.
 %
-%      Versions: true to keep a timestamped copy of the edits and the
+%      FlagVersions: true to keep a timestamped copy of the edits and the
 %      edited mesh at each save, in the VersionFolder, as
 %      <mesh name>_YYYYMMDDHHMMSS.mat (a second save in the same
 %      second overwrites the first); false not to. Default []: Shared GUI
@@ -424,7 +424,7 @@ arguments
     options.EditsFile = []      % Where the edits are saved; [] for the default
     options.PhotoFolder = []    % Folder of ViewInDegrees_<angle> photos; [] for the default
     options.FlagWait = false        % Wait until the window is closed
-    options.Versions = []       % Keep a timestamped copy at each save; [] for Shared GUI settings' choice (default true)
+    options.FlagVersions = []       % Keep a timestamped copy at each save; [] for Shared GUI settings' choice (default true)
     options.VersionFolder = []  % Where timestamped copies go; [] for the remembered folder, else the default
     options.Who = ''            % Who is painting (for the change log); '' for your initials in Shared GUI settings
     options.Menu = []           % A host window's ☰ Menu (fcn_CarMesh3D_makePanelMenu); [] for a menu of its own
@@ -731,7 +731,7 @@ for ith_panel = 1:numel(panelNames)
     panelHandles(ith_panel) = panelMenu.AddPanel(panelNames{ith_panel}, panelColors{ith_panel});
 end
 sharedSettings = [];   % (Shared GUI settings, fcn_CarMesh3D_makeSettingsPanel: in its own menu only)
-flagVersions = options.Versions;   % (a timestamped copy at each save)
+flagVersions = options.FlagVersions;   % (a timestamped copy at each save)
 if isempty(flagVersions)
     flagVersions = true;
     if ispref('CarMesh3D', 'VersionsAtSave')

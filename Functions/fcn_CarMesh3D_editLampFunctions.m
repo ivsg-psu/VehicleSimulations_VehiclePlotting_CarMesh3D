@@ -196,6 +196,8 @@ markedUnit = 0;
 flagCenterColumn = true;
 columnOffset = 0;   % (the table's columns scrolled sideways, in pixels: T89)
 columnSlider = [];
+sliderGrid = [];
+frameGrid = [];
 flagChanged = false;
 
 % The window: the column, and the viewer beside it when on its own
@@ -225,7 +227,7 @@ else
 end
 band = [0.95 0.93 1];   % (pale violet: the lamp-functions work)
 
-columnGrid = uigridlayout(columnPanel, [8 1], 'RowHeight', {30, 30, 'fit', 30, 0, 160, 96, 30}, ...
+columnGrid = uigridlayout(columnPanel, [7 1], 'RowHeight', {30, 30, 'fit', 30, 160, 96, 30}, ...
     'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');   % (scrolls when short: under another panel in the painter)
 % 1. Editing, and Table | Tuner
 rowGrid = uigridlayout(columnGrid, [1 3], 'ColumnWidth', {60, '1x', 130}, 'Padding', [0 0 0 0], 'BackgroundColor', band);
@@ -260,20 +262,31 @@ for ith_group = 1:3
     groupBoxes(ith_group) = uicheckbox(rowGrid, 'Text', groupNames{ith_group}, 'Value', true, ...
         'Tag', ['lampGroup' groupNames{ith_group}], 'ValueChangedFcn', @(~,~) setGroups(groupNames([groupBoxes.Value])));
 end
-% 5. The table's columns, scrolled sideways when they do not all fit
-% (the lamp names stay: Sean, T89 BUG, 2026-11-26 12:59: "Need a horizontal
-% scroll capability ... the scroll should only move the matrix portion, not
-% the labels"); shown only when needed
-columnSlider = uislider(columnGrid, 'Limits', [0 1], 'Value', 0, 'MajorTicks', [], 'MinorTicks', [], ...
+% 5. The table or the tuner, in a white frame whose top strip, shown only
+% when the signals' columns do not all fit, scrolls them sideways: the
+% lamp names stay (Sean, T89 BUG, 2026-11-26 12:59: "the scroll should only
+% move the matrix portion, not the labels"; 15:52: the slider belongs
+% inside the table's panel, above the matrix, labeled "Matrix columns
+% viewed", not in the settings above, where it was not looked for)
+tableFrame = uipanel(columnGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'lampTableFrame');
+frameGrid = uigridlayout(tableFrame, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 0, ...
+    'BackgroundColor', [1 1 1]);
+sliderGrid = uigridlayout(frameGrid, [1 4], 'ColumnWidth', {'fit', 24, '1x', 24}, 'Padding', [6 2 6 2], ...
+    'ColumnSpacing', 6, 'BackgroundColor', [0.97 0.97 0.97], 'Tag', 'lampColumnScrollBar');
+uilabel(sliderGrid, 'Text', 'Matrix columns viewed:', 'FontWeight', 'bold');
+uibutton(sliderGrid, 'Text', char(9664), 'Tag', 'lampColumnsLeft', 'Tooltip', 'Signals to the left (Low beam, ...)', ...
+    'ButtonPushedFcn', @(~,~) stepColumns(-1));
+columnSlider = uislider(sliderGrid, 'Limits', [0 1], 'Value', 0, 'MajorTicks', [], 'MinorTicks', [], ...
     'Tag', 'lampColumnScroll', 'Tooltip', 'Scroll the signals sideways (the lamp names stay)', ...
     'ValueChangingFcn', @(~,event) setColumnOffset(event.Value), 'ValueChangedFcn', @(source,~) setColumnOffset(source.Value));
-% 6. The table or the tuner
-contentPanel = uipanel(columnGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'lampContent', ...
+uibutton(sliderGrid, 'Text', char(9654), 'Tag', 'lampColumnsRight', 'Tooltip', 'Signals to the right (..., Reflectors)', ...
+    'ButtonPushedFcn', @(~,~) stepColumns(1));
+contentPanel = uipanel(frameGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1], 'Tag', 'lampContent', ...
     'AutoResizeChildren', 'off', 'SizeChangedFcn', @(~,~) drawContent());
-% 7. Checks
+% 6. Checks
 checksArea = uitextarea(columnGrid, 'Editable', 'off', 'Tag', 'lampChecks', 'FontSize', 11, ...
     'Tooltip', 'Things to look at: warnings only, never blocking (odd vehicles are allowed)');
-% 8. Save, Revert, Hazards
+% 7. Save, Revert, Hazards
 rowGrid = uigridlayout(columnGrid, [1 3], 'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', band);
 saveButton = uibutton(rowGrid, 'Text', 'Save', 'Tag', 'lampSave', 'FontWeight', 'bold', ...
     'Tooltip', 'Write the matrix to the vehicle''s lampFunctions_<ID>.csv (changed rows marked edited, with you as the source)', ...
@@ -332,10 +345,10 @@ end
             return;
         end
         panelSize = getpixelposition(columnPanel);
-        fixedHeight = 30 + 30 + 28 + 30 + columnGrid.RowHeight{5} + 96 + 30 + 7*6 + 16;   % (the other rows, the spacing and the padding)
+        fixedHeight = 30 + 30 + 28 + 30 + 96 + 30 + 6*6 + 16;   % (the other rows, the spacing and the padding)
         newHeight = max(160, floor(panelSize(4) - fixedHeight));
-        if ~isequal(columnGrid.RowHeight{6}, newHeight)
-            columnGrid.RowHeight{6} = newHeight;
+        if ~isequal(columnGrid.RowHeight{5}, newHeight)
+            columnGrid.RowHeight{5} = newHeight;
         end
     end
 
@@ -498,7 +511,7 @@ end
         % many lamps there are: the panel scrolls up and down instead of
         % the rows shrinking (T80, T81). The lamp names are a column of
         % their own that stays put; the signals' columns scroll sideways
-        % with the slider above, and the edited signal's column is brought
+        % with the slider in the table's top strip, and the edited signal's column is brought
         % to the middle when it is picked (Sean, T89 BUG, 12:59)
         indices = shownUnits();
         numShown = numel(indices);
@@ -523,11 +536,11 @@ end
             flagCenterColumn = false;
         end
         columnOffset = min(max(0, columnOffset), maxOffset);
-        newRow = 24*flagSideways;
-        if ~isequal(columnGrid.RowHeight{5}, newRow)
-            columnGrid.RowHeight{5} = newRow;
-            fitContent();
+        newRow = 30*flagSideways;
+        if ~isequal(frameGrid.RowHeight{1}, newRow)
+            frameGrid.RowHeight{1} = newRow;   % (the table's top strip: the slider)
         end
+        sliderGrid.Visible = matlab.lang.OnOffSwitchState(flagSideways);
         columnSlider.Visible = matlab.lang.OnOffSwitchState(flagSideways);
         columnSlider.Limits = [0, max(maxOffset, 1)];
         columnSlider.Value = columnOffset;
@@ -541,6 +554,22 @@ end
         axesHandle = uiaxes(contentPanel, 'Units', 'pixels', 'Tag', 'lampTable');
         axesHandle.PositionConstraint = 'innerposition';
         axesHandle.InnerPosition = [namePx + 1, 1, shownWidth, heightPx];
+        % (an axes reaches a little past its inner box: what reaches past
+        % the panel's right edge would give the panel a sideways scroll bar
+        % that moves the names too, so the matrix is narrowed by it)
+        drawnow limitrate;
+        overflow = sum(axesHandle.OuterPosition([1 3])) - (panelSize(3) - 4 - scrollbarPx);
+        if overflow > 0
+            shownWidth = max(cellPx, shownWidth - ceil(overflow));
+            axesHandle.InnerPosition = [namePx + 1, 1, shownWidth, heightPx];
+            maxOffset = max(0, matrixWidth - shownWidth);
+            flagSideways = maxOffset > 0;
+            columnOffset = min(max(0, columnOffset), maxOffset);
+            columnSlider.Limits = [0, max(maxOffset, 1)];
+            columnSlider.Value = columnOffset;
+            sliderGrid.Visible = matlab.lang.OnOffSwitchState(flagSideways);
+            columnSlider.Visible = matlab.lang.OnOffSwitchState(flagSideways);
+        end
         for thisAxes = [nameAxes, axesHandle]
             disableDefaultInteractivity(thisAxes);
             thisAxes.Toolbar.Visible = 'off';
@@ -590,6 +619,13 @@ end
         scroll(contentPanel, 'top');
     end
 
+    function stepColumns(direction)
+        % (an arrow pressed: two signals' columns along, to the end)
+        newValue = min(max(columnSlider.Value + direction*2*26, columnSlider.Limits(1)), columnSlider.Limits(2));
+        columnSlider.Value = newValue;
+        setColumnOffset(newValue);
+    end
+
     function setColumnOffset(value)
         % (the slider moved: the columns scrolled sideways, the names stay)
         columnOffset = value;
@@ -630,9 +666,9 @@ end
         end
         contentPanel.Scrollable = 'off';   % (the tuner's own grid scrolls)
         columnSlider.Visible = 'off';
-        if columnGrid.RowHeight{5} ~= 0
-            columnGrid.RowHeight{5} = 0;
-            fitContent();
+        sliderGrid.Visible = 'off';
+        if frameGrid.RowHeight{1} ~= 0
+            frameGrid.RowHeight{1} = 0;
         end
         grid = uigridlayout(contentPanel, [3 numShown], 'RowHeight', {'1x', 64, 20}, ...
             'ColumnWidth', repmat({84}, 1, numShown), 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...

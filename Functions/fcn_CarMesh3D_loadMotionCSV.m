@@ -40,11 +40,23 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %   24  steer_FL        rad    Front-left road-wheel angle, + left
 %   25  steer_FR        rad    Front-right road-wheel angle, + left
 %                              (both: see "Steering" below)
-%   26  headlights      -      0 off, 1 low, 2 high (0)
-%   27  indicator       -      0 off, 1 left, 2 right, 3 hazard (0)
-%   28  brakeLight      -      0 off, 1 on, 2 strong (0)
-%   29  reverseLight    -      0 off, 1 on (0)
-%   30  runningLights   -      0 off, 1 on (0)
+%   26  signalLowBeam   -      Low beams: 1 on, 0 off (0)
+%   27  signalHighBeam  -      High beams (each beam alone: both 1 for both) (0)
+%   28  signalRunning   -      Daytime running lights (0)
+%   29  signalParking   -      Parking lights (0)
+%   30  signalTurnLeft  -      Left turn signal switched on (it blinks) (0)
+%   31  signalTurnRight -      Right turn signal switched on (it blinks) (0)
+%   32  signalHazards   -      Hazards switched on (both blink together) (0)
+%   33  signalTail      -      Tail lamps (missing: on with the headlamps
+%                              or the parking lights)
+%   34  signalBrake     -      Brake pedal pressed (0)
+%   35  signalBackup    -      Reverse gear: the backup lamps (0)
+%   36  signalFog       -      Fog lamps (0)
+%
+% The light columns are the fields of plotVehicle's Signals, with the
+% signal prefix (Q96 (A), Sean 2026-11-26 15:34; before, the file had
+% headlights 0/1/2, indicator 0/1/2/3, brakeLight 0/1/2, reverseLight and
+% runningLights). Each is 0 or 1 (any value above 0 is on).
 %
 % Tires are numbered by quadrant (ISO 8855, viewed from above): 1 front
 % left, 2 rear left, 3 rear right, 4 front right. The names carry the
@@ -82,13 +94,14 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %     steering column, the path's curvature (yaw_rate / U, or the change
 %     in yaw per meter traveled). A single angle is split into left and
 %     right angles with fcn_CarMesh3D_calcAckermannSteering.
-%   Lights: indicator becomes blinking TurnLeft / TurnRight (on for half
-%     of BlinkPeriod, starting on when switched on); brakeLight 1 or 2
-%     becomes Brake=true (and Tail=true); headlights 1 becomes
-%     LowBeam=true, 2 LowBeam=true and HighBeam=true; reverseLight 1
-%     becomes Backup; Tail is true when the headlights, running lights
-%     or brake lights are on. A missing light column means that light is
-%     off. (The CSV column names stay as they are.)
+%   Lights: each signal column becomes the Signals field of the same
+%     name (signalLowBeam -> LowBeam, ...). The turn signals and the
+%     hazards blink: TurnLeft / TurnRight are lit for half of
+%     BlinkPeriod, starting lit whenever the turn columns change; Hazards
+%     blinks both together (Signals.Hazards itself is left false, so the
+%     lamps blink). With no signalTail column, Tail is on with the low or
+%     high beams or the parking lights (as cars wire them). Any other
+%     missing light column means that light is off.
 %
 % FORMAT:
 %
@@ -459,14 +472,18 @@ else
 end
 
 %%%%
-% Lights
-headlightCodes = round(getColumn('headlights',0));
-indicatorCodes = round(getColumn('indicator',0));
-runningCodes = round(getColumn('runningLights',0));
-% Brake and reverse lights are inputs, never worked out from the motion
-brakeCodes = round(getColumn('brakeLight',0));
-reverseCodes = round(getColumn('reverseLight',0));
-signals = fcn_INTERNAL_signals(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, options.BlinkPeriod);
+% Lights: one true/false column per signal (brake and backup are inputs,
+% never worked out from the motion)
+signalNames = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'};
+signalColumns = false(Nrows, numel(signalNames));
+for ith_signal = 1:numel(signalNames)
+    signalColumns(:,ith_signal) = getColumn(['signal' signalNames{ith_signal}], 0) > 0;
+end
+signalTable = array2table(signalColumns, 'VariableNames', signalNames);
+if ~has('signalTail')
+    signalTable.Tail = signalTable.LowBeam | signalTable.HighBeam | signalTable.Parking;   % (wired with the headlamps and parking lights)
+end
+signals = fcn_INTERNAL_signals(timeValues, signalTable, options.BlinkPeriod);
 
 %%%%
 % Output
@@ -611,7 +628,8 @@ usualNames = {'time','X','Y','Z','roll','pitch','yaw','U','V','W', ...
     'wheelSpeed_FL','wheelSpeed_RL','wheelSpeed_RR','wheelSpeed_FR', ...
     'wheelLift_FL','wheelLift_RL','wheelLift_RR','wheelLift_FR', ...
     'roadRoll','roadPitch','steer_FL','steer_FR', ...
-    'headlights','indicator','brakeLight','reverseLight','runningLights'};
+    'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
+    'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
 end % Ends fcn_INTERNAL_usualColumns
 
 %% fcn_INTERNAL_knownColumns
@@ -680,26 +698,25 @@ end
 end % Ends fcn_INTERNAL_getColumn
 
 %% fcn_INTERNAL_signals
-function signals = fcn_INTERNAL_signals(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, blinkPeriod)
-% Converts the light columns into one Signals structure per row.
-% Turn signals blink, starting "on" whenever the indicator changes.
+function signals = fcn_INTERNAL_signals(timeValues, signalTable, blinkPeriod)
+% The signal columns as one Signals structure per row. The turn signals
+% blink, starting lit whenever the turn columns (left, right, hazards)
+% change.
 Nrows = length(timeValues);
-signals = repmat(struct('LowBeam',false,'HighBeam',false,'TurnLeft',false,'TurnRight',false, ...
-    'Running',false,'Tail',false,'Brake',false,'Backup',false), Nrows, 1);
+signals = repmat(struct('LowBeam',false,'HighBeam',false,'Running',false,'Parking',false, ...
+    'TurnLeft',false,'TurnRight',false,'Tail',false,'Brake',false,'Backup',false,'Fog',false), Nrows, 1);
+turnCodes = double(signalTable.TurnLeft) + 2*double(signalTable.TurnRight);
+turnCodes(signalTable.Hazards) = 3;   % (hazards: both turn signals, in step)
 switchTime = timeValues(1);
 for ith_row = 1:Nrows
-    if ith_row>1 && indicatorCodes(ith_row)~=indicatorCodes(ith_row-1)
+    if ith_row>1 && turnCodes(ith_row)~=turnCodes(ith_row-1)
         switchTime = timeValues(ith_row);
     end
     blinkOn = mod(timeValues(ith_row) - switchTime, blinkPeriod) < blinkPeriod/2;
-    headlightCode = min(max(headlightCodes(ith_row),0),2);
-    signals(ith_row).LowBeam = headlightCode >= 1;   % (headlights code 0 off, 1 low, 2 high: high lights both beams)
-    signals(ith_row).HighBeam = headlightCode == 2;
-    signals(ith_row).TurnLeft = blinkOn && any(indicatorCodes(ith_row)==[1 3]);
-    signals(ith_row).TurnRight = blinkOn && any(indicatorCodes(ith_row)==[2 3]);
-    signals(ith_row).Running = runningCodes(ith_row) > 0;
-    signals(ith_row).Brake = brakeCodes(ith_row) > 0;
-    signals(ith_row).Tail = signals(ith_row).Brake || headlightCode > 0 || runningCodes(ith_row) > 0;
-    signals(ith_row).Backup = reverseCodes(ith_row) > 0;
+    for signalName = {'LowBeam','HighBeam','Running','Parking','Tail','Brake','Backup','Fog'}
+        signals(ith_row).(signalName{1}) = signalTable.(signalName{1})(ith_row);
+    end
+    signals(ith_row).TurnLeft = blinkOn && any(turnCodes(ith_row)==[1 3]);
+    signals(ith_row).TurnRight = blinkOn && any(turnCodes(ith_row)==[2 3]);
 end
 end % Ends fcn_INTERNAL_signals

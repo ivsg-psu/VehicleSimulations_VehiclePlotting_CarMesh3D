@@ -69,6 +69,15 @@ textShown = strjoin(findall(figureHandle, 'Tag', 'aqText').Value, ' ');
 assert(contains(textShown, 'Which is better?') && contains(textShown, 'Context: Came up in the test') && ...
     contains(textShown, 'In: Documentation_X.md, 3. Plan'));
 assert(contains(findall(figureHandle, 'Tag', 'aqProgress').Text, 'Item 1 of 3'));
+% (each list entry: its mark, then when it was posted: Sean, 15:50)
+listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
+assert(startsWith(listItems{1}, '?  (posted on: 2026_11_25, 17:00:00)  Q90'), 'The list shows when each item was posted');
+% (the divider between the list and the page: the list widened and narrowed)
+hooks.SetListWidth(400);
+assert(hooks.ListWidth() == 400, 'The list widened');
+hooks.SetListWidth(10);
+assert(hooks.ListWidth() == 150, 'The list no narrower than 150 px');
+assert(isscalar(findall(figureHandle, 'Tag', 'aqDivider')), 'A divider to drag');
 prefNow = [];
 if ispref('CarMesh3D', 'AnswerQueueFolder')
     prefNow = getpref('CarMesh3D', 'AnswerQueueFolder');
@@ -250,7 +259,7 @@ delete(figureHandle);
 fprintf(1, 'The answers across the full width, wrapped\n');
 items(1).Options(1).Text = repmat('a long answer that has to wrap onto more lines ', 1, 8);
 fcn_INTERNAL_writeItems(queueFolder, items);
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, Watch=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, FlagWatch=false);
 figureHandle.UserData.Show(items(1).ID);
 drawnow;
 answerGroup = findall(figureHandle, 'Tag', 'aqAnswers');
@@ -271,7 +280,7 @@ delete(figureHandle);
 
 %% Watch: new items load while the window stays open (Sean, 23:17)
 fprintf(1, 'Watch\n');
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, Watch=true);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, FlagWatch=true);
 assert(~isempty(timerfindall('Tag', 'answerQueueWatch')), 'Watching');
 figureHandle.UserData.Show('T90');
 commentArea = findall(figureHandle, 'Tag', 'aqComment');

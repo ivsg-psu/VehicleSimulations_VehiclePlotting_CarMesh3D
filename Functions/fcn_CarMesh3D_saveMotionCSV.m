@@ -39,11 +39,24 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 %   24  steer_FL        rad    Front-left road-wheel angle, + left
 %   25  steer_FR        rad    Front-right road-wheel angle, + left
 %                              (both: see "Steering" below)
-%   26  headlights      -      0 off, 1 low, 2 high (0)
-%   27  indicator       -      0 off, 1 left, 2 right, 3 hazard (0)
-%   28  brakeLight      -      0 off, 1 on, 2 strong (0)
-%   29  reverseLight    -      0 off, 1 on (0)
-%   30  runningLights   -      0 off, 1 on (0)
+%   26  signalLowBeam   -      Low beams: 1 on, 0 off (0)
+%   27  signalHighBeam  -      High beams (each beam alone: both 1 for both) (0)
+%   28  signalRunning   -      Daytime running lights (0)
+%   29  signalParking   -      Parking lights (0)
+%   30  signalTurnLeft  -      Left turn signal switched on (it blinks) (0)
+%   31  signalTurnRight -      Right turn signal switched on (it blinks) (0)
+%   32  signalHazards   -      Hazards switched on (both blink together) (0)
+%   33  signalTail      -      Tail lamps (missing: on with the headlamps
+%                              or the parking lights)
+%   34  signalBrake     -      Brake pedal pressed (0)
+%   35  signalBackup    -      Reverse gear: the backup lamps (0)
+%   36  signalFog       -      Fog lamps (0)
+%
+% The light columns are the fields of plotVehicle's Signals, with the
+% signal prefix (Q96 (A), Sean 2026-11-26 15:34), each 0 or 1. A turn
+% column means the turn signal is switched on: the reader makes it
+% blink. (Before 2026-11-26 the file had headlights 0/1/2, indicator
+% 0/1/2/3, brakeLight 0/1/2, reverseLight and runningLights.)
 %
 % Tires are numbered by quadrant (ISO 8855, viewed from above): 1 front
 % left, 2 rear left, 3 rear right, 4 front right. The names carry the
@@ -68,7 +81,7 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 % worked out from the motion. (A car coasting downhill may brake while
 % speeding up, and a car rolling back down a hill is not in reverse.)
 %
-% All 30 usual columns are written, in the usual order, in SI units and
+% All 36 usual columns are written, in the usual order, in SI units and
 % radians. A roadZ column is added at the end if the ground height is not
 % zero. Wheel speeds are written as rates (the time derivative of the
 % wheel spin angles).
@@ -77,7 +90,7 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 %
 %       fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion,...
 %           (BodyRoll=roll), (BodyPitch=pitch), (BodyHeave=heave),...
-%           (WheelLift=lift), (Lights=lights), (FigNum=figNum))
+%           (WheelLift=lift), (Signals=signals), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -101,9 +114,13 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 %
 %      WheelLift: K x 4 wheel lift [FL FR RL RR] in meters. Default [].
 %
-%      Lights: a structure of light columns, each a scalar or K x 1:
-%      headlights (0/1/2), indicator (0/1/2/3), brakeLight (0/1/2),
-%      reverseLight (0/1), runningLights (0/1). Missing fields are 0.
+%      Signals: what is switched on, as plotVehicle's Signals fields
+%      (LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight,
+%      Hazards, Tail, Brake, Backup, Fog: true/false). Either a K x 1
+%      structure array (one per time step) or one structure whose fields
+%      are each a scalar or K x 1. A turn signal given here is "switched
+%      on" (the reader blinks it), not the lamp lit at that moment.
+%      Missing fields are 0. Default struct() (every light off).
 %
 %      FigNum: if set to -1, input checking is skipped (fast mode).
 %
@@ -119,7 +136,7 @@ function fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion, options)
 %
 %       trajectory = fcn_CarMesh3D_fillTrajectory(Path='circle', Duration=5);
 %       fcn_CarMesh3D_saveMotionCSV('circle.csv', trajectory, ...
-%           Lights=struct('headlights',1,'indicator',1));
+%           Signals=struct('LowBeam',true,'TurnLeft',true));
 %       motion = fcn_CarMesh3D_loadMotionCSV('circle.csv');
 %
 %       See the script: script_test_fcn_CarMesh3D_saveMotionCSV.m for a full test
@@ -156,7 +173,7 @@ arguments
     options.BodyPitch = []    % K x 1 [rad]
     options.BodyHeave = []    % K x 1 [m]
     options.WheelLift = []    % K x 4 [m], [FL FR RL RR]
-    options.Lights = struct   % Light columns (scalars or K x 1)
+    options.Signals = struct  % What is switched on (K x 1 structures, or one of scalars or K x 1)
     options.FigNum = []       % -1 for fast mode (no input checks)
 end
 
@@ -233,8 +250,8 @@ if 0==flag_max_speed
         if ~isempty(options.WheelLift) && ~isequal(size(options.WheelLift),[Ncheck 4])
             error('WheelLift must be K x 4 [FL FR RL RR]');
         end
-        if ~isstruct(options.Lights)
-            error('Lights must be a structure of light columns');
+        if ~isstruct(options.Signals)
+            error('Signals must be a structure (see help fcn_CarMesh3D_saveMotionCSV)');
         end
     end
 end
@@ -322,13 +339,23 @@ end
 
 %%%%
 % Lights
-lights = options.Lights;
-lightNames = {'headlights','indicator','brakeLight','reverseLight','runningLights'};
-lightColumns = zeros(Nrows, length(lightNames));
-for ith_light = 1:length(lightNames)
-    if isfield(lights, lightNames{ith_light})
-        lightColumns(:,ith_light) = column(lights.(lightNames{ith_light}));
+signalsIn = options.Signals;
+signalNames = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'};
+lightColumns = zeros(Nrows, length(signalNames));
+for ith_signal = 1:length(signalNames)
+    if ~isfield(signalsIn, signalNames{ith_signal})
+        continue;
     end
+    if numel(signalsIn) > 1
+        % (one structure per time step)
+        if numel(signalsIn) ~= Nrows
+            error('Signals must be one structure, or one per time step (%d)', Nrows);
+        end
+        values = arrayfun(@(one) double(~isempty(one.(signalNames{ith_signal})) && logical(one.(signalNames{ith_signal})(1))), signalsIn(:));
+    else
+        values = double(logical(column(signalsIn.(signalNames{ith_signal}))));
+    end
+    lightColumns(:,ith_signal) = values;
 end
 
 %%%%
@@ -394,7 +421,8 @@ usualNames = {'time','X','Y','Z','roll','pitch','yaw','U','V','W', ...
     'wheelSpeed_FL','wheelSpeed_RL','wheelSpeed_RR','wheelSpeed_FR', ...
     'wheelLift_FL','wheelLift_RL','wheelLift_RR','wheelLift_FR', ...
     'roadRoll','roadPitch','steer_FL','steer_FR', ...
-    'headlights','indicator','brakeLight','reverseLight','runningLights'};
+    'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
+    'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
 end % Ends fcn_INTERNAL_usualColumns
 
 %% fcn_INTERNAL_column

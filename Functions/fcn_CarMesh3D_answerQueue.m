@@ -25,6 +25,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   Commands  (tests) the MATLAB commands to run first
 %   CodeTests (optional) test scripts to run, by name (such as
 %             "reviewVehicle" for script_test_fcn_CarMesh3D_reviewVehicle)
+%   Posted    (optional) when the item was posted ("2026-11-26 15:44:00");
+%             shown in the list. Default: the file's Written time.
 %
 % Each line of answers.jsonl holds: ID, Choice (an option's key, or
 % "BUG", "???" or "Later"), Comment, Who, When, and ItemsWritten (which
@@ -37,7 +39,9 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %             answer that must change what Claude is doing at once, or
 %             for when something breaks (Sean, 16:49: "the big red button").
 %   Left:     every item, with its mark (✓ answered, ✗ BUG, ? open, …
-%             Later, ?? unsure); click one to go there.
+%             Later, ?? unsure), when it was posted and, once answered,
+%             when (YYYY_MM_DD, HH:mm:ss); click one to go there. The
+%             divider at its right can be dragged to widen the list.
 %   Middle:   the item: its title, text and context; for a test, its
 %             commands, "Run the commands" and "Run the code tests", and
 %             what they printed.
@@ -53,7 +57,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 % FORMAT:
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_answerQueue((queueFolder),...
-%           (Who=initials), (FlagClipboard=flag), (FlagVisible=flag), (Watch=flag),...
+%           (Who=initials), (FlagClipboard=flag), (FlagVisible=flag), (FlagWatch=flag),...
 %           (FlagRemember=flag), (FigNum=figNum))
 %
 % INPUTS:
@@ -72,7 +76,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %
 %      FlagVisible: true (default); false builds the window hidden (tests).
 %
-%      Watch: true to check openItems.json every 3 s and load new items
+%      FlagWatch: true to check openItems.json every 3 s and load new items
 %      while the window stays open, keeping the item shown (Sean, 23:17:
 %      "can I just leave it open?"). Default: on when Visible.
 %
@@ -89,7 +93,9 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %
 %      figureHandle: the window. Its UserData holds functions for scripts
 %      and tests: Show(id), Answer(choice, comment), Done(), Now(), Run(),
-%      RunCodeTests(), Items(), Answers(), Current(), Reload(), Menu.
+%      RunCodeTests(), Items(), Answers(), Current(), Reload(), Menu,
+%      SetListWidth(pixels), ListWidth() (the list's width: the divider
+%      between the list and the page can be dragged).
 %
 % DEPENDENCIES:
 %
@@ -129,7 +135,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % they use its full width (Sean, 22:57: cut off, with space to spare;
 %   %   % the width was read before the window was laid out)
 %   % * Done copies comments whole (they were cut at 160 characters)
-%   % * Watch: new items in openItems.json load while the window stays
+%   % * FlagWatch: new items in openItems.json load while the window stays
 %   %   % open (Sean, 23:17)
 %   % * Other, always among the answers, with the comment saying what
 %   %   % (Sean, 23:40)
@@ -159,7 +165,7 @@ arguments
     options.Who = ''          % Initials; '' for yours
     options.FlagClipboard = true  % false: Done and NOW only return their text (tests)
     options.FlagVisible = true    % false: built hidden (tests)
-    options.Watch = []        % Check openItems.json for new items every few seconds; [] = when Visible
+    options.FlagWatch = []        % Check openItems.json for new items every few seconds; [] = when Visible
     options.FlagRemember = true   % Remember the folder (a preference); false for tests
     options.FigNum = []       % Not used; -1 skips input checks
 end
@@ -236,14 +242,28 @@ nowButton = uibutton(topBar, 'Text', 'NOW', 'Tag', 'aqNow', 'FontWeight', 'bold'
     'on the clipboard (this item, your answer and comment, and the last error), to paste into the chat'], ...
     'ButtonPushedFcn', @(~,~) doNow());
 
-bodyGrid = uigridlayout(mainGrid, [1 3], 'ColumnWidth', {0, 250, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6, ...
+% (the list and the page with a divider between them that can be dragged:
+% wider to read whole titles and times in the list, narrower for more of
+% the page; Sean, 2026-11-26 15:50)
+listWidth = 250;
+if options.FlagVisible && ispref('CarMesh3D', 'AnswerQueueListWidth')
+    listWidth = getpref('CarMesh3D', 'AnswerQueueListWidth');
+end
+bodyGrid = uigridlayout(mainGrid, [1 4], 'ColumnWidth', {0, listWidth, 8, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 2, ...
     'BackgroundColor', [1 1 1]);
 menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
+menuColumn.Layout.Column = 1;
 itemList = uilistbox(bodyGrid, 'Items', {}, 'Tag', 'aqItemList', 'FontSize', 13, ...
     'ValueChangedFcn', @(source,~) showItem(source.Value), ...
     'Tooltip', [char(10003) ' answered   ' char(10007) ' BUG   ? open   ?? unsure   ' char(8230) ' later']);
+itemList.Layout.Column = 2;
+dividerPanel = uipanel(bodyGrid, 'BorderType', 'none', 'BackgroundColor', [0.80 0.82 0.86], 'Tag', 'aqDivider', ...
+    'Tooltip', 'Drag to make the list wider or narrower');
+dividerPanel.Layout.Column = 3;
+flagDragging = false;
 pageGrid = uigridlayout(bodyGrid, [6 1], 'RowHeight', {34, '1x', 150, 32, 100, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 5, ...
     'BackgroundColor', [1 1 1]);
+pageGrid.Layout.Column = 4;
 headingLabel = uilabel(pageGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', 'FontColor', [1 1 1], ...
     'BackgroundColor', [0.15 0.25 0.45], 'Tag', 'aqHeading');
 textArea = uitextarea(pageGrid, 'Editable', 'off', 'FontSize', 14, 'Tag', 'aqText', 'WordWrap', 'on');
@@ -297,10 +317,14 @@ answers = latestTable();
 figureHandle.UserData = struct('Show', @showItem, 'Answer', @testAnswer, 'Done', @doDone, 'Now', @doNow, ...
     'Run', @doRun, 'RunCodeTests', @doRunCodeTests, 'Items', @getItems, 'Answers', @latestTable, ...
     'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu, 'CheckItems', @checkItems, ...
-    'PastePicture', @pastePicture, 'RemovePicture', @removePicture, 'Pictures', @currentPictures);
+    'PastePicture', @pastePicture, 'RemovePicture', @removePicture, 'Pictures', @currentPictures, ...
+    'SetListWidth', @setListWidth, 'ListWidth', @() bodyGrid.ColumnWidth{2});
+figureHandle.WindowButtonDownFcn = @(~,~) startDrag();
+figureHandle.WindowButtonMotionFcn = @(~,~) moveDrag();
+figureHandle.WindowButtonUpFcn = @(~,~) stopDrag();
 flagWatch = options.FlagVisible;
-if ~isempty(options.Watch)
-    flagWatch = logical(options.Watch);
+if ~isempty(options.FlagWatch)
+    flagWatch = logical(options.FlagWatch);
 end
 if flagWatch
     watchTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 3, 'BusyMode', 'drop', ...
@@ -524,7 +548,7 @@ end
     end
 
     function checkItems()
-        % (Watch: when openItems.json has changed, load it, keeping the item
+        % (FlagWatch: when openItems.json has changed, load it, keeping the item
         % shown and its comment as typed)
         if ~isvalid(figureHandle) || ~isfile(itemsFile)
             return;
@@ -839,10 +863,24 @@ end
     end
 
     function refreshList()
+        % (each entry: its mark, when it was posted, its ID and title; an
+        % answered one also says when it was answered: Sean, 15:50)
         labels = cell(1, numel(items));
         for ith_item = 1:numel(items)
-            labels{ith_item} = sprintf('%s  %s  %s', fcn_INTERNAL_mark(latestChoice(items(ith_item).ID)), ...
-                items(ith_item).ID, items(ith_item).Title);
+            posted = '';
+            if isfield(items, 'Posted')
+                posted = items(ith_item).Posted;
+            end
+            if isempty(posted)
+                posted = itemsWritten;
+            end
+            answeredText = '';
+            record = latestRecord(items(ith_item).ID);
+            if ~isempty(record) && ~isempty(record.Choice) && ~isempty(record.When)
+                answeredText = sprintf('  (answered on: %s)', fcn_INTERNAL_stampText(record.When));
+            end
+            labels{ith_item} = sprintf('%s  (posted on: %s)  %s  %s%s', fcn_INTERNAL_mark(latestChoice(items(ith_item).ID)), ...
+                fcn_INTERNAL_stampText(posted), items(ith_item).ID, items(ith_item).Title, answeredText);
         end
         itemList.Items = labels;
         itemList.ItemsData = 1:numel(items);
@@ -853,6 +891,51 @@ end
 
     function setMenuWidth(width)
         bodyGrid.ColumnWidth{1} = width;
+    end
+
+    %% The divider between the list and the page
+    function flagOver = overDivider()
+        % (the mouse over the divider, or a few pixels either side of it)
+        flagOver = false;
+        if ~isvalid(dividerPanel)
+            return;
+        end
+        dividerBox = getpixelposition(dividerPanel, true);
+        point = figureHandle.CurrentPoint;
+        flagOver = point(1) >= dividerBox(1) - 3 && point(1) <= dividerBox(1) + dividerBox(3) + 3 ...
+            && point(2) >= dividerBox(2) && point(2) <= dividerBox(2) + dividerBox(4);
+    end
+
+    function startDrag()
+        flagDragging = overDivider();
+    end
+
+    function moveDrag()
+        if flagDragging
+            listBox = getpixelposition(itemList, true);
+            setListWidth(figureHandle.CurrentPoint(1) - listBox(1) - 4);
+        elseif overDivider()
+            figureHandle.Pointer = 'left';
+        elseif strcmp(figureHandle.Pointer, 'left')
+            figureHandle.Pointer = 'arrow';
+        end
+    end
+
+    function stopDrag()
+        if flagDragging
+            flagDragging = false;
+            if options.FlagVisible
+                setpref('CarMesh3D', 'AnswerQueueListWidth', bodyGrid.ColumnWidth{2});   % (kept for next time; never by a hidden test window)
+            end
+        end
+    end
+
+    function setListWidth(width)
+        % (the list between 150 px and all but 300 px of the window)
+        bodyBox = getpixelposition(bodyGrid, true);
+        bodyWidth = max(bodyBox(3), figureHandle.Position(3) - 12);   % (a window not yet laid out reports a small grid)
+        maxWidth = max(150, bodyWidth - bodyGrid.ColumnWidth{1} - 300);
+        bodyGrid.ColumnWidth{2} = round(min(max(width, 150), maxWidth));
     end
 
     function onSharedSetting(name, value)
@@ -900,7 +983,7 @@ end % Ends fcn_INTERNAL_defaultFolder
 function items = fcn_INTERNAL_items(loaded)
 % The items, each with every field (blank when not given)
 items = struct('ID', {}, 'Kind', {}, 'Title', {}, 'Text', {}, 'Context', {}, 'File', {}, 'Section', {}, ...
-    'Options', {}, 'Commands', {}, 'CodeTests', {});
+    'Options', {}, 'Commands', {}, 'CodeTests', {}, 'Posted', {});
 if ~isfield(loaded, 'Items') || isempty(loaded.Items)
     return;
 end
@@ -911,7 +994,7 @@ end
 for ith_item = 1:numel(raw)
     source = raw{ith_item};
     item = struct();
-    for name = {'ID', 'Kind', 'Title', 'Text', 'Context', 'File', 'Section', 'Commands'}
+    for name = {'ID', 'Kind', 'Title', 'Text', 'Context', 'File', 'Section', 'Commands', 'Posted'}
         value = '';
         if isfield(source, name{1}) && ~isempty(source.(name{1}))
             value = source.(name{1});
@@ -983,6 +1066,26 @@ for ith_line = 1:numel(lines)
     latest(record.ID) = record;
 end
 end % Ends fcn_INTERNAL_readAnswers
+
+%% fcn_INTERNAL_stampText
+function textOut = fcn_INTERNAL_stampText(textIn)
+% A time as YYYY_MM_DD, HH:mm:ss (Sean, 2026-11-26 15:50), from the
+% times the queue writes ('2026-11-26 15:44', '2026-11-26 15:44:00');
+% text it cannot read is shown as it is, and none as '?'
+textOut = char(textIn);
+if isempty(textOut)
+    textOut = '?';
+    return;
+end
+for formatIn = {'yyyy-MM-dd HH:mm:ss', 'yyyy-MM-dd HH:mm', 'yyyy_MM_dd, HH:mm:ss', 'yyyy-MM-dd''T''HH:mm:ss'}
+    try
+        stamp = datetime(textOut, 'InputFormat', formatIn{1});
+        textOut = char(datetime(stamp, 'Format', 'yyyy_MM_dd, HH:mm:ss'));
+        return;
+    catch
+    end
+end
+end % Ends fcn_INTERNAL_stampText
 
 %% fcn_INTERNAL_mark
 function mark = fcn_INTERNAL_mark(choice)

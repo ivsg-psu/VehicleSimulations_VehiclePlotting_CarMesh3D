@@ -6,11 +6,13 @@ function testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, options)
 % to a CSV file in the CarMesh3D column convention and then read back with
 % fcn_CarMesh3D_loadMotionCSV, so the file reader is checked too.
 %
-% THE SEGMENTS (about 45 s in all):
+% THE SEGMENTS (about 49 s in all):
 %
-%   1. lights    (parked, 10.8 s) Each light alone, 1.2 s each: all off,
-%                low beams, high beams, running lights, left signal, right
-%                signal, hazards, brake lights, backup lights.
+%   1. lights    (parked, 14.4 s) Each light alone, 1.2 s each: all off,
+%                low beams, high beams, running lights, parking lights,
+%                left signal, right signal, hazards, tail lights, brake
+%                lights, backup lights, fog lamps (one signal column each,
+%                Q96 (A), 2026-11-26).
 %   2. body      (parked, 11 s) Smooth 1.1 s pulses, one input at a time:
 %                roll +5 deg (right side down), roll -5 deg, pitch +3 deg
 %                (nose down), pitch -3 deg, heave +5 cm, heave -5 cm, then
@@ -22,8 +24,8 @@ function testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, options)
 %   4. wheels    From rest: speed up to 8 m/s in 3 s with the front tires
 %                spinning twice as fast as the road for the first 1.5 s
 %                (peel-out), cruise 1 s, brake hard to a stop in 2 s with
-%                all four tires locked (not turning) and strong brake
-%                lights, wait, then back up at 2 m/s with backup lights.
+%                all four tires locked (not turning) and the brake
+%                lights on, wait, then back up at 2 m/s with backup lights.
 %
 % Every input is held at its "off" value outside its own segment, so each
 % check shows one thing at a time.
@@ -215,27 +217,33 @@ end
 timeValues = zeros(0,1);
 segments = struct('Name',{},'StartTime',{},'EndTime',{},'Description',{});
 columns = struct('U',[],'curvature',[],'roll',[],'pitch',[],'heave',[],'lift',[], ...
-    'spinFactor',[],'headlights',[],'indicator',[],'brakeLight',[],'reverseLight',[],'runningLights',[]);
+    'spinFactor',[],'signalLowBeam',[],'signalHighBeam',[],'signalRunning',[],'signalParking',[], ...
+    'signalTurnLeft',[],'signalTurnRight',[],'signalHazards',[],'signalTail',[],'signalBrake',[],'signalBackup',[],'signalFog',[]);
 captions = cell(0,1);
 
 % --- 1. Lights, parked: each light alone for 1.2 s
-lightSteps = {
-    'all lights off',                   0 0 0 0 0;
-    'low beams (headlights = 1)',       1 0 0 0 0;
-    'high beams (headlights = 2)',      2 0 0 0 0;
-    'running lights (runningLights = 1)', 0 0 0 0 1;
-    'left signal (indicator = 1)',      0 1 0 0 0;
-    'right signal (indicator = 2)',     0 2 0 0 0;
-    'hazards (indicator = 3)',          0 3 0 0 0;
-    'brake lights (brakeLight = 1)',    0 0 1 0 0;
-    'backup lights (reverseLight = 1)', 0 0 0 1 0};
+lightSteps = {   % caption, the signal column switched on ('' for none)
+    'all lights off',                     '';
+    'low beams (signalLowBeam = 1)',      'signalLowBeam';
+    'high beams (signalHighBeam = 1)',    'signalHighBeam';
+    'running lights (signalRunning = 1)', 'signalRunning';
+    'parking lights (signalParking = 1)', 'signalParking';
+    'left signal (signalTurnLeft = 1)',   'signalTurnLeft';
+    'right signal (signalTurnRight = 1)', 'signalTurnRight';
+    'hazards (signalHazards = 1)',        'signalHazards';
+    'tail lights (signalTail = 1)',       'signalTail';
+    'brake lights (signalBrake = 1)',     'signalBrake';
+    'backup lights (signalBackup = 1)',   'signalBackup';
+    'fog lamps (signalFog = 1)',          'signalFog'};
 stepTime = 1.2;
 for ith_step = 1:size(lightSteps,1)
     Nrows = round(stepTime/dt);
+    signalOn = {};
+    if ~isempty(lightSteps{ith_step,2})
+        signalOn = {lightSteps{ith_step,2}, 1};
+    end
     [timeValues, columns, captions] = fcn_INTERNAL_addRows(timeValues, columns, captions, Nrows, dt, ...
-        ['Lights: ' lightSteps{ith_step,1}], ...
-        'headlights', lightSteps{ith_step,2}, 'indicator', lightSteps{ith_step,3}, ...
-        'brakeLight', lightSteps{ith_step,4}, 'reverseLight', lightSteps{ith_step,5}, 'runningLights', lightSteps{ith_step,6});
+        ['Lights: ' lightSteps{ith_step,1}], signalOn{:});
 end
 segments(end+1) = fcn_INTERNAL_segment('lights', timeValues, 0, 'Each light alone, parked');
 
@@ -275,21 +283,22 @@ turnSpeed = 2;
 turnRadius = 1.5*wheelbase;
 turnTime = (pi/2*turnRadius)/turnSpeed;
 rampTime = 0.5;
-steerPlan = {   % caption, duration, curvature at end, indicator
-    'Steering: straight',              1.0,                 0,            0;
-    'Steering: turning left',          rampTime,            1/turnRadius, 1;
-    'Steering: turning left',          turnTime - rampTime, 1/turnRadius, 1;
-    'Steering: straightening',         rampTime,            0,            1;
-    'Steering: straight',              1.0,                 0,            0;
-    'Steering: turning right',         rampTime,            -1/turnRadius, 2;
-    'Steering: turning right',         turnTime - rampTime, -1/turnRadius, 2;
-    'Steering: straightening',         rampTime,            0,            2;
-    'Steering: straight',              1.0,                 0,            0};
+steerPlan = {   % caption, duration, curvature at end, left signal, right signal
+    'Steering: straight',              1.0,                 0,            0, 0;
+    'Steering: turning left',          rampTime,            1/turnRadius, 1, 0;
+    'Steering: turning left',          turnTime - rampTime, 1/turnRadius, 1, 0;
+    'Steering: straightening',         rampTime,            0,            1, 0;
+    'Steering: straight',              1.0,                 0,            0, 0;
+    'Steering: turning right',         rampTime,            -1/turnRadius, 0, 1;
+    'Steering: turning right',         turnTime - rampTime, -1/turnRadius, 0, 1;
+    'Steering: straightening',         rampTime,            0,            0, 1;
+    'Steering: straight',              1.0,                 0,            0, 0};
 lastCurvature = 0;
 for ith_step = 1:size(steerPlan,1)
     Nrows = max(1, round(steerPlan{ith_step,2}/dt));
     [timeValues, columns, captions] = fcn_INTERNAL_addRows(timeValues, columns, captions, Nrows, dt, ...
-        steerPlan{ith_step,1}, 'U', turnSpeed, 'headlights', 1, 'indicator', steerPlan{ith_step,4});
+        steerPlan{ith_step,1}, 'U', turnSpeed, 'signalLowBeam', 1, 'signalTurnLeft', steerPlan{ith_step,4}, ...
+        'signalTurnRight', steerPlan{ith_step,5});
     rowRange = numel(timeValues)-Nrows+1:numel(timeValues);
     columns.curvature(rowRange) = lastCurvature + (steerPlan{ith_step,3} - lastCurvature)*((1:Nrows)'/Nrows);
     lastCurvature = steerPlan{ith_step,3};
@@ -298,20 +307,20 @@ segments(end+1) = fcn_INTERNAL_segment('steering', timeValues, segmentStart, 'Le
 
 % --- 4. Wheels: peel-out, lock-up, reverse
 segmentStart = numel(timeValues);
-wheelPlan = {  % caption, duration, speed at end, front spin factor, rear spin factor, brakeLight, reverseLight
+wheelPlan = {  % caption, duration, speed at end, front spin factor, rear spin factor, signalBrake, signalBackup
     'Wheels: peel-out (front tires spin 2x)', 1.5, 4,  2, 1, 0, 0;
     'Wheels: speeding up',                    1.5, 8,  1, 1, 0, 0;
     'Wheels: cruising',                       1.0, 8,  1, 1, 0, 0;
-    'Wheels: locked, hard braking (brakeLight = 2)', 2.0, 0, 0, 0, 2, 0;
-    'Wheels: stopped (brakeLight = 1)',       0.6, 0,  1, 1, 1, 0;
-    'Wheels: backing up (reverseLight = 1)',  1.0, -2, 1, 1, 0, 1;
-    'Wheels: backing up (reverseLight = 1)',  1.5, -2, 1, 1, 0, 1;
-    'Wheels: stopping (reverseLight = 1)',    1.0, 0,  1, 1, 0, 1};
+    'Wheels: locked, hard braking (signalBrake = 1)', 2.0, 0, 0, 0, 1, 0;
+    'Wheels: stopped (signalBrake = 1)',      0.6, 0,  1, 1, 1, 0;
+    'Wheels: backing up (signalBackup = 1)',  1.0, -2, 1, 1, 0, 1;
+    'Wheels: backing up (signalBackup = 1)',  1.5, -2, 1, 1, 0, 1;
+    'Wheels: stopping (signalBackup = 1)',    1.0, 0,  1, 1, 0, 1};
 lastSpeed = 0;
 for ith_step = 1:size(wheelPlan,1)
     Nrows = round(wheelPlan{ith_step,2}/dt);
     [timeValues, columns, captions] = fcn_INTERNAL_addRows(timeValues, columns, captions, Nrows, dt, ...
-        wheelPlan{ith_step,1}, 'headlights', 1, 'brakeLight', wheelPlan{ith_step,6}, 'reverseLight', wheelPlan{ith_step,7});
+        wheelPlan{ith_step,1}, 'signalLowBeam', 1, 'signalBrake', wheelPlan{ith_step,6}, 'signalBackup', wheelPlan{ith_step,7});
     rowRange = numel(timeValues)-Nrows+1:numel(timeValues);
     columns.U(rowRange) = lastSpeed + (wheelPlan{ith_step,3} - lastSpeed)*((1:Nrows)'/Nrows);
     columns.spinFactor(rowRange,:) = repmat([wheelPlan{ith_step,4} wheelPlan{ith_step,4} wheelPlan{ith_step,5} wheelPlan{ith_step,5}], Nrows, 1);
@@ -344,10 +353,12 @@ if flagTemporary
 end
 motionToWrite = struct('Time',timeValues, 'Pose',[xValues yValues yawValues], 'Speed',speedValues, ...
     'WheelSpin',wheelSpin, 'SteerAngle',steerAngles);
-lights = struct('headlights',columns.headlights, 'indicator',columns.indicator, ...
-    'brakeLight',columns.brakeLight, 'reverseLight',columns.reverseLight, 'runningLights',columns.runningLights);
+signalsToWrite = struct();   % (the signal columns, as one structure of K x 1 fields)
+for signalName = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'}
+    signalsToWrite.(signalName{1}) = columns.(['signal' signalName{1}]) > 0;
+end
 fcn_CarMesh3D_saveMotionCSV(csvFile, motionToWrite, BodyRoll=columns.roll, BodyPitch=columns.pitch, ...
-    BodyHeave=columns.heave, WheelLift=columns.lift, Lights=lights, FigNum=-1);
+    BodyHeave=columns.heave, WheelLift=columns.lift, Signals=signalsToWrite, FigNum=-1);
 testMotion = fcn_CarMesh3D_loadMotionCSV(csvFile, VehicleSpec=vehicleSpec, FigNum=-1);
 if flagTemporary
     delete(csvFile);
@@ -380,8 +391,9 @@ if flag_do_plots
         'Speed U [m/s], steer [deg]', [testMotion.Speed, rad2deg(testMotion.SteerAngle)], {'U','steer FL','steer FR'};
         'Body: roll, pitch [deg], heave [cm]', [rad2deg([testMotion.BodyRoll testMotion.BodyPitch]), 100*testMotion.BodyHeave], {'roll','pitch','heave'};
         'Wheel lift [cm]', 100*testMotion.WheelLift, {'FL','FR','RL','RR'};
-        'Light inputs', [testMotion.Data.headlights, testMotion.Data.indicator, testMotion.Data.brakeLight, ...
-            testMotion.Data.reverseLight, testMotion.Data.runningLights], {'headlights','indicator','brakeLight','reverseLight','runningLights'}};
+        'Light inputs (0/1)', [testMotion.Data.signalLowBeam, testMotion.Data.signalHighBeam, testMotion.Data.signalTurnLeft, ...
+            testMotion.Data.signalTurnRight, testMotion.Data.signalHazards, testMotion.Data.signalBrake, testMotion.Data.signalBackup] ...
+            + 0.04*(1:7), {'signalLowBeam','signalHighBeam','signalTurnLeft','signalTurnRight','signalHazards','signalBrake','signalBackup'}};
     for ith_plot = 1:size(plotSets,1)
         nexttile;
         hold on;
@@ -434,8 +446,10 @@ end
 timeValues = [timeValues; newTimes];
 zeroColumn = zeros(Nrows,1);
 newValues = struct('U',zeroColumn,'curvature',zeroColumn,'roll',zeroColumn,'pitch',zeroColumn, ...
-    'heave',zeroColumn,'lift',zeros(Nrows,4),'spinFactor',ones(Nrows,4),'headlights',zeroColumn, ...
-    'indicator',zeroColumn,'brakeLight',zeroColumn,'reverseLight',zeroColumn,'runningLights',zeroColumn);
+    'heave',zeroColumn,'lift',zeros(Nrows,4),'spinFactor',ones(Nrows,4), ...
+    'signalLowBeam',zeroColumn,'signalHighBeam',zeroColumn,'signalRunning',zeroColumn,'signalParking',zeroColumn, ...
+    'signalTurnLeft',zeroColumn,'signalTurnRight',zeroColumn,'signalHazards',zeroColumn,'signalTail',zeroColumn, ...
+    'signalBrake',zeroColumn,'signalBackup',zeroColumn,'signalFog',zeroColumn);
 for ith_pair = 1:2:length(varargin)
     newValues.(varargin{ith_pair}) = varargin{ith_pair+1}*ones(Nrows, size(newValues.(varargin{ith_pair}),2));
 end

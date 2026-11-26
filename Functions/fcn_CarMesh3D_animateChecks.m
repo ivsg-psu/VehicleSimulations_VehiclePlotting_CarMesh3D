@@ -27,7 +27,7 @@ function animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey, options)
 %
 %       animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey,...
 %           (TestMotion=testMotion), (Rows=rows), (StepRows=stepRows),...
-%           (Parent=container), (ShowPlayer=flag), (OnStep=function),...
+%           (Parent=container), (FlagShowPlayer=flag), (OnStep=function),...
 %           (OnHint=function), (FlagVisible=flag), (FigNum=figNum))
 %
 % INPUTS:
@@ -55,7 +55,7 @@ function animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey, options)
 %      Parent: a panel or grid to build into; [] (default) for a window of
 %      its own.
 %
-%      ShowPlayer: true to show Play, a time slider, and the inputs
+%      FlagShowPlayer: true to show Play, a time slider, and the inputs
 %      plotted over time. Default: true in its own window, false in a
 %      parent.
 %
@@ -142,7 +142,7 @@ arguments
     options.Rows = []           % Rows to animate; [] for the check's rows
     options.StepRows = []       % One row per step; [] for one per caption
     options.Parent = []         % Panel or grid to build into; [] for a window of its own
-    options.ShowPlayer = []     % Play, slider and inputs plot; [] for the default
+    options.FlagShowPlayer = []     % Play, slider and inputs plot; [] for the default
     options.OnStep = []         % Called with the step showing as the whole animation plays
     options.OnHint = []         % Called with hint text
     options.FlagVisible = true      % Build the window hidden (tests)
@@ -305,7 +305,7 @@ mouseLast = [0 0];
 
 %%%% The window (or the parent given)
 flagOwnWindow = isempty(options.Parent);
-showPlayer = options.ShowPlayer;
+showPlayer = options.FlagShowPlayer;
 if isempty(showPlayer)
     showPlayer = flagOwnWindow;
 end
@@ -954,13 +954,16 @@ time = testMotion.Time(rows);
 motionData = testMotion.Data;
 switch inputs
     case 'lights'
-        names = {'headlights','indicator','brakeLight','reverseLight','runningLights'};
+        % (one 0/1 line per signal column, each a little higher than the
+        % last so the lines do not hide one another)
+        names = {'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
+            'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
         for ith_name = 1:numel(names)
             if isfield(motionData, names{ith_name})
                 stairs(axesHandle, time, motionData.(names{ith_name})(rows) + 0.04*ith_name, 'LineWidth', 1.5, 'DisplayName', names{ith_name});
             end
         end
-        ylabel(axesHandle, 'input value');
+        ylabel(axesHandle, 'input value (0 off, 1 on)');
     case 'body'
         plot(axesHandle, time, fcn_INTERNAL_degrees(testMotion.BodyRoll(rows)), 'LineWidth', 1.5, 'DisplayName', 'roll (deg)');
         plot(axesHandle, time, fcn_INTERNAL_degrees(testMotion.BodyPitch(rows)), 'LineWidth', 1.5, 'DisplayName', 'pitch (deg)');
@@ -982,11 +985,11 @@ switch inputs
                 plot(axesHandle, time, motionData.(speedNames{ith_name})(rows), '--', 'DisplayName', strrep(speedNames{ith_name},'_',' '));
             end
         end
-        if isfield(motionData, 'brakeLight')
-            stairs(axesHandle, time, motionData.brakeLight(rows), 'LineWidth', 1.5, 'DisplayName', 'brakeLight');
+        if isfield(motionData, 'signalBrake')
+            stairs(axesHandle, time, motionData.signalBrake(rows), 'LineWidth', 1.5, 'DisplayName', 'signalBrake');
         end
-        if isfield(motionData, 'reverseLight')
-            stairs(axesHandle, time, motionData.reverseLight(rows), 'LineWidth', 1.5, 'DisplayName', 'reverseLight');
+        if isfield(motionData, 'signalBackup')
+            stairs(axesHandle, time, motionData.signalBackup(rows), 'LineWidth', 1.5, 'DisplayName', 'signalBackup');
         end
 end
 legend(axesHandle, 'Location', 'eastoutside', 'Interpreter', 'none', 'AutoUpdate', 'off');

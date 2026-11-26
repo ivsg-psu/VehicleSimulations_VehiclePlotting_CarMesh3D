@@ -59,9 +59,10 @@ vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Preset='genericSedan', FigNum=-1);
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='figureEight', Radius=12, Speed=8, Duration=10, ...
     VehicleSpec=vehicleSpec, FigNum=-1);
 K = length(trajectory.Time);
-lights = struct('headlights',1, 'indicator',[ones(round(K/2),1); 2*ones(K-round(K/2),1)]);
+firstHalf = (1:K)' <= round(K/2);
+lights = struct('LowBeam',true, 'TurnLeft',firstHalf, 'TurnRight',~firstHalf);
 csvFile = fullfile(tempdir,'CarMesh3D_testFigureEight.csv');
-fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, Lights=lights);
+fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, Signals=lights);
 
 motion = fcn_CarMesh3D_loadMotionCSV(csvFile, VehicleSpec=vehicleSpec, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
@@ -84,6 +85,14 @@ assert(strcmp(motion.SteerSource,'steer_FL and steer_FR'));
 assert(max(abs(motion.WheelSpin - trajectory.WheelSpin),[],'all') < 0.05);
 % Lights: low beams; the left signal blinks, then the right
 assert(all([motion.Signals.LowBeam]) && ~any([motion.Signals.HighBeam]));
+assert(~any([motion.Signals.Tail]), 'signalTail written as 0: the tail lamps off, as given');
+noTailData = readtable(csvFile, 'VariableNamingRule', 'preserve');
+noTailData.signalTail = [];
+noTailFile = fullfile(tempdir, 'CarMesh3D_testNoTail.csv');
+writetable(noTailData, noTailFile);
+noTailMotion = fcn_CarMesh3D_loadMotionCSV(noTailFile, VehicleSpec=vehicleSpec, FigNum=-1);
+assert(all([noTailMotion.Signals.Tail]), 'No signalTail column: the tail lamps follow the headlamps');
+delete(noTailFile);
 assert(motion.Signals(1).TurnLeft && ~motion.Signals(1).TurnRight);
 assert(any(~[motion.Signals(1:round(K/2)).TurnLeft]));   % it blinks
 assert(motion.Signals(end-1).TurnRight || motion.Signals(end).TurnRight || any([motion.Signals(round(K/2)+1:end).TurnRight]));
@@ -185,12 +194,12 @@ timeValues = (0:dt:6)';
 % follow their columns, not the motion
 speedValues = 5 + 2*timeValues.*(timeValues<2) + 4*(timeValues>=2) - 3*(timeValues-2).*(timeValues>=2);
 K = length(timeValues);
-indicatorValues = 1*(timeValues < 2);            % Left signal for the first 2 s
-brakeValues = 1*(timeValues < 2);                % Brakes on while speeding up
-reverseValues = zeros(K,1);                      % Never in reverse
+turnLeftValues = timeValues < 2;                 % Left signal for the first 2 s
+brakeValues = timeValues < 2;                    % Brakes on while speeding up
+backupValues = false(K,1);                       % Never in reverse
 csvFile = fullfile(tempdir,'CarMesh3D_testLights.csv');
 fcn_CarMesh3D_saveMotionCSV(csvFile, struct('Time',timeValues,'Pose',[cumtrapz(timeValues,speedValues) zeros(K,2)],'Speed',speedValues), ...
-    Lights=struct('indicator',indicatorValues,'brakeLight',brakeValues,'reverseLight',reverseValues));
+    Signals=struct('TurnLeft',turnLeftValues,'Brake',brakeValues,'Backup',backupValues));
 motion = fcn_CarMesh3D_loadMotionCSV(csvFile, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
@@ -203,10 +212,10 @@ assert(~signals(find(timeValues>=3,1)).Brake);
 assert(motion.Speed(end) < 0 && ~any([signals.Backup]));
 % A file with no light columns has every light off
 csvData = readtable(csvFile);
-csvData.brakeLight = []; csvData.reverseLight = []; csvData.indicator = [];
+csvData.signalBrake = []; csvData.signalBackup = []; csvData.signalTurnLeft = [];
 writetable(csvData, csvFile);
 motionNoLights = fcn_CarMesh3D_loadMotionCSV(csvFile, FigNum=-1);
-assert(~any([motionNoLights.Signals.Brake]) && ~any([motionNoLights.Signals.Backup]));
+assert(~any([motionNoLights.Signals.Brake]) && ~any([motionNoLights.Signals.Backup]) && ~any([motionNoLights.Signals.TurnLeft]));
 % Blinking: on at 0 s, off at 0.5 s, on again at 0.8 s; off after 2 s
 assert(signals(1).TurnLeft && ~signals(6).TurnLeft && signals(9).TurnLeft);
 assert(~any([signals(timeValues>2.05).TurnLeft]));

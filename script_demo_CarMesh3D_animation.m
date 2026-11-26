@@ -227,7 +227,7 @@ wheelLift = zeros(K,4);                                                       % 
 wheelLift(:,1) = 0.10*min(max((lateralAcceleration - 9)/3, 0), 1);            % inside front (left)
 csvFile = fullfile(tempdir,'CarMesh3D_exampleMotion.csv');
 fcn_CarMesh3D_saveMotionCSV(csvFile, trajectory, BodyRoll=bodyRoll, BodyPitch=bodyPitch, ...
-    WheelLift=wheelLift, Lights=struct('headlights',1, 'indicator',double(trajectory.Time<2)));
+    WheelLift=wheelLift, Signals=struct('LowBeam',true, 'TurnLeft',trajectory.Time<2));
 
 % Read it back, exactly as a file from a dynamics model would be read
 motion = fcn_CarMesh3D_loadMotionCSV(csvFile, VehicleSpec=vehicleSpec, FigNum=8);

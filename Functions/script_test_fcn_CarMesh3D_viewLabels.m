@@ -241,6 +241,11 @@ fcn_INTERNAL_tickBoundaries(viewer, false);
 settings = viewer.GetView();
 assert(settings.FlagNight && settings.NightLights.LowBeam && ~settings.NightLights.HighBeam);
 callText = viewer.ViewCall();
+% (Copy view call in a hidden window leaves the clipboard alone: a test
+% must never replace what the user copied; Sean, 2026-11-26 15:41)
+clipboardBefore = clipboard('paste');
+copiedText = evalc('viewer.CopyViewCall();');
+assert(contains(copiedText, callText) && isequal(clipboard('paste'), clipboardBefore), 'Copy view call, hidden: the clipboard is untouched');
 assert(contains(callText, '''FlagNight'',true') && contains(callText, '''HighBeam'',false'));
 % (the Show boxes work at night: glass taken off, the scene drawn again)
 childrenBefore = numel(findobj(viewer.Axes, 'Type', 'patch'));

@@ -54,7 +54,21 @@ if zzView.Sideways
     zzTableAxes = findall(editor.Figure, 'Tag', 'lampTable');
     assert(abs(zzTableAxes(1).XLim(1) - 40) < 1e-9 && strcmp(findall(editor.Figure, 'Tag', 'lampColumnScroll').Visible, 'on'), ...
         'The slider scrolls the columns, not the names');
+    zzRight = findall(editor.Figure, 'Tag', 'lampColumnsRight');
+    zzRight.ButtonPushedFcn(zzRight, []);
+    assert(editor.ColumnView().Offset > 40, 'The right arrow scrolls the columns along');
+    zzLeft = findall(editor.Figure, 'Tag', 'lampColumnsLeft');
+    for zzStep = 1:20
+        zzLeft.ButtonPushedFcn(zzLeft, []);
+    end
+    assert(editor.ColumnView().Offset == 0, 'The left arrow reaches the first column (Low beam)');
 end
+% (nothing reaches past the table panel's right edge: the panel itself
+% never scrolls sideways, which would move the names too; T89 BUG, 15:46)
+zzContent = findall(editor.Figure, 'Tag', 'lampContent');
+zzTableAxes = findall(editor.Figure, 'Tag', 'lampTable');
+zzPanelWidth = getpixelposition(zzContent(1));
+assert(sum(zzTableAxes(1).OuterPosition([1 3])) <= zzPanelWidth(3), 'The table fits its panel''s width');
 % (readable at any number of lamps: T80, T81 BUG; names at 11 pt, rows of
 % at least 20 px, however short the panel)
 zzNames = findall(editor.Figure, 'Tag', 'lampRowName');

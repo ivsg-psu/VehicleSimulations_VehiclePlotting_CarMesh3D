@@ -137,11 +137,19 @@ CarMesh3D draws a vehicle from two kinds of input. Everything else in this READM
 | 23 | `roadPitch` | rad | Road tilt under the vehicle, about Y (unsprung pitch) | 0 |
 | 24 | `steer_FL` | rad | Front-left road-wheel angle, + left | see below |
 | 25 | `steer_FR` | rad | Front-right road-wheel angle, + left | see below |
-| 26 | `headlights` | – | 0 off, 1 low beams, 2 high beams | 0 (off) |
-| 27 | `indicator` | – | 0 off, 1 left, 2 right, 3 hazard (both) | 0 (off) |
-| 28 | `brakeLight` | – | 0 off, 1 on, 2 strong | 0 (off) |
-| 29 | `reverseLight` | – | 0 off, 1 on | 0 (off) |
-| 30 | `runningLights` | – | 0 off, 1 on | 0 (off) |
+| 26 | `signalLowBeam` | – | Low beams: 1 on, 0 off | 0 (off) |
+| 27 | `signalHighBeam` | – | High beams (each beam alone: both 1 for both) | 0 (off) |
+| 28 | `signalRunning` | – | Daytime running lights | 0 (off) |
+| 29 | `signalParking` | – | Parking lights | 0 (off) |
+| 30 | `signalTurnLeft` | – | Left turn signal switched on (it blinks by itself) | 0 (off) |
+| 31 | `signalTurnRight` | – | Right turn signal switched on (it blinks by itself) | 0 (off) |
+| 32 | `signalHazards` | – | Hazards switched on (both turn signals blink together) | 0 (off) |
+| 33 | `signalTail` | – | Tail lamps | on with the low or high beams or the parking lights |
+| 34 | `signalBrake` | – | Brake pedal pressed | 0 (off) |
+| 35 | `signalBackup` | – | Reverse gear: the backup lamps | 0 (off) |
+| 36 | `signalFog` | – | Fog lamps | 0 (off) |
+
+The light columns are the fields of `fcn_CarMesh3D_plotVehicle`'s `Signals`, with the `signal` prefix (see [Names](#names)), each 0 or 1. *(Before 2026-11-26 the file had five coded columns: `headlights` 0/1/2, `indicator` 0/1/2/3, `brakeLight` 0/1/2, `reverseLight`, `runningLights`.)*
 
 Optional extra columns: `roadZ` (m, ground height under the rear axle; default 0), `steerAngle` (rad, one centerline angle), `steeringWheelAngle` (rad), and `wheelAngle_FL`, `wheelAngle_RL`, `wheelAngle_RR`, `wheelAngle_FR` (rad, wheel rotation angles). Any other column is read and ignored. Columns 1–13 and the four wheel speeds follow the IVSG state vector `[X Y Z roll pitch yaw U V W roll_rate pitch_rate yaw_rate w1 w2 w3 w4]`; `w1`–`w4` are accepted as names for the wheel speeds.
 
@@ -159,9 +167,9 @@ Read these before writing a file for CarMesh3D:
 - **Tires are numbered by quadrant**, seen from above: 1 front left, 2 rear left, 3 rear right, 4 front right. The column names say the position (`_FL`, `_RL`, `_RR`, `_FR`), so the numbering cannot be mixed up. (Inside CarMesh3D, wheel options use the order `[FL FR RL RR]`; the reader converts.)
 - **Wheel spin.** Wheel speeds are integrated over time to give the rotation angle, so a small drift is possible over long runs; give `wheelAngle_*` to avoid it. With no wheel columns, every wheel rolls without slipping at `U` / tire radius.
 - **Steering.** The front road-wheel angles `steer_FL` and `steer_FR` are used as given. Without them, one angle is taken from `steerAngle`, or from `steeringWheelAngle` / `SteeringRatio` (default 15), or from the path's curvature (`yaw_rate / U`, or the change in yaw per meter); that one angle is split into left and right angles with Ackermann steering. The rear wheels do not steer.
-- **Lights are inputs, never worked out from the motion.** A vehicle can brake while speeding up (coasting downhill), and can roll backward without being in reverse (parked on a hill), so `brakeLight` and `reverseLight` must come from the simulation or the driver's inputs. A missing light column means that light is off.
-- **Turn signals blink by themselves.** `indicator` gives the switch position (off, left, right, hazard); CarMesh3D makes the blinking (`BlinkPeriod=`, default 0.8 s), starting "on" whenever the switch changes. Do not put the blinking itself in the file.
-- **Tail lights** are on whenever the headlights or running lights are on, and bright when `brakeLight` is 1 or 2 (2, "strong", is drawn like 1).
+- **Lights are inputs, never worked out from the motion.** A vehicle can brake while speeding up (coasting downhill), and can roll backward without being in reverse (parked on a hill), so `signalBrake` and `signalBackup` must come from the simulation or the driver's inputs. A missing light column means that light is off.
+- **Turn signals blink by themselves.** `signalTurnLeft`, `signalTurnRight` and `signalHazards` give the switch position; CarMesh3D makes the blinking (`BlinkPeriod=`, default 0.8 s), starting "on" whenever the switch changes. Do not put the blinking itself in the file.
+- **Tail lights** follow `signalTail`; a file with no `signalTail` column has them on whenever the low or high beams or the parking lights are on (as cars wire them). `signalBrake` makes the tail/brake lamps bright.
 - **Names and units.** Columns are found by name, so their order does not matter. Matching ignores upper and lower case and underscores (`yaw_rate`, `Yaw_Rate`, and `yawRate` are the same). A name ending in `_deg` is in degrees (or degrees per second); a wheel speed ending in `_rpm` is in revolutions per minute. Both are converted.
 - **Files without a header row** are read with `ColumnNames=` (a list of names in the file's order) and, if there is no time column, `SampleTime=`.
 - **Vehicle dimensions** for steering and wheel spin (wheelbase, front track, tire diameter) come from `VehicleSpec=`.
@@ -2273,7 +2281,7 @@ The animation checks of a vehicle's mesh, drawn live from the mesh and the test 
 ```matlab
 animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey,...
     (TestMotion=testMotion), (Rows=rows), (StepRows=stepRows),...
-    (Parent=container), (ShowPlayer=flag), (OnStep=function),...
+    (Parent=container), (FlagShowPlayer=flag), (OnStep=function),...
     (OnHint=function), (FlagVisible=flag), (FigNum=figNum))
 ```
 
@@ -2285,7 +2293,7 @@ animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey,...
 | `Rows` | option | the rows of the test motion to animate. Default: the rows whose captions start with the check's name. | char | 1 x n |
 | `StepRows` | option | one row per step, the row each step is shown at. | double | N x 1 |
 | `Parent` | option | a panel or grid to build into; [] (default) for a window of its own. Default `[]`. | graphics handle | 1 x 1 |
-| `ShowPlayer` | option | true to show Play, a time slider, and the inputs plotted over time. Default: true in its own window, false in a parent. | logical | 1 x 1 |
+| `FlagShowPlayer` | option | true to show Play, a time slider, and the inputs plotted over time. Default: true in its own window, false in a parent. | logical | 1 x 1 |
 | `OnStep` | option | a function called with a step number as the whole animation plays, when the step showing changes (0 when it stops): the reviewer lights up that step's item. Default `[]`. | function_handle | 1 x 1 |
 | `OnHint` | option | a function called with a hint (HTML text) to show; [] to show it in its own window's hint line (or not at all, in a parent). Default `[]`. | function_handle | 1 x 1 |
 | `FlagVisible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
@@ -2929,7 +2937,7 @@ A window for fixing a vehicle's labels: select faces (a highlighter, whatever th
 | `EditsFile` | option | where the edits are saved ('' for not saved: with a mesh given, the default). With an ID, the default is the vehicle's labelEdits_<ID>.mat. Default `[]`. | char or string | 1 x n |
 | `PhotoFolder` | option | a folder of ViewInDegrees_<angle> photos. Default: the vehicle's photos folder (with an ID), else none. | char or string | 1 x n |
 | `FlagWait` | option | true to wait until the window is closed, and return the edited mesh then (its own window only). Default false: return at once. | logical | 1 x 1 |
-| `Versions` | option | true (default) to keep a timestamped copy of the edits and the edited mesh at each save, in the VersionFolder, as <mesh name>_YYYYMMDDHHMMSS.mat (a second save in the same second overwrites the first). Default `true`. | logical | 1 x 1 |
+| `FlagVersions` | option | true (default) to keep a timestamped copy of the edits and the edited mesh at each save, in the VersionFolder, as <mesh name>_YYYYMMDDHHMMSS.mat (a second save in the same second overwrites the first). Default `true`. | logical | 1 x 1 |
 | `VersionFolder` | option | where the timestamped copies go. | char or string | 1 x n |
 | `Who` | option | who is painting, for the vehicle's change log (meshHistory_<ID>.csv; fcn_CarMesh3D_meshHistory): each save adds a row. Default: the computer's user name. (With a vehicle ID only.) | char | 1 x n |
 | `FlagVisible` | option | false to build the window hidden (for tests). Default true. | logical | 1 x 1 |
@@ -3582,7 +3590,7 @@ Writes a vehicle motion to a CSV file in the CarMesh3D column convention, which 
 ```matlab
 fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion,...
     (BodyRoll=roll), (BodyPitch=pitch), (BodyHeave=heave),...
-    (WheelLift=lift), (Lights=lights), (FigNum=figNum))
+    (WheelLift=lift), (Signals=signals), (FigNum=figNum))
 ```
 
 | Variable | Kind | Meaning | Class | Size |
@@ -3593,7 +3601,7 @@ fileName = fcn_CarMesh3D_saveMotionCSV(fileName, motion,...
 | `BodyPitch` | option | K x 1 [rad] Default `[]`. | double | K x 1 |
 | `BodyHeave` | option | K x 1 [m] Default `[]`. | double | K x 1 |
 | `WheelLift` | option | K x 4 wheel lift [FL FR RL RR] in meters. Default []. | double | K x 4 |
-| `Lights` | option | a structure of light columns, each a scalar or K x 1: headlights (0/1/2), indicator (0/1/2/3), brakeLight (0/1/2), reverseLight (0/1), runningLights (0/1). Missing fields are 0. Default `struct`. | struct | 1 x 1 |
+| `Signals` | option | what is switched on, as plotVehicle's Signals fields (LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight, Hazards, Tail, Brake, Backup, Fog; true/false): a K x 1 structure array, or one structure whose fields are each a scalar or K x 1. A turn signal here is "switched on" (the reader blinks it). Missing fields are 0. Default `struct`. | struct | 1 x 1 or K x 1 |
 | `FigNum` | option | if set to -1, input checking is skipped (fast mode). Default `[]`. | double | 1 x 1 (or empty) |
 | `fileName` | output | the file that was written. | char or string | 1 x n |
 
