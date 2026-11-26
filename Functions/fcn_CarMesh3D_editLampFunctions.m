@@ -97,6 +97,11 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 % - In fcn_CarMesh3D_editLampFunctions
 %   % * First write (the lamp-functions plan, item 5; the design file,
 %   %   % section 6) (drafted with Claude)
+%   % * The table laid out in pixels: rows of 22 px, lamp names at 11 pt,
+%   %   % signal names at 10 pt, every other row shaded; the panel scrolls
+%   %   % instead of the rows shrinking. The tuner's names at 11 pt, wrapped
+%   %   % at the underscores. The column 520 px wide (T80, T81 BUG: "lamp
+%   %   % labels on matrix too small to see clearly")
 
 % TO-DO:
 %
@@ -189,7 +194,7 @@ if isempty(options.Parent)
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_editLampFunctions: %s', vehicleName), ...
         'Position', [60 60 1500 900], 'Visible', 'off', 'Tag', 'lampFunctionsWindow', ...
         'CloseRequestFcn', @(~,~) closeEditor());
-    rootGrid = uigridlayout(figureHandle, [1 2], 'ColumnWidth', {430, '1x'}, 'Padding', [4 4 4 4]);
+    rootGrid = uigridlayout(figureHandle, [1 2], 'ColumnWidth', {520, '1x'}, 'Padding', [4 4 4 4]);   % (520: the table's names at 11 pt, T80)
     columnPanel = uipanel(rootGrid, 'BorderType', 'none');
     if isempty(viewer)
         viewPanel = uipanel(rootGrid, 'BorderType', 'none');
@@ -461,47 +466,71 @@ end
 
     function drawTable()
         % Bar cells: a row per lamp unit, a column per signal; the edited
-        % column edged in cyan; no numbers typed
+        % column edged in cyan; no numbers typed. Laid out in pixels (rows
+        % of 22 px, names at 11 pt), so the table stays readable however
+        % many lamps there are: the panel scrolls instead of the rows
+        % shrinking (Sean, T80 and T81 BUG, 2026-11-26 09:51: "lamp labels
+        % on matrix too small to see clearly")
         indices = shownUnits();
-        axesHandle = uiaxes(contentPanel, 'Units', 'normalized', 'Position', [0 0 1 1], 'Tag', 'lampTable');
+        numShown = numel(indices);
+        numSignals = numel(signalNames);
+        rowPx = 22;
+        cellPx = 26;
+        headerPx = 96;   % (the signals' names, turned 60 degrees)
+        namePx = 8 + 7*max([12, cellfun(@numel, unitNames(indices))]);   % (about 7 px a character at 11 pt)
+        panelSize = getpixelposition(contentPanel);
+        tableWidth = namePx + numSignals*cellPx + 8;
+        tableHeight = headerPx + max(numShown, 1)*rowPx + 6;
+        widthPx = max(tableWidth, panelSize(3) - 4);
+        heightPx = max(tableHeight, panelSize(4) - 4);
+        contentPanel.Scrollable = 'on';
+        axesHandle = uiaxes(contentPanel, 'Units', 'pixels', 'Tag', 'lampTable');
+        axesHandle.PositionConstraint = 'innerposition';
+        axesHandle.InnerPosition = [1, 1, widthPx, heightPx];
         disableDefaultInteractivity(axesHandle);
+        axesHandle.Toolbar.Visible = 'off';
         hold(axesHandle, 'on');
         axis(axesHandle, 'off');
         axesHandle.YDir = 'reverse';
-        numShown = numel(indices);
-        numSignals = numel(signalNames);
-        nameWidth = 4;   % (columns' worth of room for the lamps' names)
-        xlim(axesHandle, [0, nameWidth + numSignals]);
-        ylim(axesHandle, [-1.6, max(numShown, 1) + 0.1]);
+        % (data units are pixels, from the top left)
+        xlim(axesHandle, [0, widthPx]);
+        ylim(axesHandle, [0, heightPx]);
         for ith_signal = 1:numSignals
-            text(axesHandle, nameWidth + ith_signal - 0.5, -0.1, signalLabels{ith_signal}, 'Rotation', 60, ...
-                'FontSize', 8, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Interpreter', 'none', ...
-                'FontWeight', fcn_INTERNAL_weight(strcmp(signalNames{ith_signal}, editSignal)));
+            text(axesHandle, namePx + (ith_signal - 0.5)*cellPx, headerPx - 4, signalLabels{ith_signal}, 'Rotation', 60, ...
+                'FontSize', 10, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Interpreter', 'none', ...
+                'FontWeight', fcn_INTERNAL_weight(strcmp(signalNames{ith_signal}, editSignal)), 'Tag', 'lampColumnName');
         end
         for ith_row = 1:numShown
             unit = indices(ith_row);
-            text(axesHandle, 0.05, ith_row - 0.5, unitNames{unit}, 'FontSize', 8, 'Interpreter', 'none', ...
-                'FontWeight', fcn_INTERNAL_weight(unit == markedUnit), 'Tag', 'lampRowName');
+            y0 = headerPx + (ith_row - 1)*rowPx;
+            if mod(ith_row, 2) == 0   % (every other row shaded, to follow a row across)
+                rectangle(axesHandle, 'Position', [0, y0, namePx + numSignals*cellPx, rowPx], 'FaceColor', [0.95 0.96 0.99], ...
+                    'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampRowShade');
+            end
+            text(axesHandle, 4, y0 + rowPx/2, unitNames{unit}, 'FontSize', 11, 'Interpreter', 'none', ...
+                'VerticalAlignment', 'middle', 'FontWeight', fcn_INTERNAL_weight(unit == markedUnit), 'Tag', 'lampRowName');
             for ith_signal = 1:numSignals
                 signalName = signalNames{ith_signal};
                 value = matrixNow.(signalName)(unit);
-                x0 = nameWidth + ith_signal - 1;
-                rectangle(axesHandle, 'Position', [x0 + 0.08, ith_row - 0.9, 0.84, 0.8], 'FaceColor', [0.96 0.96 0.96], ...
+                x0 = namePx + (ith_signal - 1)*cellPx;
+                rectangle(axesHandle, 'Position', [x0 + 2, y0 + 2, cellPx - 4, rowPx - 4], 'FaceColor', [0.96 0.96 0.96], ...
                     'EdgeColor', [0.75 0.75 0.75], 'Tag', 'lampCell', 'UserData', [unit ith_signal], ...
                     'ButtonDownFcn', @(source,~) onCellDown(source));
                 if value > 0
-                    rectangle(axesHandle, 'Position', [x0 + 0.08, ith_row - 0.9 + 0.8*(1 - value), 0.84, 0.8*value], ...
+                    barHeight = (rowPx - 4)*value;
+                    rectangle(axesHandle, 'Position', [x0 + 2, y0 + rowPx - 2 - barHeight, cellPx - 4, barHeight], ...
                         'FaceColor', [0.30 0.45 0.85], 'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampBar');
                 end
             end
         end
         % (the edited column's cyan edge)
         editColumn = find(strcmp(signalNames, editSignal));
-        rectangle(axesHandle, 'Position', [nameWidth + editColumn - 1 + 0.02, 0, 0.96, max(numShown, 1)], ...
+        rectangle(axesHandle, 'Position', [namePx + (editColumn - 1)*cellPx, headerPx, cellPx, max(numShown, 1)*rowPx], ...
             'EdgeColor', [0 0.8 0.9], 'LineWidth', 2, 'HitTest', 'off', 'Tag', 'lampEditedColumn');
         if numShown == 0
-            text(axesHandle, 0.1, 0.5, 'No lamps to show (see the filters)', 'Color', [0.4 0.4 0.4]);
+            text(axesHandle, 8, headerPx + rowPx/2, 'No lamps to show (see the filters)', 'Color', [0.4 0.4 0.4], 'FontSize', 11);
         end
+        scroll(contentPanel, 'top');
     end
 
     function onCellDown(source)
@@ -524,8 +553,9 @@ end
             uilabel(contentPanel, 'Text', 'No lamps to show (see the filters)', 'Position', [10 10 300 22]);
             return;
         end
-        grid = uigridlayout(contentPanel, [3 numShown], 'RowHeight', {'1x', 44, 20}, ...
-            'ColumnWidth', repmat({62}, 1, numShown), 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
+        contentPanel.Scrollable = 'off';   % (the tuner's own grid scrolls)
+        grid = uigridlayout(contentPanel, [3 numShown], 'RowHeight', {'1x', 64, 20}, ...
+            'ColumnWidth', repmat({84}, 1, numShown), 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
             'BackgroundColor', [1 1 1], 'Scrollable', 'on', 'Tag', 'lampTuner');
         for ith = 1:numShown
             unit = indices(ith);
@@ -535,7 +565,9 @@ end
                 'ValueChangedFcn', @(source,~) setValue(unit, editSignal, source.Value));
             slider.Layout.Row = 1;
             slider.Layout.Column = ith;
-            nameLabel = uilabel(grid, 'Text', unitNames{unit}, 'WordWrap', 'on', 'FontSize', 9, ...
+            % (11 pt, and the underscores as spaces so the name wraps:
+            % T81 BUG, the 9 pt names were too small to read)
+            nameLabel = uilabel(grid, 'Text', strrep(unitNames{unit}, '_', ' '), 'WordWrap', 'on', 'FontSize', 11, ...
                 'HorizontalAlignment', 'center', 'Tooltip', unitNames{unit});
             nameLabel.Layout.Row = 2;
             nameLabel.Layout.Column = ith;
@@ -547,7 +579,7 @@ end
             if ~isempty(alsoOn)
                 alsoText = sprintf('also %.2g', alsoLevel);
             end
-            alsoLabel = uilabel(grid, 'Text', alsoText, 'FontColor', [0.55 0.55 0.55], 'FontSize', 9, ...
+            alsoLabel = uilabel(grid, 'Text', alsoText, 'FontColor', [0.55 0.55 0.55], 'FontSize', 11, ...
                 'HorizontalAlignment', 'center', 'Tag', ['lampAlso_' num2str(unit)], ...
                 'Tooltip', 'What the "also on" signals light this lamp to');
             alsoLabel.Layout.Row = 3;

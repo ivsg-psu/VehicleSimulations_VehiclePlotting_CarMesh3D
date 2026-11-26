@@ -78,6 +78,9 @@ function result = fcn_CarMesh3D_assess_brakeLights(vehicleInput, options)
 %   % * Two rows (Sean, T76 (B)): the far views on top ("Far view"), and
 %   %   % close-ups of the left (driver's side) tail light below
 %   %   % (drafted with Claude)
+%   % * The far views on a dark ground reaching 3 m behind, with the
+%   %   % light pools (LightEffects), as the headlights' far views (T85 BUG:
+%   %   % "Need ground plane in top images")
 
 % TO-DO:
 %
@@ -127,11 +130,26 @@ states = {'off', 'on', 'brake'};
 captions = {'Lamps off', 'Tail lamps on', 'Braking'};
 axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, Dark=true, ...
     RowLabels={'Far view', 'Close-up of left tail light'}, FigNum=options.FigNum);
+% (the far views on a dark ground that reaches groundBehind meters behind
+% the vehicle, with plotVehicle's light pools on it, as the headlights'
+% far views: Sean, T85 BUG, 2026-11-26 10:05: "Need ground plane in top
+% images")
+groundBehind = 3;   % [m] ground shown behind the rear
+groundSide = 2.2;   % [m] ground shown to each side of the center line
+meshLow = min(mesh.Vertices, [], 1);
+meshHigh = max(mesh.Vertices, [], 1);
+groundX = [meshLow(1) - groundBehind, meshHigh(1) + 0.5];
 for ith_view = 1:3
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=axesHandles(ith_view), ...
-        LightStates=struct('Tail', states{ith_view}), FigNum=-1);
+        LightStates=struct('Tail', states{ith_view}), LightEffects=true, FigNum=-1);
+    patch(axesHandles(ith_view), 'XData', groundX([1 2 2 1]), 'YData', groundSide*[-1 -1 1 1], ...
+        'ZData', (meshLow(3) - 0.003)*[1 1 1 1], 'FaceColor', [0.16 0.16 0.19], 'EdgeColor', 'none', ...
+        'FaceLighting', 'none', 'HitTest', 'off', 'Tag', 'assessGround');
     view(axesHandles(ith_view), -65, 12);   % (the rear, a little from the right)
     axis(axesHandles(ith_view), 'equal', 'off');
+    xlim(axesHandles(ith_view), groundX);
+    ylim(axesHandles(ith_view), groundSide*[-1 1]);
+    zlim(axesHandles(ith_view), [meshLow(3) - 0.01, meshHigh(3) + 0.1]);
     title(axesHandles(ith_view), captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     axesHandles(ith_view).Title.Visible = 'on';
     % (below it: the same lamps, close up on the left tail light)

@@ -411,6 +411,16 @@ if ~isempty(seeThrough)
 end
 viewer.SetNightView(false);
 assert(strcmp(dayGround.Visible, 'on'), 'The day ground back by day');
+% (the ground starts on in every window, even after one was switched off:
+% Sean, 2026-11-26 10:12; T79 (B))
+viewer.SetGround(false);
+[~, viewer2] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+assert(viewer2.Ground(), 'A new window starts with the ground on');
+viewer2.SetNightView(true);
+assert(isscalar(findall(viewer2.Axes, 'Type', 'patch', 'Tag', 'nightGround')), 'and at night too, with no extra clicks');
+viewer2.Close();
+assert(~ispref('CarMesh3D', 'ShowGround'), 'Show ground? is not kept between windows');
+viewer.SetGround(true);
 assert(all(strcmp({colorsGroup.Children.Enable}, 'on')), 'Colors? back by day');
 % (the sun/moon button over the model, pressed as a person would: one
 % click to night, one back to day; Overall Display's Nighttime view?
@@ -428,9 +438,10 @@ assert(~viewer.NightView() && strcmp(dayNightButton.Text, char(9728)), 'Another 
 if isscalar(nightRow)
     assert(isequal(nightRow.SelectedObject.UserData, false), 'Nighttime view? follows back');
 end
-holderPosition = getpixelposition(dayNightButton.Parent);
-assert(dayNightButton.Position(1) > holderPosition(3)/2 && dayNightButton.Position(2) > holderPosition(4)/2, ...
-    'The button is in the model''s top right corner');
+% (at the top right, in the bar with the Menu: T86, Sean 2026-11-26)
+menuButtonNow = findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu');
+assert(dayNightButton.Parent == menuButtonNow.Parent, 'The sun/moon button is in the top bar, with the Menu');
+assert(dayNightButton.Layout.Column == numel(dayNightButton.Parent.ColumnWidth), 'The sun/moon button is at the bar''s right end');
 % (Sean's T7: the camera's angles and distance in Overall Display)
 camera = viewer.CameraInfo();
 assert(all(isfield(camera, {'DialAngle','DownAngle','Distance'})) && camera.Distance > 0, 'CameraInfo');

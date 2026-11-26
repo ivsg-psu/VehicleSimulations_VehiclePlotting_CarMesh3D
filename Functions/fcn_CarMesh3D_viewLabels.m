@@ -21,8 +21,9 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 % a time at the left: Overall Display, Labels To Display and Lamps To
 % Display (built by fcn_CarMesh3D_makeDisplayPanels, the same panels as
 % the painter's) and GUI settings (the starting view, the ground plane).
-% A ground plane is drawn under the vehicle, by day and at night, unless
-% switched off in GUI settings.
+% A ground plane is drawn under the vehicle, by day and at night; it
+% starts on in every window (Overall Display, Show ground?, turns it off
+% for that window only).
 %
 % FORMAT:
 %
@@ -32,7 +33,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           (Parent=container), (LabelListParent=container),...
 %           (ShowTools=flag), (OnHint=function), (ColorFilter=function),...
 %           (HiddenFaces=function), (PhotoOptions=flag), (OnLamps=function),...
-%           (OnView=function), (OnNight=function), (Wait=flag), (Visible=flag),...
+%           (OnView=function), (OnNight=function), (DayNightParent=grid),...
+%           (Wait=flag), (Visible=flag),...
 %           (CheckStale=flag),...
 %           (FigNum=figNum))
 %
@@ -124,6 +126,12 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      model, the panels, or a hook), so a host's own panels can follow.
 %      Default [] (none).
 %
+%      DayNightParent: a host's top bar (a grid layout) to put the sun/moon
+%      button in, in its last column, so every window has it in the same
+%      place: the top right, in the bar with the Menu (Sean, T86,
+%      2026-11-26). Default [] (none): in the viewer's own window, its own
+%      top bar's right end; inside a host, the model's top right corner.
+%
 %      Wait: true to wait until the window is closed and return the view
 %      settings then. Default false: return at once, so the prompt stays
 %      free, as the other GUIs do (Q68 (A), Sean 2026-11-25); the settings
@@ -173,8 +181,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %               see-through the body is drawn (0 solid, up to 0.9)
 %           LabelColor(name): the color of a label's box ('body',
 %               'headlight', 'hide', ...)
-%           SetGround(flag), Ground(): the ground plane shown or not (a
-%               preference shared with the painter)
+%           SetGround(flag), Ground(): the ground plane shown or not (in
+%               this window only; it starts on)
 %           SetStartView(dialAngle, downAngle), StartView(): the starting
 %               view (and Reset view's), a preference shared with the
 %               painter
@@ -437,6 +445,13 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   % * Hooks for the lamp-functions window: SetLampFunctions (the matrix
 %   %   % the lamps light by), SetLampSignals (the lamps lit by any signals,
 %   %   % Parking and Brake too), OutlineFaces (cyan outlines)
+%   % * The ground starts on in every window, by day and at night; Show
+%   %   % ground? Off lasts only for that window (Sean, 10:12: "keep the
+%   %   % ground visibility on displays to default on across GUIs"; T79
+%   %   % (B)). It had been a kept preference, so one Off stayed Off
+%   % * The sun/moon button at the top right, in the bar with the Menu: its
+%   %   % own top bar, or a host's (new option DayNightParent); over the
+%   %   % model's corner only inside a host with no bar (T86 BUG)
 
 % TO-DO:
 %
@@ -471,6 +486,7 @@ arguments
     options.OnLamps = []        % Called with the lamp states when they change (a host's lamp panel)
     options.OnView = []         % Called when the camera moves (a host's camera readout)
     options.OnNight = []        % Called with true/false when day and night switch (a host's panels)
+    options.DayNightParent = [] % A host's top bar (a grid) for the sun/moon button, at its right end; [] for the viewer's own place
     options.Visible = true      % Build the window hidden (tests)
     options.CheckStale = []     % Warn when a vehicle's mesh variable is older than its saved labels
     options.FigNum = []         % Not used (a window); -1 for fast mode
@@ -702,10 +718,11 @@ nightObjects = gobjects(0);   % (the night scene's ground, light and vehicle)
 dayLights = gobjects(0);      % (the viewer's own lights, off at night)
 labelSwatches = gobjects(0);
 photoIndex = 0;
-% (the ground plane, by day and at night: on unless switched off in GUI
-% settings; one preference for the viewer and the painter, Sean,
-% 2026-11-24 02:43)
-flagGround = fcn_INTERNAL_pref('ShowGround', true);
+% (the ground plane, by day and at night: always on when a window opens;
+% Show ground? Off lasts only for that window, Sean, 2026-11-26 10:12:
+% "keep the ground visibility on displays to default on across GUIs".
+% It was a kept preference, and once Off it stayed Off at night too)
+flagGround = true;
 dayGround = [];
 % (the starting view, on the dial and looking down: GUI settings; the
 % same for the viewer and the painter: V8, painter C2S 2)
@@ -755,7 +772,7 @@ if flagOwnWindow
     % panel at the left beside the model, the model, the photo dial, and
     % the photo with its options at the right)
     rootGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
-    topGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {90, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+    topGrid = uigridlayout(rootGrid, [1 3], 'ColumnWidth', {90, '1x', 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
     menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
         'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
     % (Exit is the ☰ Menu's last line: Q62 (A), Sean 2026-11-25 14:31)
@@ -864,14 +881,34 @@ modelHolder = uipanel(layout, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
 modelHolder.Layout.Row = 1;
 modelHolder.Layout.Column = 1;
 axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]), 'Tag', 'modelAxes');
-% (the sun/moon button over the model's top right corner: one click
-% switches day and night; Q89 (A), Sean 2026-11-26)
-dayNightButton = uibutton(modelHolder, 'Text', char(9728), 'FontSize', 20, 'Tag', 'dayNightButton', ...
-    'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
-    'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());   % (a nested function: an anonymous one would keep flagNight as it was now)
+% (the sun/moon button: one click switches day and night; Q89 (A), Sean
+% 2026-11-26. At the top right, in the bar with the Menu: the viewer's own
+% top bar, or the host's (DayNightParent); else over the model's top
+% right corner. Sean, T86: "all UIs that have mesh visibility testing or
+% editing have this option in same corner ... top right in same Menu bar
+% area")
+dayNightHolder = options.DayNightParent;
+if flagOwnWindow
+    dayNightHolder = topGrid;
+end
+% (the model panel's layout as before the button moved: its children
+% placed by hand, so a resize is handled the same way in every window)
 modelHolder.AutoResizeChildren = 'off';
 modelHolder.SizeChangedFcn = @(~,~) placeDayNight();
-placeDayNight();
+if isempty(dayNightHolder)
+    dayNightButton = uibutton(modelHolder, 'Text', char(9728), 'FontSize', 20, 'Tag', 'dayNightButton', ...
+        'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
+        'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());   % (a nested function: an anonymous one would keep flagNight as it was now)
+    placeDayNight();
+else
+    dayNightButton = uibutton(dayNightHolder, 'Text', char(9728), 'FontSize', 18, 'Tag', 'dayNightButton', ...
+        'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
+        'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());
+    if isa(dayNightHolder, 'matlab.ui.container.GridLayout')
+        dayNightButton.Layout.Row = 1;
+        dayNightButton.Layout.Column = numel(dayNightHolder.ColumnWidth);
+    end
+end
 hold(axesHandle, 'on');
 axis(axesHandle, 'off');
 axesHandle.Color = [1 1 1];
@@ -1984,8 +2021,9 @@ end
     end
 
     function placeDayNight()
-        % The sun/moon button in the model's top right corner
-        if isempty(dayNightButton) || ~isvalid(dayNightButton)
+        % The sun/moon button in the model's top right corner (when no top
+        % bar holds it)
+        if isempty(dayNightButton) || ~isvalid(dayNightButton) || dayNightButton.Parent ~= modelHolder
             return;
         end
         holderSize = modelHolder.InnerPosition(3:4);
@@ -2578,10 +2616,9 @@ end
     end
 
     function setGround(flagOn)
-        % The ground plane, by day and at night; kept for the viewer and
-        % the painter (Sean, 2026-11-24 02:43)
+        % The ground plane, by day and at night, for this window only (it
+        % starts on in every window: Sean, 2026-11-26 10:12)
         flagGround = logical(flagOn);
-        fcn_INTERNAL_setPref('ShowGround', flagGround);
         if ~isempty(dayGround) && isvalid(dayGround)
             dayGround.Visible = matlab.lang.OnOffSwitchState(flagGround && ~flagNight);
         end

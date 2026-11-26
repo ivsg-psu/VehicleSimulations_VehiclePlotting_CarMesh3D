@@ -343,6 +343,10 @@ assert(strcmp(tailGroup.SelectedObject.UserData, 'off'));
 % follows; Q89 (A), 2026-11-26)
 dayNightButton = findall(painter.Figure, 'Type', 'uibutton', 'Tag', 'dayNightButton');
 assert(isscalar(dayNightButton), 'The sun/moon button is in the painter too');
+painterMenuButton = findall(painter.Figure, 'Type', 'uibutton', 'Tag', 'painterMenu');
+assert(dayNightButton.Parent == painterMenuButton.Parent && ...
+    dayNightButton.Layout.Column == numel(dayNightButton.Parent.ColumnWidth), ...
+    'The sun/moon button at the top right, in the bar with the Menu (T86)');
 nightBefore = painter.Viewer.NightView();
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
 assert(painter.Viewer.NightView() ~= nightBefore, 'One click switches day and night');
@@ -551,6 +555,12 @@ gp.ClickAt(face, {'control'});
 assert(isequal(find(gp.Layers().Paint ~= ""), face), 'A Ctrl+click selects exactly one face, even with the large brush');
 gp.ClickAt(face, {'control', 'shift'});
 assert(nnz(gp.Layers().Paint ~= "") == 0, 'Ctrl+Shift+click unselects it');
+% (the brush is a cone from the eye: zoomed in twice as far, it spans half
+% the meters, the same on the screen; T86)
+brushMetersBefore = gp.BrushMeters();
+camzoom(gp.Viewer.Axes, 2);
+assert(abs(gp.BrushMeters()/brushMetersBefore - 0.5) < 0.02, 'The brush halves in meters when the view zooms in 2x');
+camzoom(gp.Viewer.Axes, 0.5);
 brushFine = findobj(brushGroup.Children, 'flat', 'Text', 'Fine');
 brushGroup.SelectedObject = brushFine;
 brushGroup.SelectionChangedFcn(brushGroup, struct('NewValue', brushFine));

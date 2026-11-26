@@ -396,6 +396,13 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * A Lamp Functions panel: the lamp-to-function matrix window
 %   %   % (fcn_CarMesh3D_editLampFunctions), made when first opened, driving
 %   %   % the painter's view (the lamp-functions plan, item 5)
+%   % * Sean's T86 (BUG): the sun/moon button at the top right of the top
+%   %   % bar, beside the Menu's row (the viewer's DayNightParent); the brush
+%   %   % a radius in screen pixels (Fine 5, Medium 14, Large 36), turned
+%   %   % into meters where the mouse meets the vehicle, so it is the same
+%   %   % cone from the eye at any zoom; a stroke's points no further apart
+%   %   % than the brush's radius, so a zoomed-in drag paints a line, not a
+%   %   % spray of dabs
 
 % TO-DO:
 %
@@ -682,7 +689,7 @@ menuWidth = 90;
 if ~flagOwnMenu
     menuWidth = 0;
 end
-topGrid = uigridlayout(mainGrid, [1 5], 'ColumnWidth', {menuWidth, 80, 80, 120, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {menuWidth, 80, 80, 120, '1x', 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);   % (the last: the viewer's sun/moon button, T86)
 menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
     'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
 if ~flagOwnMenu
@@ -748,13 +755,16 @@ paintGroup = [];
 mirrorGroup = [];
 showHiddenGroup = [];
 brushGroup = [];
-% (the brush, as a fraction of the vehicle's length: Fine by default;
-% remembered between runs)
-brushSizes = struct('Name', {'Fine', 'Medium', 'Large'}, 'Fraction', {0.004, 0.012, 0.03});
-brushFraction = 0.004;
+% (the brush, a radius in screen pixels, so it covers the same part of the
+% screen at any zoom: a cone from the eye, not a size on the vehicle; Sean,
+% T86, 2026-11-26: "The selection size area on ctrl+drag needs to change
+% with magnification ... preserve the view angle cone across
+% magnifications". Fine by default; remembered between runs)
+brushSizes = struct('Name', {'Fine', 'Medium', 'Large'}, 'Pixels', {5, 14, 36});
+brushPixels = 5;
 try
     if ispref('CarMesh3D', 'PaintBrush')
-        brushFraction = brushSizes(strcmp({brushSizes.Name}, getpref('CarMesh3D', 'PaintBrush'))).Fraction;
+        brushPixels = brushSizes(strcmp({brushSizes.Name}, getpref('CarMesh3D', 'PaintBrush'))).Pixels;
     end
 catch
 end
@@ -775,7 +785,7 @@ if ischar(vehicleInput) || isstring(vehicleInput)
 end
 [~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, ShowTools=false, ...
     PhotoFolder=photoFolder, Outline=outline, OnHint=@setHint, ColorFilter=@paintedColors, ...
-    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, FigNum=-1);
+    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, DayNightParent=topGrid, FigNum=-1);
 % (the photo options are in Overall Display now: Sean's viewLabels T8, 2026-11-24)
 labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
@@ -857,7 +867,8 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'OpenNames', @getOpenNames, 'OpenPanels', @openPanels, ...
     'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
     'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
-    'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter, 'LampEditor', @getLampEditor);
+    'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter, 'LampEditor', @getLampEditor, ...
+    'BrushMeters', @getBrushMeters);
 flagBuilding = false;
 if flagOwnWindow && isvalid(figureHandle)
     figureHandle.UserData = painter;
@@ -1202,9 +1213,9 @@ end
         showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setShowHidden(value), 'showHidden');
         rowGrid = uigridlayout(outer, [1 2], 'ColumnWidth', {60, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', yellowBand);
         uilabel(rowGrid, 'Text', 'Brush', ...
-            'Tooltip', 'How wide a Ctrl+drag selects: Fine (about 2 cm on a car), Medium (5 cm), Large (12 cm). A Ctrl+click always selects one face.');
-        brushGroup = fcn_INTERNAL_radioRow(rowGrid, {'Fine', 'Medium', 'Large'}, {brushSizes.Fraction}, 60, @(value) setBrush(value), 'paintBrush');   % (not 'brush': the axes toolbar's brush buttons have that Tag)
-        fcn_INTERNAL_selectRadio(brushGroup, brushFraction);
+            'Tooltip', 'How wide a Ctrl+drag selects, on the screen at any zoom: Fine (5 pixels around the mouse), Medium (14), Large (36). A Ctrl+click always selects one face.');
+        brushGroup = fcn_INTERNAL_radioRow(rowGrid, {'Fine', 'Medium', 'Large'}, {brushSizes.Pixels}, 60, @(value) setBrush(value), 'paintBrush');   % (not 'brush': the axes toolbar's brush buttons have that Tag)
+        fcn_INTERNAL_selectRadio(brushGroup, brushPixels);
         uibutton(outer, 'Text', 'Apply', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applyEdits(), 'Tag', 'paintApply', ...
             'Tooltip', 'Put the label picked on the selected faces, in the working mesh (hidden faces go out of view and reach)');
         uilabel(outer, 'Text', ['How to label: select faces, always with Ctrl held (Ctrl+click: one face, again to unselect; ' ...
@@ -1258,16 +1269,22 @@ end
         flagOn = ~isempty(showHiddenGroup) && isvalid(showHiddenGroup) && isequal(showHiddenGroup.SelectedObject.UserData, true);
     end
 
-    function setBrush(fraction)
-        % The brush of a Ctrl+drag (a fraction of the vehicle's length);
-        % remembered for the next run
-        if isempty(fraction) || isnan(fraction)
+    function meters = getBrushMeters()
+        % (the brush's radius in meters at the camera's target: smaller as
+        % the view zooms in, the same on the screen; a hook for the tests)
+        meters = brushPixels*fcn_INTERNAL_metersPerPixel(labelAxes, labelAxes.CameraTarget);
+    end
+
+    function setBrush(pixels)
+        % The brush of a Ctrl+drag (a radius in screen pixels: Fine,
+        % Medium or Large); remembered for the next run
+        if isempty(pixels) || isnan(pixels)
             return;
         end
-        brushFraction = fraction;
-        fcn_INTERNAL_selectRadio(brushGroup, fraction);
+        brushPixels = pixels;
+        fcn_INTERNAL_selectRadio(brushGroup, pixels);
         try
-            setpref('CarMesh3D', 'PaintBrush', brushSizes([brushSizes.Fraction] == fraction).Name);
+            setpref('CarMesh3D', 'PaintBrush', brushSizes([brushSizes.Pixels] == pixels).Name);
         catch
         end
     end
@@ -1447,11 +1464,12 @@ end
             return;
         end
         % (the brush: faces whose centers lie near the point hit, on the
-        % near side of the vehicle)
+        % near side of the vehicle. Its radius is brushPixels on the screen,
+        % turned into meters at the point hit, so the brush is a cone from
+        % the eye: the same on screen at any zoom, T86)
         hitPoint = ray(1,:) + firstHit*direction;
         centers = fcn_INTERNAL_faceCenters(data.Mesh);
-        vehicleLength = data.Geometry.Max(1) - data.Geometry.Min(1);
-        brush = brushFraction*vehicleLength;   % (Modify Labels' Brush: Fine, Medium or Large)
+        brush = brushPixels*fcn_INTERNAL_metersPerPixel(labelAxes, hitPoint);   % (Modify Labels' Brush: Fine, Medium or Large)
         nearHit = candidates(vecnorm(centers(candidates,:) - hitPoint, 2, 2) < brush & ...
             (centers(candidates,:) - ray(1,:))*direction' < firstHit + 0.05);
         faces = unique([hitFace; nearHit(:)]);
@@ -1495,7 +1513,8 @@ end
         numSteps = 1;
         candidates = pickableFaces(strokeErase);
         if ~isempty(strokeLastPixel)
-            numSteps = min(60, max(1, ceil(norm(pixelNow - strokeLastPixel)/4)));   % (a point every 4 pixels)
+            stepPixels = max(1, min(4, brushPixels));   % (a point every brush radius, at most 4 pixels: no gaps between dabs, T86's "spray")
+            numSteps = min(200, max(1, ceil(norm(pixelNow - strokeLastPixel)/stepPixels)));
         end
         for ith_step = 1:numSteps
             if isempty(strokeLastPixel)
@@ -2842,3 +2861,21 @@ else
     ray = [pointOnTarget - reach*viewDirection; pointOnTarget + reach*viewDirection];
 end
 end % Ends fcn_INTERNAL_rayAtPixel
+
+%% fcn_INTERNAL_metersPerPixel
+function metersPerPixel = fcn_INTERNAL_metersPerPixel(axesHandle, point)
+% How many meters one screen pixel spans at a point in the model's axes:
+% the brush's cone (T86). Perspective: grows with the point's distance from
+% the camera; orthographic: the same everywhere. The camera's view angle
+% spans the shorter side of the axes' box, as in fcn_INTERNAL_rayAtPixel.
+box = getpixelposition(axesHandle, true);
+viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
+distance = norm(viewDirection);
+viewDirection = viewDirection/max(distance, eps);
+if strcmp(axesHandle.Projection, 'perspective')
+    depth = max((point - axesHandle.CameraPosition)*viewDirection', eps);
+else
+    depth = distance;
+end
+metersPerPixel = 2*depth*tand(axesHandle.CameraViewAngle/2)/max(min(box(3), box(4)), 1);
+end % Ends fcn_INTERNAL_metersPerPixel

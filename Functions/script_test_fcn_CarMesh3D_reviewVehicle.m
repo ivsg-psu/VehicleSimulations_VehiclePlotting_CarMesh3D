@@ -404,6 +404,11 @@ hooks.Show('drawsA');
 assert(fcn_INTERNAL_questionRowHeight(figureHandle) == 0, 'No score or examples for a question that asks for none');
 hooks.Show('normals');
 assert(fcn_INTERNAL_questionRowHeight(figureHandle) > 0 && strcmp(findall(figureHandle, 'Tag', 'vvScore').Visible, 'on'));
+% (with the score row showing, the answers keep their room: T83 BUG, Accept
+% and Reject were cut off at the bottom; a radio button needs about 34 px)
+drawnow;
+answersBox = getpixelposition(findall(figureHandle, 'Tag', 'vvAnswers'));
+assert(answersBox(4) >= 34, 'The answers'' row is at least 34 px tall with the score row shown');
 assert(contains(findall(figureHandle, 'Tag', 'vvExamples').Items{1}, '(0)'), 'No examples yet');
 assert(isempty(hooks.SaveExample()), 'No example before an answer and a score');
 hooks.Answer('Accept', 'clean all round');

@@ -175,6 +175,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %   %   % (A)); new option ExamplesFolder (drafted with Claude)
 %   % * Start=, the question to open at (Q70 (A)); one shown window per
 %   %   % vehicle: a second call brings it to the front (Q71 (A))
+%   % * The question band grows by the score and examples row when it
+%   %   % shows, so Accept and Reject are not cut off (T83 BUG)
 
 % TO-DO:
 %
@@ -607,6 +609,7 @@ end
     %% The score and the examples (an assessment that asks for them)
     function hideExtras()
         questionGrid.RowHeight{4} = 0;
+        pageGrid.RowHeight{3} = 140;
         extrasGrid.Visible = 'off';
     end
 
@@ -616,6 +619,9 @@ end
             return;
         end
         questionGrid.RowHeight{4} = 30;
+        % (the question band grows by the extras row, so the answers keep
+        % their room: T83 BUG, Accept and Reject were cut off at the bottom)
+        pageGrid.RowHeight{3} = 140 + 30 + 10;
         extrasGrid.Visible = 'on';
         flagScore = ~isempty(page.Score);
         scoreLabel.Visible = matlab.lang.OnOffSwitchState(flagScore);

@@ -32,6 +32,15 @@ assert(istable(startMatrix) && height(startMatrix) == numel(editor.Units()));
 assert(isgraphics(editor.Figure) && isstruct(editor.Viewer));
 assert(strcmp(editor.Signal(), 'LowBeam') && strcmp(editor.Mode(), 'table'));
 assert(~isempty(findall(editor.Figure, 'Tag', 'lampTable')), 'The table is drawn');
+% (readable at any number of lamps: T80, T81 BUG; names at 11 pt, rows of
+% at least 20 px, however short the panel)
+zzNames = findall(editor.Figure, 'Tag', 'lampRowName');
+assert(~isempty(zzNames) && all([zzNames.FontSize] >= 11), 'The lamp names are at least 11 pt');
+zzTable = findall(editor.Figure, 'Tag', 'lampTable');
+zzCells = findall(zzTable, 'Tag', 'lampCell');
+zzPos = vertcat(zzCells.Position);
+zzScale = zzTable.InnerPosition(4)/diff(zzTable.YLim);   % (pixels per data unit)
+assert(min(zzPos(:,4))*zzScale >= 15, 'Each cell is at least 15 px tall on screen');
 assert(editor.Viewer.NightView(), 'The view is at night while the matrix is edited');
 outline = findall(editor.Figure, 'Tag', 'lampOutline');
 units = editor.Units();

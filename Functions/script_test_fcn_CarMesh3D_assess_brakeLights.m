@@ -63,6 +63,7 @@ result = fcn_CarMesh3D_assess_brakeLights(vehicle, FigNum=figNum);
 if isempty(result.Skip)
     assert(numel(findall(figure(figNum), 'Type', 'axes')) == 6);   % (far views, and close-ups below: T76 (B))
     assert(~isempty(findall(figure(figNum), 'Type', 'patch')));
+    assert(numel(findall(figure(figNum), 'Tag', 'assessGround')) == 3, 'The three far views have a ground (T85 BUG)');
 end
 close(figure(figNum));
 
