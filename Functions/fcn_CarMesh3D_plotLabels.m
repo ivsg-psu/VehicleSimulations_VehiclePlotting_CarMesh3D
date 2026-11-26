@@ -103,6 +103,8 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 % - In fcn_CarMesh3D_plotLabels
 %   % * A second output, legendEntries: the label colors the mesh uses,
 %   %   % for a legend in the V&V GUI's label pictures (Sean, T62)
+%   % * The legend's lamp names come from fcn_CarMesh3D_lampTypes: what
+%   %   % each part is, such as "headlamp bulb" (rule P6, Sean 2026-11-26)
 
 % TO-DO:
 %
@@ -218,10 +220,12 @@ partColors = struct('body',[0.97 0.97 0.97], 'glass',[0.55 0.80 1.00], 'wheel',[
 lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
     'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10], 'highbeam',[0.30 0.55 1.00]);
 % (the newer lamp types: their label colors from fcn_CarMesh3D_lampTypes)
+lampNames = struct();   % (each lamp type's name for people: what the part is, rule P6)
 for thisType = fcn_CarMesh3D_lampTypes()'
     if ~isfield(lightColors, thisType.Name)
         lightColors.(thisType.Name) = thisType.LabelColor;
     end
+    lampNames.(thisType.Name) = regexprep(thisType.Label, '^(.)', '${lower($1)}');
 end
 
 Nfaces = size(vehicleMesh.Faces,1);
@@ -272,7 +276,11 @@ if ~flagByMaterial
             flagType = vehicleMesh.FaceLightType(:)==ith_type;
             if isfield(lightColors, thisName) && any(flagType)
                 flagLampColor = flagLampColor | flagType;
-                typeEntries(end+1) = struct('Name', fcn_INTERNAL_readableName(thisName), ...
+                readable = fcn_INTERNAL_readableName(thisName);
+                if isfield(lampNames, thisName)
+                    readable = lampNames.(thisName);   % ("headlamp bulb", not "headlight")
+                end
+                typeEntries(end+1) = struct('Name', readable, ...
                     'Color', lightColors.(thisName), 'Faces', sum(flagType)); %#ok<AGROW>
             end
         end

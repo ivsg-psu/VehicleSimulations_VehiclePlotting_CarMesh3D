@@ -22,6 +22,30 @@ CarMesh3D works with one vehicle at a time. Scenes with many vehicles (decision 
 
 ---
 
+## Position, meaning, and function: the three layers (read this first)
+
+*The one idea every part of CarMesh3D is built on (Sean, 2026-11-26 00:43: "This is a conceptual error, which if we don't fix automatically lead to UI errors and code flaws"). Every tool, label, panel and file must keep these three layers apart.*
+
+| Layer | What it holds | Example |
+|---|---|---|
+| **1. Position** | the faces of the mesh: where things are | the faces at the front left, at headlight height |
+| **2. Meaning** (what it is) | a **label**: what a face, or a group of faces, is | "headlamp bulb", "cover glass", "marker bulb"; a group of faces with one meaning is a **unit**, named from its position: "front-left headlamp" |
+| **3. Function** (what it does) | which **signals** make it act | the high-beam signal lights the front headlamps; the running-light signal lights them dimmed |
+
+Two maps join the layers, and each is edited in its own place:
+
+```
+   1. Position  --labels-->  2. Meaning  --functions-->  3. Function
+   (faces)      (painter)    (what it is)  (lamp matrix)  (what it does)
+```
+
+- **Labels connect position to meaning.** A wrong label means faces were painted wrong: fix it in the painter (`fcn_CarMesh3D_paintLabels`).
+- **Functions connect meaning to signals.** A wrong function means a meaning is wired to the wrong signal: fix it in the lamp-to-function matrix (being designed, 2026-11-26), never by painting.
+- **Never put a function in a label.** A label says what a part *is*, never what switches it: "headlamp bulb", not "low beams". Many cars light one bulb for several functions (the 2009 Fit's daytime running lights are its high-beam bulbs, dimmed), and one function lights many bulbs (a left turn lights the front-left and rear-left turn bulbs); a label that names a function cannot say either. Labels today still carry function words ("low beams (headlights)", "turn signals"); they are being renamed to what each part is.
+- **Faults belong to layer 3.** A broken brake lamp is a change to the functions (that unit no longer answers the brake signal), not to the labels: the library keeps each vehicle as designed, and a tool such as AnimateCar3D can change the functions it uses.
+
+---
+
 ## How the functions fit together
 
 Every vehicle is made by its own copy of one script (`script_CarMesh3D_vehicle_<ID>.m`, from `Data/script_CarMesh3D_vehicle_TEMPLATE.m`). The chart shows which function feeds which, and the files in between (rounded boxes). Solid arrows carry the mesh; dotted arrows are optional or used only by some vehicles. The [Function reference](#function-reference) at the end describes every function, its inputs and outputs, and shows a sample of what it draws.

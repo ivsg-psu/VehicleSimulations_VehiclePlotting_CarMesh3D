@@ -2,6 +2,8 @@
 
 *How every CarMesh3D design file is laid out (Sean, 2026-11-25 12:16 and 12:42; Q60 (A)). Copy this file to start a new one. Started 2026-11-25 by Claude. The general GUI rules are in `Documentation_CarMesh3D_GUIdesign_rules.md`; a GUI's file holds only what is particular to that GUI.*
 
+*Words: every file uses the three layers of the README's "Position, meaning, and function" (rule P6): **position** (faces), **meaning** (labels), **function** (signals). Say which layer a section is about; never call a label by a function ("headlamp bulb", not "low beams").*
+
 **Status:** DESIGN, BUILT or ARCHIVED, with the date and who.
 
 ## Review now (for Sean)

@@ -43,12 +43,18 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %
 %      detailLevels: the structure from fcn_CarMesh3D_makeDetailLevels
 %      (Levels, SizeDiagonal, BoxCenter, BoxSize, ShadowArea, ...), plus
-%      VehicleID and Source ('file', or 'made' when made because the file
-%      was missing).
+%      VehicleID and Source ('file'; 'made' when made because the file
+%      was missing; 'remade' when the file was older than the finished
+%      mesh or the vehicle's saved label fixes, so the levels were made
+%      again from the mesh with its fixes). Levels are always made from
+%      fcn_CarMesh3D_meshWithLabelEdits, so painted fixes made since the
+%      last build show (AnimateCar3D, 2026-11-25: Sean's "flow" of
+%      vehicles out of CarMesh3D into the animator).
 %
 % DEPENDENCIES:
 %
-%      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_makeDetailLevels
+%      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_makeDetailLevels,
+%      fcn_CarMesh3D_meshWithLabelEdits
 %
 % EXAMPLES:
 %
@@ -67,6 +73,13 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadDetailLevels
 %   % * Wrote the code originally (drafted with Claude)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_loadDetailLevels
+%   % * Levels older than the mesh or its saved label fixes are made
+%   %   % again (Source 'remade'), not only warned about; levels are made
+%   %   % from the mesh with its fixes (fcn_CarMesh3D_meshWithLabelEdits),
+%   %   % so AnimateCar3D shows painted fixes (Sean, Q73 (B))
 
 % TO-DO:
 %
@@ -186,18 +199,31 @@ if vehicleFiles.HasLevels
     end
     detailLevels.Source = 'file';
     if vehicleFiles.HasMesh
-        meshInfo = dir(vehicleFiles.MeshFile);
+        % (older than the finished mesh, or than the saved label fixes: made
+        % again from the mesh with its fixes, so what is drawn is current)
         levelsInfo = dir(vehicleFiles.LevelsFile);
-        if meshInfo.datenum > levelsInfo.datenum + 1/86400
-            warning('CarMesh3D:oldDetailLevels', ['The detail levels of %s are older than its finished mesh. ' ...
-                'Run %s again to remake them.'], vehicleFiles.ID, vehicleFiles.ScriptFile);
+        newerFiles = {vehicleFiles.MeshFile, fcn_INTERNAL_editsFile(vehicleFiles)};
+        flagStale = false;
+        for ith_file = 1:numel(newerFiles)
+            fileInfo = dir(newerFiles{ith_file});
+            if ~isempty(fileInfo) && fileInfo.datenum > levelsInfo.datenum + 1/86400
+                flagStale = true;
+            end
+        end
+        if flagStale
+            warning('CarMesh3D:oldDetailLevels', ['The detail levels of %s are older than its finished mesh or ' ...
+                'its label fixes; making them again (run %s to save them).'], vehicleFiles.ID, vehicleFiles.ScriptFile);
+            detailLevels = fcn_CarMesh3D_makeDetailLevels(fcn_INTERNAL_currentMesh(vehicleFiles), FigNum=-1);
+            detailLevels.Source = 'remade';
+            if options.SaveIfMade
+                save(vehicleFiles.LevelsFile, 'detailLevels');
+            end
         end
     end
 elseif options.MakeIfMissing && vehicleFiles.HasMesh
     warning('CarMesh3D:detailLevelsMade', ['%s has no detail levels file; making them from its finished mesh ' ...
         '(run its script to make and save them).'], vehicleFiles.ID);
-    loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
-    detailLevels = fcn_CarMesh3D_makeDetailLevels(loaded.vehicleMesh, FigNum=-1);
+    detailLevels = fcn_CarMesh3D_makeDetailLevels(fcn_INTERNAL_currentMesh(vehicleFiles), FigNum=-1);
     detailLevels.Source = 'made';
     if options.SaveIfMade
         save(vehicleFiles.LevelsFile, 'detailLevels');
@@ -258,3 +284,18 @@ end % Ends main function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % (none)
+
+%% Functions follow
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_editsFile
+function editsFile = fcn_INTERNAL_editsFile(vehicleFiles)
+% The vehicle's saved label fixes (painted in fcn_CarMesh3D_paintLabels)
+editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
+end % Ends fcn_INTERNAL_editsFile
+
+%% fcn_INTERNAL_currentMesh
+function vehicleMesh = fcn_INTERNAL_currentMesh(vehicleFiles)
+% The finished mesh with its saved label fixes
+vehicleMesh = fcn_CarMesh3D_meshWithLabelEdits(vehicleFiles.Folder, FigNum=-1);
+end % Ends fcn_INTERNAL_currentMesh

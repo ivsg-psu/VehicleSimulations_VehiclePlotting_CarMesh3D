@@ -45,7 +45,7 @@ assert(labelMesh.FaceAlpha(3)==0.6 && labelMesh.FaceAlpha(1)==1);
 
 %% The legend: the label colors this mesh uses, parts then lamp types
 [~, legendEntries] = fcn_CarMesh3D_plotLabels(testMesh, FigNum=-1);
-assert(isequal({legendEntries.Name}, {'body', 'glass', 'headlight', 'tail'}), ...
+assert(isequal({legendEntries.Name}, {'body', 'glass', 'headlamp bulb', 'tail/brake bulb'}), ...
     'Only what the mesh shows: the light part''s faces all show a lamp type');
 assert(isequal([legendEntries.Faces], [6 2 2 2]));
 assert(isequal(legendEntries(3).Color, [1.00 0.90 0.10]));

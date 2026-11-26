@@ -19,7 +19,7 @@ In light of these questions, the purpose of the GUI is to present the fastest an
 We want to seek synergy of human-computer interaction. For example, a human user can literally glance at a mesh and in fractions of a second assess the x-axis orientation, whether the mesh is more realistic than another, and the representational meaning implied by the mesh. This is something that would be nearly impossible for a computer to do today, across all the vehicles and objects available, even with very powerful and lengthy computation. Conversely, a computer can almost instantly count the number of vertices that deviate a certain threshold from a bounding box. Yet, this task is nearly impossible for a human to do, even given a lifetime of effort. Consideration of this synergy guides one to the following principles:
 
 ### GUI Principles
-*(Numbered P1 to P5 so rules and design files can cite them, as in "G9, per P4".)*
+*(Numbered P1 to P6 so rules and design files can cite them, as in "G9, per P4".)*
 * **P1.** Each GUI should have a UI that is similar to the others
   - Inconsistency causes user confusion
   - Confusion leads to error
@@ -44,6 +44,10 @@ We want to seek synergy of human-computer interaction. For example, a human user
   - For tasks that do not fall clearly into one or the other, ask: is the final answer being sought relative, or exact? 
     * Exact answers should have interfaces where humans help the computer
     * Relative answers should have interfaces where computers help the human
+* **P6.** Keep the three layers apart: **position** (faces), **meaning** (labels: what a part *is*), and **function** (what signals make it act) (Sean, 2026-11-26 00:43; README, "Position, meaning, and function")
+  - Labels connect position to meaning; functions connect meaning to signals. Each map is edited in its own place: labels in the painter, functions in the lamp-to-function matrix
+  - A window shows one layer, or one map, at a time, and says which: a panel that mixes them (a list of labels named for what switches them, such as "low beams") teaches the wrong model and leads to errors in use and in code
+  - A label never names a function; a function never moves a label
 
 ## How the design files fit together
 
@@ -196,3 +200,4 @@ The key is in `Documentation_CarMesh3D_template.md`.
 - 2026-11-25 12:50 (Claude, Q60 (A), Sean 12:42): G42 added (every design file's layout, from `Documentation_CarMesh3D_template.md`); G35 takes Sean's test-result marks; the bottom sections added here; G40's example now cites the V&V file's section 9 (its sections were renumbered).
 - 2026-11-25 14:25 (Claude, Sean 14:24): G34 covers every design file: commands with every test step, and Sean's steps only for what a person must judge; the template's key says the same.
 - 2026-11-25 23:30 (Claude; Sean 23:16, Q70 (A)): G34: a step's commands open the window at what is judged (a `Start=` option on each GUI). Context: T74 to T76 told Sean to "go to" questions, and their commands opened the wrong vehicle (the demo preference, against G34's own "name the vehicle").
+- 2026-11-26 00:44 (Claude; Sean 00:35 to 00:43): **P6**, the three layers (position, meaning, function), and the two maps between them (labels, functions), also at the top of the README. Context: the Fit's review found running lights made by the high-beam bulbs, a missed marker bulb, and high beams lighting several bulbs and their glass; all came from labels that named functions.

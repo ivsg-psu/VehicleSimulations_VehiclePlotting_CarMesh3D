@@ -53,7 +53,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 % FORMAT:
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_answerQueue((queueFolder),...
-%           (Who=initials), (Clipboard=flag), (Visible=flag), (Watch=flag), (FigNum=figNum))
+%           (Who=initials), (Clipboard=flag), (Visible=flag), (Watch=flag),...
+%           (Remember=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -74,6 +75,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %      Watch: true to check openItems.json every 3 s and load new items
 %      while the window stays open, keeping the item shown (Sean, 23:17:
 %      "can I just leave it open?"). Default: on when Visible.
+%
+%      Remember: true (default) to remember the folder for next time (a
+%      MATLAB preference, shared by every MATLAB on the computer); tests
+%      pass false, so they never change it.
 %
 %      FigNum: not used (a window); -1 skips input checks.
 %
@@ -126,6 +131,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   % * Done copies comments whole (they were cut at 160 characters)
 %   % * Watch: new items in openItems.json load while the window stays
 %   %   % open (Sean, 23:17)
+%   % * Other, always among the answers, with the comment saying what
+%   %   % (Sean, 23:40)
+%   % * Remember=: tests never change the folder preference (BUG, 23:44:
+%   %   % Sean's window opened a test's temporary folder)
 
 % TO-DO:
 %
@@ -137,6 +146,7 @@ arguments
     options.Clipboard = true  % false: Done and NOW only return their text (tests)
     options.Visible = true    % false: built hidden (tests)
     options.Watch = []        % Check openItems.json for new items every few seconds; [] = when Visible
+    options.Remember = true   % Remember the folder (a preference); false for tests
     options.FigNum = []       % Not used; -1 skips input checks
 end
 
@@ -154,7 +164,12 @@ if flag_check_inputs
         error('CarMesh3D:badInput', 'The folder %s has no openItems.json.', queueFolder);
     end
 end
-setpref('CarMesh3D', 'AnswerQueueFolder', queueFolder);
+if options.Remember
+    % (a preference: shared by every MATLAB on the computer, so tests pass
+    % Remember=false: a test that set it briefly sent Sean's window to its
+    % temporary folder, 2026-11-25 23:41)
+    setpref('CarMesh3D', 'AnswerQueueFolder', queueFolder);
+end
 
 %% Main code
 itemsFile = fullfile(queueFolder, 'openItems.json');
@@ -334,9 +349,9 @@ end
             labels = [labels, {'BUG', '??? (unsure, or unexpected)'}];
             recommended = [recommended, false, false];
         end
-        keys = [keys, {'Later'}];
-        labels = [labels, {'Later (needs thought)'}];
-        recommended = [recommended, false];
+        keys = [keys, {'Other', 'Later'}];   % (Other always: Sean, 23:40)
+        labels = [labels, {'Other (say in the comment)', 'Later (needs thought)'}];
+        recommended = [recommended, false, false];
         record = latestRecord(item.ID);
         selected = '';
         commentArea.Value = '';
@@ -816,7 +831,7 @@ end % Ends fcn_INTERNAL_mark
 function textOut = fcn_INTERNAL_choiceText(choice)
 % "(A)" for a lettered answer; BUG, ??? and Later as they are
 choice = char(choice);
-if any(strcmp(choice, {'BUG', '???', 'Later', ''}))
+if any(strcmp(choice, {'BUG', '???', 'Later', 'Other', ''}))
     textOut = choice;
 else
     textOut = sprintf('(%s)', choice);

@@ -139,10 +139,12 @@ vehicleMesh = loaded.vehicleMesh;
 save(testFiles.MeshFile, 'vehicleMesh');                    % the mesh is now newer
 lastwarn('');
 warningState = warning('off','CarMesh3D:oldDetailLevels');
-fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData);
+remadeLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData);
 warning(warningState);
 [~, warningID] = lastwarn;
 assert(strcmp(warningID,'CarMesh3D:oldDetailLevels'));
+assert(strcmp(remadeLevels.Source, 'remade'), 'Older levels are made again (Q73 (B))');
+assert(isequal([remadeLevels.Levels.Faces], [madeLevels.Levels.Faces]), 'The same mesh: the same levels');
 
 %% Fast Mode Tests
 

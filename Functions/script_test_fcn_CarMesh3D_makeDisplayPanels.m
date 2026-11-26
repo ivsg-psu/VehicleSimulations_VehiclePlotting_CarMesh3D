@@ -15,6 +15,11 @@
 %   % * Turn photo with model?; the photo options drive a viewer with
 %   %   % photos and are remembered for the next window (the preferences
 %   %   % put back as they were)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In script_test_fcn_CarMesh3D_makeDisplayPanels
+%   % * The lamp group named "Lamp parts (bulbs)", its rows for what each
+%   %   % part is (rule P6)
 
 %% Set up the workspace
 close all;
@@ -43,7 +48,8 @@ assert(isfield(controls.Overall, 'Colors') && ~isempty(controls.LabelRows) && is
 figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: groups and rows\n', figNum);
 texts = get(findall(labelsPanel, 'Type', 'uilabel'), 'Text');
-assert(all(ismember({'Main body panels', 'Objects within interior', 'Lights', 'Visibility'}, texts)), 'The four groups');
+assert(all(ismember({'Main body panels', 'Objects within interior', 'Lamp parts (bulbs)', 'Visibility'}, texts)), 'The four groups');
+assert(any(strcmp(texts, 'headlamp bulb')) && ~any(contains(texts, 'low beams')), 'Lamp parts named for what they are (rule P6)');
 lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
 rowKeys = {controls.LabelRows.Key};
 assert(all(ismember(strcat('light_', {lampTypes.Name}), rowKeys)), 'A row for every lamp type');
