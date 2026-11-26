@@ -12,7 +12,7 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 % whole glass area over a lit bulb seems to glow; Sean, 15:23).
 %
 % How a cover is found: from each glass face (and each light face that is
-% also glass, FaceAlsoParts, the way fcn_CarMesh3D_labelParts marked
+% also glass, LabelFaceAlsoParts, the way fcn_CarMesh3D_labelParts marked
 % lamp covers before), the function looks straight behind the face,
 % along its inward normal (minus FaceNormals), for a lamp face (a light
 % face with a light type) within Distance. Four lines are tried per face:
@@ -27,11 +27,11 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 % Such faces take the lamp of the nearest face of their piece that found
 % one. A window is never over a lamp, so windows stay as they are.
 %
-% Each cover is recorded in a new per-face field, FaceCoverLamp (the
-% covered lamp's light type, an index into LightTypeNames; 0 for faces
-% that are not covers), and becomes plain glass: FacePartIndex 'glass',
-% FaceLightType 0, not also glass in FaceAlsoParts, no light functions
-% (FaceLightFunctions), and the clear look (ClearColor, ClearAlpha).
+% Each cover is recorded in a new per-face field, LabelFaceCoverLamp (the
+% covered lamp's light type, an index into LabelLampNames; 0 for faces
+% that are not covers), and becomes plain glass: LabelFacePart 'glass',
+% LabelFaceLamp 0, not also glass in LabelFaceAlsoParts, no light functions
+% (LabelFaceAlsoLamps), and the clear look (ClearColor, ClearAlpha).
 % The side of a cover (left or right, which matters for turn signals)
 % comes from its position, as for the lamps.
 %
@@ -53,8 +53,8 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 %
 %      vehicleMesh: a labeled CarMesh3D mesh structure (from
 %      fcn_CarMesh3D_labelParts), in meters. A mesh that is not labeled
-%      (no PartNames, FacePartIndex, FaceLightType, or LightTypeNames)
-%      gets FaceCoverLamp of all zeros and is not otherwise changed.
+%      (no LabelPartNames, LabelFacePart, LabelFaceLamp, or LabelLampNames)
+%      gets LabelFaceCoverLamp of all zeros and is not otherwise changed.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -75,8 +75,8 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 %
 %      vehicleMesh: the same structure with the covers made clear glass,
 %      and the field
-%           FaceCoverLamp (M x 1): for each face, the light type (index
-%               into LightTypeNames) of the lamp it covers, or 0 if the
+%           LabelFaceCoverLamp (M x 1): for each face, the light type (index
+%               into LabelLampNames) of the lamp it covers, or 0 if the
 %               face is not a lamp cover
 %
 % DEPENDENCIES:
@@ -98,7 +98,7 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 % - In fcn_CarMesh3D_findLampCovers
 %   % * Wrote the code originally (drafted with Claude). Clear lamp covers
 %   %   % (Sean, 09:22, option A): a glass cover over a lamp is clear
-%   %   % glass, recorded as a cover of that lamp (FaceCoverLamp), and is
+%   %   % glass, recorded as a cover of that lamp (LabelFaceCoverLamp), and is
 %   %   % tinted by fcn_CarMesh3D_plotVehicle while its lamp is lit
 %   %   % (Sean, 15:23, option A)
 
@@ -217,27 +217,27 @@ end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Nfaces = size(vehicleMesh.Faces,1);
-faceCoverLamp = zeros(Nfaces,1);
+labelFaceCoverLamp = zeros(Nfaces,1);
 
 % A mesh that is not labeled has no lamps and no glass: no covers
-flagLabeled = isfield(vehicleMesh,'PartNames') && isfield(vehicleMesh,'FacePartIndex') ...
-    && isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames') ...
-    && numel(vehicleMesh.FacePartIndex)==Nfaces && numel(vehicleMesh.FaceLightType)==Nfaces;
+flagLabeled = isfield(vehicleMesh,'LabelPartNames') && isfield(vehicleMesh,'LabelFacePart') ...
+    && isfield(vehicleMesh,'LabelFaceLamp') && isfield(vehicleMesh,'LabelLampNames') ...
+    && numel(vehicleMesh.LabelFacePart)==Nfaces && numel(vehicleMesh.LabelFaceLamp)==Nfaces;
 glassIndex = [];
 lightIndex = [];
 if flagLabeled
-    glassIndex = find(strcmp(vehicleMesh.PartNames, 'glass'), 1);
-    lightIndex = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
+    glassIndex = find(strcmp(vehicleMesh.LabelPartNames, 'glass'), 1);
+    lightIndex = find(strcmp(vehicleMesh.LabelPartNames, 'light'), 1);
 end
 
 if ~isempty(glassIndex) && ~isempty(lightIndex) && Nfaces > 0
-    facePart = vehicleMesh.FacePartIndex(:);
-    faceLightType = double(vehicleMesh.FaceLightType(:));
+    facePart = vehicleMesh.LabelFacePart(:);
+    labelFaceLamp = double(vehicleMesh.LabelFaceLamp(:));
 
     % Faces left alone: hidden faces (kept as they are) and wheels
     flagSkip = false(Nfaces,1);
-    if isfield(vehicleMesh,'FaceHiddenSet') && numel(vehicleMesh.FaceHiddenSet)==Nfaces
-        flagSkip = flagSkip | vehicleMesh.FaceHiddenSet(:) > 0;
+    if isfield(vehicleMesh,'LabelFaceHiddenSet') && numel(vehicleMesh.LabelFaceHiddenSet)==Nfaces
+        flagSkip = flagSkip | vehicleMesh.LabelFaceHiddenSet(:) > 0;
     end
     if isfield(vehicleMesh,'FaceWheelIndex') && numel(vehicleMesh.FaceWheelIndex)==Nfaces
         flagSkip = flagSkip | vehicleMesh.FaceWheelIndex(:) > 0;
@@ -246,21 +246,21 @@ if ~isempty(glassIndex) && ~isempty(lightIndex) && Nfaces > 0
     % Light faces that are also glass (lamp covers, as marked before this
     % function existed)
     flagAlsoGlass = false(Nfaces,1);
-    if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==Nfaces ...
-            && glassIndex <= size(vehicleMesh.FaceAlsoParts,2)
-        flagAlsoGlass = vehicleMesh.FaceAlsoParts(:,glassIndex) & facePart==lightIndex;
+    if isfield(vehicleMesh,'LabelFaceAlsoParts') && size(vehicleMesh.LabelFaceAlsoParts,1)==Nfaces ...
+            && glassIndex <= size(vehicleMesh.LabelFaceAlsoParts,2)
+        flagAlsoGlass = vehicleMesh.LabelFaceAlsoParts(:,glassIndex) & facePart==lightIndex;
     end
 
     % The faces that may be covers, and the lamps they may cover
     flagGlass = facePart==glassIndex;
     flagCandidate = (flagGlass | flagAlsoGlass) & ~flagSkip;
-    flagLamp = facePart==lightIndex & faceLightType>0 & ~flagAlsoGlass & ~flagSkip;
+    flagLamp = facePart==lightIndex & labelFaceLamp>0 & ~flagAlsoGlass & ~flagSkip;
 
     % Faces that were already covers (from an earlier call) and are still glass
     oldCover = zeros(Nfaces,1);
-    if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp)==Nfaces
-        oldCover = double(vehicleMesh.FaceCoverLamp(:));
-        oldCover(~flagGlass | flagSkip | oldCover > numel(vehicleMesh.LightTypeNames)) = 0;
+    if isfield(vehicleMesh,'LabelFaceCoverLamp') && numel(vehicleMesh.LabelFaceCoverLamp)==Nfaces
+        oldCover = double(vehicleMesh.LabelFaceCoverLamp(:));
+        oldCover(~flagGlass | flagSkip | oldCover > numel(vehicleMesh.LabelLampNames)) = 0;
     end
 
     if any(flagCandidate) && any(flagLamp)
@@ -272,27 +272,27 @@ if ~isempty(glassIndex) && ~isempty(lightIndex) && Nfaces > 0
         hitLamp = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces, lampFaces, faceNormals, ...
             options.Distance, flagBothWays);
         hitType = zeros(numel(candidateFaces),1);
-        hitType(hitLamp>0) = faceLightType(lampFaces(hitLamp(hitLamp>0)));
+        hitType(hitLamp>0) = labelFaceLamp(lampFaces(hitLamp(hitLamp>0)));
 
         % Spread the covers over each connected piece of glass
         newCover = fcn_INTERNAL_spreadOverPieces(vehicleMesh, candidateFaces, hitType, ...
             flagAlsoGlass(candidateFaces), oldCover(candidateFaces));
-        faceCoverLamp(candidateFaces) = newCover;
+        labelFaceCoverLamp(candidateFaces) = newCover;
     else
-        faceCoverLamp = oldCover;
+        labelFaceCoverLamp = oldCover;
     end
 
     % Each cover becomes clear glass, and no longer a lamp
-    flagCover = faceCoverLamp > 0;
+    flagCover = labelFaceCoverLamp > 0;
     if any(flagCover)
-        vehicleMesh.FacePartIndex(flagCover) = glassIndex;
-        vehicleMesh.FaceLightType(flagCover) = 0;
-        if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==Nfaces ...
-                && glassIndex <= size(vehicleMesh.FaceAlsoParts,2)
-            vehicleMesh.FaceAlsoParts(flagCover, glassIndex) = false;
+        vehicleMesh.LabelFacePart(flagCover) = glassIndex;
+        vehicleMesh.LabelFaceLamp(flagCover) = 0;
+        if isfield(vehicleMesh,'LabelFaceAlsoParts') && size(vehicleMesh.LabelFaceAlsoParts,1)==Nfaces ...
+                && glassIndex <= size(vehicleMesh.LabelFaceAlsoParts,2)
+            vehicleMesh.LabelFaceAlsoParts(flagCover, glassIndex) = false;
         end
-        if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1)==Nfaces
-            vehicleMesh.FaceLightFunctions(flagCover,:) = false;
+        if isfield(vehicleMesh,'LabelFaceAlsoLamps') && size(vehicleMesh.LabelFaceAlsoLamps,1)==Nfaces
+            vehicleMesh.LabelFaceAlsoLamps(flagCover,:) = false;
         end
         if isfield(vehicleMesh,'FaceColors') && size(vehicleMesh.FaceColors,1)==Nfaces
             vehicleMesh.FaceColors(flagCover,:) = repmat(options.ClearColor, nnz(flagCover), 1);
@@ -303,11 +303,11 @@ if ~isempty(glassIndex) && ~isempty(lightIndex) && Nfaces > 0
     end
 end
 
-vehicleMesh.FaceCoverLamp = faceCoverLamp;
+vehicleMesh.LabelFaceCoverLamp = labelFaceCoverLamp;
 
-if flag_do_debug && isfield(vehicleMesh,'LightTypeNames')
-    for ith_type = 1:numel(vehicleMesh.LightTypeNames)
-        fprintf(1,'\tcovers of %s lamps: %d faces\n', vehicleMesh.LightTypeNames{ith_type}, nnz(faceCoverLamp==ith_type));
+if flag_do_debug && isfield(vehicleMesh,'LabelLampNames')
+    for ith_type = 1:numel(vehicleMesh.LabelLampNames)
+        fprintf(1,'\tcovers of %s lamps: %d faces\n', vehicleMesh.LabelLampNames{ith_type}, nnz(labelFaceCoverLamp==ith_type));
     end
 end
 
@@ -329,16 +329,16 @@ if flag_do_plots
 
     % Left: the vehicle as fcn_CarMesh3D_plotVehicle draws it, low beams on
     nexttile;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, LightStates=struct('Headlights','low','Tail','on'), FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, Signals=struct('LowBeam',true,'Tail',true), FigNum=figNum);
     title('Drawn, low beams and tail lights on');
 
     % Right: lamps in yellow, covers in cyan, everything else faint gray
     axesHandle = nexttile;
     hold(axesHandle,'on');
-    flagCover = faceCoverLamp > 0;
+    flagCover = labelFaceCoverLamp > 0;
     flagLampFace = false(Nfaces,1);
-    if isfield(vehicleMesh,'FaceLightType')
-        flagLampFace = vehicleMesh.FaceLightType(:) > 0;
+    if isfield(vehicleMesh,'LabelFaceLamp')
+        flagLampFace = vehicleMesh.LabelFaceLamp(:) > 0;
     end
     flagOther = ~flagCover & ~flagLampFace;
     patch(axesHandle,'Faces',vehicleMesh.Faces(flagOther,:),'Vertices',vehicleMesh.Vertices, ...

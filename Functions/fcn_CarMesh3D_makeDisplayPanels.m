@@ -28,7 +28,7 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %       panels = fcn_CarMesh3D_makeDisplayPanels(viewer,...
 %           (Overall=container), (Labels=container), (Lamps=container),...
 %           (Band=[r g b]), (LabelColor=function), (OnChange=function),...
-%           (ShowHidden=function), (SetShowHidden=function),...
+%           (FlagShowHidden=function), (SetFlagShowHidden=function),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -51,7 +51,7 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %      OnChange: f(), called after any change made in the panels (the
 %      painter redraws its paint). Default: none.
 %
-%      ShowHidden, SetShowHidden: flag = f() and f(flag): whether the
+%      ShowHidden, SetFlagShowHidden: flag = f() and f(flag): whether the
 %      hidden faces are shown, for a host that keeps that itself (the
 %      painter). Default: the viewer's own (the label key 'hidden' in its
 %      hidden labels).
@@ -152,8 +152,8 @@ arguments
     options.Band = [0.93 0.95 1]   % Background color (pale blue: viewing work)
     options.LabelColor = []        % color = f(name); [] for the viewer's own
     options.OnChange = []          % f() after any change; [] for none
-    options.ShowHidden = []        % flag = f(); [] for the viewer's own
-    options.SetShowHidden = []     % f(flag); [] for the viewer's own
+    options.FlagShowHidden = []        % flag = f(); [] for the viewer's own
+    options.SetFlagShowHidden = []     % f(flag); [] for the viewer's own
     options.FigNum = []            % Not used; -1 for fast mode
 end
 
@@ -204,10 +204,10 @@ end
 if 0==flag_max_speed
     if flag_check_inputs
         % Check the viewer input
-        neededHooks = {'SetColors','Colors','SetBoundaries','Boundaries','SetNightView','NightView', ...
+        neededHooks = {'SetColors','Colors','SetFlagShowEdges','FlagShowEdges','SetFlagNight','FlagNight', ...
             'SetSeeThrough','SeeThrough','ResetView','CopyViewCall','SetUncolored','Uncolored', ...
             'SetHidden','Hidden','LabelKinds','LampTypes','SetNightLamp','NightLights','ShowLabel','Label', ...
-            'SetGround','Ground','CameraInfo','PhotoFolder','SetPhotoFolder','TurnWithPhoto','SetTurnWithPhoto', ...
+            'SetFlagGround','FlagGround','CameraInfo','PhotoFolder','SetPhotoFolder','TurnWithPhoto','SetTurnWithPhoto', ...
             'PhotoHeight','SetPhotoHeight'};
         if ~isstruct(viewer) || ~all(isfield(viewer, neededHooks))
             error('viewer must be the second output of fcn_CarMesh3D_viewLabels (its hooks)');
@@ -219,7 +219,7 @@ if 0==flag_max_speed
             end
         end
         % Check the function inputs
-        for functionOption = {'LabelColor', 'OnChange', 'ShowHidden', 'SetShowHidden'}
+        for functionOption = {'LabelColor', 'OnChange', 'FlagShowHidden', 'SetFlagShowHidden'}
             if ~isempty(options.(functionOption{1})) && ~isa(options.(functionOption{1}), 'function_handle')
                 error('%s must be a function handle or empty', functionOption{1});
             end
@@ -280,19 +280,19 @@ end
     end
 
     function flagOn = showHiddenOn()
-        if ~isempty(options.ShowHidden)
-            flagOn = logical(options.ShowHidden());
+        if ~isempty(options.FlagShowHidden)
+            flagOn = logical(options.FlagShowHidden());
         else
             flagOn = ~any(strcmp(viewer.Hidden(), 'hidden'));
         end
     end
 
-    function setShowHidden(flagOn)
+    function setFlagShowHidden(flagOn)
         if isnumeric(flagOn) && isnan(flagOn)
             return;
         end
-        if ~isempty(options.SetShowHidden)
-            options.SetShowHidden(logical(flagOn));
+        if ~isempty(options.SetFlagShowHidden)
+            options.SetFlagShowHidden(logical(flagOn));
         else
             hidden = viewer.Hidden();
             if flagOn
@@ -333,7 +333,7 @@ end
         fcn_INTERNAL_place(overallControls.Colors, 2, 2);
         fcn_INTERNAL_gridText(grid, 3, 1, 'Show mesh boundaries?', 'normal', 'Draw the edge of every face (the mesh''s triangles)');
         overallControls.Boundaries = fcn_INTERNAL_radioRow(grid, {'Off', 'On'}, {false, true}, 52, ...
-            @(value) setOverallBoundaries(value), 'overallBoundaries');
+            @(value) setOverallFlagShowEdges(value), 'overallBoundaries');
         fcn_INTERNAL_place(overallControls.Boundaries, 3, 2);
         fcn_INTERNAL_gridText(grid, 4, 1, 'Nighttime view?', 'normal', ['A night scene: the vehicle in its own colors, its lamps lit, ' ...
             'and the light they throw on the ground (switch the lamps in Lamps To Display)']);
@@ -392,13 +392,13 @@ end
         notifyChange();
     end
 
-    function setOverallBoundaries(value)
-        viewer.SetBoundaries(value);
+    function setOverallFlagShowEdges(value)
+        viewer.SetFlagShowEdges(value);
         notifyChange();
     end
 
     function setOverallNight(value)
-        viewer.SetNightView(value);
+        viewer.SetFlagNight(value);
         markLamps(viewer.NightLights());
         markOverall();
         notifyChange();
@@ -408,7 +408,7 @@ end
         if isnumeric(value) && isnan(value)
             return;
         end
-        viewer.SetGround(logical(value));
+        viewer.SetFlagGround(logical(value));
         notifyChange();
     end
 
@@ -470,10 +470,10 @@ end
             return;
         end
         fcn_INTERNAL_selectRadio(overallControls.Colors, viewer.Colors());
-        fcn_INTERNAL_selectRadio(overallControls.Boundaries, logical(viewer.Boundaries()));
-        flagNightNow = logical(viewer.NightView());
+        fcn_INTERNAL_selectRadio(overallControls.Boundaries, logical(viewer.FlagShowEdges()));
+        flagNightNow = logical(viewer.FlagNight());
         fcn_INTERNAL_selectRadio(overallControls.Night, flagNightNow);
-        fcn_INTERNAL_selectRadio(overallControls.Ground, logical(viewer.Ground()));
+        fcn_INTERNAL_selectRadio(overallControls.Ground, logical(viewer.FlagGround()));
         overallControls.SeeThrough.Value = 100*viewer.SeeThrough();
         % (at night the vehicle is drawn in its own colors, solid: Colors?
         % and the see-through body act by day only, and say so; Sean's T3,
@@ -629,7 +629,7 @@ end
         box = uipanel(grid, 'BackgroundColor', labelColor('hide'), 'BorderType', 'line');
         fcn_INTERNAL_place(box, row, 1);
         fcn_INTERNAL_gridText(grid, row, 2, 'hidden (not drawn)', 'normal', 'Faces hidden in the mesh (hide, never delete)');
-        shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setShowHidden(value), 'shown_hidden');
+        shown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setFlagShowHidden(value), 'shown_hidden');
         fcn_INTERNAL_place(shown, row, 4);
         labelRows(end+1) = struct('Key', 'hidden', 'Colored', [], 'Shown', shown);
         note = fcn_INTERNAL_gridText(grid, numRows, 1, 'Gray names: no faces have this label yet.', 'normal', '');
@@ -701,7 +701,7 @@ end
         end
         viewer.SetHidden(hidden);
         if strcmp(key, 'all')
-            setShowHidden(flagShown);   % (All sets the hidden faces' row too; it marks and notifies)
+            setFlagShowHidden(flagShown);   % (All sets the hidden faces' row too; it marks and notifies)
             return;
         end
         notifyChange();
@@ -744,7 +744,7 @@ end
             'Running', 'Running lights', 'runningLamp', 'runningLamp'; 'TurnLeft', 'Left turn signal', 'turnSignalLamp', 'turnSignalLamp'; ...
             'TurnRight', 'Right turn signal', 'turnSignalLamp', 'turnSignalLamp'; 'Hazards', 'Hazards', 'turnSignalLamp', 'turnSignalLamp'; ...
             'Tail', 'Tail lights', 'tailBrakeLamp', 'tailBrakeLamp'; 'Backup', 'Backup lights', 'backupLamp', 'backupLamp'; ...
-            'FogLights', 'Fog lamps', 'fogLamp', 'fogLamp'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};
+            'Fog', 'Fog lamps', 'fogLamp', 'fogLamp'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};
         numRows = size(rows,1) + 2;
         % (the heading in a grid of its own above the rows, so it stays in
         % view when the rows scroll)
@@ -809,18 +809,25 @@ end
         if ~isfield(lampGroups, 'LowBeam') || ~isvalid(lampGroups.LowBeam)
             return;
         end
-        for lampField = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
+        for lampField = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'Fog'}
             if isfield(states, lampField{1})
                 lampGroups.(lampField{1}).Value = logical(states.(lampField{1}));
             end
         end
         reflectorsOn = isfield(states, 'Reflectors') && states.Reflectors > 0;
-        fogOn = isfield(states, 'FogLights') && logical(states.FogLights);
+        fogOn = isfield(states, 'Fog') && logical(states.Fog);
         lampGroups.Reflectors.Value = reflectorsOn;
         lampGroups.Hazards.Value = logical(states.TurnLeft) && logical(states.TurnRight);
-        fcn_INTERNAL_selectRadio(lampGroups.Tail, lower(char(states.Tail)));
+        % (the Tail choice from the true/false Tail and Brake)
+        tailChoice = 'off';
+        if isfield(states, 'Brake') && logical(states.Brake)
+            tailChoice = 'brake';
+        elseif logical(states.Tail)
+            tailChoice = 'on';
+        end
+        fcn_INTERNAL_selectRadio(lampGroups.Tail, tailChoice);
         flagsOn = [states.LowBeam, states.HighBeam, states.Running, states.TurnLeft, states.TurnRight, ...
-            ~strcmpi(states.Tail, 'off'), states.Backup, fogOn, reflectorsOn];
+            logical(states.Tail), states.Backup, fogOn, reflectorsOn];
         lampGroups.All.Value = all(logical(flagsOn));   % (ticked only when every lamp is on)
     end
 

@@ -32,7 +32,7 @@ function [vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(v
 % FORMAT:
 %
 %       [vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(vehicleMesh,...
-%           (ImageWidth=pixels), (Symmetric=flag), (RemoveDoubleLayers=flag),...
+%           (ImageWidth=pixels), (Symmetric=flag), (FlagRemoveDoubleLayers=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -44,7 +44,7 @@ function [vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(v
 %
 %      ImageWidth: pixels across each picture. Default 700.
 %
-%      RemoveDoubleLayers: true to delete the inner skin of back-to-back
+%      FlagRemoveDoubleLayers: true to delete the inner skin of back-to-back
 %      double layers; false (default) keeps every face. EXPERIMENTAL: on
 %      the 2021 Subaru Outback it removed few of the cladding's inner
 %      faces and deleted the front of the grille's thin bars.
@@ -114,7 +114,7 @@ arguments
     vehicleMesh
     options.ImageWidth = 700    % Pixels across each picture
     options.Symmetric = 'auto'  % Pair faces with their mirror twins: 'auto', true, false
-    options.RemoveDoubleLayers = false % Delete the inner skin of back-to-back double layers (experimental)
+    options.FlagRemoveDoubleLayers = false % Delete the inner skin of back-to-back double layers (experimental)
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -279,7 +279,7 @@ end
 % Double layers: the inner skin of back-to-back pairs is deleted
 numRemoved = 0;
 flagRemove = false(numFaces,1);
-if options.RemoveDoubleLayers && numFaces > 1
+if options.FlagRemoveDoubleLayers && numFaces > 1
     newNormals = faceNormals;
     newNormals(flagFlip,:) = -faceNormals(flagFlip,:);
     % (pixels seen from the front, after the flips; pooled with the twin)

@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
 fitMesh = loaded.vehicleMesh;
@@ -36,7 +36,7 @@ validationTable = stage3.cacheOutputs.checkResults.ValidationTable;
 
 %% DEMO case: The Fit's dimensions, from its ID, in its own window (hidden)
 fprintf(1,'DEMO case: the Fit''s dimensions, from its ID, in its own window (hidden)\n');
-viewer = fcn_CarMesh3D_viewDimensions(vehicleID, Visible=false);
+viewer = fcn_CarMesh3D_viewDimensions(vehicleID, FlagVisible=false);
 assert(isgraphics(viewer.Figure) && numel(viewer.Axes) == 3 && all(isgraphics(viewer.Axes)));
 assert(numel(viewer.Quantities) == height(validationTable));
 assert(isempty(viewer.Shown()));
@@ -57,7 +57,7 @@ assert(~isvalid(viewer.Figure));
 
 %% TEST case: Every dimension draws, in one view, with its title bold
 fprintf(1,'TEST case: every dimension draws, in one view, with its title bold\n');
-viewer = fcn_CarMesh3D_viewDimensions(fitMesh, DimensionTable=validationTable, Visible=false);
+viewer = fcn_CarMesh3D_viewDimensions(fitMesh, DimensionTable=validationTable, FlagVisible=false);
 for ith_quantity = 1:numel(viewer.Quantities)
     viewer.ShowDimension(viewer.Quantities{ith_quantity});
     assert(strcmp(viewer.Shown(), viewer.Quantities{ith_quantity}));

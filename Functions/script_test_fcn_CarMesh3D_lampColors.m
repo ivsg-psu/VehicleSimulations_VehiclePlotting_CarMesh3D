@@ -21,7 +21,7 @@ fitMesh = fcn_CarMesh3D_meshWithLabelEdits('2009_Honda_Fit_Sport', FigNum=-1);
 fitSetup = fcn_CarMesh3D_lampSetup(fitMesh);
 unitIndex = @(setup, name) find(strcmp({setup.Units.Name}, name), 1);
 allOff = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, 'TurnRight', false, ...
-    'Tail', 'off', 'Backup', false, 'FogLights', false, 'Reflectors', 0);
+    'Tail',false, 'Brake', false, 'Backup', false, 'Fog', false, 'Reflectors', 0);
 
 %% Code demos start here
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -68,7 +68,7 @@ fprintf(1,'Figure: 2XXXXXX: TEST mode cases\n');
 figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: the setup\n', figNum);
 assert(size(fitSetup.Matrix,1) == numel(fitSetup.Units) && size(fitSetup.Matrix,2) == numel(fitSetup.SignalNames));
-assert(all(fitSetup.FaceUnit(fitMesh.FaceLightType(:) > 0) > 0), 'Every lamp face is in a unit');
+assert(all(fitSetup.FaceUnit(fitMesh.LabelFaceLamp(:) > 0) > 0), 'Every lamp face is in a unit');
 assert(~any(fitSetup.FaceUnit > 0 & fitSetup.FaceCoverUnit > 0), 'A face is a lamp face or a cover, not both');
 runningColumn = strcmp(fitSetup.SignalNames, 'Running');
 assert(fitSetup.Matrix(unitIndex(fitSetup, 'front-left headlamp'), runningColumn) == 0.3, ...
@@ -101,9 +101,9 @@ figNum = 20004;
 fprintf(1,'Figure %.0f: TEST case: tail, brake, turns\n', figNum);
 tail = unitIndex(fitSetup, 'rear-left tail/brake lamp');
 states = allOff;
-states.Tail = 'on';
+states.Tail = true;
 litTail = fcn_CarMesh3D_lampColors(fitSetup, states);
-states.Tail = 'brake';
+states.Brake = true;
 litBrake = fcn_CarMesh3D_lampColors(fitSetup, states);
 assert(abs(litTail.Brightness(tail) - 0.4) < 1e-9 && litBrake.Brightness(tail) == 1);
 assert(litBrake.UnitColor(tail,1) > litTail.UnitColor(tail,1), 'Brake brighter red than tail');
@@ -125,7 +125,8 @@ assert(litHazards.Brightness(unitIndex(fitSetup, 'front-left turn-signal lamp'))
 figNum = 20005;
 fprintf(1,'Figure %.0f: TEST case: LampFaults\n', figNum);
 states = allOff;
-states.Tail = 'brake';
+states.Tail = true;
+states.Brake = true;
 litFault = fcn_CarMesh3D_lampColors(fitSetup, states, LampFaults={'rear-left tail/brake lamp'});
 assert(litFault.Brightness(tail) == 0 && litFault.Brightness(unitIndex(fitSetup, 'rear-right tail/brake lamp')) == 1);
 assert(~any(litFault.FlagLit(fitSetup.FaceUnit == tail)), 'Its faces stay unlit');
@@ -156,8 +157,8 @@ assert(sum(litFull.UnitColor(reflector,:)) >= sum(litHalf.UnitColor(reflector,:)
 figNum = 20008;
 fprintf(1,'Figure %.0f: TEST case: no lamps\n', figNum);
 noLamps = fitMesh;
-noLamps.FaceLightType(:) = 0;
-noLamps.FaceCoverLamp(:) = 0;
+noLamps.LabelFaceLamp(:) = 0;
+noLamps.LabelFaceCoverLamp(:) = 0;
 noSetup = fcn_CarMesh3D_lampSetup(noLamps);
 noLit = fcn_CarMesh3D_lampColors(noSetup, allOff);
 assert(isempty(noLit.Brightness) && ~any(noLit.FlagLit));
@@ -182,7 +183,8 @@ figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, the time per call\n',figNum);
 states = allOff;
 states.LowBeam = true;
-states.Tail = 'brake';
+states.Tail = true;
+states.Brake = true;
 Niterations = 200;
 tic;
 for ith_test = 1:Niterations

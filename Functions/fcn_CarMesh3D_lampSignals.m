@@ -1,4 +1,4 @@
-function signals = fcn_CarMesh3D_lampSignals(options)
+function signalKinds = fcn_CarMesh3D_lampSignals(options)
 % fcn_CarMesh3D_lampSignals
 
 % The signals that light a vehicle's lamps: the columns of the
@@ -14,7 +14,7 @@ function signals = fcn_CarMesh3D_lampSignals(options)
 %
 % FORMAT:
 %
-%       signals = fcn_CarMesh3D_lampSignals((FigNum=figNum))
+%       signalKinds = fcn_CarMesh3D_lampSignals((FigNum=figNum))
 %
 % INPUTS:
 %
@@ -24,7 +24,7 @@ function signals = fcn_CarMesh3D_lampSignals(options)
 %
 % OUTPUTS:
 %
-%      signals: a structure array, one element per signal, in the order of
+%      signalKinds: a structure array, one element per signal, in the order of
 %      the matrix's columns, with fields
 %           Name: the column's name ('LowBeam', 'TurnLeft', ...)
 %           Label: its name in words ('Low beam', 'Left turn', ...)
@@ -78,10 +78,10 @@ signalList = {
     'Tail',         'Tail',                      'The tail lamps on (with the headlamps or parking lights)'
     'Brake',        'Brake',                     'The brake pedal pressed'
     'Backup',       'Backup',                    'Reverse gear'
-    'FogLights',    'Fog',                       'The fog lights switched on'
+    'Fog',          'Fog',                       'The fog lights switched on'
     'Reflectors',   'Reflectors',                'Outside light reaching the reflectors (another vehicle''s lamps)'
     };
 
-signals = struct('Name', signalList(:,1), 'Label', signalList(:,2), 'Description', signalList(:,3));
+signalKinds = struct('Name', signalList(:,1), 'Label', signalList(:,2), 'Description', signalList(:,3));
 
 end % Ends main function

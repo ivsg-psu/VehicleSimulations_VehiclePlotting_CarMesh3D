@@ -15,14 +15,14 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
 fitMesh = loaded.vehicleMesh;
 
 %% DEMO case: The Fit, from its ID, in its own window (hidden)
 fprintf(1,'DEMO case: the Fit, from its ID, in its own window (hidden)\n');
-viewer = fcn_CarMesh3D_viewOrientation(vehicleID, Visible=false);
+viewer = fcn_CarMesh3D_viewOrientation(vehicleID, FlagVisible=false);
 assert(isgraphics(viewer.Figure) && isgraphics(viewer.Axes));
 arrowNames = get(findobj(viewer.Axes, 'Type', 'text'), 'String');
 assert(all(ismember({'FRONT (+X)', 'UP (+Z)', '+Y (left)'}, arrowNames)));
@@ -31,7 +31,7 @@ assert(~isvalid(viewer.Figure));
 
 %% TEST case: Reset view
 fprintf(1,'TEST case: reset view\n');
-viewer = fcn_CarMesh3D_viewOrientation(fitMesh, Visible=false);
+viewer = fcn_CarMesh3D_viewOrientation(fitMesh, FlagVisible=false);
 startPosition = viewer.Axes.CameraPosition;
 camorbit(viewer.Axes, 30, 10);
 assert(~isequal(viewer.Axes.CameraPosition, startPosition));

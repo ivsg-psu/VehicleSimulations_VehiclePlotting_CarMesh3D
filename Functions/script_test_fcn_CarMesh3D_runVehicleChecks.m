@@ -57,7 +57,7 @@ if isfolder(outputFolder)
     rmdir(outputFolder,'s');
 end
 checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, outputFolder, ...
-    Checks={'inputs','dimensions','labels','lightStates','groundContact'}, VehicleName='sample car', FigNum=figNum);
+    Checks={'inputs','dimensions','labels','signals','groundContact'}, VehicleName='sample car', FigNum=figNum);
 
 % Check variable types
 assert(isstruct(checkResults));
@@ -79,8 +79,8 @@ end
 % No GIFs were asked for
 assert(isempty(dir(fullfile(outputFolder,'*.gif'))));
 % The light-states picture is a 3 x 3 montage of the standard panel size
-lightStatesPicture = imread(fullfile(outputFolder,'check_04_lightStates.png'));
-assert(size(lightStatesPicture,2) == 3*480);
+signalsPicture = imread(fullfile(outputFolder,'check_04_lightStates.png'));
+assert(size(signalsPicture,2) == 3*480);
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -126,12 +126,12 @@ assert(isequal(get(gcf,'Number'),figNum));
 
 %% TEST case: Playing an animation without saving it (SaveGifs=false)
 figNum = 20002;
-titleString = sprintf('TEST case: Playing an animation without saving it (SaveGifs=false)');
+titleString = sprintf('TEST case: Playing an animation without saving it (FlagSaveGifs=false)');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
 delete(fullfile(outputFolder,'*.gif'));
 checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, outputFolder, ...
-    Checks={'wheels'}, SaveGifs=false, PanelSize=[240 150], FigNum=figNum);
+    Checks={'wheels'}, FlagSaveGifs=false, PanelSize=[240 150], FigNum=figNum);
 
 % Check variable values: nothing saved
 assert(isempty(dir(fullfile(outputFolder,'*.gif'))));

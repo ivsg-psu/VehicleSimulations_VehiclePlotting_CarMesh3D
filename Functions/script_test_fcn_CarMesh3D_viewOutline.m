@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.OutlineFile, 'vehicleOutline');
 fitOutline = loaded.vehicleOutline;
@@ -36,7 +36,7 @@ fitMesh = loaded.vehicleMesh;
 
 %% DEMO case: The Fit's 2D outline, from its ID, in its own window (hidden)
 fprintf(1,'DEMO case: the Fit''s 2D outline, from its ID, in its own window (hidden)\n');
-viewer = fcn_CarMesh3D_viewOutline(vehicleID, Visible=false);
+viewer = fcn_CarMesh3D_viewOutline(vehicleID, FlagVisible=false);
 assert(isgraphics(viewer.Figure) && isgraphics(viewer.Axes));
 keys = {viewer.Elements.Key};
 assert(any(strcmp(keys, 'body')));
@@ -59,7 +59,7 @@ assert(~isvalid(viewer.Figure));
 
 %% TEST case: The interior is an element (one for all its pieces)
 fprintf(1,'TEST case: the interior is an element\n');
-viewer = fcn_CarMesh3D_viewOutline(fitOutline, Mesh=fitMesh, Visible=false);
+viewer = fcn_CarMesh3D_viewOutline(fitOutline, Mesh=fitMesh, FlagVisible=false);
 interiorIndex = find(strcmp({viewer.Elements.Key}, 'interior'));
 % (since the voxel interior labeling was switched off, Q37 2026-11-24, a vehicle may have
 % no interior pieces until its seats and steering wheel are found; then there is no element)

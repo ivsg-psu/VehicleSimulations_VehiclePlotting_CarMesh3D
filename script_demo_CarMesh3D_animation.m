@@ -24,7 +24,7 @@
 %   h = fcn_CarMesh3D_plotVehicle(vehicleMesh, ...);       % draw once
 %   for k = 1:numberOfFrames
 %       fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=..., WheelSpin=..., ...
-%           SteerAngle=..., LightStates=..., PlotHandles=h, FigNum=-1);
+%           SteerAngle=..., Signals=..., PlotHandles=h, FigNum=-1);
 %       fcn_CarMesh3D_updateCamera(cameraSettings, pose, Time=t, ...
 %           AxesHandle=h.Axes, FigNum=-1);
 %       drawnow;
@@ -62,10 +62,10 @@ addpath(fullfile(pwd,'Functions'));
 addpath(fullfile(pwd,'Data'));
 
 %% Settings for all of the animations
-% Set flag_saveGifs to 0 to just watch the animations without saving.
-flag_saveGifs = 1;
+% Set flagSaveGifs to 0 to just watch the animations without saving.
+flagSaveGifs = 1;
 gifFolder = fullfile('Images','animations');
-if flag_saveGifs && ~exist(gifFolder,'dir')
+if flagSaveGifs && ~exist(gifFolder,'dir')
     mkdir(gifFolder);
 end
 framesPerSecond = 12;          % Animation frames per second
@@ -89,7 +89,7 @@ trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Spe
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', ...
     Position=[5.5 3.5 1.3], Target=[2.2 0 0.35], FieldOfView=40);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @(t) struct(), ...
-    fullfile(gifFolder,'wheels_rollAndSteer.gif'), flag_saveGifs, figureSize, 1);
+    fullfile(gifFolder,'wheels_rollAndSteer.gif'), flagSaveGifs, figureSize, 1);
 
 %% Step 3: Peel out, cruise, then lock up the wheels (side view)
 % WheelSlip sets how fast each wheel turns compared with rolling:
@@ -106,13 +106,14 @@ slip(timeValues>=6 & speedValues>0, :) = -1; % Lock up: all wheels stop turning
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=speedValues, Duration=9, SampleTime=dt, ...
     StartPose=[-25 0 0], WheelSlip=slip, VehicleSpec=vehicleSpec, FigNum=-1);
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='side', Position=[1.35 -6 1.0], FieldOfView=45);
-brakeLights = @(t) struct('Tail', fcn_INTERNAL_choose(t>=6, 'brake', 'on'));
+brakeLights = @(t) struct('Tail', true, 'Brake', t>=6);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, brakeLights, ...
-    fullfile(gifFolder,'wheels_peelOutAndLockUp.gif'), flag_saveGifs, figureSize, 2);
+    fullfile(gifFolder,'wheels_peelOutAndLockUp.gif'), flagSaveGifs, figureSize, 2);
 
 %% Step 4: Signals - turn signal, lane change, hazards, then backing up
-% LightStates is a structure: Headlights ('off','low','high'), TurnLeft,
-% TurnRight, Running (true/false), Tail ('off','on','brake'), Backup.
+% Signals is a structure of true/false fields: LowBeam, HighBeam,
+% TurnLeft, TurnRight, Running, Tail, Brake, Backup (see
+% fcn_CarMesh3D_lampSignals for the full list).
 % Blinking is just switching a light on and off with time:
 %       blinkOn = mod(t, 0.8) < 0.4;   % 0.4 s on, 0.4 s off
 % Here: signal left (0-3 s), change lanes (3-7 s), stop with hazards
@@ -127,16 +128,16 @@ trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Spe
 % The camera rides close behind and to the left, so the lamps are large
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[-5.5 3.2 1.8], Target=[1.5 0 0.6], FieldOfView=40);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @fcn_INTERNAL_signalSequence, ...
-    fullfile(gifFolder,'lights_signalsHazardsBackup.gif'), flag_saveGifs, figureSize, 3);
+    fullfile(gifFolder,'lights_signalsHazardsBackup.gif'), flagSaveGifs, figureSize, 3);
 
 %% Step 5: Headlights off, low, high, with running lights (front view)
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=0.001, Duration=6, ...
     SampleTime=1/framesPerSecond, VehicleSpec=vehicleSpec, FigNum=-1);
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[9 -3 1.4], Target=[2.5 0 0.6], FieldOfView=35);
-headlightSequence = @(t) struct('Headlights', fcn_INTERNAL_choose(t<2,'off', fcn_INTERNAL_choose(t<4,'low','high')), ...
+headlightSequence = @(t) struct('LowBeam', t>=2, 'HighBeam', t>=4, ...
     'Running', t>=2, 'TurnLeft', false, 'TurnRight', false);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, headlightSequence, ...
-    fullfile(gifFolder,'lights_headlights.gif'), flag_saveGifs, figureSize, 4);
+    fullfile(gifFolder,'lights_headlights.gif'), flagSaveGifs, figureSize, 4);
 
 %% Step 6: Camera modes
 % Each camera is (1) where it sits, (2) what it looks at, (3) how wide it
@@ -160,14 +161,14 @@ cameraList = {
     'orbit',     {'OrbitRate',0.6},                            'Vehicle camera circling the car'};
 cameraGifNames = {'camera_wideFixed','camera_roadside','camera_overheadWide','camera_overheadZoom', ...
     'camera_chase','camera_driver','camera_roof','camera_side','camera_kite','camera_orbit'};
-cameraLights = @(t) struct('Headlights','low','Tail','on','Running',true);
+cameraLights = @(t) struct('LowBeam',true,'Tail',true,'Running',true);
 for ith_camera = 1:size(cameraList,1)
     cameraOverrides = cameraList{ith_camera,2};
     % (The overrides are a list of 'Name',value pairs, so the quoted form is used)
     cameraSettings = fcn_CarMesh3D_fillCameraSettings('Mode', cameraList{ith_camera,1}, cameraOverrides{:});
     fprintf(1,'Camera %s: %s\n', cameraGifNames{ith_camera}, cameraList{ith_camera,3});
     fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, cameraLights, ...
-        fullfile(gifFolder,[cameraGifNames{ith_camera} '.gif']), flag_saveGifs, figureSize, 10+ith_camera, ...
+        fullfile(gifFolder,[cameraGifNames{ith_camera} '.gif']), flagSaveGifs, figureSize, 10+ith_camera, ...
         cameraList{ith_camera,3});
 end
 
@@ -177,15 +178,15 @@ end
 % fakes light shining from the lamps: lit lamps get a glowing shell, and
 % see-through pools of light are drawn on the ground (headlight beams
 % ahead; red tail and brake light and white backup light behind). They
-% switch with LightStates, so the animation loop does not change.
+% switch with Signals, so the animation loop does not change.
 % The camera is above and behind, to see the beams on the road ahead.
 trajectory = fcn_CarMesh3D_fillTrajectory(Path='straight', Speed=0.001, Duration=6, ...
     SampleTime=1/framesPerSecond, VehicleSpec=vehicleSpec, FigNum=-1);
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-6 -5 4], Target=[9 0 0], FieldOfView=55);
-nightHeadlights = @(t) struct('Headlights', fcn_INTERNAL_choose(t<2,'off', fcn_INTERNAL_choose(t<4,'low','high')), ...
-    'Running', t>=2, 'Tail', fcn_INTERNAL_choose(t<2,'off','on'));
+nightHeadlights = @(t) struct('LowBeam', t>=2, 'HighBeam', t>=4, ...
+    'Running', t>=2, 'Tail', t>=2);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, nightHeadlights, ...
-    fullfile(gifFolder,'night_headlights.gif'), flag_saveGifs, figureSize, 21, ...
+    fullfile(gifFolder,'night_headlights.gif'), flagSaveGifs, figureSize, 21, ...
     'Night: headlights off, low, high', 'night');
 
 % The same drive as Step 4 (signal, lane change, hazards, back up), at night
@@ -198,7 +199,7 @@ trajectory = fcn_CarMesh3D_fillTrajectory(Path='laneChange', LaneOffset=3.5, Spe
     Duration=14, SampleTime=dt, StartPose=[-25 0 0], VehicleSpec=vehicleSpec, FigNum=-1);
 cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='kite', Position=[-8 5 4], Target=[3 0 0], FieldOfView=50);
 fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, @fcn_INTERNAL_signalSequence, ...
-    fullfile(gifFolder,'night_signalsHazardsBackup.gif'), flag_saveGifs, figureSize, 22, ...
+    fullfile(gifFolder,'night_signalsHazardsBackup.gif'), flagSaveGifs, figureSize, 22, ...
     'Night: signal, change lanes, hazards and brake, back up', 'night');
 
 %% Step 8: A motion from a CSV file, with body roll and pitch and a lifted wheel
@@ -247,7 +248,7 @@ for ith_view = 1:size(csvViews,1)
     cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=csvViews{ith_view,2}, ...
         Target=csvViews{ith_view,3}, FieldOfView=csvViews{ith_view,4});
     fcn_INTERNAL_animate(vehicleMesh, motion, cameraSettings, [], ...
-        fullfile(gifFolder,[csvViews{ith_view,1} '.gif']), flag_saveGifs, figureSize, 22+ith_view, ...
+        fullfile(gifFolder,[csvViews{ith_view,1} '.gif']), flagSaveGifs, figureSize, 22+ith_view, ...
         csvViews{ith_view,5});
 end
 
@@ -299,7 +300,7 @@ for k = 1:length(trajectory.Time)
     set(captionHandle, 'String', sprintf('Ackermann steering: inside (left) %.1f%s, outside (right) %.1f%s', ...
         rad2deg(trajectory.SteerAngle(k,1)), char(176), rad2deg(trajectory.SteerAngle(k,2)), char(176)));
     drawnow;
-    if flag_saveGifs
+    if flagSaveGifs
         fcn_CarMesh3D_saveGifFrame(figureHandle, fullfile(gifFolder,'wheels_ackermannTightTurn.gif'), k, ...
             DelayTime=mean(diff(trajectory.Time)), FigNum=-1);
     end
@@ -318,12 +319,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% fcn_INTERNAL_animate
-function fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, lightFunction, gifFile, flag_saveGif, figureSize, figNum, titleString, timeOfDay)
+function fcn_INTERNAL_animate(vehicleMesh, trajectory, cameraSettings, lightFunction, gifFile, flagSaveGif, figureSize, figNum, titleString, timeOfDay)
 % The animation loop used by every example: draw the scene and vehicle
 % once, then for each frame move the vehicle (pose, wheels, lights),
 % point the camera, draw, and optionally save a GIF frame.
-%   lightFunction: a function of time that returns the LightStates, or
-%       [] to use the motion's own LightStates (one per time step)
+%   lightFunction: a function of time that returns the Signals, or
+%       [] to use the motion's own Signals (one per time step)
 %   The motion may also carry BodyRoll, BodyPitch, BodyHeave, and
 %   WheelLift (for example, from fcn_CarMesh3D_loadMotionCSV); they are
 %   used when present.
@@ -350,7 +351,7 @@ clf;
 set(figureHandle,'Color',[0.78 0.86 0.95],'Position',[100 100 figureSize]);
 axesHandle = axes('Parent',figureHandle,'Position',[0 0 1 1]);
 fcn_CarMesh3D_plotScene(GroundExtent=groundExtent, GridSpacing=4, Cubes=cubes, TimeOfDay=timeOfDay, FigNum=figNum);
-plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', LightEffects=flagNight, FigNum=figNum);
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, Finish='glossy', FlagLightEffects=flagNight, FigNum=figNum);
 axis(axesHandle,'off');
 % Fixed axis limits: the camera moves, the axes do not rescale
 axis(axesHandle,[groundExtent -1 25]);
@@ -369,18 +370,18 @@ wheelLift = fcn_INTERNAL_fieldOrZeros(trajectory, 'WheelLift', Ntimes, 4);
 for k = 1:Ntimes
     t = trajectory.Time(k);
     if isempty(lightFunction)
-        lightStates = trajectory.LightStates(k);
+        signals = trajectory.Signals(k);
     else
-        lightStates = lightFunction(t);
+        signals = lightFunction(t);
     end
     fcn_CarMesh3D_plotVehicle(vehicleMesh, Pose=trajectory.Pose(k,:), ...
         WheelSpin=trajectory.WheelSpin(k,:), SteerAngle=trajectory.SteerAngle(k,:), ...
         WheelLift=wheelLift(k,:), BodyRoll=bodyRoll(k), BodyPitch=bodyPitch(k), BodyHeave=bodyHeave(k), ...
-        LightStates=lightStates, PlotHandles=plotHandles, FigNum=-1);
+        Signals=signals, PlotHandles=plotHandles, FigNum=-1);
     fcn_CarMesh3D_updateCamera(cameraSettings, trajectory.Pose(k,:), Time=t, ...
         AxesHandle=axesHandle, FigNum=-1);
     drawnow;
-    if flag_saveGif
+    if flagSaveGif
         fcn_CarMesh3D_saveGifFrame(figureHandle, gifFile, k, ...
             DelayTime=mean(diff(trajectory.Time)), FigNum=-1);
     end
@@ -438,31 +439,21 @@ cubes = [candidates sizes colors];
 end % Ends fcn_INTERNAL_placeCubes
 
 %% fcn_INTERNAL_signalSequence
-function lightStates = fcn_INTERNAL_signalSequence(t)
+function signals = fcn_INTERNAL_signalSequence(t)
 % Left signal, lane change, hazards while stopped, then backing up
 blinkOn = mod(t, 0.8) < 0.4;
-lightStates = struct('Headlights','low','Tail','on','Running',true, ...
+signals = struct('LowBeam',true,'Tail',true,'Brake',false,'Running',true, ...
     'TurnLeft',false,'TurnRight',false,'Backup',false);
 if t < 7
-    lightStates.TurnLeft = blinkOn;                 % Signal, then change lanes
+    signals.TurnLeft = blinkOn;                 % Signal, then change lanes
 elseif t < 10
-    lightStates.TurnLeft = blinkOn;                 % Hazards: both sides
-    lightStates.TurnRight = blinkOn;
-    lightStates.Tail = 'brake';
+    signals.TurnLeft = blinkOn;                 % Hazards: both sides
+    signals.TurnRight = blinkOn;
+    signals.Brake = true;
 else
-    lightStates.Backup = true;                      % Backing up
+    signals.Backup = true;                      % Backing up
 end
 end % Ends fcn_INTERNAL_signalSequence
-
-%% fcn_INTERNAL_choose
-function value = fcn_INTERNAL_choose(condition, valueIfTrue, valueIfFalse)
-% A one-line "if" for building light states
-if condition
-    value = valueIfTrue;
-else
-    value = valueIfFalse;
-end
-end % Ends fcn_INTERNAL_choose
 
 %% fcn_INTERNAL_prepareVehicle
 function [vehicleMesh, vehicleSpec] = fcn_INTERNAL_prepareVehicle
@@ -477,7 +468,7 @@ try
     vehicleMesh.Name = '2010 Toyota Prius';
     vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+z', ForwardAxis='+x', FigNum=-1);
     vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, PartRules={'17in','wheel'; 'color_notint','trim'}, ...
-        UseMaterialColors=false, PartColors={'body',vehicleSpec.BodyColor; 'glass',[0.30 0.30 0.32]; 'trim',[0.02 0.02 0.02]}, ...
+        FlagUseMaterialColors=false, PartColors={'body',vehicleSpec.BodyColor; 'glass',[0.30 0.30 0.32]; 'trim',[0.02 0.02 0.02]}, ...
         GlassAlpha=0.6, FigNum=-1);
     vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference='mirrors', FigNum=-1);
 

@@ -139,14 +139,14 @@ assert(isstruct(vehicleOutline.Symmetry) && vehicleOutline.Symmetry.Symmetric);
 assert(numel(vehicleOutline.Symmetry.Windows)==numel(vehicleOutline.Windows));
 % (the right tail lamp relabeled as body: the left one is mirrored onto the right)
 oneSided = priusMesh;
-lightPart = find(strcmp(oneSided.PartNames, 'light'));
-tailType = find(strcmp(oneSided.LightTypeNames, 'tailBrakeLamp'));
+lightPart = find(strcmp(oneSided.LabelPartNames, 'light'));
+tailType = find(strcmp(oneSided.LabelLampNames, 'tailBrakeLamp'));
 faceCenterY = (oneSided.Vertices(oneSided.Faces(:,1),2) + oneSided.Vertices(oneSided.Faces(:,2),2) + oneSided.Vertices(oneSided.Faces(:,3),2))/3;
-rightTail = oneSided.FacePartIndex==lightPart & oneSided.FaceLightType==tailType & faceCenterY < 0;
-oneSided.FacePartIndex(rightTail) = find(strcmp(oneSided.PartNames, 'body'));
-oneSided.FaceLightType(rightTail) = 0;
+rightTail = oneSided.LabelFacePart==lightPart & oneSided.LabelFaceLamp==tailType & faceCenterY < 0;
+oneSided.LabelFacePart(rightTail) = find(strcmp(oneSided.LabelPartNames, 'body'));
+oneSided.LabelFaceLamp(rightTail) = 0;
 lastwarn('');
-traced = fcn_CarMesh3D_makeOutline2D(oneSided, Symmetric=false);
+traced = fcn_CarMesh3D_makeOutline2D(oneSided, FlagSymmetric=false);
 [~, warningID] = lastwarn;
 warning('on', 'CarMesh3D:asymmetricOutline');
 lastwarn('');
@@ -168,8 +168,8 @@ figure(figNum); close(figNum);
 % (every light face given its own three corners, as in some downloads: the
 % 2009 Honda Fit's lamps came out as 120 to 140 outlines each)
 splitMesh = priusMesh;
-lightPart = find(strcmp(splitMesh.PartNames, 'light'));
-lightRows = find(splitMesh.FacePartIndex==lightPart);
+lightPart = find(strcmp(splitMesh.LabelPartNames, 'light'));
+lightRows = find(splitMesh.LabelFacePart==lightPart);
 newCorners = splitMesh.Faces(lightRows,:)';
 splitMesh.Faces(lightRows,:) = size(splitMesh.Vertices,1) + reshape(1:numel(newCorners), 3, [])';
 splitMesh.Vertices = [splitMesh.Vertices; splitMesh.Vertices(newCorners(:),:)];
@@ -202,15 +202,15 @@ interiorMesh = fcn_CarMesh3D_labelInterior(priusMesh, FigNum=-1);
 interiorOutline = fcn_CarMesh3D_makeOutline2D(interiorMesh);
 % (one interior piece on the left only: it must not get a mirrored twin)
 oneSided = interiorMesh;
-interiorPart = find(strcmp(oneSided.PartNames,'interior'));
+interiorPart = find(strcmp(oneSided.LabelPartNames,'interior'));
 oneSided.Vertices(end+1:end+3,:) = [1.5 0.30 0.9; 1.7 0.30 0.9; 1.6 0.50 0.9];
 oneSided.Faces(end+1,:) = size(oneSided.Vertices,1) + [-2 -1 0];
-for fieldName = {'FacePartIndex','FaceWheelIndex','FaceLightType','FaceMaterialIndex','FaceGroupIndex','FaceAlpha'}
+for fieldName = {'LabelFacePart','FaceWheelIndex','LabelFaceLamp','FaceMaterialIndex','FaceGroupIndex','FaceAlpha'}
     if isfield(oneSided, fieldName{1})
         oneSided.(fieldName{1})(end+1,:) = 0;
     end
 end
-oneSided.FacePartIndex(end) = interiorPart;
+oneSided.LabelFacePart(end) = interiorPart;
 oneSided.FaceAlpha(end) = 1;
 oneSided.FaceColors(end+1,:) = [0.3 0.3 0.3];
 oneSidedOutline = fcn_CarMesh3D_makeOutline2D(oneSided);
@@ -247,7 +247,7 @@ figure(figNum); close(figNum);
 % passenger seat, and the added one-sided triangle as the steering wheel;
 % the rest of the interior part must NOT be outlined)
 faceCentersY = (oneSided.Vertices(oneSided.Faces(:,1),2) + oneSided.Vertices(oneSided.Faces(:,2),2) + oneSided.Vertices(oneSided.Faces(:,3),2))/3;
-isInterior = oneSided.FacePartIndex(:) == interiorPart;
+isInterior = oneSided.LabelFacePart(:) == interiorPart;
 wheelFace = size(oneSided.Faces,1);
 found = struct( ...
     'DriverSeat', struct('Found', true, 'Faces', setdiff(find(isInterior & faceCentersY > 0.15), wheelFace)), ...
@@ -257,11 +257,11 @@ warningState = warning('off', 'CarMesh3D:asymmetricOutline');
 objectOutline = fcn_CarMesh3D_makeOutline2D(oneSided, InteriorObjects=found);
 % (the same objects stored in the mesh itself, as a build will store them)
 storedMesh = oneSided;
-storedMesh.FaceInteriorObject = zeros(size(storedMesh.Faces,1),1);
-storedMesh.FaceInteriorObject(found.DriverSeat.Faces) = 1;
-storedMesh.FaceInteriorObject(found.PassengerSeat.Faces) = 2;
-storedMesh.FaceInteriorObject(wheelFace) = 3;
-storedMesh.InteriorObjectNames = {'driver seat', 'passenger seat', 'steering wheel'};
+storedMesh.LabelFaceInterior = zeros(size(storedMesh.Faces,1),1);
+storedMesh.LabelFaceInterior(found.DriverSeat.Faces) = 1;
+storedMesh.LabelFaceInterior(found.PassengerSeat.Faces) = 2;
+storedMesh.LabelFaceInterior(wheelFace) = 3;
+storedMesh.LabelInteriorNames = {'driver seat', 'passenger seat', 'steering wheel'};
 storedOutline = fcn_CarMesh3D_makeOutline2D(storedMesh);
 % (an object not found is left out)
 notFound = found;

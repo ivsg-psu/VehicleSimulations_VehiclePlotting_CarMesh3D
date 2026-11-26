@@ -1,4 +1,4 @@
-function lit = fcn_CarMesh3D_lampColors(lampSetup, lightStates, options)
+function lit = fcn_CarMesh3D_lampColors(lampSetup, signals, options)
 % fcn_CarMesh3D_lampColors
 
 % How a vehicle's lamps are lit by a set of signals, from its
@@ -25,19 +25,18 @@ function lit = fcn_CarMesh3D_lampColors(lampSetup, lightStates, options)
 %
 % FORMAT:
 %
-%       lit = fcn_CarMesh3D_lampColors(lampSetup, lightStates,...
+%       lit = fcn_CarMesh3D_lampColors(lampSetup, signals,...
 %           (LampFaults=unitNames), (FigNum=figNum))
 %
 % INPUTS:
 %
 %      lampSetup: from fcn_CarMesh3D_lampSetup.
 %
-%      lightStates: the signals, as fcn_CarMesh3D_plotVehicle's
-%      LightStates: LowBeam, HighBeam (or Headlights 'low'/'high'; 'high'
-%      is the high and the low beams together),
-%      Running, Parking, TurnLeft, TurnRight, Hazards (both turn signals),
-%      Tail ('off', 'on', 'brake', or true/false), Brake, Backup,
-%      FogLights, Reflectors (0 to 1). Missing fields are off.
+%      signals: the signals, as fcn_CarMesh3D_plotVehicle's
+%      Signals (true/false fields): LowBeam, HighBeam (each beam
+%      alone; both true for both beams), Running, Parking, TurnLeft,
+%      TurnRight, Hazards (both turn signals), Tail, Brake, Backup, Fog,
+%      and Reflectors (0 to 1). Missing fields are off.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -84,7 +83,7 @@ function lit = fcn_CarMesh3D_lampColors(lampSetup, lightStates, options)
 
 arguments
     lampSetup
-    lightStates
+    signals
     options.LampFaults = {}     % Units that do not light
     options.FigNum = []         % Not used; -1 for fast mode
 end
@@ -94,12 +93,12 @@ if ~isequal(options.FigNum, -1)
     if ~(isstruct(lampSetup) && all(isfield(lampSetup, {'Matrix','FaceUnit','FaceCoverUnit','SignalNames'})))
         error('lampSetup must come from fcn_CarMesh3D_lampSetup');
     end
-    if ~isempty(lightStates) && ~isstruct(lightStates)
-        error('lightStates must be a structure (as fcn_CarMesh3D_plotVehicle''s LightStates)');
+    if ~isempty(signals) && ~isstruct(signals)
+        error('signals must be a structure (as fcn_CarMesh3D_plotVehicle''s Signals)');
     end
 end
-if isempty(lightStates)
-    lightStates = struct;
+if isempty(signals)
+    signals = struct;
 end
 
 %% Main code starts here
@@ -110,7 +109,7 @@ numFaces = numel(lampSetup.FaceUnit);
 % How much each signal is on
 amounts = zeros(1, numel(signalNames));
 for ith_signal = 1:numel(signalNames)
-    amounts(ith_signal) = fcn_INTERNAL_amount(lightStates, signalNames{ith_signal});
+    amounts(ith_signal) = fcn_INTERNAL_amount(signals, signalNames{ith_signal});
 end
 
 % Each unit's brightness, and the signal that lights it most (a tie goes
@@ -206,63 +205,41 @@ end
 end % Ends fcn_INTERNAL_kindColor
 
 %% fcn_INTERNAL_amount
-function amount = fcn_INTERNAL_amount(lightStates, signalName)
+function amount = fcn_INTERNAL_amount(signals, signalName)
 % How much a signal is on, 0 to 1, from fcn_CarMesh3D_plotVehicle's
-% LightStates (its older fields too: Headlights 'low'/'high', Tail
-% 'on'/'brake', Hazards)
+% Signals (true/false fields; Reflectors 0 to 1). LowBeam and HighBeam
+% each switch one beam (both beams on: both true); Hazards lights both
+% turn signals. (The text-valued Headlights and Tail of before 2026-11-26
+% are gone: one meaning per name, convention C7)
 amount = 0;
 switch signalName
     case 'LowBeam'
-        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, 'LowBeam')) ...
-            || any(strcmpi(fcn_INTERNAL_text(fcn_INTERNAL_field(lightStates, 'Headlights')), {'low', 'on', 'high'})));   % (high beams: the low beams stay on)
-    case 'HighBeam'
-        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, 'HighBeam')) ...
-            || strcmpi(fcn_INTERNAL_text(fcn_INTERNAL_field(lightStates, 'Headlights')), 'high'));
+        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(signals, 'LowBeam')));   % (each beam alone: both beams on is LowBeam and HighBeam both true)
     case {'TurnLeft', 'TurnRight'}
-        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, signalName)) ...
-            || fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, 'Hazards')));
-    case 'Tail'
-        tailState = fcn_INTERNAL_field(lightStates, 'Tail');
-        tailText = fcn_INTERNAL_text(tailState);
-        amount = double(any(strcmpi(tailText, {'on', 'brake'})) || (~ischar(tailState) && ~isstring(tailState) && fcn_INTERNAL_isOn(tailState)));
-    case 'Brake'
-        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, 'Brake')) ...
-            || strcmpi(fcn_INTERNAL_text(fcn_INTERNAL_field(lightStates, 'Tail')), 'brake'));
+        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(signals, signalName)) ...
+            || fcn_INTERNAL_isOn(fcn_INTERNAL_field(signals, 'Hazards')));
     case 'Reflectors'
-        value = fcn_INTERNAL_field(lightStates, 'Reflectors');
+        value = fcn_INTERNAL_field(signals, 'Reflectors');
         if (isnumeric(value) || islogical(value)) && ~isempty(value)
             amount = min(1, max(0, double(value(1))));
         end
     otherwise
-        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(lightStates, signalName)));
+        amount = double(fcn_INTERNAL_isOn(fcn_INTERNAL_field(signals, signalName)));
 end
 end % Ends fcn_INTERNAL_amount
 
 %% fcn_INTERNAL_field
-function value = fcn_INTERNAL_field(lightStates, fieldName)
-% A LightStates field, or [] when it is missing
+function value = fcn_INTERNAL_field(signals, fieldName)
+% A Signals field, or [] when it is missing
 value = [];
-if isfield(lightStates, fieldName)
-    value = lightStates.(fieldName);
+if isfield(signals, fieldName)
+    value = signals.(fieldName);
 end
 end % Ends fcn_INTERNAL_field
 
-%% fcn_INTERNAL_text
-function text = fcn_INTERNAL_text(value)
-% A state as text ('' for anything else)
-text = '';
-if ischar(value) || (isstring(value) && isscalar(value))
-    text = char(value);
-end
-end % Ends fcn_INTERNAL_text
 
 %% fcn_INTERNAL_isOn
 function flagOn = fcn_INTERNAL_isOn(value)
-% True for true, a number above 0, or 'on'
-flagOn = false;
-if islogical(value) || isnumeric(value)
-    flagOn = ~isempty(value) && any(value(:) > 0);
-elseif ischar(value) || isstring(value)
-    flagOn = strcmpi(char(value), 'on');
-end
+% True for true or a number above 0
+flagOn = (islogical(value) || isnumeric(value)) && ~isempty(value) && any(value(:) > 0);
 end % Ends fcn_INTERNAL_isOn

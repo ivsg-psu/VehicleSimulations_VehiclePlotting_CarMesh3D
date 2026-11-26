@@ -20,9 +20,9 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 %     brake (1), and by the turn signal on its side when the vehicle has no
 %     rear turn-signal lamp of its own (US red rear turns); and so on.
 %   - With no file yet, a one-time migration from what the mesh held
-%     before the matrix: the per-face functions (FaceLightFunctions: the
+%     before the matrix: the per-face functions (LabelFaceAlsoLamps: the
 %     2009 Fit's headlamps are also its high beams) and the vehicle's own
-%     LampSwitching (which signals light its fog, reflector, license-plate,
+%     SignalLampSwitching (which signals light its fog, reflector, license-plate,
 %     marker and warning lamps). A migrated row that differs from the
 %     default is marked 'edited', with its source, so it is kept.
 %
@@ -33,7 +33,7 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 % FORMAT:
 %
 %       [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput,...
-%           (Mesh=vehicleMesh), (Table=lampFunctions), (Save=flagSave),...
+%           (Mesh=vehicleMesh), (Table=lampFunctions), (FlagSave=flagSave),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -52,7 +52,7 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 %      are taken, as a file's are, over the file's and the defaults.
 %      Default [] (none).
 %
-%      Save: true to write the matrix to the vehicle's file (made if
+%      FlagSave: true to write the matrix to the vehicle's file (made if
 %      missing). Default false.
 %
 %      FigNum: a figure to show the matrix in (a shaded grid of units by
@@ -114,7 +114,7 @@ arguments
     vehicleInput
     options.Mesh = []           % The vehicle's mesh, if already loaded
     options.Table = []          % A matrix with edited rows, taken over the file's
-    options.Save = false        % Write the matrix to the vehicle's file
+    options.FlagSave = false        % Write the matrix to the vehicle's file
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -168,7 +168,7 @@ if 0==flag_max_speed
         if ~(ischar(vehicleInput) || (isstring(vehicleInput) && isscalar(vehicleInput)) || isstruct(vehicleInput))
             error('vehicleInput must be a vehicle ID or folder (text), or a labeled mesh');
         end
-        if isstruct(vehicleInput) && options.Save
+        if isstruct(vehicleInput) && options.FlagSave
             error('Save needs a vehicle ID or folder (a mesh alone has no file to save to)');
         end
         if ~isempty(options.Mesh) && ~isstruct(options.Mesh)
@@ -211,8 +211,8 @@ else
 end
 
 units = fcn_CarMesh3D_lampUnits(vehicleMesh, FigNum=-1);
-signals = fcn_CarMesh3D_lampSignals();
-signalNames = {signals.Name};
+signalKinds = fcn_CarMesh3D_lampSignals();
+signalNames = {signalKinds.Name};
 numUnits = numel(units);
 numSignals = numel(signalNames);
 
@@ -299,7 +299,7 @@ end
 lampFunctions.Default = defaultWord;
 lampFunctions.Source = sources(:);
 
-if options.Save
+if options.FlagSave
     writetable(lampFunctions, functionsFile, 'Delimiter', ',', 'QuoteStrings', 'all');
 end
 
@@ -322,7 +322,7 @@ if flag_do_plots
     imagesc(axesHandle, values, [0 1]);
     colormap(axesHandle, [linspace(1, 0.95, 64)', linspace(1, 0.55, 64)', linspace(1, 0.1, 64)']);
     colorbar(axesHandle);
-    set(axesHandle, 'XTick', 1:numSignals, 'XTickLabel', {signals.Label}, 'XTickLabelRotation', 45, ...
+    set(axesHandle, 'XTick', 1:numSignals, 'XTickLabel', {signalKinds.Label}, 'XTickLabelRotation', 45, ...
         'YTick', 1:numUnits, 'YTickLabel', {units.Name}, 'TickLabelInterpreter', 'none');
     hold(axesHandle, 'on');
     for ith_unit = find(flagEdited)'
@@ -402,7 +402,7 @@ for ith_unit = 1:numUnits
         case 'backupLamp'
             values(ith_unit, column('Backup')) = 1;
         case 'fogLamp'
-            values(ith_unit, column('FogLights')) = 1;
+            values(ith_unit, column('Fog')) = 1;
         case 'licensePlateLamp'
             values(ith_unit, [column('Parking') column('Tail')]) = 1;
         case 'reflector'
@@ -418,21 +418,21 @@ end % Ends fcn_INTERNAL_defaults
 %% fcn_INTERNAL_migrate
 function [values, sources] = fcn_INTERNAL_migrate(vehicleMesh, units, signalNames, defaultValues)
 % The rows as the mesh held them before the matrix: the per-face functions
-% (FaceLightFunctions, one column per lamp kind: a face of one kind that
-% also lights as another) and the vehicle's own LampSwitching (the signals
+% (LabelFaceAlsoLamps, one column per lamp kind: a face of one kind that
+% also lights as another) and the vehicle's own SignalLampSwitching (the signals
 % that light a kind)
 values = defaultValues;
 sources = repmat({''}, numel(units), 1);
 column = @(name) find(strcmp(signalNames, name), 1);
-typeNames = cellstr(vehicleMesh.LightTypeNames);
+typeNames = cellstr(vehicleMesh.LabelLampNames);
 numFaces = size(vehicleMesh.Faces, 1);
-flagFunctions = isfield(vehicleMesh, 'FaceLightFunctions') && isequal(size(vehicleMesh.FaceLightFunctions), [numFaces numel(typeNames)]);
+flagFunctions = isfield(vehicleMesh, 'LabelFaceAlsoLamps') && isequal(size(vehicleMesh.LabelFaceAlsoLamps), [numFaces numel(typeNames)]);
 for ith_unit = 1:numel(units)
     notes = {};
     side = fcn_INTERNAL_side(units(ith_unit).Position);
     % (the other kinds most of the unit's faces also light as)
     if flagFunctions
-        unitFunctions = logical(vehicleMesh.FaceLightFunctions(units(ith_unit).Faces, :));
+        unitFunctions = logical(vehicleMesh.LabelFaceAlsoLamps(units(ith_unit).Faces, :));
         alsoKinds = typeNames(mean(unitFunctions, 1) >= 0.5);
         alsoKinds = setdiff(alsoKinds, {units(ith_unit).Kind}, 'stable');
         for ith_kind = 1:numel(alsoKinds)
@@ -444,14 +444,14 @@ for ith_unit = 1:numel(units)
         end
     end
     % (the vehicle's own switching for this kind replaces the default's)
-    if isfield(vehicleMesh, 'LampSwitching') && isstruct(vehicleMesh.LampSwitching) && isfield(vehicleMesh.LampSwitching, units(ith_unit).Kind)
-        switchedBy = cellstr(vehicleMesh.LampSwitching.(units(ith_unit).Kind));
+    if isfield(vehicleMesh, 'SignalLampSwitching') && isstruct(vehicleMesh.SignalLampSwitching) && isfield(vehicleMesh.SignalLampSwitching, units(ith_unit).Kind)
+        switchedBy = cellstr(vehicleMesh.SignalLampSwitching.(units(ith_unit).Kind));
         values(ith_unit, :) = 0;
         for ith_state = 1:numel(switchedBy)
             stateColumns = fcn_INTERNAL_stateColumns(switchedBy{ith_state}, column);
             values(ith_unit, stateColumns) = 1;
         end
-        notes{end+1} = sprintf('LampSwitching %s', strjoin(switchedBy, ' or ')); %#ok<AGROW>
+        notes{end+1} = sprintf('SignalLampSwitching %s', strjoin(switchedBy, ' or ')); %#ok<AGROW>
     end
     if ~isempty(notes)
         sources{ith_unit} = sprintf('migrated from the mesh: also %s', strjoin(notes, ', '));
@@ -480,7 +480,7 @@ switch kind
     case 'backupLamp'
         columns = column('Backup');
     case 'fogLamp'
-        columns = column('FogLights');
+        columns = column('Fog');
     case 'licensePlateLamp'
         columns = [column('Parking') column('Tail')];
     case 'reflector'
@@ -492,13 +492,11 @@ end % Ends fcn_INTERNAL_kindColumns
 
 %% fcn_INTERNAL_stateColumns
 function columns = fcn_INTERNAL_stateColumns(stateName, column)
-% plotVehicle's light state names (LampSwitching's words) as signals;
+% plotVehicle's light state names (SignalLampSwitching's words) as signals;
 % Hazards is the two turn signals
 switch stateName
     case 'Hazards'
         columns = [column('TurnLeft') column('TurnRight')];
-    case 'Headlights'
-        columns = column('LowBeam');
     otherwise
         columns = column(stateName);
 end

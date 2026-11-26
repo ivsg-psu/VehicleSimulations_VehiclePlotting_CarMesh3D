@@ -1,4 +1,4 @@
-Unit,Kind,Position,LowBeam,HighBeam,Running,Parking,TurnLeft,TurnRight,Tail,Brake,Backup,FogLights,Reflectors,Default,Source
+Unit,Kind,Position,LowBeam,HighBeam,Running,Parking,TurnLeft,TurnRight,Tail,Brake,Backup,Fog,Reflectors,Default,Source
 "front-left headlamp","headlamp","front-left",1,0,0,0,0,0,0,0,0,0,0,"yes","(default)"
 "front-left high-beam lamp","highBeamLamp","front-left",0,1,0,0,0,0,0,0,0,0,0,"yes","(default)"
 "front-left high-beam lamp 2","highBeamLamp","front-left",0,1,0,0,0,0,0,0,0,0,0,"yes","(default)"

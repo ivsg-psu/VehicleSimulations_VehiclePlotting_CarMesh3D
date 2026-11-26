@@ -147,11 +147,11 @@ figNum = 20006;
 titleString = sprintf('TEST case: every other field is left as it was');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 testMesh = gridMesh;
-testMesh.FacePartIndex = ones(size(gridFaces,1),1);
+testMesh.LabelFacePart = ones(size(gridFaces,1),1);
 testMesh.FaceColors = rand(size(gridFaces,1),3);
 testMesh.Faces(200,:) = testMesh.Faces(200,[1 3 2]);
 fixedMesh = fcn_CarMesh3D_orientFaces(testMesh);
-assert(isequal(fixedMesh.FacePartIndex, testMesh.FacePartIndex) && isequal(fixedMesh.FaceColors, testMesh.FaceColors) ...
+assert(isequal(fixedMesh.LabelFacePart, testMesh.LabelFacePart) && isequal(fixedMesh.FaceColors, testMesh.FaceColors) ...
     && isequal(fixedMesh.Vertices, testMesh.Vertices));
 assert(isequal(sort(fieldnames(fixedMesh)), sort(fieldnames(testMesh))), 'No fields added or removed');
 
@@ -159,7 +159,7 @@ assert(isequal(sort(fieldnames(fixedMesh)), sort(fieldnames(testMesh))), 'No fie
 figNum = 20007;
 titleString = sprintf('TEST case: the 2009 Fit''s driver door handle');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
-fitMesh = fcn_CarMesh3D_meshWithLabelEdits('2009_Honda_Fit_Sport', OrientFaces=false, FigNum=-1);   % (the faces as saved)
+fitMesh = fcn_CarMesh3D_meshWithLabelEdits('2009_Honda_Fit_Sport', FlagOrientFaces=false, FigNum=-1);   % (the faces as saved)
 fitCenters = (fitMesh.Vertices(fitMesh.Faces(:,1),:) + fitMesh.Vertices(fitMesh.Faces(:,2),:) + fitMesh.Vertices(fitMesh.Faces(:,3),:))/3;
 fitNormals = cross(fitMesh.Vertices(fitMesh.Faces(:,2),:) - fitMesh.Vertices(fitMesh.Faces(:,1),:), ...
     fitMesh.Vertices(fitMesh.Faces(:,3),:) - fitMesh.Vertices(fitMesh.Faces(:,1),:), 2);

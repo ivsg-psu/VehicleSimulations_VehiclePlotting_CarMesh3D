@@ -306,9 +306,9 @@ bodyColor = options.BodyColor;
 if isempty(bodyColor) && isfield(vehicleSpec, 'BodyColor')
     bodyColor = vehicleSpec.BodyColor;
 end
-if ~isempty(bodyColor) && isfield(vehicleMesh, 'FacePartIndex') && isfield(vehicleMesh, 'FaceColors')
-    bodyPart = find(strcmp(vehicleMesh.PartNames, 'body'), 1);
-    bodyFaces = vehicleMesh.FacePartIndex==bodyPart;
+if ~isempty(bodyColor) && isfield(vehicleMesh, 'LabelFacePart') && isfield(vehicleMesh, 'FaceColors')
+    bodyPart = find(strcmp(vehicleMesh.LabelPartNames, 'body'), 1);
+    bodyFaces = vehicleMesh.LabelFacePart==bodyPart;
     vehicleMesh.FaceColors(bodyFaces,:) = repmat(reshape(bodyColor, 1, 3), sum(bodyFaces), 1);
 end
 

@@ -94,19 +94,19 @@ end
 
 %% Main code starts here
 numFaces = size(vehicleMesh.Faces, 1);
-signals = fcn_CarMesh3D_lampSignals();
-signalNames = {signals.Name};
+signalKinds = fcn_CarMesh3D_lampSignals();
+signalNames = {signalKinds.Name};
 
 lampSetup = struct('Units', [], 'Kinds', {{}}, 'Sides', {{}}, 'FaceUnit', zeros(numFaces,1), ...
     'FaceCoverUnit', zeros(numFaces,1), 'SignalNames', {signalNames}, 'Matrix', zeros(0, numel(signalNames)), ...
     'FaceOwnColors', [], 'FaceBrightColors', []);
-if ~isfield(vehicleMesh, 'FaceLightType') || ~isfield(vehicleMesh, 'LightTypeNames') || numel(vehicleMesh.FaceLightType) ~= numFaces
+if ~isfield(vehicleMesh, 'LabelFaceLamp') || ~isfield(vehicleMesh, 'LabelLampNames') || numel(vehicleMesh.LabelFaceLamp) ~= numFaces
     return;
 end
 
 [units, faceUnit] = fcn_CarMesh3D_lampUnits(vehicleMesh, FigNum=-1);
 numUnits = numel(units);
-flagLampFace = double(vehicleMesh.FaceLightType(:)) > 0;
+flagLampFace = double(vehicleMesh.LabelFaceLamp(:)) > 0;
 lampSetup.Units = units;
 lampSetup.Kinds = reshape({units.Kind}, [], 1);
 lampSetup.Sides = reshape(cellfun(@(position) fcn_INTERNAL_side(position), {units.Position}, 'UniformOutput', false), [], 1);

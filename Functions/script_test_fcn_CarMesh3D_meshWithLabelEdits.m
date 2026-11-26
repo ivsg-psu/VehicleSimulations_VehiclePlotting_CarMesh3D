@@ -14,7 +14,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: it has label fixes and a stage-1 cache)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle: it has label fixes and a stage-1 cache)
 assert(isfile(fullfile(fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1).Folder, ['labelEdits_' vehicleID '.mat'])), 'These tests need a demo vehicle with saved label fixes (the 2009 Fit has 13): see fcn_CarMesh3D_demoVehicle');
 
 %% DEMO case: the mesh with its saved label fixes, plotted
@@ -37,35 +37,35 @@ figNum = 20001;
 titleString = sprintf('TEST case: %s, fixes applied to the stage-1 mesh agree with the mesh file', vehicleID);
 fprintf(1,'Figure %.0f: %s\n', figNum, titleString);
 
-[appliedMesh, appliedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, Always=true, FigNum=[]);
+[appliedMesh, appliedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FlagAlways=true, FigNum=[]);
 files = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(files.MeshFile, 'vehicleMesh');
 assert(strcmp(appliedInfo.Source, 'stage-1 mesh with the saved edits'));
 assert(size(appliedMesh.Faces,1) == size(loaded.vehicleMesh.Faces,1));
-assert(isequal(appliedMesh.FaceLightType(:), loaded.vehicleMesh.FaceLightType(:)));
-assert(isequal(appliedMesh.FacePartIndex(:), loaded.vehicleMesh.FacePartIndex(:)));
-assert(isequal(appliedMesh.FaceCoverLamp(:) > 0, loaded.vehicleMesh.FaceCoverLamp(:) > 0));
+assert(isequal(appliedMesh.LabelFaceLamp(:), loaded.vehicleMesh.LabelFaceLamp(:)));
+assert(isequal(appliedMesh.LabelFacePart(:), loaded.vehicleMesh.LabelFacePart(:)));
+assert(isequal(appliedMesh.LabelFaceCoverLamp(:) > 0, loaded.vehicleMesh.LabelFaceCoverLamp(:) > 0));
 assert(isempty(findobj('Type','figure','Number',figNum)));   % (no plot asked for)
 
 %% TEST case: no window is made (the tree rule)
 figNum = 20002;
 fprintf(1,'Figure %.0f: TEST case: no window is made\n', figNum);
 figuresBefore = findall(groot, 'Type', 'figure');
-fcn_CarMesh3D_meshWithLabelEdits(vehicleID, Always=true, FigNum=-1);
+fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FlagAlways=true, FigNum=-1);
 figuresAfter = findall(groot, 'Type', 'figure');
 assert(numel(figuresAfter) == numel(figuresBefore));
 
 %% TEST case: OrientFaces (Q87 (A), 2026_11_26): faces turned by default, as saved with false
 figNum = 20003;
 fprintf(1,'Figure %.0f: TEST case: OrientFaces\n', figNum);
-[savedMesh, savedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, OrientFaces=false, FigNum=-1);
+[savedMesh, savedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FlagOrientFaces=false, FigNum=-1);
 [turnedMesh, turnedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FigNum=-1);
 [expectedMesh, expectedInfo] = fcn_CarMesh3D_orientFaces(savedMesh, FigNum=-1);
 assert(savedInfo.NumFacesTurned == 0);
 assert(turnedInfo.NumFacesTurned == expectedInfo.NumFlipped && turnedInfo.NumFacesTurned > 0, 'The demo vehicle has faces to turn');
 assert(isequal(turnedMesh.Faces, expectedMesh.Faces), 'The default is the mesh after fcn_CarMesh3D_orientFaces');
 assert(isequal(sort(turnedMesh.Faces, 2), sort(savedMesh.Faces, 2)), 'Only the order of each face''s corners changes');
-assert(isequal(turnedMesh.FacePartIndex, savedMesh.FacePartIndex) && isequal(turnedMesh.FaceLightType, savedMesh.FaceLightType), ...
+assert(isequal(turnedMesh.LabelFacePart, savedMesh.LabelFacePart) && isequal(turnedMesh.LabelFaceLamp, savedMesh.LabelFaceLamp), ...
     'The labels are unchanged');
 
 %% FAST mode cases

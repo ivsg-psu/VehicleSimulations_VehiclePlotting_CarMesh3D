@@ -68,9 +68,9 @@ assert(isequal({testMotion.Segments.Name}, {'lights','body','steering','wheels'}
 assert(isfile(csvFile) && strcmp(testMotion.CSVFile, csvFile));
 % Lights: each light appears, alone, in the lights segment
 inLights = testMotion.Time <= testMotion.Segments(1).EndTime;
-lightStates = testMotion.LightStates(inLights);
-assert(any(strcmp({lightStates.Headlights},'high')) && any([lightStates.TurnLeft]) && any([lightStates.Backup]));
-assert(any(strcmp({lightStates.Tail},'brake')));
+signals = testMotion.Signals(inLights);
+assert(any([signals.HighBeam]) && any([signals.TurnLeft]) && any([signals.Backup]));
+assert(any([signals.Brake]));
 % Body: roll reaches 5 degrees; each tire is lifted at some time
 assert(abs(max(testMotion.BodyRoll) - deg2rad(5)) < deg2rad(0.1));
 assert(all(max(testMotion.WheelLift,[],1) > 0.07));

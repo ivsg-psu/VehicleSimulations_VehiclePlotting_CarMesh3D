@@ -32,7 +32,7 @@ function report = fcn_CarMesh3D_convertPhotos(photoFolder, options)
 % FORMAT:
 %
 %       report = fcn_CarMesh3D_convertPhotos(photoFolder, ...
-%           (DryRun=flag), (Quality=q), (Verbose=flag), (FigNum=figNum))
+%           (FlagDryRun=flag), (Quality=q), (FlagVerbose=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -41,12 +41,12 @@ function report = fcn_CarMesh3D_convertPhotos(photoFolder, options)
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      DryRun: true to only report what would be done (nothing is
+%      FlagDryRun: true to only report what would be done (nothing is
 %      written or moved). Default false.
 %
 %      Quality: the JPEG quality, 1 to 100. Default 95.
 %
-%      Verbose: true (default) to print what was done, angle by angle.
+%      FlagVerbose: true (default) to print what was done, angle by angle.
 %
 %      FigNum: a figure for a contact sheet of the photos after the run,
 %      one per angle, labeled. If empty or omitted, no plot is made. If
@@ -68,7 +68,7 @@ function report = fcn_CarMesh3D_convertPhotos(photoFolder, options)
 %
 % EXAMPLES:
 %
-%       report = fcn_CarMesh3D_convertPhotos('2014_Ford_TransitConnect_XLTCargoLWB', DryRun=true);
+%       report = fcn_CarMesh3D_convertPhotos('2014_Ford_TransitConnect_XLTCargoLWB', FlagDryRun=true);
 %       report = fcn_CarMesh3D_convertPhotos(photoFolder, FigNum=1);
 %
 %       See the script: script_test_fcn_CarMesh3D_convertPhotos.m for a
@@ -99,9 +99,9 @@ function report = fcn_CarMesh3D_convertPhotos(photoFolder, options)
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     photoFolder
-    options.DryRun = false        % true: report only, change nothing
+    options.FlagDryRun = false        % true: report only, change nothing
     options.Quality = 95          % JPEG quality, 1 to 100
-    options.Verbose = true        % print what was done
+    options.FlagVerbose = true        % print what was done
     options.FigNum = []           % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -169,7 +169,7 @@ flag_do_plots = 0; % Default is to NOT plot
 if (0==flag_max_speed) && ~isempty(options.FigNum)
     flag_do_plots = 1;
 end
-flag_print = logical(options.Verbose) && (0==flag_max_speed);
+flagPrint = logical(options.FlagVerbose) && (0==flag_max_speed);
 
 %% Main code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -322,12 +322,12 @@ for thisAngle = angles
         if ~isempty(existingOriginal)
             % (a losing JPEG with the standard name: moved aside first, so
             % the new one can take its name)
-            if ~options.DryRun
+            if ~options.FlagDryRun
                 fcn_INTERNAL_moveAside(photoFolder, File{existingOriginal}, originalsFolder);
             end
             Action{existingOriginal} = sprintf('lost the tie to %s: moved to originals', winnerText);
         end
-        if ~options.DryRun
+        if ~options.FlagDryRun
             fcn_INTERNAL_writeStandard(photoFolder, File{winner}, decodedFile{winner}, Kind{winner}, ...
                 fullfile(photoFolder, outputName), options.Quality, ...
                 sprintf('%s: from %s (%dx%d) on %s', commentTag, File{winner}, Width(winner), Height(winner), ...
@@ -336,7 +336,7 @@ for thisAngle = angles
         Action{winner} = sprintf('converted to %s', outputName);
         % (a source the viewer would also list is moved aside, so the angle is shown once)
         if ismember(Format{winner}, viewerFormats)
-            if ~options.DryRun
+            if ~options.FlagDryRun
                 fcn_INTERNAL_moveAside(photoFolder, File{winner}, originalsFolder);
             end
             Action{winner} = sprintf('converted to %s; this file moved to originals', outputName);
@@ -345,7 +345,7 @@ for thisAngle = angles
     for loser = reshape(losers, 1, [])
         if strcmp(Action{loser}, '')
             if ismember(Format{loser}, viewerFormats)
-                if ~options.DryRun && isfile(fullfile(photoFolder, File{loser}))
+                if ~options.FlagDryRun && isfile(fullfile(photoFolder, File{loser}))
                     fcn_INTERNAL_moveAside(photoFolder, File{loser}, originalsFolder);
                 end
                 Action{loser} = sprintf('lost the tie to %s: moved to originals', winnerText);
@@ -357,7 +357,7 @@ for thisAngle = angles
 end
 
 report = table(File, Angle, Format, Width, Height, Action, Output);
-if options.DryRun
+if options.FlagDryRun
     report.Action = strcat({'(dry run) '}, report.Action);
 end
 
@@ -366,8 +366,8 @@ if ~isempty(skippedNames)
     warning('CarMesh3D:photosSkipped', ['%d file(s) in %s were skipped (not ViewInDegrees_<angle>.<extension> with a ' ...
         'supported format and an angle 000 to 359):\n    %s'], numel(skippedNames), photoFolder, strjoin(skippedNames, '\n    '));
 end
-if flag_print
-    fprintf(1, '\nfcn_CarMesh3D_convertPhotos: %s%s\n', photoFolder, fcn_INTERNAL_pick(options.DryRun, '   (DRY RUN: nothing changed)', ''));
+if flagPrint
+    fprintf(1, '\nfcn_CarMesh3D_convertPhotos: %s%s\n', photoFolder, fcn_INTERNAL_pick(options.FlagDryRun, '   (DRY RUN: nothing changed)', ''));
     fprintf(1, '  %d angles; %d with more than one photo (the most pixels wins)\n', numel(angles), numel(tieAngles));
     shown = report(~isnan(report.Angle), :);
     shown = sortrows(shown, {'Angle', 'File'});

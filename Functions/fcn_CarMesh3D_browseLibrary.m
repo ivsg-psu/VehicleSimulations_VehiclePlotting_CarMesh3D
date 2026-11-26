@@ -40,8 +40,8 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %       [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(...
 %           (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
 %           (Descending=flag),...
-%           (Selected=names), (DefaultVehicle=id), (Wait=flag),...
-%           (Visible=flag), (DataFolder=folder), (FigNum=figNum))
+%           (Selected=names), (DefaultVehicle=id), (FlagWait=flag),...
+%           (FlagVisible=flag), (DataFolder=folder), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs, in any order. Any
 %      option not given takes its default.
@@ -90,10 +90,10 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      selected. Default '': the demo vehicle (fcn_CarMesh3D_demoVehicle:
 %      the user's own choice, else the repo's).
 %
-%      Wait: true to wait until the window is closed, and return the
+%      FlagWait: true to wait until the window is closed, and return the
 %      selection then. Default: true when Visible, else false.
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      DataFolder: the library's Data folder. Default: the one next to
 %      the Functions folder.
@@ -107,7 +107,7 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      (vehicle IDs), in the order they were shown when the window was
 %      closed (vehicles selected but hidden by the filter come last). If
 %      none was selected: a one-element cell array holding the folder of
-%      a fresh copy of DefaultVehicle. (With Wait=false: the selection
+%      a fresh copy of DefaultVehicle. (With FlagWait=false: the selection
 %      when the window opened; the browser's Result() gives it later.)
 %
 %      browser: a structure of the window's handles and functions:
@@ -341,8 +341,8 @@ arguments
     options.Descending = []           % (older way) true for Z to A / newest / longest / highest first; [] for the sort's default
     options.Selected = {}             % Names ticked at the start
     options.DefaultVehicle = ''       % Returned (as a fresh copy) when none is selected; '' for the demo vehicle
-    options.Wait = []                 % Wait for the window to close; [] for "when visible"
-    options.Visible = true            % false to build the window hidden
+    options.FlagWait = []                 % Wait for the window to close; [] for "when visible"
+    options.FlagVisible = true            % false to build the window hidden
     options.DataFolder = []           % The Data folder; [] for the one next to Functions
     options.FigNum = []               % Not used; -1 for fast mode
 end
@@ -442,17 +442,17 @@ if isempty(char(options.DefaultVehicle))
     try
         options.DefaultVehicle = fcn_CarMesh3D_demoVehicle(FigNum=-1);
     catch
-        options.DefaultVehicle = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+        options.DefaultVehicle = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
     end
 end
-flagWait = options.Wait;
+flagWait = options.FlagWait;
 if isempty(flagWait)
-    flagWait = logical(options.Visible);
+    flagWait = logical(options.FlagVisible);
 end
 
 % The window, first (so the progress of drawing the pictures is shown)
 figureHandle = uifigure('Name', [functionName ': the vehicle library'], ...
-    'Position', fcn_INTERNAL_windowPosition(), 'Visible', fcn_INTERNAL_onOff(options.Visible), ...
+    'Position', fcn_INTERNAL_windowPosition(), 'Visible', fcn_INTERNAL_onOff(options.FlagVisible), ...
     'Color', [0.97 0.97 0.97]);
 % (the title bar: this function's name and version; the rest under it)
 librarySubtitle = 'The vehicle library: tick "Select" on the vehicles wanted; their MATLAB names are returned when this window is closed';
@@ -469,7 +469,7 @@ mainGrid = uigridlayout(contentPanel, [3 1], 'RowHeight', {66, 44, '1x'}, ...
 
 % Gather the vehicles' details (and draw their pictures, the first time)
 progressDialog = [];
-if options.Visible
+if options.FlagVisible
     progressDialog = uiprogressdlg(figureHandle, 'Title', functionName, 'Message', 'Reading the library...');
 end
 vehicles = fcn_INTERNAL_gatherVehicles(options.DataFolder, cellstr(options.Vehicles), progressDialog);
@@ -657,7 +657,7 @@ browser = struct('Figure', figureHandle, 'Vehicles', vehicles, ...
     'SelectRow', @selectRow, 'TickRow', @tickRow, 'SetSize', @setSize, ...
     'UseAsDemo', @useAsDemo, 'UseRepoDemo', @useRepoDemo);
 
-if flagWait && options.Visible
+if flagWait && options.FlagVisible
     uiwait(figureHandle);
     selectedNames = result;
 else
@@ -921,7 +921,7 @@ end
     function useRepoDemo()
         % "Back to the repo's demo": forget this user's own choice
         try
-            fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);
+            fcn_CarMesh3D_demoVehicle(FlagReset=true, FigNum=-1);
             demoMessage = '';
         catch ME
             demoMessage = ME.message;
@@ -1290,7 +1290,7 @@ function vehicles = fcn_INTERNAL_gatherVehicles(dataFolder, onlyIDs, progressDia
 % One element per finished vehicle (or per vehicle of onlyIDs, when it is
 % not empty): its names, class, size, processing, license, review, and its
 % two pictures
-vehicleTable = fcn_CarMesh3D_browseVehicles(Interactive=false, DataFolder=dataFolder, FigNum=-1);
+vehicleTable = fcn_CarMesh3D_browseVehicles(FlagInteractive=false, DataFolder=dataFolder, FigNum=-1);
 onlyIDs = onlyIDs(~cellfun(@isempty, onlyIDs));
 if ~isempty(onlyIDs)
     missingIDs = setdiff(onlyIDs, cellstr(vehicleTable.ID), 'stable');

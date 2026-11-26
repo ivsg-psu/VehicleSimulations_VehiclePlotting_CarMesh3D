@@ -54,7 +54,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput,...
 %           (Vehicles=IDs), (Reviewer=initials), (Assessments=handles),...
-%           (ExamplesFolder=folder), (Start=key), (Visible=flag), (FigNum=figNum))
+%           (ExamplesFolder=folder), (Start=key), (FlagVisible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -84,7 +84,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %      'normals'), or 'summary'; '' (default) for the first not answered
 %      (Q70 (A): test commands go straight to what is judged).
 %
-%      Visible: true (default) to show the window; false to build it
+%      FlagVisible: true (default) to show the window; false to build it
 %      hidden (tests). One shown window per vehicle (Q71 (A)): a second
 %      call for a vehicle already open in a shown window brings that
 %      window to the front (at Start, if given) and returns it.
@@ -192,7 +192,7 @@ arguments
     options.Assessments = {}    % Function handles in place of the list
     options.ExamplesFolder = '' % Saved examples; '' for the repo's Data/VandV/Examples
     options.Start = ''          % The question to open at (its key), or 'summary'
-    options.Visible = true      % false: built hidden (tests)
+    options.FlagVisible = true      % false: built hidden (tests)
     options.FigNum = []         % Not used; -1 skips input checks
 end
 
@@ -225,7 +225,7 @@ vehicleList = reshape(vehicleList, 1, []);
 
 % One shown window per vehicle (Q71 (A)): a vehicle already open in a
 % shown window is brought to the front, not opened twice
-if options.Visible && isscalar(vehicleList)
+if options.FlagVisible && isscalar(vehicleList)
     existing = fcn_INTERNAL_openWindow(vehicleList{1});
     if ~isempty(existing)
         figure(existing);
@@ -243,7 +243,7 @@ reviewerName = char(options.Reviewer);
 if isempty(reviewerName)
     % (asked once, if none are saved; never for a hidden window, such as
     % in a test, where no one could answer)
-    user = fcn_CarMesh3D_userInfo(Ask=logical(options.Visible), FigNum=-1);
+    user = fcn_CarMesh3D_userInfo(FlagAsk=logical(options.FlagVisible), FigNum=-1);
     reviewerName = user.Initials;
 end
 
@@ -400,7 +400,7 @@ figureHandle.UserData = struct('Show', @testShow, 'Answer', @testAnswer, 'Decide
     'ReviewFile', @getReviewFile, 'ReportFile', @getReportFile, ...
     'Score', @testScore, 'SaveExample', @saveExample, 'Examples', @listExamples, 'ShowExample', @showExample, ...
     'Menu', reviewMenu, 'Settings', sharedSettings, 'Commands', @printCommands);
-if options.Visible
+if options.FlagVisible
     figureHandle.Visible = 'on';
 end
 
@@ -483,9 +483,9 @@ end
         flagPrevious = vehicleIndex > 1;
         flagNext = vehicleIndex < numel(vehicleList);
         previousVehicleButton.Enable = matlab.lang.OnOffSwitchState(flagPrevious);
-        previousVehicleButton.Icon = fcn_CarMesh3D_icons('vehiclePrevious', Enabled=flagPrevious, Height=26, FigNum=-1);
+        previousVehicleButton.Icon = fcn_CarMesh3D_icons('vehiclePrevious', FlagEnabled=flagPrevious, Height=26, FigNum=-1);
         nextVehicleButton.Enable = matlab.lang.OnOffSwitchState(flagNext);
-        nextVehicleButton.Icon = fcn_CarMesh3D_icons('vehicleNext', Enabled=flagNext, Height=26, FigNum=-1);
+        nextVehicleButton.Icon = fcn_CarMesh3D_icons('vehicleNext', FlagEnabled=flagNext, Height=26, FigNum=-1);
         vehicleLabel.Text = sprintf('Vehicle %d of %d:  %s', vehicleIndex, numel(vehicleList), vehicle.Name);
     end
 
@@ -536,9 +536,9 @@ end
         flagPrevious = index > 1;
         flagNext = index < summaryIndex;
         previousButton.Enable = matlab.lang.OnOffSwitchState(flagPrevious);
-        previousButton.Icon = fcn_CarMesh3D_icons('questionPrevious', Enabled=flagPrevious, Height=16, FigNum=-1);
+        previousButton.Icon = fcn_CarMesh3D_icons('questionPrevious', FlagEnabled=flagPrevious, Height=16, FigNum=-1);
         nextButton.Enable = matlab.lang.OnOffSwitchState(flagNext);
-        nextButton.Icon = fcn_CarMesh3D_icons('questionNext', Enabled=flagNext, Height=16, FigNum=-1);
+        nextButton.Icon = fcn_CarMesh3D_icons('questionNext', FlagEnabled=flagNext, Height=16, FigNum=-1);
         if index == summaryIndex
             summaryButton.Text = 'Questions';
             summaryButton.Icon = fcn_CarMesh3D_icons('questions', Height=20, FigNum=-1);
@@ -697,7 +697,7 @@ end
         end
         [~, name] = fileparts(file);
         exampleWindow = uifigure('Name', sprintf('Example: %s', name), 'Tag', 'vvExampleWindow', ...
-            'Visible', matlab.lang.OnOffSwitchState(options.Visible), 'Position', [80 80 960 560]);
+            'Visible', matlab.lang.OnOffSwitchState(options.FlagVisible), 'Position', [80 80 960 560]);
         grid = uigridlayout(exampleWindow, [2 1], 'RowHeight', {'1x', 'fit'});
         uiimage(grid, 'ImageSource', file, 'ScaleMethod', 'fit', 'Tag', 'vvExampleImage');
         textFile = fullfile(fileparts(file), [name '.txt']);

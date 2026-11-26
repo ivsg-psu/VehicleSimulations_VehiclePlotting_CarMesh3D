@@ -53,8 +53,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 % FORMAT:
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_answerQueue((queueFolder),...
-%           (Who=initials), (Clipboard=flag), (Visible=flag), (Watch=flag),...
-%           (Remember=flag), (FigNum=figNum))
+%           (Who=initials), (FlagClipboard=flag), (FlagVisible=flag), (Watch=flag),...
+%           (FlagRemember=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -67,16 +67,16 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %      Who: the initials recorded with each answer. Default: yours
 %      (fcn_CarMesh3D_userInfo).
 %
-%      Clipboard: true (default) to put Done's and NOW's text on the
+%      FlagClipboard: true (default) to put Done's and NOW's text on the
 %      clipboard; false for tests (they read it from the hooks).
 %
-%      Visible: true (default); false builds the window hidden (tests).
+%      FlagVisible: true (default); false builds the window hidden (tests).
 %
 %      Watch: true to check openItems.json every 3 s and load new items
 %      while the window stays open, keeping the item shown (Sean, 23:17:
 %      "can I just leave it open?"). Default: on when Visible.
 %
-%      Remember: true (default) to remember the folder for next time (a
+%      FlagRemember: true (default) to remember the folder for next time (a
 %      MATLAB preference, shared by every MATLAB on the computer); tests
 %      pass false, so they never change it.
 %
@@ -133,7 +133,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % open (Sean, 23:17)
 %   % * Other, always among the answers, with the comment saying what
 %   %   % (Sean, 23:40)
-%   % * Remember=: tests never change the folder preference (BUG, 23:44:
+%   % * FlagRemember=: tests never change the folder preference (BUG, 23:44:
 %   %   % Sean's window opened a test's temporary folder)
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_answerQueue
@@ -157,10 +157,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 arguments
     queueFolder = ''          % The folder with openItems.json
     options.Who = ''          % Initials; '' for yours
-    options.Clipboard = true  % false: Done and NOW only return their text (tests)
-    options.Visible = true    % false: built hidden (tests)
+    options.FlagClipboard = true  % false: Done and NOW only return their text (tests)
+    options.FlagVisible = true    % false: built hidden (tests)
     options.Watch = []        % Check openItems.json for new items every few seconds; [] = when Visible
-    options.Remember = true   % Remember the folder (a preference); false for tests
+    options.FlagRemember = true   % Remember the folder (a preference); false for tests
     options.FigNum = []       % Not used; -1 skips input checks
 end
 
@@ -178,9 +178,9 @@ if flag_check_inputs
         error('CarMesh3D:badInput', 'The folder %s has no openItems.json.', queueFolder);
     end
 end
-if options.Remember
+if options.FlagRemember
     % (a preference: shared by every MATLAB on the computer, so tests pass
-    % Remember=false: a test that set it briefly sent Sean's window to its
+    % FlagRemember=false: a test that set it briefly sent Sean's window to its
     % temporary folder, 2026-11-25 23:41)
     setpref('CarMesh3D', 'AnswerQueueFolder', queueFolder);
 end
@@ -190,7 +190,7 @@ itemsFile = fullfile(queueFolder, 'openItems.json');
 answersFile = fullfile(queueFolder, 'answers.jsonl');
 who = char(options.Who);
 if isempty(who)
-    user = fcn_CarMesh3D_userInfo(Ask=logical(options.Visible), FigNum=-1);
+    user = fcn_CarMesh3D_userInfo(FlagAsk=logical(options.FlagVisible), FigNum=-1);
     who = user.Initials;
 end
 
@@ -298,7 +298,7 @@ figureHandle.UserData = struct('Show', @showItem, 'Answer', @testAnswer, 'Done',
     'Run', @doRun, 'RunCodeTests', @doRunCodeTests, 'Items', @getItems, 'Answers', @latestTable, ...
     'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu, 'CheckItems', @checkItems, ...
     'PastePicture', @pastePicture, 'RemovePicture', @removePicture, 'Pictures', @currentPictures);
-flagWatch = options.Visible;
+flagWatch = options.FlagVisible;
 if ~isempty(options.Watch)
     flagWatch = logical(options.Watch);
 end
@@ -308,7 +308,7 @@ if flagWatch
     figureHandle.DeleteFcn = @(~,~) stopWatch();
     start(watchTimer);
 end
-if options.Visible
+if options.FlagVisible
     figureHandle.Visible = 'on';
 end
 
@@ -705,7 +705,7 @@ end
     end
 
     function copyText(textIn)
-        if options.Clipboard
+        if options.FlagClipboard
             clipboard('copy', textIn);
         end
     end

@@ -20,7 +20,7 @@ close all;
 [boxVertices, boxFaces] = fcn_INTERNAL_box([-2 2 -0.9 0.9 0 1.4]);
 [wheelVertices, wheelFaces] = fcn_INTERNAL_box([0.5 0.6 -0.5 -0.3 0.9 1.1]);
 testMesh = struct('Vertices', [boxVertices; wheelVertices], 'Faces', [boxFaces; wheelFaces + size(boxVertices,1)]);
-testMesh.FacePartIndex = [ones(12,1); 2*ones(12,1)];
+testMesh.LabelFacePart = [ones(12,1); 2*ones(12,1)];
 testMesh.FaceNormals = fcn_INTERNAL_faceNormals(testMesh.Vertices, testMesh.Faces);
 assert(all(fcn_INTERNAL_outward(testMesh)), '(set-up) the made-up faces point outward');
 
@@ -29,7 +29,7 @@ fig_num = 10001;
 fprintf(1,'Figure %d: DEMO case: a right-hand-drive mesh mirrored\n', fig_num);
 mirrored = fcn_CarMesh3D_mirrorMesh(testMesh, FigNum=fig_num);
 assert(ishandle(fig_num), 'The plot was made');
-wheelCenter = mean(mirrored.Vertices(unique(mirrored.Faces(mirrored.FacePartIndex==2,:)),:), 1);
+wheelCenter = mean(mirrored.Vertices(unique(mirrored.Faces(mirrored.LabelFacePart==2,:)),:), 1);
 assert(abs(wheelCenter(2) - 0.4) < 1e-12, 'The wheel block is now on the left (+y)');
 
 %% TEST case: faces still point outward; normals and labels follow
@@ -38,7 +38,7 @@ fprintf(1,'Figure %d: TEST case: outward faces, normals, labels\n', fig_num);
 assert(all(fcn_INTERNAL_outward(mirrored)), 'Every face still points outward (corner order reversed)');
 recomputed = fcn_INTERNAL_faceNormals(mirrored.Vertices, mirrored.Faces);
 assert(max(abs(recomputed(:) - mirrored.FaceNormals(:))) < 1e-12, 'The stored normals match the mirrored faces');
-assert(isequal(mirrored.FacePartIndex, testMesh.FacePartIndex), 'Labels stay with their faces');
+assert(isequal(mirrored.LabelFacePart, testMesh.LabelFacePart), 'Labels stay with their faces');
 assert(isequal(mirrored.Vertices(:,[1 3]), testMesh.Vertices(:,[1 3])), 'x and z are unchanged');
 assert(isfield(mirrored, 'MirrorInfo') && mirrored.MirrorInfo.Mirrored, 'MirrorInfo is recorded');
 

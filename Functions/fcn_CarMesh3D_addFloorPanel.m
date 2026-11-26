@@ -17,7 +17,7 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 % to meet the body's lower edge (BlendWidth). It faces down, is labeled
 % trim, and is dark gray.
 %
-% ONLY WHERE NEEDED (OnlyWhereOpen=true, the default): many downloads
+% ONLY WHERE NEEDED (FlagOnlyWhereOpen=true, the default): many downloads
 % have their own floor or underbody parts (a muffler, a fuel tank, a
 % spare-tire well), and a panel over them hides them. So vertical rays are
 % cast up from below, on a grid (GridSpacing), and where a ray meets an
@@ -34,7 +34,7 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %           (Height=meters), (LowerBodyHeight=meters), (Inset=meters),...
 %           (WheelClearance=meters), (SteerRoom=meters),...
 %           (BlendWidth=meters), (MaxRise=meters), (Color=rgb),...
-%           (Symmetric=flag), (OnlyWhereOpen=flag),...
+%           (Symmetric=flag), (FlagOnlyWhereOpen=flag),...
 %           (CoverHeight=meters), (GridSpacing=meters), (Overlap=meters),...
 %           (MinCovered=squareMeters), (FigNum=figNum))
 %
@@ -81,7 +81,7 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %
 %      Color: the panel's color. Default [0.15 0.15 0.15].
 %
-%      OnlyWhereOpen: true (default) to add the panel only where the model
+%      FlagOnlyWhereOpen: true (default) to add the panel only where the model
 %      is open from below (see ONLY WHERE NEEDED above); false for the
 %      whole outline.
 %
@@ -112,7 +112,7 @@ function vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, options)
 %      Height, Polygon (the panel's outline with holes, a polyshape),
 %      Faces (the indices of the panel's faces), and OpenFraction (the
 %      share of the full outline that was open from below, so got the
-%      panel; 1 with OnlyWhereOpen=false). With OnlyWhereOpen=true, a
+%      panel; 1 with FlagOnlyWhereOpen=false). With FlagOnlyWhereOpen=true, a
 %      model closed everywhere gets no faces: FloorPanel.Faces is empty.
 %      So does a model open over MinOpenFraction or less of its outline
 %      (FloorPanel.OpenFraction still says how much was open).
@@ -205,7 +205,7 @@ arguments
     options.MaxRise = 0.30           % meters: the most an edge rises above the panel
     options.Color = [0.15 0.15 0.15] % The panel's color
     options.Symmetric = 'auto'       % Build the left half and mirror it: 'auto', true, false
-    options.OnlyWhereOpen = true     % Only where the model is open from below
+    options.FlagOnlyWhereOpen = true     % Only where the model is open from below
     options.CoverHeight = 0.6        % meters: opaque faces below this close the model from below
     options.GridSpacing = 0.03       % meters between the rays cast up
     options.Overlap = 0.03           % meters the open area is grown by
@@ -262,8 +262,8 @@ if 0==flag_max_speed
         % The number of inputs and the option names are checked by the
         % arguments block above
 
-        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex','FaceWheelIndex'})))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex, FaceWheelIndex)');
+        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','LabelPartNames','LabelFacePart','FaceWheelIndex'})))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart, FaceWheelIndex)');
         end
         if ~isempty(options.Height) && ~(isnumeric(options.Height) && isscalar(options.Height) && options.Height >= 0)
             error('Height must be a height of 0 or more, or empty');
@@ -277,7 +277,7 @@ if 0==flag_max_speed
         if ~(isnumeric(options.GridSpacing) && isscalar(options.GridSpacing) && options.GridSpacing > 0)
             error('GridSpacing must be a distance above 0');
         end
-        if ~((islogical(options.OnlyWhereOpen) || isnumeric(options.OnlyWhereOpen)) && isscalar(options.OnlyWhereOpen))
+        if ~((islogical(options.FlagOnlyWhereOpen) || isnumeric(options.FlagOnlyWhereOpen)) && isscalar(options.FlagOnlyWhereOpen))
             error('OnlyWhereOpen must be true or false');
         end
         if ~(isnumeric(options.Color) && numel(options.Color)==3)
@@ -380,7 +380,7 @@ end
 % model has its own floor (or underbody parts), and the panel is cut away
 % there
 openFraction = 1;
-if options.OnlyWhereOpen && panelShape.NumRegions > 0
+if options.FlagOnlyWhereOpen && panelShape.NumRegions > 0
     fullArea = area(panelShape);
     if isfield(vehicleMesh,'FaceAlpha')
         flagOpaque = vehicleMesh.FaceAlpha(:) >= 0.99;
@@ -409,7 +409,7 @@ elseif strcmpi(options.Symmetric,'auto')
     flagSymmetric = mean(twinDistance < 1e-4) >= 0.9;
 end
 if fullShape.NumRegions == 0
-    if options.OnlyWhereOpen
+    if options.FlagOnlyWhereOpen
         % (closed everywhere from below: the model has its own floor)
         vehicleMesh.FloorPanel = struct('Height',panelHeight, 'Polygon',fullShape, 'Faces',zeros(0,1), 'OpenFraction',0);
     else
@@ -464,12 +464,12 @@ end
 vehicleMesh.Faces = [faces; panelFaces + size(vertices,1)];
 vehicleMesh.Vertices = [vertices; panelVertices];
 
-trimIndex = find(strcmp(vehicleMesh.PartNames,'trim'), 1);
+trimIndex = find(strcmp(vehicleMesh.LabelPartNames,'trim'), 1);
 if isempty(trimIndex)
-    vehicleMesh.PartNames{end+1} = 'trim';
-    trimIndex = numel(vehicleMesh.PartNames);
+    vehicleMesh.LabelPartNames{end+1} = 'trim';
+    trimIndex = numel(vehicleMesh.LabelPartNames);
 end
-vehicleMesh.FacePartIndex(newIndices) = trimIndex;
+vehicleMesh.LabelFacePart(newIndices) = trimIndex;
 if isfield(vehicleMesh,'FaceColors')
     vehicleMesh.FaceColors(newIndices,:) = repmat(options.Color(:)', Npanel, 1);
 end

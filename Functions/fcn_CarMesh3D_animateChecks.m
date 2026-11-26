@@ -28,7 +28,7 @@ function animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey, options)
 %       animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey,...
 %           (TestMotion=testMotion), (Rows=rows), (StepRows=stepRows),...
 %           (Parent=container), (ShowPlayer=flag), (OnStep=function),...
-%           (OnHint=function), (Visible=flag), (FigNum=figNum))
+%           (OnHint=function), (FlagVisible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -66,7 +66,7 @@ function animator = fcn_CarMesh3D_animateChecks(vehicleInput, checkKey, options)
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show it in its own window's hint line (or not at all, in a parent).
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      FigNum: not used (a window); [] or -1 (fast mode: no input checks).
 %
@@ -145,7 +145,7 @@ arguments
     options.ShowPlayer = []     % Play, slider and inputs plot; [] for the default
     options.OnStep = []         % Called with the step showing as the whole animation plays
     options.OnHint = []         % Called with hint text
-    options.Visible = true      % Build the window hidden (tests)
+    options.FlagVisible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
 
@@ -196,8 +196,8 @@ checkNames = fcn_INTERNAL_checkNames();
 if 0==flag_max_speed
     if flag_check_inputs
         if ~(ischar(vehicleInput) || isstring(vehicleInput) || ...
-                (isstruct(vehicleInput) && all(isfield(vehicleInput, {'Vertices','Faces','PartNames','FacePartIndex'}))))
-            error('vehicleInput must be a vehicle ID or a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex)');
+                (isstruct(vehicleInput) && all(isfield(vehicleInput, {'Vertices','Faces','LabelPartNames','LabelFacePart'}))))
+            error('vehicleInput must be a vehicle ID or a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart)');
         end
         if ~(ischar(checkKey) || isstring(checkKey)) || ~any(strcmp(char(checkKey), checkNames(:,1)))
             error('checkKey must be one of: %s', strjoin(checkNames(:,1)', ', '));
@@ -312,7 +312,7 @@ end
 figureHandle = [];
 if flagOwnWindow
     visibleText = 'on';
-    if ~options.Visible
+    if ~options.FlagVisible
         visibleText = 'off';
     end
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_animateChecks: %s check, %s', checkNames{checkRow,2}, vehicleName), ...
@@ -410,7 +410,7 @@ end
                 % (a faint light from above, so the body can be seen, and
                 % the lamps do the rest)
                 light(axesHandle, 'Style', 'infinite', 'Position', [0.3 -0.5 1], 'Color', [0.22 0.22 0.26]);
-                viewHandles{ith_view} = fcn_CarMesh3D_plotVehicle(vehicleMesh, 'Finish', 'matte', 'LightEffects', true, ...
+                viewHandles{ith_view} = fcn_CarMesh3D_plotVehicle(vehicleMesh, 'Finish', 'matte', 'FlagLightEffects', true, ...
                     'SceneLights', 'none', 'AxesHandle', axesHandle);
                 axesHandle.Color = [0.04 0.05 0.09];
             else
@@ -481,7 +481,7 @@ end
                 'WheelSpin', testMotion.WheelSpin(row,:), 'SteerAngle', testMotion.SteerAngle(row,:), ...
                 'WheelLift', testMotion.WheelLift(row,:), 'BodyRoll', testMotion.BodyRoll(row), ...
                 'BodyPitch', testMotion.BodyPitch(row), 'BodyHeave', testMotion.BodyHeave(row), ...
-                'LightStates', testMotion.LightStates(row), 'PlotHandles', viewHandles{ith_view}, 'FigNum', -1);
+                'Signals', testMotion.Signals(row), 'PlotHandles', viewHandles{ith_view}, 'FigNum', -1);
             % (each camera moves with the vehicle, keeping its angle and
             % distance, and any rotation made)
             axesHandle = viewAxes(ith_view);

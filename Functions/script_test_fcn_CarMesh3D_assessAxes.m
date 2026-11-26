@@ -40,7 +40,7 @@ fprintf(1, 'In a panel, dark\n');
 figureHandle = uifigure('Visible', 'off');
 panel = uipanel(figureHandle);
 uibutton(panel, 'Text', 'left from before');
-axesHandles = fcn_CarMesh3D_assessAxes(panel, 3, Captions={'a', 'b', 'c'}, Dark=true);
+axesHandles = fcn_CarMesh3D_assessAxes(panel, 3, Captions={'a', 'b', 'c'}, FlagDark=true);
 assert(numel(axesHandles) == 3 && isa(axesHandles(1), 'matlab.ui.control.UIAxes'));
 assert(isempty(findall(panel, 'Type', 'uibutton')));   % (the panel cleared)
 assert(all(axesHandles(1).Color < 0.3));   % (dark)
@@ -83,7 +83,7 @@ fprintf(1, 'Two rows\n');
 figureHandle = uifigure('Visible', 'off');
 panel = uipanel(figureHandle);
 axesHandles = fcn_CarMesh3D_assessAxes(panel, 6, Rows=2, RowLabels={'Far view', 'Close-up'}, ...
-    Captions={'a', 'b', 'c', 'd', 'e', 'f'}, Dark=true);
+    Captions={'a', 'b', 'c', 'd', 'e', 'f'}, FlagDark=true);
 assert(numel(axesHandles) == 6);
 rows = arrayfun(@(h) h.Layout.Row, axesHandles);
 columns = arrayfun(@(h) h.Layout.Column, axesHandles);

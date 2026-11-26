@@ -14,7 +14,7 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 % FORMAT:
 %
 %       [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName,...
-%           (VehicleID=id), (Run=flag), (FigNum=figNum))
+%           (VehicleID=id), (FlagRun=flag), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -42,7 +42,7 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 %      VehicleID: the vehicle the examples use. Default
 %      '2009_Honda_Fit_Sport'.
 %
-%      Run: false to only print the commands. Default true.
+%      FlagRun: false to only print the commands. Default true.
 %
 %      FigNum: if set to -1, input checking is skipped (fast mode) and
 %      nothing is printed (the commands are still run, if Run is true).
@@ -70,7 +70,7 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 %       fcn_CarMesh3D_runDemoExample('viewer');
 %
 %       % Only print the reviewer example's commands
-%       fcn_CarMesh3D_runDemoExample('reviewer', Run=false);
+%       fcn_CarMesh3D_runDemoExample('reviewer', FlagRun=false);
 %
 %       See the script: script_test_fcn_CarMesh3D_runDemoExample.m for a
 %       full test suite.
@@ -127,7 +127,7 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 arguments
     exampleName
     options.VehicleID = fcn_CarMesh3D_demoVehicle(FigNum=-1)   % The vehicle the examples use: the demo vehicle (fcn_CarMesh3D_demoVehicle)
-    options.Run = true        % false to only print the commands
+    options.FlagRun = true        % false to only print the commands
     options.FigNum = []       % Not used; -1 for fast mode (nothing printed)
 end
 
@@ -197,7 +197,7 @@ if 0==flag_max_speed
 end
 
 % Print the commands?
-flag_do_print = (0==flag_max_speed);
+flagDoPrint = (0==flag_max_speed);
 
 %% Main code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -217,13 +217,13 @@ switch lower(exampleName)
         return;
     case 'last'
         echoText = char(lastEchoText);
-        if flag_do_print && ~isempty(echoText)
+        if flagDoPrint && ~isempty(echoText)
             fcn_INTERNAL_printEcho(echoText);
         end
         return;
     case 'warning'
         echoText = fcn_INTERNAL_warningText(char(options.VehicleID));
-        if flag_do_print
+        if flagDoPrint
             fcn_INTERNAL_printEcho(echoText);
         end
         return;
@@ -234,13 +234,13 @@ thisExample = examples(strcmpi({examples.Name}, exampleName));
 % The text echoed: the demo's commands, then the actual vehicle's
 echoText = fcn_INTERNAL_echoText(thisExample);
 lastEchoText = echoText;
-if flag_do_print
+if flagDoPrint
     fcn_INTERNAL_printEcho(echoText);
 end
 
 % Run the demo's commands, in the base workspace
-if options.Run
-    if flag_do_print
+if options.FlagRun
+    if flagDoPrint
         fprintf(1, '\nRunning the demo commands...\n');
     end
     evalin('base', strjoin(thisExample.DemoCommands, newline));
@@ -316,9 +316,9 @@ examples(end).Description = ['The mesh, each label in its own color, beside the 
     'When the window is closed, its view settings are returned (viewSettings).'];
 examples(end).DemoCommands = [copyLines; {
     '% Opens the viewer; it returns the view settings when it is closed'
-    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, Wait=true)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, FlagWait=true)'}];
 examples(end).VehicleCommands = [vehicleLines; {
-    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, Wait=true)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, FlagWait=true)'}];
 examples(end).SavesChanges = false;
 
 % The viewer, at a shared view
@@ -330,10 +330,10 @@ examples(end).Description = ['A view is shared by sending its settings: the view
 examples(end).DemoCommands = [copyLines; {
     '% The view sent: the tail lights alone, seen from behind'
     'sharedView = struct(''Label'', ''light_tailBrakeLamp'', ''PhotoAngle'', 180);'
-    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView, FlagWait=true)'}];
 examples(end).VehicleCommands = [vehicleLines; {
     'sharedView = struct(''Label'', ''light_tailBrakeLamp'', ''PhotoAngle'', 180);'
-    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView, FlagWait=true)'}];
 examples(end).SavesChanges = false;
 
 % The mesh editor: on the GUI test vehicle (every feature), then on the
@@ -349,11 +349,11 @@ examples(end).DemoCommands = {
     '% A fresh, temporary copy of the GUI test vehicle: changes are NOT saved to it'
     sprintf('demoFiles = fcn_CarMesh3D_makeDemoCopy(''%s'', FigNum=1);', testID)
     '% Opens the mesh editor; Save writes labelEdits_<ID>.mat in the COPY''s folder'
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, Wait=true);'};
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, FlagWait=true);'};
 examples(end).VehicleCommands = {
     '% The GUI test vehicle''s own files (it is rebuilt by its script, so saved paint is lost then)'
     sprintf('vehicleFiles = fcn_CarMesh3D_findVehicleFiles(''%s'');', testID)
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Wait=true);'};
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, FlagWait=true);'};
 examples(end).SavesChanges = true;
 
 examples(end+1).Name = 'editor';
@@ -363,11 +363,11 @@ examples(end).Description = ['The mesh editor on a real download. Pick a panel f
     'the copy. The outputs come back when the window is closed.'];
 examples(end).DemoCommands = [copyLines; {
     '% Opens the mesh editor; Save writes labelEdits_<ID>.mat in the COPY''s folder'
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, Wait=true);'}];
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(demoFiles.Folder, FlagWait=true);'}];
 examples(end).VehicleCommands = [vehicleLines; {
     '% Save writes labelEdits_<ID>.mat in the VEHICLE''s folder; rerun the'
     '% vehicle''s script afterward to rebuild its mesh with the edits'
-    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Wait=true);'}];
+    '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, FlagWait=true);'}];
 examples(end).SavesChanges = true;
 
 % The reviewer
@@ -435,9 +435,9 @@ examples(end).Title = 'browseVehicles: browse the finished vehicles (a menu of i
 examples(end).Description = 'A menu of every finished vehicle with its quality score: type a vehicle''s number to see it in 3D and 2D.';
 examples(end).DemoCommands = {
     '% (Browsing changes nothing, so no copy is needed)'
-    'vehicleTable = fcn_CarMesh3D_browseVehicles(Interactive=true, ViewFigNum=1);'};
+    'vehicleTable = fcn_CarMesh3D_browseVehicles(FlagInteractive=true, ViewFigNum=1);'};
 examples(end).VehicleCommands = {
-    'vehicleTable = fcn_CarMesh3D_browseVehicles(Interactive=true, ViewFigNum=1);'};
+    'vehicleTable = fcn_CarMesh3D_browseVehicles(FlagInteractive=true, ViewFigNum=1);'};
 examples(end).SavesChanges = false;
 end % Ends fcn_INTERNAL_examples
 

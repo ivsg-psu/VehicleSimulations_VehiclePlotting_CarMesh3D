@@ -47,7 +47,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the Fit)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the Fit)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 meshFile = vehicleFiles.MeshFile;   % (the viewer is given the file to show)
 flagPhotos = ~isempty(dir(fullfile(fileparts(meshFile), 'photos', 'ViewInDegrees_*')));
@@ -66,7 +66,7 @@ flagPhotos = ~isempty(dir(fullfile(fileparts(meshFile), 'photos', 'ViewInDegrees
 
 %% DEMO case: The Fit's mesh file, with its labels and photos (hidden, so it does not wait)
 fprintf(1,'DEMO case: the Fit''s mesh file, labels and photos (hidden)\n');
-[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Outline=vehicleFiles.OutlineFile, Visible=false);
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Outline=vehicleFiles.OutlineFile, FlagVisible=false);
 assert(isgraphics(viewer.Figure) && isgraphics(viewer.Axes));
 assert(strcmp(viewSettings.MeshFile, meshFile));
 assert(strcmp(viewSettings.Label, 'all') && strcmp(viewSettings.Colors, 'labels'));
@@ -104,7 +104,7 @@ viewer.Close();
 assert(~isvalid(viewer.Figure));
 closedView = viewer.GetView();                       % (kept from when it closed)
 assert(isequal(closedView, expected));
-[reopened, viewer2] = fcn_CarMesh3D_viewLabels(meshFile, ViewSettings=closedView, Visible=false);
+[reopened, viewer2] = fcn_CarMesh3D_viewLabels(meshFile, ViewSettings=closedView, FlagVisible=false);
 assert(strcmp(reopened.Label, 'part_trim') && isequal(reopened.Hidden, {'part_glass'}) && strcmp(reopened.Colors, 'vehicle'));
 for name = {'CameraPosition', 'CameraTarget', 'CameraUpVector', 'CameraViewAngle', 'XLim', 'YLim', 'ZLim'}
     assert(max(abs(reopened.Camera.(name{1}) - expected.Camera.(name{1}))) < 1e-9, 'camera %s differs', name{1});
@@ -118,7 +118,7 @@ viewer2.Close();
 fprintf(1,'TEST case: the view call opens the same view\n');
 callText = fcn_INTERNAL_callOf(expected);
 assert(startsWith(callText, sprintf('fcn_CarMesh3D_viewLabels(''%s'', ViewSettings=struct(', meshFile)));
-callText = strrep(callText, ');', ', Visible=false);');    % (hidden, for the test)
+callText = strrep(callText, ');', ', FlagVisible=false);');    % (hidden, for the test)
 [fromCall, viewer3] = eval(strrep(callText, ';', ''));
 for name = {'CameraPosition', 'CameraTarget', 'CameraUpVector', 'CameraViewAngle'}
     assert(max(abs(fromCall.Camera.(name{1}) - expected.Camera.(name{1}))) < 1e-6, 'camera %s differs', name{1});
@@ -129,7 +129,7 @@ viewer3.Close();
 %% TEST case: Options win over the view settings given
 fprintf(1,'TEST case: options win over the view settings\n');
 [optionsView, viewer4] = fcn_CarMesh3D_viewLabels(meshFile, ViewSettings=expected, Label='all', Colors='labels', ...
-    Hidden={}, Visible=false);
+    Hidden={}, FlagVisible=false);
 assert(strcmp(optionsView.Label, 'all') && strcmp(optionsView.Colors, 'labels'));
 viewer4.Close();
 
@@ -155,10 +155,10 @@ viewer5.SetHidden({'part_glass'});
 assert(viewer5.Patch.FaceVertexAlphaData(1) == 0 && isequal(viewer5.Hidden(), {'part_glass'}));
 % (a new mesh with the same faces: face 2 relabeled as a tail light)
 relabeled = loaded.vehicleMesh;
-lightPart = find(strcmp(relabeled.PartNames, 'light'), 1);
-tailType = find(strcmp(relabeled.LightTypeNames, 'tailBrakeLamp'), 1);
-relabeled.FacePartIndex(2) = lightPart;
-relabeled.FaceLightType(2) = tailType;
+lightPart = find(strcmp(relabeled.LabelPartNames, 'light'), 1);
+tailType = find(strcmp(relabeled.LabelLampNames, 'tailBrakeLamp'), 1);
+relabeled.LabelFacePart(2) = lightPart;
+relabeled.LabelFaceLamp(2) = tailType;
 viewer5.SetMesh(relabeled, viewer5.Patch.FaceVertexCData, ones(numFaces,1));
 viewer5.ShowLabel('light_tailBrakeLamp');
 assert(strcmp(viewer5.Label(), 'light_tailBrakeLamp'));
@@ -168,21 +168,21 @@ delete(hostFigure);
 
 %% TEST case: See-through body, rendered glass, and the interior seen through clear glass
 fprintf(1,'TEST case: see-through body, rendered glass, interior\n');
-[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false);
 loaded = load(meshFile, 'vehicleMesh');
-partNames = loaded.vehicleMesh.PartNames;
-flagGlass = loaded.vehicleMesh.FacePartIndex == find(strcmp(partNames, 'glass'));
-flagBody = loaded.vehicleMesh.FacePartIndex == find(strcmp(partNames, 'body'));
-if isfield(loaded.vehicleMesh, 'FaceHiddenSet')
+labelPartNames = loaded.vehicleMesh.LabelPartNames;
+flagGlass = loaded.vehicleMesh.LabelFacePart == find(strcmp(labelPartNames, 'glass'));
+flagBody = loaded.vehicleMesh.LabelFacePart == find(strcmp(labelPartNames, 'body'));
+if isfield(loaded.vehicleMesh, 'LabelFaceHiddenSet')
     % (hidden faces are out of view: not drawn as rendered)
-    flagGlass = flagGlass & loaded.vehicleMesh.FaceHiddenSet(:) == 0;
-    flagBody = flagBody & loaded.vehicleMesh.FaceHiddenSet(:) == 0;
+    flagGlass = flagGlass & loaded.vehicleMesh.LabelFaceHiddenSet(:) == 0;
+    flagBody = flagBody & loaded.vehicleMesh.LabelFaceHiddenSet(:) == 0;
 end
 alphaData = viewer.Patch.FaceVertexAlphaData;
 % (a lamp's clear cover is drawn as glass, at least 40% opaque, so it shows: Q29 (A), 2026_11_24)
 expectedAlpha = loaded.vehicleMesh.FaceAlpha(:);
-if isfield(loaded.vehicleMesh, 'FaceCoverLamp')
-    flagCover = loaded.vehicleMesh.FaceCoverLamp(:) > 0;
+if isfield(loaded.vehicleMesh, 'LabelFaceCoverLamp')
+    flagCover = loaded.vehicleMesh.LabelFaceCoverLamp(:) > 0;
     expectedAlpha(flagCover) = max(expectedAlpha(flagCover), 0.40);
 end
 assert(max(abs(alphaData(flagGlass) - expectedAlpha(flagGlass))) < 1e-9, 'Glass as rendered');
@@ -193,37 +193,37 @@ settings = viewer.GetView();
 assert(abs(settings.SeeThrough - 0.6) < 1e-12);
 assert(contains(viewer.ViewCall(), '''SeeThrough'',0.6'));
 viewer.SetSeeThrough(0);
-if any(strcmp(partNames, 'interior'))
+if any(strcmp(labelPartNames, 'interior'))
     viewer.ShowLabel('part_interior');
     alphaData = viewer.Patch.FaceVertexAlphaData;
     assert(all(alphaData(flagGlass) < 0.2), 'Interior shown: the glass nearly clear');
 end
 viewer.Close();
-[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false, ViewSettings=struct('SeeThrough', 0.5));
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false, ViewSettings=struct('SeeThrough', 0.5));
 assert(abs(viewer.SeeThrough() - 0.5) < 1e-12, 'See-through opened from view settings');
 viewer.Close();
 
 %% TEST case: Nighttime view: the night scene, lamps switched, boundaries; off again: the labels as before
 fprintf(1,'TEST case: nighttime view\n');
-[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false);
 colorsOff = viewer.Patch.FaceVertexCData;
 numBefore = sum(strcmp({viewer.Axes.Children.Visible}, 'on'));   % (the objects shown by day)
 cameraBefore = viewer.Axes.CameraPosition;
 % (by day: the lamps start off; switched on, they are drawn lit on the model)
 loaded = load(meshFile, 'vehicleMesh');
-flagLamp = loaded.vehicleMesh.FaceLightType(:) > 0;
+flagLamp = loaded.vehicleMesh.LabelFaceLamp(:) > 0;
 assert(~any(viewer.NightLights().LowBeam));
-viewer.SetNightLights(struct('Tail', 'brake'));
-flagTail = loaded.vehicleMesh.FaceLightType(:) == find(strcmp(loaded.vehicleMesh.LightTypeNames, 'tailBrakeLamp'));
+viewer.SetNightLights(struct('Tail',true,'Brake',true));
+flagTail = loaded.vehicleMesh.LabelFaceLamp(:) == find(strcmp(loaded.vehicleMesh.LabelLampNames, 'tailBrakeLamp'));
 assert(all(max(abs(viewer.Patch.FaceVertexCData(flagTail,:) - [1.00 0.12 0.08]), [], 2) < 1e-9), 'Brake lights lit by day');
 % (and the clear covers of lit lamps, which glow in the lamp's lit color by day too: 2026_11_24)
-if isfield(loaded.vehicleMesh, 'FaceCoverLamp')
-    flagLamp = flagLamp | loaded.vehicleMesh.FaceCoverLamp(:) > 0;
+if isfield(loaded.vehicleMesh, 'LabelFaceCoverLamp')
+    flagLamp = flagLamp | loaded.vehicleMesh.LabelFaceCoverLamp(:) > 0;
 end
 assert(isequal(viewer.Patch.FaceVertexCData(~flagLamp,:), colorsOff(~flagLamp,:)), 'Only the lamps change');
-viewer.SetNightLights(struct('Tail', 'off'));
+viewer.SetNightLights(struct('Tail',false,'Brake',false));
 assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Lamps off: as before');
-viewer.SetNightView(true);
+viewer.SetFlagNight(true);
 assert(strcmp(viewer.Patch.Visible, 'off'), 'The label patch hidden at night');
 assert(numel(viewer.Axes.Children) > numBefore, 'The night scene drawn');
 assert(max(viewer.Axes.Color) < 0.1, 'A dark sky');
@@ -231,35 +231,35 @@ assert(max(abs(viewer.Axes.CameraPosition - cameraBefore)) < 1e-9, 'The camera k
 % (lamps switched: the low beams off, then the high beams off)
 viewer.SetNightLights(struct('LowBeam', false, 'HighBeam', true));
 assert(~viewer.NightLights().LowBeam && viewer.NightLights().HighBeam, 'Each beam switched alone');
-viewer.SetNightLights(struct('LowBeam', true, 'HighBeam', false, 'Tail', 'brake'));
-assert(strcmp(viewer.NightLights().Tail, 'brake'));
+viewer.SetNightLights(struct('LowBeam', true, 'HighBeam', false, 'Tail',true,'Brake',true));
+assert(viewer.NightLights().Tail && viewer.NightLights().Brake);
 % (mesh boundaries in the nighttime view)
 patchesBefore = findobj(viewer.Axes, 'Type', 'patch', 'EdgeColor', 'none');
 fcn_INTERNAL_tickBoundaries(viewer, true);
 assert(numel(findobj(viewer.Axes, 'Type', 'patch', 'EdgeColor', 'none')) < numel(patchesBefore), 'Boundaries drawn at night');
 fcn_INTERNAL_tickBoundaries(viewer, false);
 settings = viewer.GetView();
-assert(settings.NightView && settings.NightLights.LowBeam && ~settings.NightLights.HighBeam);
+assert(settings.FlagNight && settings.NightLights.LowBeam && ~settings.NightLights.HighBeam);
 callText = viewer.ViewCall();
-assert(contains(callText, '''NightView'',true') && contains(callText, '''HighBeam'',false'));
+assert(contains(callText, '''FlagNight'',true') && contains(callText, '''HighBeam'',false'));
 % (the Show boxes work at night: glass taken off, the scene drawn again)
 childrenBefore = numel(findobj(viewer.Axes, 'Type', 'patch'));
 viewer.SetHidden({'part_glass'});
-assert(viewer.NightView() && numel(findobj(viewer.Axes, 'Type', 'patch')) > 0);
+assert(viewer.FlagNight() && numel(findobj(viewer.Axes, 'Type', 'patch')) > 0);
 viewer.SetHidden({});
 assert(numel(findobj(viewer.Axes, 'Type', 'patch')) == childrenBefore);
-viewer.SetNightView(false);
+viewer.SetFlagNight(false);
 assert(strcmp(viewer.Patch.Visible, 'on'));
 % (the night scene put away by day, kept to be shown again: Sean, 12:49;
 % nothing of it shows)
 assert(sum(strcmp({viewer.Axes.Children.Visible}, 'on')) == numBefore, 'The night scene put away: none of it shown');
 viewer.SetNightLights(struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
-    'TurnRight', false, 'Tail', 'off', 'Backup', false));
+    'TurnRight', false, 'Tail',false, 'Brake',false, 'Backup', false));
 assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Night off, lamps off: as before');
 viewer.Close();
-[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false, ...
-    ViewSettings=struct('NightView', true, 'NightLights', struct('Backup', false)));
-assert(viewer.NightView() && strcmp(viewer.Patch.Visible, 'off'), 'Nighttime view opened from view settings');
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false, ...
+    ViewSettings=struct('FlagNight', true, 'NightLights', struct('Backup', false)));
+assert(viewer.FlagNight() && strcmp(viewer.Patch.Visible, 'off'), 'Nighttime view opened from view settings');
 assert(~viewer.NightLights().Backup);
 viewer.Close();
 
@@ -268,7 +268,7 @@ fprintf(1,'TEST case: hidden faces\n');
 loaded = load(meshFile, 'vehicleMesh');
 someFaces = (1:50)';
 hiddenMesh = fcn_CarMesh3D_editLabels(loaded.vehicleMesh, Edits={struct('FaceIndices',someFaces,'Hide','test set')}, FigNum=-1);
-[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(hiddenMesh, Visible=false, Wait=false);
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(hiddenMesh, FlagVisible=false, FlagWait=false);
 assert(any(strcmp(viewSettings.Hidden, 'hidden')));
 alphaData = viewer.Patch.FaceVertexAlphaData;
 assert(all(alphaData(someFaces) == 0), 'Hidden faces out of view');
@@ -282,33 +282,33 @@ fprintf(1,'TEST case: a vehicle by its ID; an out-of-date mesh variable warns\n'
 guiID = '2026_CarMesh3D_Sample_GUITestVehicle';
 guiFiles = fcn_CarMesh3D_findVehicleFiles(guiID, FigNum=-1);
 latestMesh = fcn_CarMesh3D_meshWithLabelEdits(guiID, FigNum=-1);
-[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(guiID, Visible=false, Wait=false);
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(guiID, FlagVisible=false, FlagWait=false);
 assert(size(viewer.Patch.Faces,1) == size(latestMesh.Faces,1), 'Opened by ID: the vehicle''s mesh');
 assert(strcmp(viewSettings.MeshFile, guiFiles.ID), 'The view settings reopen it by ID');
 viewer.Close();
 % (the latest, as a variable: no warning)
 lastwarn('');
-[~, viewer] = fcn_CarMesh3D_viewLabels(latestMesh, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(latestMesh, FlagVisible=false, FlagWait=false);
 viewer.Close();
 [~, warningID] = lastwarn;
 assert(~strcmp(warningID, 'CarMesh3D:staleMesh'), 'The latest mesh gives no warning');
 % (one face relabeled, as if loaded before the painter saved: a warning)
 staleMesh = latestMesh;
-staleMesh.FacePartIndex(1) = mod(staleMesh.FacePartIndex(1), numel(staleMesh.PartNames)) + 1;
+staleMesh.LabelFacePart(1) = mod(staleMesh.LabelFacePart(1), numel(staleMesh.LabelPartNames)) + 1;
 lastwarn('');
-[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, FlagVisible=false, FlagWait=false);
 viewer.Close();
 [warningText, warningID] = lastwarn;
 assert(strcmp(warningID, 'CarMesh3D:staleMesh') && contains(warningText, guiID), 'An out-of-date mesh warns, naming the ID');
 % (and not when asked not to)
 lastwarn('');
-[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, CheckStale=false, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, FlagCheckStale=false, FlagVisible=false, FlagWait=false);
 viewer.Close();
 [~, warningID] = lastwarn;
 assert(~strcmp(warningID, 'CarMesh3D:staleMesh'));
 % (an ID that is not a vehicle)
 try
-    fcn_CarMesh3D_viewLabels('no_such_vehicle_ID', Visible=false);
+    fcn_CarMesh3D_viewLabels('no_such_vehicle_ID', FlagVisible=false);
     error('test:noError', 'An unknown ID was not refused');
 catch err
     assert(contains(err.message, 'not a mesh file, nor the ID of a vehicle'));
@@ -320,7 +320,7 @@ emptyFile = [tempname '.mat'];
 nothing = 1; %#ok<NASGU>
 save(emptyFile, 'nothing');
 try
-    fcn_CarMesh3D_viewLabels(emptyFile, Visible=false);
+    fcn_CarMesh3D_viewLabels(emptyFile, FlagVisible=false);
     error('test:noError', 'A file with no mesh was not refused');
 catch err
     assert(contains(err.message, 'holds no labeled CarMesh3D mesh'));
@@ -338,7 +338,7 @@ for prefName = {'ShowGround', 'StartViewDial', 'StartViewDown', 'TurnWithPhoto',
 end
 cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
 fcn_INTERNAL_clearPhotoPrefs();   % (the photo options at their defaults for this test; put back at the end)
-[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false);
 % (the top bar: the menu; Exit is the menu's last line, Q62 (A), Sean
 % 2026-11-25 14:31; no old tool row or label list in sight)
 assert(~isempty(findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu')), 'The Menu button');
@@ -384,17 +384,17 @@ assert(viewer.NightLights().TurnLeft, 'Left turn signal on');
 fcn_INTERNAL_tick(findall(viewer.Figure, 'Type', 'uicheckbox', 'Tag', 'lamp_Hazards'), false);
 assert(~viewer.NightLights().TurnLeft && ~viewer.NightLights().TurnRight, 'Hazards Off: both off');
 % (the ground: shown by day by default; Show ground? Off hides it, at night too)
-viewer.SetGround(true);
+viewer.SetFlagGround(true);
 dayGround = findall(viewer.Axes, 'Type', 'patch', 'Tag', 'dayGround');
 assert(isscalar(dayGround) && strcmp(dayGround.Visible, 'on'), 'The ground by day');
 fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'showGround'), false);
-assert(~viewer.Ground() && strcmp(dayGround.Visible, 'off'), 'Show ground? Off');
+assert(~viewer.FlagGround() && strcmp(dayGround.Visible, 'off'), 'Show ground? Off');
 groundRow = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'showGround');
 assert(isscalar(groundRow), 'Show ground? is one row (in Overall Display; GUI settings has none now)');
 assert(isequal(groundRow.SelectedObject.UserData, false), 'Show ground? row follows the viewer');
-viewer.SetNightView(true);
+viewer.SetFlagNight(true);
 patchesNoGround = numel(findobj(viewer.Axes, 'Type', 'patch'));
-viewer.SetGround(true);
+viewer.SetFlagGround(true);
 assert(numel(findobj(viewer.Axes, 'Type', 'patch')) == patchesNoGround + 1, 'The night ground follows the setting');
 assert(strcmp(dayGround.Visible, 'off'), 'No day ground at night');
 % (Sean's T6: the same ground by day and at night, squares of exactly 1 m on whole meters)
@@ -411,18 +411,18 @@ assert(all(strcmp({colorsGroup.Children.Enable}, 'off')), 'Colors? grayed at nig
 if ~isempty(seeThrough)
     assert(strcmp(seeThrough(1).Enable, 'off'), 'See-through grayed at night');
 end
-viewer.SetNightView(false);
+viewer.SetFlagNight(false);
 assert(strcmp(dayGround.Visible, 'on'), 'The day ground back by day');
 % (the ground starts on in every window, even after one was switched off:
 % Sean, 2026-11-26 10:12; T79 (B))
-viewer.SetGround(false);
-[~, viewer2] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
-assert(viewer2.Ground(), 'A new window starts with the ground on');
-viewer2.SetNightView(true);
+viewer.SetFlagGround(false);
+[~, viewer2] = fcn_CarMesh3D_viewLabels(meshFile, FlagVisible=false, FlagWait=false);
+assert(viewer2.FlagGround(), 'A new window starts with the ground on');
+viewer2.SetFlagNight(true);
 assert(isscalar(findall(viewer2.Axes, 'Type', 'patch', 'Tag', 'nightGround')), 'and at night too, with no extra clicks');
 viewer2.Close();
 assert(~ispref('CarMesh3D', 'ShowGround'), 'Show ground? is not kept between windows');
-viewer.SetGround(true);
+viewer.SetFlagGround(true);
 assert(all(strcmp({colorsGroup.Children.Enable}, 'on')), 'Colors? back by day');
 % (the sun/moon button over the model, pressed as a person would: one
 % click to night, one back to day; Overall Display's Nighttime view?
@@ -431,20 +431,20 @@ dayNightButton = findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'dayNightButt
 assert(isscalar(dayNightButton) && strcmp(dayNightButton.Text, char(9728)), 'The sun/moon button, showing the sun by day');
 nightRow = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallNight');
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(viewer.NightView() && strcmp(dayNightButton.Text, char(9790)), 'One click: night, and the moon shows');
+assert(viewer.FlagNight() && strcmp(dayNightButton.Text, char(9790)), 'One click: night, and the moon shows');
 if isscalar(nightRow)
     assert(isequal(nightRow.SelectedObject.UserData, true), 'Nighttime view? follows the button');
 end
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(~viewer.NightView() && strcmp(dayNightButton.Text, char(9728)), 'Another click: day, and the sun shows');
+assert(~viewer.FlagNight() && strcmp(dayNightButton.Text, char(9728)), 'Another click: day, and the sun shows');
 % (night again with nothing changed: the night scene kept from the last
 % night is shown again, not built anew, so it is quick: Sean, 12:49)
 nightTransform = findall(viewer.Axes, 'Type', 'hgtransform');
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(viewer.NightView() && isequal(sort(double(findall(viewer.Axes, 'Type', 'hgtransform'))), sort(double(nightTransform))), ...
+assert(viewer.FlagNight() && isequal(sort(double(findall(viewer.Axes, 'Type', 'hgtransform'))), sort(double(nightTransform))), ...
     'Night again: the same night scene, shown again');
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(~viewer.NightView(), 'And day again');
+assert(~viewer.FlagNight(), 'And day again');
 if isscalar(nightRow)
     assert(isequal(nightRow.SelectedObject.UserData, false), 'Nighttime view? follows back');
 end
@@ -459,16 +459,16 @@ groundToggle = findall(viewer.Figure, 'Tag', 'groundToggle');
 assert(isscalar(meshToggle) && isscalar(groundToggle) && meshToggle.Parent == dayNightButton.Parent, 'Mesh and Grid in the top bar');
 assert(meshToggle.Layout.Column == dayNightButton.Layout.Column - 2 && groundToggle.Layout.Column == dayNightButton.Layout.Column - 1, ...
     'Mesh, Grid, then the sun/moon');
-assert(groundToggle.Value == viewer.Ground() && meshToggle.Value == viewer.Boundaries(), 'They show the settings');
+assert(groundToggle.Value == viewer.FlagGround() && meshToggle.Value == viewer.FlagShowEdges(), 'They show the settings');
 groundToggle.Value = false;
 groundToggle.ValueChangedFcn(groundToggle, []);
-assert(~viewer.Ground(), 'Grid off: no ground');
-viewer.SetGround(true);
+assert(~viewer.FlagGround(), 'Grid off: no ground');
+viewer.SetFlagGround(true);
 assert(groundToggle.Value, 'Grid follows the setting');
 meshToggle.Value = true;
 meshToggle.ValueChangedFcn(meshToggle, []);
-assert(viewer.Boundaries(), 'Mesh on: the edges drawn');
-viewer.SetBoundaries(false);
+assert(viewer.FlagShowEdges(), 'Mesh on: the edges drawn');
+viewer.SetFlagShowEdges(false);
 assert(~meshToggle.Value, 'Mesh follows the setting');
 % (Sean's T7: the camera's angles and distance in Overall Display)
 camera = viewer.CameraInfo();
@@ -513,7 +513,7 @@ cleanupPrefs = onCleanup(@() fcn_INTERNAL_restorePrefs(prefsBefore));
 fcn_INTERNAL_clearPhotoPrefs();   % (the photo options at their defaults for this test; put back at the end)
 demoRoot = tempname;
 testFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
-[~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, FlagVisible=false, FlagWait=false);
 assert(all(isfield(viewer, {'State','SetState','Press','Key','CheckLayout','Controls','MouseDrag','Scroll','DialDrag','Resize','Tick','FitInfo','PhotoCount'})), 'The test hooks');
 assert(viewer.PhotoCount() > 0, 'The GUI test vehicle has photos');
 message = fcn_INTERNAL_invariants(viewer);
@@ -594,8 +594,8 @@ for flagNight = [false true]
                     caseText = sprintf('night %d, %s, see-through %d, ground %d, edges %d', flagNight, colorsName{1}, seeThroughValue, flagGround, flagEdges);
                     message = fcn_INTERNAL_invariants(viewer);
                     assert(isempty(message), '%s: %s', caseText, message);
-                    assert(viewer.NightView() == flagNight && strcmp(viewer.Colors(), colorsName{1}) && ...
-                        abs(viewer.SeeThrough() - seeThroughValue/100) < 1e-9 && viewer.Ground() == flagGround && viewer.Boundaries() == flagEdges, caseText);
+                    assert(viewer.FlagNight() == flagNight && strcmp(viewer.Colors(), colorsName{1}) && ...
+                        abs(viewer.SeeThrough() - seeThroughValue/100) < 1e-9 && viewer.FlagGround() == flagGround && viewer.FlagShowEdges() == flagEdges, caseText);
                     if flagNight
                         assert(strcmp(viewer.Patch.Visible, 'off'), '%s: the label patch hidden', caseText);
                         % (grayed at night: a person cannot click Colors? or the see-through slider)
@@ -771,8 +771,8 @@ assert(closeTime < 1, 'Closing took %.2f s', closeTime);
 assert(isempty(timerfindall), 'The view timer stopped with its window');
 
 % (a random walk on the demo vehicle too: a real mesh, with its photos)
-fitFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
-[~, viewer] = fcn_CarMesh3D_viewLabels(fitFiles.MeshFile, Outline=fitFiles.OutlineFile, Visible=false, Wait=false);
+fitFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1), DemoFolder=demoRoot, FigNum=-1);
+[~, viewer] = fcn_CarMesh3D_viewLabels(fitFiles.MeshFile, Outline=fitFiles.OutlineFile, FlagVisible=false, FlagWait=false);
 [actions, invariants] = fcn_INTERNAL_walkActions(viewer, 4);
 report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, Steps=150, Seed=4, Name='viewLabelsWalkDemo', LogFolder=fullfile(demoRoot, 'walks'), FigNum=-1);
 if ~report.Passed
@@ -787,7 +787,7 @@ assert(toc < 1 && ~isvalid(viewer.Figure) && isempty(timerfindall), 'The demo ve
 
 % (a mesh with no photos: the photo options grayed, the dial hook says so)
 loaded = load(testFiles.MeshFile, 'vehicleMesh');
-[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, FlagVisible=false, FlagWait=false);
 state = viewer.State();
 assert(viewer.PhotoCount() == 0 && ~state.Enabled.turnWithPhoto && ~state.Enabled.photoSize, 'No photos: the photo options grayed');
 assert(~viewer.DialDrag(90), 'No dial with no photos');
@@ -796,7 +796,7 @@ assert(isempty(message), message);
 viewer.Close();
 emptyPhotos = fullfile(demoRoot, 'noPhotosHere');
 mkdir(emptyPhotos);
-[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, PhotoFolder=emptyPhotos, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, PhotoFolder=emptyPhotos, FlagVisible=false, FlagWait=false);
 state = viewer.State();
 assert(~state.Enabled.turnWithPhoto, 'A folder with no ViewInDegrees photos: the photo options grayed');
 viewer.Close();
@@ -804,7 +804,7 @@ viewer.Close();
 % (in a visible window: the text checks and the layout as drawn, at several
 % sizes; run when CARMESH3D_TEST_VISIBLE is set, since a window shows)
 if ~isempty(getenv('CARMESH3D_TEST_VISIBLE'))
-    [~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, Visible=true, Wait=false);
+    [~, viewer] = fcn_CarMesh3D_viewLabels(testFiles.MeshFile, Outline=testFiles.OutlineFile, FlagVisible=true, FlagWait=false);
     cleanupWindow = onCleanup(@() fcn_INTERNAL_closeViewer(viewer));
     for windowSize = {[1500 860], [800 500], [640 400], [1600 1000]}
         viewer.Resize(windowSize{1});
@@ -844,7 +844,7 @@ fprintf(1,'All tests of fcn_CarMesh3D_viewLabels passed\n');
 %% Functions follow
 function callText = fcn_INTERNAL_callOf(settings)
 % The view call for these settings (as the viewer's "Copy view call" makes it)
-[~, viewer] = fcn_CarMesh3D_viewLabels(settings.MeshFile, ViewSettings=settings, Visible=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(settings.MeshFile, ViewSettings=settings, FlagVisible=false);
 callText = viewer.ViewCall();
 viewer.Close();
 end % Ends fcn_INTERNAL_callOf
@@ -929,11 +929,11 @@ if ~isequal(cellstr(values.cameraReadout)', expectedReadout) && ~isequal(cellstr
     problems{end+1} = sprintf('the readout says "%s" but the camera is "%s"', strjoin(cellstr(values.cameraReadout), ' / '), strjoin(expectedReadout, ' / '));
 end
 % (Overall Display mirrors the viewer; Colors? and see-through grayed exactly at night)
-flagNight = viewer.NightView();
+flagNight = viewer.FlagNight();
 if ~isequal(values.overallColors, viewer.Colors()), problems{end+1} = 'Colors? differs from the viewer'; end
-if ~isequal(values.overallBoundaries, viewer.Boundaries()), problems{end+1} = 'Show mesh boundaries? differs'; end
+if ~isequal(values.overallBoundaries, viewer.FlagShowEdges()), problems{end+1} = 'Show mesh boundaries? differs'; end
 if ~isequal(values.overallNight, flagNight), problems{end+1} = 'Nighttime view? differs'; end
-if ~isequal(values.showGround, viewer.Ground()), problems{end+1} = 'Show ground? differs'; end
+if ~isequal(values.showGround, viewer.FlagGround()), problems{end+1} = 'Show ground? differs'; end
 if abs(values.overallSeeThrough - 100*viewer.SeeThrough()) > 1e-6, problems{end+1} = 'the see-through slider differs'; end
 colorsRadios = findall(viewer.Figure, 'Type', 'uiradiobutton', 'Parent', findall(viewer.Figure, 'Tag', 'overallColors'));
 if any(strcmp({colorsRadios.Enable}, 'on') == flagNight) || state.Enabled.overallColors == flagNight || state.Enabled.overallSeeThrough == flagNight
@@ -947,11 +947,11 @@ if ~isequal(values.turnWithPhoto, viewer.TurnWithPhoto()), problems{end+1} = 'Tu
 % (the ground: by day the light one, at night the dark one, each only when shown)
 dayGround = findall(viewer.Axes, 'Tag', 'dayGround');
 nightGround = findall(viewer.Axes, 'Tag', 'nightGround', 'Visible', 'on');   % (shown: by day a night scene may be put away, hidden)
-if strcmp(dayGround.Visible, 'on') ~= (viewer.Ground() && ~flagNight)
+if strcmp(dayGround.Visible, 'on') ~= (viewer.FlagGround() && ~flagNight)
     problems{end+1} = 'the day ground shown when it should not be, or not shown';
 end
-if numel(nightGround) ~= double(viewer.Ground() && flagNight)
-    problems{end+1} = sprintf('%d night grounds (ground %d, night %d)', numel(nightGround), viewer.Ground(), flagNight);
+if numel(nightGround) ~= double(viewer.FlagGround() && flagNight)
+    problems{end+1} = sprintf('%d night grounds (ground %d, night %d)', numel(nightGround), viewer.FlagGround(), flagNight);
 end
 % (Labels To Display mirrors Hidden, Uncolored and Label: one label alone is that label colored)
 hidden = viewer.Hidden();
@@ -984,12 +984,14 @@ if ~fcn_INTERNAL_sameCommon(values.allShown, shownFlags), problems{end+1} = 'All
 if ~all(ismember(setdiff(kinds.Keys, {'hidden'}), rowKeys)), problems{end+1} = 'a label of the mesh has no row'; end
 % (Lamps To Display mirrors NightLights; Hazards exactly when both turn signals)
 lamps = viewer.NightLights();
-for lampName = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
+for lampName = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'Fog'}
     if ~isequal(values.(['lamp_' lampName{1}]), logical(lamps.(lampName{1})))
         problems{end+1} = sprintf('the %s row differs', lampName{1}); %#ok<AGROW>
     end
 end
-if ~isequal(values.lamp_Tail, lower(char(lamps.Tail))), problems{end+1} = 'the tail lights row differs'; end
+tailChoice = 'off';   % (the Tail row's choice from the true/false Tail and Brake)
+if isfield(lamps, 'Brake') && logical(lamps.Brake), tailChoice = 'brake'; elseif logical(lamps.Tail), tailChoice = 'on'; end
+if ~isequal(values.lamp_Tail, tailChoice), problems{end+1} = 'the tail lights row differs'; end
 if ~isequal(values.lamp_Reflectors, lamps.Reflectors > 0), problems{end+1} = 'the reflectors row differs'; end
 if ~isequal(values.lamp_Hazards, logical(lamps.TurnLeft) && logical(lamps.TurnRight)) || ...
         logical(lamps.Hazards) ~= (logical(lamps.TurnLeft) && logical(lamps.TurnRight))
@@ -1087,7 +1089,7 @@ labelTags = state.Tags(startsWith(state.Tags, {'colored_', 'shown_'}));
 lampTags = state.Tags(startsWith(state.Tags, 'lamp_') & ~strcmp(state.Tags, 'lamp_Tail'));
 kinds = viewer.LabelKinds();
 isOpen = @(name) any(strcmp(viewer.OpenNames(), name));
-isDay = @() ~viewer.NightView();
+isDay = @() ~viewer.FlagNight();
 hasPhotos = @() viewer.PhotoCount() > 0;
 sizes = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]};
 actionList = {

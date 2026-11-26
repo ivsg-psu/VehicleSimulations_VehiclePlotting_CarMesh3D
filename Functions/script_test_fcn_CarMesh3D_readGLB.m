@@ -49,7 +49,7 @@ assert(isequal(size(vehicleMesh.Faces),[2 3]));
 assert(isequal(size(vehicleMesh.Vertices),[6 3]));
 assert(isequal(size(vehicleMesh.FaceTextureColors),[2 3]));
 assert(isequal(size(vehicleMesh.FaceTextureAlpha),[2 1]));
-assert(islogical(vehicleMesh.SeeThroughReliable));
+assert(islogical(vehicleMesh.FlagSeeThroughReliable));
 
 % Check variable values: the square's left triangle samples the red
 % half of the texture, the right one the blue half
@@ -118,7 +118,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
 glbFile = fcn_INTERNAL_writeTestGLB(fullfile(tempdir,'carmesh3d_test_glass.glb'), 'halfGlass');
 vehicleMesh = fcn_CarMesh3D_readGLB(glbFile, FigNum=[]);
-assert(vehicleMesh.SeeThroughReliable);
+assert(vehicleMesh.FlagSeeThroughReliable);
 assert(sum(vehicleMesh.FaceTextureAlpha < 0.95) == 1);
 assert(abs(min(vehicleMesh.FaceTextureAlpha) - 0.3) < 1e-9);   % (1 - transmission 0.7)
 
@@ -126,7 +126,7 @@ glbFile = fcn_INTERNAL_writeTestGLB(fullfile(tempdir,'carmesh3d_test_allglass.gl
 warning('off','CarMesh3D:unreliableSeeThrough');
 vehicleMesh = fcn_CarMesh3D_readGLB(glbFile, FigNum=[]);
 warning('on','CarMesh3D:unreliableSeeThrough');
-assert(~vehicleMesh.SeeThroughReliable);
+assert(~vehicleMesh.FlagSeeThroughReliable);
 assert(all(vehicleMesh.FaceTextureAlpha == 1));
 
 % Make sure no plot was made

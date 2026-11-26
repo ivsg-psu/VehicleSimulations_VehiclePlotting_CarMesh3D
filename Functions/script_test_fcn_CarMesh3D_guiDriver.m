@@ -59,7 +59,7 @@ try
 catch caughtError
     assert(contains(caughtError.message, 'disabled'), caughtError.message);
 end
-fcn_CarMesh3D_guiDriver(app.Figure, 'set', 'lights', true, Force=true);   % (unless forced)
+fcn_CarMesh3D_guiDriver(app.Figure, 'set', 'lights', true, FlagForce=true);   % (unless forced)
 app.Lights.Enable = 'on';
 
 %% TEST case: the layout check catches the problems put in on purpose

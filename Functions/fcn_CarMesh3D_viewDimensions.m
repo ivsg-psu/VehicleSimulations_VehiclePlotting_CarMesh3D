@@ -15,7 +15,7 @@ function viewer = fcn_CarMesh3D_viewDimensions(vehicleInput, options)
 %
 %       viewer = fcn_CarMesh3D_viewDimensions(vehicleInput,...
 %           (DimensionTable=dimensionTable), (Parent=container),...
-%           (OnSelect=function), (OnHint=function), (Visible=flag),...
+%           (OnSelect=function), (OnHint=function), (FlagVisible=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -42,7 +42,7 @@ function viewer = fcn_CarMesh3D_viewDimensions(vehicleInput, options)
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show it in its own window's hint line (or not at all, in a parent).
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      FigNum: not used (a window); [] or -1 (fast mode: no input checks).
 %
@@ -103,7 +103,7 @@ arguments
     options.Parent = []         % Panel or grid to build into; [] for a window of its own
     options.OnSelect = []       % Called with a quantity when its table row is clicked
     options.OnHint = []         % Called with hint text
-    options.Visible = true      % Build the window hidden (tests)
+    options.FlagVisible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
 
@@ -229,7 +229,7 @@ mouseMode = '';
 mouseLast = [0 0];
 if flagOwnWindow
     visibleText = 'on';
-    if ~options.Visible
+    if ~options.FlagVisible
         visibleText = 'off';
     end
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_viewDimensions: %s', vehicleName), 'Position', [80 80 1400 860], ...

@@ -22,8 +22,8 @@
 
 %% Set up the workspace
 fitMesh = fcn_CarMesh3D_meshWithLabelEdits('2009_Honda_Fit_Sport', FigNum=-1);
-signals = fcn_CarMesh3D_lampSignals();
-signalNames = {signals.Name};
+signalKinds = fcn_CarMesh3D_lampSignals();
+signalNames = {signalKinds.Name};
 % (a temporary copy of the Fit, for the file: put back through onCleanup)
 copyFolder = fullfile(tempname, '2009_Honda_Fit_Sport');
 demoCopy = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport', DemoFolder=fileparts(copyFolder), FigNum=-1); %#ok<NASGU>
@@ -81,16 +81,16 @@ fprintf(1,'Figure: 2XXXXXX: TEST mode cases\n');
 %% TEST case: the signal list
 figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: the signal list\n', figNum);
-assert(all(ismember({'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Tail','Brake','Backup','FogLights','Reflectors'}, signalNames)));
+assert(all(ismember({'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Tail','Brake','Backup','Fog','Reflectors'}, signalNames)));
 assert(~ismember('Hazards', signalNames), 'Hazards is not a signal (Q80 (A)): it is the two turn signals');
-assert(numel(unique(signalNames)) == numel(signalNames) && all(~cellfun(@isempty, {signals.Label})));
+assert(numel(unique(signalNames)) == numel(signalNames) && all(~cellfun(@isempty, {signalKinds.Label})));
 
 %% TEST case: the defaults (the design file, section 4), on the Fit
 figNum = 20002;
 fprintf(1,'Figure %.0f: TEST case: the defaults\n', figNum);
 row = @(name) fitMatrix(strcmp(fitMatrix.Unit, name), :);
 headlamp = row('front-left headlamp');
-assert(headlamp.LowBeam == 1 && headlamp.HighBeam == 1 && headlamp.FogLights == 0, 'A headlamp: low and high beams');
+assert(headlamp.LowBeam == 1 && headlamp.HighBeam == 1 && headlamp.Fog == 0, 'A headlamp: low and high beams');
 assert(row('front-left turn-signal lamp').TurnLeft == 1 && row('front-left turn-signal lamp').TurnRight == 0, 'Left turn on the left');
 assert(row('front-right turn-signal lamp').TurnRight == 1 && row('front-right turn-signal lamp').TurnLeft == 0, 'Right turn on the right');
 marker = row('front-left marker lamp');
@@ -98,7 +98,7 @@ assert(marker.Running == 1 && marker.Parking == 1 && marker.Tail == 1);
 tail = row('rear-left tail/brake lamp');
 assert(tail.Tail == 0.4 && tail.Parking == 0.4 && tail.Brake == 1 && tail.TurnLeft == 0, ...
     'A tail/brake lamp: tail and parking 0.4, brake 1; not the turn (the Fit has rear turn-signal lamps)');
-assert(row('front-left fog lamp').FogLights == 1 && row('front-left fog lamp').HighBeam == 0, 'The Fit''s fog lamps: the fog signal only (Sean, 00:08)');
+assert(row('front-left fog lamp').Fog == 1 && row('front-left fog lamp').HighBeam == 0, 'The Fit''s fog lamps: the fog signal only (Sean, 00:08)');
 assert(row('rear-left backup lamp').Backup == 1 && row('rear-left reflector').Reflectors == 1);
 assert(all(strcmp(fitMatrix.Default, 'yes')), 'No file and nothing to migrate: every row the default');
 
@@ -106,27 +106,27 @@ assert(all(strcmp(fitMatrix.Default, 'yes')), 'No file and nothing to migrate: e
 figNum = 20003;
 fprintf(1,'Figure %.0f: TEST case: red rear turns\n', figNum);
 noRearTurns = fitMesh;
-turnIndex = find(strcmp(cellstr(noRearTurns.LightTypeNames), 'turnSignalLamp'));
+turnIndex = find(strcmp(cellstr(noRearTurns.LabelLampNames), 'turnSignalLamp'));
 faceCenters = (noRearTurns.Vertices(noRearTurns.Faces(:,1),:) + noRearTurns.Vertices(noRearTurns.Faces(:,2),:) + noRearTurns.Vertices(noRearTurns.Faces(:,3),:))/3;
-noRearTurns.FaceLightType(noRearTurns.FaceLightType == turnIndex & faceCenters(:,1) < 1) = 0;
+noRearTurns.LabelFaceLamp(noRearTurns.LabelFaceLamp == turnIndex & faceCenters(:,1) < 1) = 0;
 redTurns = fcn_CarMesh3D_lampFunctions(noRearTurns);
 redLeft = redTurns(strcmp(redTurns.Unit, 'rear-left tail/brake lamp'), :);
 redRight = redTurns(strcmp(redTurns.Unit, 'rear-right tail/brake lamp'), :);
 assert(redLeft.TurnLeft == 1 && redLeft.TurnRight == 0 && redRight.TurnRight == 1 && redRight.TurnLeft == 0);
 assert(redTurns.TurnLeft(strcmp(redTurns.Unit, 'rear-center tail/brake lamp')) == 0, 'The high brake lamp is no turn signal');
 
-%% TEST case: the migration from the mesh (LampSwitching; FaceLightFunctions)
+%% TEST case: the migration from the mesh (SignalLampSwitching; LabelFaceAlsoLamps)
 figNum = 20004;
 fprintf(1,'Figure %.0f: TEST case: migration\n', figNum);
 switched = fitMesh;
-switched.LampSwitching = struct('fogLamp', {{'FogLights', 'HighBeam'}});   % (a maker that lights the fog lamps with the high beams)
+switched.SignalLampSwitching = struct('fogLamp', {{'Fog', 'HighBeam'}});   % (a maker that lights the fog lamps with the high beams)
 migrated = fcn_CarMesh3D_lampFunctions(switched);
 fogRow = migrated(strcmp(migrated.Unit, 'front-left fog lamp'), :);
-assert(fogRow.FogLights == 1 && fogRow.HighBeam == 1 && strcmp(fogRow.Default, 'edited') && contains(fogRow.Source, 'LampSwitching'));
+assert(fogRow.Fog == 1 && fogRow.HighBeam == 1 && strcmp(fogRow.Default, 'edited') && contains(fogRow.Source, 'SignalLampSwitching'));
 functionsMesh = fitMesh;
-runningIndex = find(strcmp(cellstr(functionsMesh.LightTypeNames), 'runningLamp'));
+runningIndex = find(strcmp(cellstr(functionsMesh.LabelLampNames), 'runningLamp'));
 headlampFaces = fitUnits(strcmp({fitUnits.Name}, 'front-left headlamp')).Faces;
-functionsMesh.FaceLightFunctions(headlampFaces, runningIndex) = true;   % (the headlamp also lights as a running lamp)
+functionsMesh.LabelFaceAlsoLamps(headlampFaces, runningIndex) = true;   % (the headlamp also lights as a running lamp)
 migrated = fcn_CarMesh3D_lampFunctions(functionsMesh);
 headRow = migrated(strcmp(migrated.Unit, 'front-left headlamp'), :);
 assert(headRow.Running == 1 && strcmp(headRow.Default, 'edited') && contains(headRow.Source, 'runningLamp'));
@@ -134,7 +134,7 @@ assert(headRow.Running == 1 && strcmp(headRow.Default, 'edited') && contains(hea
 %% TEST case: the file: saved, read back, an edited row kept, a default row remade
 figNum = 20005;
 fprintf(1,'Figure %.0f: TEST case: the file\n', figNum);
-[saved, ~, savedInfo] = fcn_CarMesh3D_lampFunctions(copyFolder, Save=true);
+[saved, ~, savedInfo] = fcn_CarMesh3D_lampFunctions(copyFolder, FlagSave=true);
 assert(isfile(savedInfo.File) && ~savedInfo.FromFile);
 [readBack, ~, readInfo] = fcn_CarMesh3D_lampFunctions(copyFolder);
 assert(readInfo.FromFile && isequal(readBack{:, signalNames}, saved{:, signalNames}), 'Read back as saved');
@@ -234,7 +234,7 @@ fprintf(1,'The Fit, %.0f calls: normal %.3f s, fast %.3f s\n', Niterations, slow
 %% Fail conditions
 if 1==0
     %% Save with a mesh only (no file to save to)
-    fcn_CarMesh3D_lampFunctions(fitMesh, Save=true);
+    fcn_CarMesh3D_lampFunctions(fitMesh, FlagSave=true);
     %% Not a vehicle or a mesh
     fcn_CarMesh3D_lampFunctions(42);
 end

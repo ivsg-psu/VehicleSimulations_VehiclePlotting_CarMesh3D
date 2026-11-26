@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
 fitMesh = loaded.vehicleMesh;
@@ -36,7 +36,7 @@ testMotion = stage3.cacheOutputs.checkResults.TestMotion;
 
 %% DEMO case: The Fit's lights check, from its ID, in its own window (hidden)
 fprintf(1,'DEMO case: the Fit''s lights check, from its ID, in its own window (hidden)\n');
-animator = fcn_CarMesh3D_animateChecks(vehicleID, 'lights', Visible=false);
+animator = fcn_CarMesh3D_animateChecks(vehicleID, 'lights', FlagVisible=false);
 assert(isgraphics(animator.Figure));
 assert(numel(animator.Axes) == 2 && all(isgraphics(animator.Axes)));
 assert(~isempty(animator.Rows) && ~isempty(animator.Steps));
@@ -61,7 +61,7 @@ assert(~isvalid(animator.Figure));
 fprintf(1,'TEST case: every check, from a mesh and the test motion\n');
 checkKeys = {'lights', 'body', 'steering', 'wheels', 'drive'};
 for ith_check = 1:numel(checkKeys)
-    animator = fcn_CarMesh3D_animateChecks(fitMesh, checkKeys{ith_check}, TestMotion=testMotion, Visible=false);
+    animator = fcn_CarMesh3D_animateChecks(fitMesh, checkKeys{ith_check}, TestMotion=testMotion, FlagVisible=false);
     assert(~isempty(animator.Rows), 'no rows for %s', checkKeys{ith_check});
     if strcmp(checkKeys{ith_check}, 'drive')
         assert(isempty(animator.Steps));   % (the drive check: the whole animation only)
@@ -76,7 +76,7 @@ end
 %% TEST case: A step, the whole animation (OnStep), Play and Stop
 fprintf(1,'TEST case: a step, the whole animation (OnStep), Play and Stop\n');
 setappdata(0, 'testAnimateSteps', []);
-animator = fcn_CarMesh3D_animateChecks(fitMesh, 'body', TestMotion=testMotion, Visible=false, ...
+animator = fcn_CarMesh3D_animateChecks(fitMesh, 'body', TestMotion=testMotion, FlagVisible=false, ...
     OnStep=@(stepIndex) setappdata(0, 'testAnimateSteps', [getappdata(0, 'testAnimateSteps') stepIndex]));
 animator.ShowStep(2);
 assert(animator.Rows(animator.Frame()) == animator.Steps(2).Row);
@@ -113,14 +113,14 @@ delete(hostFigure);
 fprintf(1,'TEST case: the mesh animated is the mesh given (a painted lamp lights)\n');
 % (body faces at the rear, painted as tail lights, as the painter would)
 centers = (fitMesh.Vertices(fitMesh.Faces(:,1),:) + fitMesh.Vertices(fitMesh.Faces(:,2),:) + fitMesh.Vertices(fitMesh.Faces(:,3),:))/3;
-bodyFaces = find(fitMesh.FacePartIndex == find(strcmp(fitMesh.PartNames,'body')));
+bodyFaces = find(fitMesh.LabelFacePart == find(strcmp(fitMesh.LabelPartNames,'body')));
 [~, order] = sort(centers(bodyFaces,1));
 rearFaces = bodyFaces(order(1:20));
 edit = struct('Name', 'test: painted tail', 'Points', round(centers(rearFaces,:),5), 'PointTolerance', 0.005, 'LightType', 'tailBrakeLamp');
 paintedMesh = fcn_CarMesh3D_editLabels(fitMesh, Edits={edit}, FigNum=-1);
-before = fcn_CarMesh3D_animateChecks(fitMesh, 'lights', TestMotion=testMotion, Visible=false);
-after = fcn_CarMesh3D_animateChecks(paintedMesh, 'lights', TestMotion=testMotion, Visible=false);
-countTail = @(handles) sum(arrayfun(@(p) size(p.Faces,1), handles.LightPatches.tailBrakeLamp));
+before = fcn_CarMesh3D_animateChecks(fitMesh, 'lights', TestMotion=testMotion, FlagVisible=false);
+after = fcn_CarMesh3D_animateChecks(paintedMesh, 'lights', TestMotion=testMotion, FlagVisible=false);
+countTail = @(handles) sum(arrayfun(@(p) size(p.Faces,1), handles.LabelLampPatches.tailBrakeLamp));
 assert(countTail(after.Handles{1}) >= countTail(before.Handles{1}) + 20);
 before.Close();
 after.Close();

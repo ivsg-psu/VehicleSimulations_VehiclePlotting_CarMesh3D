@@ -30,7 +30,7 @@ vehicleSpec = fcn_CarMesh3D_fillVehicleSpec(Name='Example compact car', ...
     TireSize='205/55R16', FrontOverhang=0.88, GroundClearance=0.14, FigNum=-1);
 sampleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
 sampleMesh = fcn_CarMesh3D_fitMeshToSpec(sampleMesh, vehicleSpec, FigNum=-1);
-bodyFaces = find(sampleMesh.FacePartIndex==find(strcmp(sampleMesh.PartNames,'body')) & sampleMesh.FaceWheelIndex==0);
+bodyFaces = find(sampleMesh.LabelFacePart==find(strcmp(sampleMesh.LabelPartNames,'body')) & sampleMesh.FaceWheelIndex==0);
 bodyVertices = sampleMesh.Vertices(unique(sampleMesh.Faces(bodyFaces,:)),:);
 rearX = min(bodyVertices(:,1));
 lowZ = min(bodyVertices(:,3));
@@ -103,9 +103,9 @@ assert(isequal(get(gcf,'Number'),figNum));
 close all;
 fprintf(1,'Figure: 2XXXXXX: TEST cases\n');
 
-%% TEST case: The warnings are printed, with their IDs; Quiet prints none
+%% TEST case: The warnings are printed, with their IDs; FlagVerbose=false prints none
 figNum = 20001;
-titleString = sprintf('TEST case: The warnings are printed, with their IDs; Quiet prints none');
+titleString = sprintf('TEST case: The warnings are printed, with their IDs; FlagVerbose=false prints none');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
@@ -116,7 +116,7 @@ warning(warningState);
 [~, warningID] = lastwarn;
 assert(strcmp(warningID, 'CarMesh3D:hiddenOutsideBox'));
 lastwarn('');
-fcn_CarMesh3D_checkHiddenFaces(hiddenMesh, vehicleSpec, Quiet=true);
+fcn_CarMesh3D_checkHiddenFaces(hiddenMesh, vehicleSpec, FlagVerbose=false);
 assert(isempty(lastwarn));
 
 % Make sure plot did NOT open up
@@ -134,12 +134,12 @@ faceCenters = (sampleMesh.Vertices(sampleMesh.Faces(:,1),:) + sampleMesh.Vertice
     sampleMesh.Vertices(sampleMesh.Faces(:,3),:))/3;
 insideFaces = find(abs(faceCenters(:,1) - mean(faceCenters(:,1))) < 0.5 & sampleMesh.FaceWheelIndex==0);
 manyMesh = fcn_CarMesh3D_editLabels(sampleMesh, Edits={struct('FaceIndices',insideFaces,'Hide','middle')}, FigNum=-1);
-report = fcn_CarMesh3D_checkHiddenFaces(manyMesh, [], ManyFraction=0.01, Quiet=true);
+report = fcn_CarMesh3D_checkHiddenFaces(manyMesh, [], ManyFraction=0.01, FlagVerbose=false);
 assert(isempty(report.OutsideBox) || all(report.OutsideBox.Distance_m > 0.01));
 assert(any(contains(report.Messages, 'are hidden')), 'Many hidden faces reported');
 assert(isempty(report.Dimensions));   % (no spec: no dimensions)
 % (no hidden faces: nothing to report)
-report = fcn_CarMesh3D_checkHiddenFaces(sampleMesh, vehicleSpec, Quiet=true);
+report = fcn_CarMesh3D_checkHiddenFaces(sampleMesh, vehicleSpec, FlagVerbose=false);
 assert(report.NumHidden == 0 && isempty(report.Messages));
 
 % Make sure plot did NOT open up
@@ -152,7 +152,7 @@ assert(~any(figHandles==figNum));
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
-report = fcn_CarMesh3D_checkHiddenFaces(hiddenMesh, [], Quiet=true, FigNum=-1);
+report = fcn_CarMesh3D_checkHiddenFaces(hiddenMesh, [], FlagVerbose=false, FigNum=-1);
 assert(report.NumHidden == numel(mufflerFaces));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));

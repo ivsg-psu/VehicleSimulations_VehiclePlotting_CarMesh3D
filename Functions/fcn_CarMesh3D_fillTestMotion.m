@@ -59,7 +59,7 @@ function testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, options)
 %
 %      testMotion: the motion as read back by fcn_CarMesh3D_loadMotionCSV
 %      (Time, Pose, BodyRoll, BodyPitch, BodyHeave, Speed, SteerAngle,
-%      WheelSpin, WheelLift, LightStates, Data, ...), plus:
+%      WheelSpin, WheelLift, Signals, Data, ...), plus:
 %           Segments: a structure array with Name, StartTime, EndTime,
 %               and Description for each segment
 %           Caption: K x 1 cell array describing the inputs at each time

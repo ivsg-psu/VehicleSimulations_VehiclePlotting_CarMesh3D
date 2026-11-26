@@ -22,7 +22,7 @@
 %   4. Run it. Look at every picture and animation in the "checks"
 %      subfolder. Fix the settings (most often the label edits) and run
 %      it again until every check looks right.
-%   5. Set flag_addThisVehicleToReferenceList = 1 and run it once more,
+%   5. Set flagAddThisVehicleToReferenceList = 1 and run it once more,
 %      to add the vehicle (and its animation) to the reference list in
 %      Data\referenceVehicles.csv and in the README.
 %
@@ -69,33 +69,33 @@
 %   %   % Functions, so the script works from Data\BodyStyles\<Style>\<ID>
 %   % * removeFaces: faces deleted right after import (stray pieces that
 %   %   % would spoil the fit), by a regular expression on material and group
-%   % * symmetricMesh and partShares settings for the reduction
+%   % * flagSymmetricMesh and partShares settings for the reduction
 %   % * checksToRun: run only some checks (for example {'labels'})
-%   % * wheelInnerParts: parts inside each wheel (rim spokes, hubs) join
+%   % * flagWheelInnerParts: parts inside each wheel (rim spokes, hubs) join
 %   %   % that wheel, so they turn with it
-%   % * flag_firstLook: a fast first look (only the labels picture)
+%   % * flagFirstLook: a fast first look (only the labels picture)
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In script_CarMesh3D_vehicle_TEMPLATE
 %   % * A first look also opens the labels in a MATLAB figure that is left
 %   %   % open, one per vehicle (drag to rotate, scroll to zoom), since the
 %   %   % PNG picture is hard to zoom into
-%   % * reduceWithBlender: the model is reduced in Blender during its
+%   % * flagReduceWithBlender: the model is reduced in Blender during its
 %   %   % conversion (fcn_CarMesh3D_convertToOBJ TargetFaces), and not
 %   %   % again in MATLAB
 %   % * Inside-out panels are flipped after the reduction
 %   %   % (fcn_CarMesh3D_fixFlippedFaces), in first looks too
-%   % * flag_compareToOriginal: a first look also compares the reduced
+%   % * flagCompareToOriginal: a first look also compares the reduced
 %   %   % mesh with the download (fcn_CarMesh3D_compareToOriginal: holes,
 %   %   % label changes, flipped faces, and close-ups of the worst spots)
 %   % * firstLookNote: a note added to the labels figure's title
-%   % * addFloorPanel: a flat floor panel under the body
+%   % * flagAddFloorPanel: a flat floor panel under the body
 %   %   % (fcn_CarMesh3D_addFloorPanel), since many downloads have no
 %   %   % underside
 %   % * .glb models: their texture colors and see-through marks are read
 %   %   % (fcn_CarMesh3D_readGLB) and copied onto the mesh
 %   %   % (fcn_CarMesh3D_transferTextureColors): see-through faces become
-%   %   % glass, and textureColorParts are shown in their texture colors
+%   %   % glass, and labelTextureColorParts are shown in their texture colors
 %   % * The fit measures length and height on the left half when the
 %   %   % mesh is made symmetric (fitMeshToSpec Symmetric), since the 2004
 %   %   % RAV4's right-side antenna set its height and was then mirrored away
@@ -105,7 +105,7 @@
 %   % * A full run saves BuildInfo with the mesh (fcn_CarMesh3D_makeBuildInfo:
 %   %   % CarMesh3D and mesh versions, settings, quality score), after
 %   %   % comparing with the download and checking the dimensions
-%   % * Cached stages (flag_useCache): the finished mesh, the comparison,
+%   % * Cached stages (flagUseCache): the finished mesh, the comparison,
 %   %   % and the checks are each reused when nothing they depend on changed
 %   % * The ground clearance is put back after the reduction
 %   %   % (fcn_CarMesh3D_restoreGroundClearance; the 2025 Camry's was 5 mm
@@ -149,7 +149,7 @@
 %   %   % looked right-hand drive (Sean, 10:38, asked for it mirrored), but the
 %   %   % old symmetric build had put a second wheel on the right; the
 %   %   % download itself is left-hand drive (10:55), so it stays as it is
-%   % * The interior-objects step (findInteriorObjects)
+%   % * The interior-objects step (flagFindInteriorObjects)
 
 
 % Vehicle settings (the only part to change for a new vehicle)
@@ -194,7 +194,7 @@ partRules = {'18in','wheel';      % (ActsOfDoge's wheel material name; the SE's 
     'glass_ex','glass';
     '(^| )body( |$)','body';
     '.*','trim'}   % (on the .glb's material names)
-useMaterialColors = false;   % false: one color per part (below)
+flagUseMaterialColors = false;   % false: one color per part (below)
 bodyColor = [0.05 0.20 0.60];   % The standard blue for every vehicle: it shows mislabeled trim and glass clearly
 glassColor = [0.25 0.25 0.28];
 trimColor = [0.05 0.05 0.05];
@@ -204,12 +204,12 @@ glassAlpha = 0.6;          % 0 clear to 1 solid
 % textures (lamp lenses, badges, handles, rims), and whether its
 % see-through faces become glass (fcn_CarMesh3D_labelParts). The body
 % keeps bodyColor, so mislabeled faces still show.
-textureColorParts = {'light','trim','wheel'};
-seeThroughGlass = true;
+labelTextureColorParts = {'light','trim','wheel'};
+flagSeeThroughGlass = true;
 
 % Parts inside each wheel (rim spokes, hub, brake disc) that the labels
 % missed become part of that wheel, so they turn with it: true (usual) or false
-wheelInnerParts = true;
+flagWheelInnerParts = true;
 
 % Width: 'all' (the whole model to OverallWidth), 'body' (only body faces),
 % or 'mirrors' (the whole model to WidthWithMirrors, when the mirrors are
@@ -218,7 +218,7 @@ widthReference = 'mirrors';
 
 % Label fixes AFTER fitting (fcn_CarMesh3D_editLabels): regions are in
 % meters, with the origin on the ground below the rear axle, X forward,
-% Y left, Z up. Find them with flag_useInteractiveLabelEditor = 1.
+% Y left, Z up. Find them with flagUseInteractiveLabelEditor = 1.
 % Label fixes that must be made BEFORE fitting (for example, tires that
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
@@ -237,11 +237,11 @@ targetFaces = 24000;   % (more than the download's 11,816: nothing is reduced)
 % 'wheel' rows of partRules, and the usual wheel words) keep their faces,
 % and the faces of removeFaces are deleted first. A .glb, .gltf, .fbx,
 % .blend, or .obj model; needs Blender (as .glb files do anyway).
-reduceWithBlender = true;
+flagReduceWithBlender = true;
 
 % Reduce the left half and mirror it, so the mesh is exactly symmetric and
 % each side gets the whole budget's detail (see fcn_CarMesh3D_simplifyMesh)
-symmetricMesh = true;
+flagSymmetricMesh = true;
 
 % Shares of the face budget by part, after the wheels: {} for every part in
 % proportion to its faces; give the painted body more when a download has
@@ -251,24 +251,24 @@ partShares = {};
 % Add a flat floor panel under the body (at the ground clearance, wheel
 % footprints cut out): many downloads have no underside, so the reduced
 % mesh can be seen through from below and through its windows
-addFloorPanel = true;
+flagAddFloorPanel = true;
 % Find the interior objects: the two front seats and the steering wheel,
 % by fitting templates to the mesh (fcn_CarMesh3D_findInteriorObjects;
 % 1 to 4 minutes, done once and cached). They are drawn in the 2D outline
 % and turn with the steering (Sean, 2026-11-24 09:19).
-findInteriorObjects = true;
+flagFindInteriorObjects = true;
 interiorTemplates = struct();   % this vehicle's own sizes when known, e.g. interiorTemplates.SteeringWheel.Diameter = 0.368;
 
 % What to run
-flag_firstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
-flag_compareToOriginal = 1;               % 1: compare the reduced mesh with the download (flagged spots; adds about a minute)
-flag_useCache = 1;                        % 1: reuse each stage (mesh, comparison, checks) when nothing it depends on changed; 0: do every step again
+flagFirstLook = 0;                       % 1: a fast first look: only the labels picture (no saved files, no visibility pass)
+flagCompareToOriginal = 1;               % 1: compare the reduced mesh with the download (flagged spots; adds about a minute)
+flagUseCache = 1;                        % 1: reuse each stage (mesh, comparison, checks) when nothing it depends on changed; 0: do every step again
 firstLookNote = '';                       % A note added to the labels figure's title (for example, whether the .glb reader would help)
-flag_useInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
-flag_runChecks = 1;                       % 1: run the standard checks (images and GIFs in checks\)
+flagUseInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
+flagRunChecks = 1;                       % 1: run the standard checks (images and GIFs in checks\)
 checksToRun = 'all';                      % 'all', or a list such as {'labels'} for a first look (fast)
-flag_saveGifs = 1;                        % 1: save the check GIFs (0 is faster, for a first look)
-flag_addThisVehicleToReferenceList = 0;   % 1: add to Data\referenceVehicles.csv and the README
+flagSaveGifs = 1;                        % 1: save the check GIFs (0 is faster, for a first look)
+flagAddThisVehicleToReferenceList = 0;   % 1: add to Data\referenceVehicles.csv and the README
 
 %% Set up the workspace
 thisFolder = fileparts(mfilename('fullpath'));
@@ -303,12 +303,12 @@ vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(vehicleFiles.ParametersFile, BodyCol
 % skips the mesh, and a rerun with nothing changed takes seconds. The
 % Blender step keeps its own reduced OBJ next to the download (see
 % fcn_CarMesh3D_convertToOBJ), so Blender is not needed to redo the
-% later steps. Set flag_useCache = 0 to do every step again.
+% later steps. Set flagUseCache = 0 to do every step again.
 cacheFolder = fullfile(vehicleFiles.Folder, 'cache');
 [~, ~, meshVersion] = fcn_CarMesh3D_version(FigNum=-1);
-flag_fromBodyStyle = isempty(modelFile);
+flagFromBodyStyle = isempty(modelFile);
 stage1Files = {vehicleFiles.ParametersFile};
-if flag_fromBodyStyle
+if flagFromBodyStyle
     % (a body style: the style list and its exemplars' meshes)
     styleInfo = fcn_CarMesh3D_loadBodyStyles(FigNum=-1);
     styleInfo = styleInfo(strcmp({styleInfo.BodyStyle}, bodyStyle));
@@ -329,18 +329,18 @@ stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodySty
     'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
     'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_mirrorMesh.m', 'fcn_CarMesh3D_findInteriorObjects.m'};
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
-    'FirstLook',logical(flag_firstLook), 'Compare',logical(flag_compareToOriginal), 'VehicleSpec',vehicleSpec, ...
+    'FirstLook',logical(flagFirstLook), 'Compare',logical(flagCompareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
 stage1File = fullfile(cacheFolder, 'stage1_mesh.mat');
-[stage1Outputs, flag_stage1Reused] = fcn_CarMesh3D_loadCache(stage1File, stage1Inputs, ...
-    Enabled=logical(flag_useCache) && ~flag_useInteractiveLabelEditor, FigNum=1);
-if flag_stage1Reused
+[stage1Outputs, flagStage1Reused] = fcn_CarMesh3D_loadCache(stage1File, stage1Inputs, ...
+    FlagEnabled=logical(flagUseCache) && ~flagUseInteractiveLabelEditor, FigNum=1);
+if flagStage1Reused
     vehicleMesh = stage1Outputs.vehicleMesh;
     originalMesh = stage1Outputs.originalMesh;
 else
 
     %% Steps 2 to 4 from a body style (no model of this vehicle)
-    if flag_fromBodyStyle
+    if flagFromBodyStyle
         if isempty(bodyStyle)
             error('Give a modelFile, or set modelFile = '''' and give a bodyStyle (see Data\bodyStyles.csv)');
         end
@@ -351,7 +351,7 @@ else
 
     %% Step 2: Import the model and turn it to X forward, Y left, Z up
     textureMesh = [];
-    if ~flag_fromBodyStyle
+    if ~flagFromBodyStyle
         licenseFile = fullfile(vehicleFiles.ModelFolder,'LICENSE.txt');
         modelLicense = 'unknown';
         if isfile(licenseFile)
@@ -363,7 +363,7 @@ else
         if strcmpi(modelExtension,'.glb')
             textureMesh = fcn_CarMesh3D_readGLB(modelPath, Name=vehicleFiles.Name, License=modelLicense, FigNum=-1);
         end
-        if reduceWithBlender && ~isempty(targetFaces)
+        if flagReduceWithBlender && ~isempty(targetFaces)
             % (the wheel rows of partRules, and the usual wheel words)
             wheelPattern = 'tire|tyre|wheel|(^|[^a-z])rim|hub|brake';
             if ~isempty(partRules)
@@ -385,34 +385,34 @@ else
     end
 
     %% Step 3: Labels
-    if ~flag_fromBodyStyle
-        vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, PartRules=partRules, UseMaterialColors=useMaterialColors, ...
+    if ~flagFromBodyStyle
+        vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, PartRules=partRules, FlagUseMaterialColors=flagUseMaterialColors, ...
             PartColors={'body',bodyColor; 'glass',glassColor; 'trim',trimColor}, GlassAlpha=glassAlpha, ...
-            SeeThroughGlass=seeThroughGlass, TextureColorParts=textureColorParts);
+            FlagSeeThroughGlass=flagSeeThroughGlass, LabelTextureColorParts=labelTextureColorParts);
         editsBeforeFit = fcn_INTERNAL_editsBeforeFit(vehicleMesh);
         if ~isempty(editsBeforeFit)
             vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=editsBeforeFit);
         end
-        if wheelInnerParts
+        if flagWheelInnerParts
             vehicleMesh = fcn_INTERNAL_wheelInnerParts(vehicleMesh);
         end
     end
 
     %% Step 4: Fit to the specification
-    if ~flag_fromBodyStyle
-        vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference=widthReference, Symmetric=symmetricMesh);
+    if ~flagFromBodyStyle
+        vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference=widthReference, FlagSymmetric=flagSymmetricMesh);
     end
     if ~isempty(labelEditsAfterFit)
         vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=labelEditsAfterFit);
     end
-    if flag_useInteractiveLabelEditor
-        vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Interactive=true, GlassAlpha=glassAlpha); %#ok<UNRCH>
+    if flagUseInteractiveLabelEditor
+        vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, FlagInteractive=true, GlassAlpha=glassAlpha); %#ok<UNRCH>
     end
 
     %% Step 4b: The download itself (not reduced), labeled and fit the same way, for the comparison
     originalMesh = [];
-    if flag_compareToOriginal && ~flag_fromBodyStyle
-        if reduceWithBlender && ~isempty(targetFaces)
+    if flagCompareToOriginal && ~flagFromBodyStyle
+        if flagReduceWithBlender && ~isempty(targetFaces)
             if ~isempty(textureMesh)
                 originalMesh = textureMesh;   % (the .glb, read directly)
             else
@@ -423,17 +423,17 @@ else
             if importMirror
                 originalMesh = fcn_CarMesh3D_mirrorMesh(originalMesh, FigNum=-1);
             end
-            originalMesh = fcn_CarMesh3D_labelParts(originalMesh, PartRules=partRules, UseMaterialColors=useMaterialColors, ...
+            originalMesh = fcn_CarMesh3D_labelParts(originalMesh, PartRules=partRules, FlagUseMaterialColors=flagUseMaterialColors, ...
                 PartColors={'body',bodyColor; 'glass',glassColor; 'trim',trimColor}, GlassAlpha=glassAlpha, ...
-                SeeThroughGlass=seeThroughGlass, TextureColorParts=textureColorParts);
+                FlagSeeThroughGlass=flagSeeThroughGlass, LabelTextureColorParts=labelTextureColorParts);
             originalEdits = fcn_INTERNAL_editsBeforeFit(originalMesh);
             if ~isempty(originalEdits)
                 originalMesh = fcn_CarMesh3D_editLabels(originalMesh, Edits=originalEdits);
             end
-            if wheelInnerParts
+            if flagWheelInnerParts
                 originalMesh = fcn_INTERNAL_wheelInnerParts(originalMesh);
             end
-            originalMesh = fcn_CarMesh3D_fitMeshToSpec(originalMesh, vehicleSpec, WidthReference=widthReference, Symmetric=symmetricMesh);
+            originalMesh = fcn_CarMesh3D_fitMeshToSpec(originalMesh, vehicleSpec, WidthReference=widthReference, FlagSymmetric=flagSymmetricMesh);
             if ~isempty(labelEditsAfterFit)
                 originalMesh = fcn_CarMesh3D_editLabels(originalMesh, Edits=labelEditsAfterFit);
             end
@@ -447,7 +447,7 @@ else
     % fields are dropped, since the simplification makes new faces)
     vehicleMesh = fcn_INTERNAL_dropTextureFields(vehicleMesh);
     originalMesh = fcn_INTERNAL_dropTextureFields(originalMesh);
-    if flag_fromBodyStyle
+    if flagFromBodyStyle
         % (a finished exemplar, refit: it was reduced, repaired, made
         % symmetric, given its floor panel, and had its overlays lifted when it
         % was made, so none of that is done again (a second pass would reduce
@@ -455,10 +455,10 @@ else
         % add a second floor panel); only the normals, which the refit
         % cleared, are made again, with the wheels cleared of body faces)
         vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, 'StitchTolerance',0, 'EdgeSmoothing',0, ...
-            TargetFaces=size(vehicleMesh.Faces,1), Symmetric=false, PartShares={}, VisibilityCheck=false);
+            TargetFaces=size(vehicleMesh.Faces,1), FlagSymmetric=false, PartShares={}, FlagVisibilityCheck=false);
     else
         simplifyShares = partShares;
-        if isempty(targetFaces) || (reduceWithBlender && ~flag_fromBodyStyle)
+        if isempty(targetFaces) || (flagReduceWithBlender && ~flagFromBodyStyle)
             % (no reduction here: all faces kept, or already reduced in Blender;
             % the other steps still run: symmetry, stitching, wheels, normals. The
             % part shares are not used: with them, a part given a small share was
@@ -478,8 +478,8 @@ else
             repairSettings = {'StitchTolerance',0, 'EdgeSmoothing',0};
             fprintf(1,'Not reduced (%d of %d faces kept): no stitching or edge smoothing\n', size(vehicleMesh.Faces,1), size(textureMesh.Faces,1));
         end
-        vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, Symmetric=symmetricMesh, ...
-            PartShares=simplifyShares, VisibilityCheck=~flag_firstLook);
+        vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, repairSettings{:}, TargetFaces=simplifyTarget, FlagSymmetric=flagSymmetricMesh, ...
+            PartShares=simplifyShares, FlagVisibilityCheck=~flagFirstLook);
         % (the ground clearance put back where the fit put it: a reduction can
         % raise the thin bottom edge of the rocker panels, as Blender's did
         % on the 2025 Camry by 5 mm; the wheels are not moved, and a mesh
@@ -499,13 +499,13 @@ else
             originalMesh = fcn_CarMesh3D_separateOverlays(originalMesh, FigNum=-1);
         end
         fprintf(1,'Lifted %d overlay faces off the surfaces they lie on\n', numLifted);
-        if addFloorPanel
+        if flagAddFloorPanel
             vehicleMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FigNum=-1);
         end
     end
-    if findInteriorObjects
-        % (the seats and steering wheel, stored in the mesh as FaceInteriorObject,
-        % InteriorObjectNames and InteriorObjects; a failure only warns)
+    if flagFindInteriorObjects
+        % (the seats and steering wheel, stored in the mesh as LabelFaceInterior,
+        % LabelInteriorNames and InteriorObjects; a failure only warns)
         try
             [interiorObjects, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=interiorTemplates, FigNum=-1);
             fprintf(1,'Interior objects found: driver seat %d, passenger seat %d, steering wheel %d (drive side %s, from the %s)\n', ...
@@ -520,10 +520,10 @@ end
 fprintf(1,'Finished mesh: %d faces\n', size(vehicleMesh.Faces,1));
 
 %% Step 6: Save the finished mesh
-if flag_firstLook
+if flagFirstLook
     % (a first look: only the labels picture, nothing saved)
     fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, vehicleFiles.ChecksFolder, ...
-        Checks={'labels'}, SaveGifs=false, VehicleName=vehicleFiles.Name);
+        Checks={'labels'}, FlagSaveGifs=false, VehicleName=vehicleFiles.Name);
     fprintf(1,'First look: %s\n', fullfile(vehicleFiles.ChecksFolder,'check_03_labels.png'));
     % (and the labels in a figure left open, one per vehicle: drag to
     % rotate, scroll to zoom)
@@ -559,16 +559,16 @@ end
 % and the dimension checks; a vehicle from a body style takes its
 % exemplar's comparison)
 compareTotals = [];
-flag_stage2Reused = true;
-if flag_compareToOriginal && ~isempty(originalMesh)
+flagStage2Reused = true;
+if flagCompareToOriginal && ~isempty(originalMesh)
     % (stage 2 of the cache: the comparison, reused when the mesh's inputs
     % and the comparison function are unchanged and its pictures exist)
     stage2Inputs = struct('Stage1',stage1Inputs, 'Functions',fcn_CarMesh3D_fileStamps({'fcn_CarMesh3D_compareToOriginal.m'}, FigNum=-1));
     stage2File = fullfile(cacheFolder, 'stage2_compare.mat');
     comparePictures = fullfile(vehicleFiles.ChecksFolder, {'check_04_compare_views.png','check_04_compare_spots.png'});
-    [stage2Outputs, flag_stage2Reused] = fcn_CarMesh3D_loadCache(stage2File, stage2Inputs, ...
-        Enabled=logical(flag_useCache) && all(isfile(comparePictures)), FigNum=1);
-    if flag_stage2Reused
+    [stage2Outputs, flagStage2Reused] = fcn_CarMesh3D_loadCache(stage2File, stage2Inputs, ...
+        FlagEnabled=logical(flagUseCache) && all(isfile(comparePictures)), FigNum=1);
+    if flagStage2Reused
         compareTotals = stage2Outputs.compareTotals;
     else
         compareFigure = figure('Visible','off');
@@ -582,9 +582,9 @@ if flag_compareToOriginal && ~isempty(originalMesh)
 end
 exemplarBuildInfo = [];
 buildSettings = struct('VehicleID',vehicleID, 'ModelFile',char(modelFile), 'BodyStyle',char(bodyStyle), ...
-    'TargetFaces',targetFaces, 'ReduceWithBlender',reduceWithBlender, 'Symmetric',symmetricMesh, ...
-    'WidthReference',char(widthReference), 'AddFloorPanel',addFloorPanel);
-if flag_fromBodyStyle
+    'TargetFaces',targetFaces, 'ReduceWithBlender',flagReduceWithBlender, 'Symmetric',flagSymmetricMesh, ...
+    'WidthReference',char(widthReference), 'AddFloorPanel',flagAddFloorPanel);
+if flagFromBodyStyle
     buildSettings.ExemplarID = vehicleMesh.BodyStyleInfo.ExemplarID;
     exemplarFiles = fcn_CarMesh3D_findVehicleFiles(vehicleMesh.BodyStyleInfo.ExemplarID, FigNum=-1);
     exemplarLoaded = load(exemplarFiles.MeshFile, 'vehicleMesh');
@@ -595,16 +595,16 @@ end
 validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, FigNum=-1);
 % (the saved mesh is kept as it is, with its date, when nothing changed:
 % vehicles made from it as an exemplar then stay up to date)
-flag_saveMesh = true;
-if flag_stage1Reused && flag_stage2Reused && isfile(vehicleFiles.MeshFile)
+flagSaveMesh = true;
+if flagStage1Reused && flagStage2Reused && isfile(vehicleFiles.MeshFile)
     savedMesh = load(vehicleFiles.MeshFile, 'vehicleMesh');
     if isfield(savedMesh.vehicleMesh, 'BuildInfo') && strcmp(savedMesh.vehicleMesh.BuildInfo.MeshVersion, meshVersion)
-        flag_saveMesh = false;
+        flagSaveMesh = false;
         vehicleMesh.BuildInfo = savedMesh.vehicleMesh.BuildInfo;
         fprintf(1,'Kept %s: nothing changed (quality score %.1f)\n', vehicleFiles.MeshFile, vehicleMesh.BuildInfo.Quality.Score);
     end
 end
-if flag_saveMesh
+if flagSaveMesh
     vehicleMesh.BuildInfo = fcn_CarMesh3D_makeBuildInfo(Script=[mfilename '.m'], Settings=buildSettings, ...
         CompareTotals=compareTotals, Validation=validationTable, Exemplar=exemplarBuildInfo, FigNum=1);
     save(vehicleFiles.MeshFile, 'vehicleMesh', 'vehicleSpec');
@@ -619,18 +619,18 @@ stage3Functions = {'fcn_CarMesh3D_makeDetailLevels.m', 'fcn_CarMesh3D_makeOutlin
     'fcn_CarMesh3D_plotScene.m', 'fcn_CarMesh3D_saveGifFrame.m', 'fcn_CarMesh3D_checkGroundContact.m', ...
     'fcn_CarMesh3D_fillCameraSettings.m', 'fcn_CarMesh3D_updateCamera.m'};
 stage3Inputs = struct('Stage1',stage1Inputs, 'Functions',fcn_CarMesh3D_fileStamps(stage3Functions, FigNum=-1), ...
-    'RunChecks',logical(flag_runChecks), 'ChecksToRun',{checksToRun}, 'SaveGifs',logical(flag_saveGifs));
+    'FlagRunChecks',logical(flagRunChecks), 'ChecksToRun',{checksToRun}, 'FlagSaveGifs',logical(flagSaveGifs));
 stage3File = fullfile(cacheFolder, 'stage3_checks.mat');
 stage3Products = {vehicleFiles.LevelsFile, vehicleFiles.OutlineFile};
-if flag_runChecks
+if flagRunChecks
     stage3Products{end+1} = fullfile(vehicleFiles.ChecksFolder, 'check_summary.txt');
 end
-if flag_runChecks && flag_saveGifs
+if flagRunChecks && flagSaveGifs
     stage3Products{end+1} = fullfile(vehicleFiles.ChecksFolder, 'check_09_drive.gif');
 end
-[stage3Outputs, flag_stage3Reused] = fcn_CarMesh3D_loadCache(stage3File, stage3Inputs, ...
-    Enabled=logical(flag_useCache) && all(isfile(stage3Products)), FigNum=1);
-if flag_stage3Reused
+[stage3Outputs, flagStage3Reused] = fcn_CarMesh3D_loadCache(stage3File, stage3Inputs, ...
+    FlagEnabled=logical(flagUseCache) && all(isfile(stage3Products)), FigNum=1);
+if flagStage3Reused
     if isfield(stage3Outputs, 'checkResults')
         checkResults = stage3Outputs.checkResults;
         disp(checkResults.ValidationTable);
@@ -659,9 +659,9 @@ else
     fcn_INTERNAL_savePicture(3, fullfile(vehicleFiles.ChecksFolder,'check_12_outline2D.png'));
 
     %% Step 7: The standard checks
-    if flag_runChecks
+    if flagRunChecks
         checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, vehicleFiles.ChecksFolder, ...
-            Checks=checksToRun, SaveGifs=logical(flag_saveGifs), VehicleName=vehicleFiles.Name);
+            Checks=checksToRun, FlagSaveGifs=logical(flagSaveGifs), VehicleName=vehicleFiles.Name);
         fprintf(1,'Checks written to %s\n', vehicleFiles.ChecksFolder);
         disp(checkResults.ValidationTable);
     end
@@ -669,10 +669,10 @@ else
 end
 
 %% Step 8: Add to the reference vehicle list
-if flag_addThisVehicleToReferenceList
+if flagAddThisVehicleToReferenceList
     referenceGif = fullfile(vehicleFiles.ChecksFolder,'check_09_drive.gif');
     if ~isfile(referenceGif)
-        error('Run the checks with flag_saveGifs = 1 first: %s is needed', referenceGif);
+        error('Run the checks with flagSaveGifs = 1 first: %s is needed', referenceGif);
     end
     fcn_CarMesh3D_addReferenceVehicle(vehicleID, vehicleMesh, referenceGif);
     fprintf(1,'Added %s to the reference vehicle list\n', vehicleID);
@@ -706,7 +706,7 @@ function vehicleMesh = fcn_INTERNAL_wheelInnerParts(vehicleMesh)
 % width, seen from the side) but were not labeled as wheel (rim spokes,
 % hubs, brake discs named like body or trim parts) are made part of that
 % wheel, so they turn with it, and get a light alloy gray
-wheelPart = find(strcmp(vehicleMesh.PartNames, 'wheel'), 1);
+wheelPart = find(strcmp(vehicleMesh.LabelPartNames, 'wheel'), 1);
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 Nadded = 0;
@@ -723,11 +723,11 @@ for ith_wheel = 1:4
     cornerZ = reshape(vertices(faces(:),3), [], 3);
     inside = all(sqrt((cornerX - center(1)).^2 + (cornerZ - center(3)).^2) <= 0.97*radius, 2) & ...
         all(cornerY >= yRange(1) & cornerY <= yRange(2), 2) & vehicleMesh.FaceWheelIndex==0;
-    vehicleMesh.FacePartIndex(inside) = wheelPart;
+    vehicleMesh.LabelFacePart(inside) = wheelPart;
     vehicleMesh.FaceWheelIndex(inside) = ith_wheel;
     vehicleMesh.FaceColors(inside,:) = repmat([0.60 0.60 0.62], sum(inside), 1);
-    if isfield(vehicleMesh,'FaceLightType')
-        vehicleMesh.FaceLightType(inside) = 0;
+    if isfield(vehicleMesh,'LabelFaceLamp')
+        vehicleMesh.LabelFaceLamp(inside) = 0;
     end
     Nadded = Nadded + sum(inside);
 end

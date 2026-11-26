@@ -20,7 +20,7 @@ function [vehicleMesh, shiftDistance] = fcn_CarMesh3D_restoreGroundClearance(veh
 %
 % INPUTS:
 %
-%      vehicleMesh: a fitted, labeled vehicle mesh (FacePartIndex, with
+%      vehicleMesh: a fitted, labeled vehicle mesh (LabelFacePart, with
 %      the body as part 1 and the wheels as part 3), in meters with the
 %      ground at Z = 0.
 %
@@ -133,8 +133,8 @@ if 0==flag_max_speed
     if flag_check_inputs
         % The number of inputs and the option names are checked by the
         % arguments block above
-        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','FacePartIndex'}))
-            error('vehicleMesh must be a labeled vehicle mesh (Vertices, Faces, FacePartIndex)');
+        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','LabelFacePart'}))
+            error('vehicleMesh must be a labeled vehicle mesh (Vertices, Faces, LabelFacePart)');
         end
         if ~isnumeric(groundClearance) || ~isscalar(groundClearance) || groundClearance < 0
             error('groundClearance must be a nonnegative number (m)');
@@ -165,7 +165,7 @@ end
 %  |_|  |_|\__,_|_|_| |_|
 %
 shiftDistance = 0;
-bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
+bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.LabelFacePart==1,:));
 oldBottom = NaN;
 if ~isempty(bodyVertices)
     oldBottom = min(vehicleMesh.Vertices(bodyVertices,3));
@@ -173,7 +173,7 @@ if ~isempty(bodyVertices)
     if abs(oldBottom - groundClearance) > options.Tolerance && oldBottom > 0 && groundClearance < roofHeight && oldBottom < roofHeight
         % (every vertex not used by a wheel face is stretched; a vertex
         % shared with a wheel stays put)
-        wheelVertices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==3,:));
+        wheelVertices = unique(vehicleMesh.Faces(vehicleMesh.LabelFacePart==3,:));
         moved = true(size(vehicleMesh.Vertices,1),1);
         moved(wheelVertices) = false;
         oldHeights = vehicleMesh.Vertices(moved,3);

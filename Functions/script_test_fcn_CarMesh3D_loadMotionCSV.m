@@ -68,13 +68,13 @@ sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
 assert(isstruct(motion));
-assert(isstruct(motion.LightStates));
+assert(isstruct(motion.Signals));
 
 % Check variable sizes
 assert(isequal(size(motion.Pose),[K 6]));
 assert(isequal(size(motion.WheelSpin),[K 4]));
 assert(isequal(size(motion.SteerAngle),[K 2]));
-assert(isequal(size(motion.LightStates),[K 1]));
+assert(isequal(size(motion.Signals),[K 1]));
 
 % Check variable values: the motion comes back
 assert(max(abs(motion.Pose(:,[1 2 6]) - trajectory.Pose),[],'all') < 1e-6);
@@ -83,10 +83,10 @@ assert(strcmp(motion.SteerSource,'steer_FL and steer_FR'));
 % Wheel spin is written as rates and integrated back: close, not exact
 assert(max(abs(motion.WheelSpin - trajectory.WheelSpin),[],'all') < 0.05);
 % Lights: low beams; the left signal blinks, then the right
-assert(all(strcmp({motion.LightStates.Headlights},'low')));
-assert(motion.LightStates(1).TurnLeft && ~motion.LightStates(1).TurnRight);
-assert(any(~[motion.LightStates(1:round(K/2)).TurnLeft]));   % it blinks
-assert(motion.LightStates(end-1).TurnRight || motion.LightStates(end).TurnRight || any([motion.LightStates(round(K/2)+1:end).TurnRight]));
+assert(all([motion.Signals.LowBeam]) && ~any([motion.Signals.HighBeam]));
+assert(motion.Signals(1).TurnLeft && ~motion.Signals(1).TurnRight);
+assert(any(~[motion.Signals(1:round(K/2)).TurnLeft]));   % it blinks
+assert(motion.Signals(end-1).TurnRight || motion.Signals(end).TurnRight || any([motion.Signals(round(K/2)+1:end).TurnRight]));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -139,7 +139,7 @@ assert(max(abs(motion.SteerAngle),[],'all') < 1e-12);
 endSpin = motion.WheelSpin(end,:);
 assert(max(abs(endSpin - [1 4 2 3]*timeValues(end))) < 1e-9);
 % No brake lights at steady speed; no backup lights going forward
-assert(~any(strcmp({motion.LightStates.Tail},'brake')) && ~any([motion.LightStates.Backup]));
+assert(~any([motion.Signals.Brake]) && ~any([motion.Signals.Backup]));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -195,21 +195,21 @@ motion = fcn_CarMesh3D_loadMotionCSV(csvFile, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable values
-lightStates = motion.LightStates;
+signals = motion.Signals;
 % Brakes on while speeding up; off while slowing (no brake column value)
-assert(strcmp(lightStates(find(timeValues>=1,1)).Tail,'brake'));
-assert(~strcmp(lightStates(find(timeValues>=3,1)).Tail,'brake'));
+assert(signals(find(timeValues>=1,1)).Brake);
+assert(~signals(find(timeValues>=3,1)).Brake);
 % Rolling backward (U < 0 after about 5 s) without reverse: no backup lights
-assert(motion.Speed(end) < 0 && ~any([lightStates.Backup]));
+assert(motion.Speed(end) < 0 && ~any([signals.Backup]));
 % A file with no light columns has every light off
 csvData = readtable(csvFile);
 csvData.brakeLight = []; csvData.reverseLight = []; csvData.indicator = [];
 writetable(csvData, csvFile);
 motionNoLights = fcn_CarMesh3D_loadMotionCSV(csvFile, FigNum=-1);
-assert(~any(strcmp({motionNoLights.LightStates.Tail},'brake')) && ~any([motionNoLights.LightStates.Backup]));
+assert(~any([motionNoLights.Signals.Brake]) && ~any([motionNoLights.Signals.Backup]));
 % Blinking: on at 0 s, off at 0.5 s, on again at 0.8 s; off after 2 s
-assert(lightStates(1).TurnLeft && ~lightStates(6).TurnLeft && lightStates(9).TurnLeft);
-assert(~any([lightStates(timeValues>2.05).TurnLeft]));
+assert(signals(1).TurnLeft && ~signals(6).TurnLeft && signals(9).TurnLeft);
+assert(~any([signals(timeValues>2.05).TurnLeft]));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));

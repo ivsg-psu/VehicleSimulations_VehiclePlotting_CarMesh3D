@@ -212,12 +212,12 @@ Exemplar rows keep their gold-brown text, `[0.6 0.4 0]`; group rows are white on
 | `Descending` | [] | The older way to give the order, kept for old calls; `Order` wins. |
 | `Selected` | {} | Names ticked at the start. |
 | `DefaultVehicle` | '2009_Honda_Fit_Sport' | Copied and returned when none is selected. |
-| `Wait` | true when visible | Wait until closed. |
-| `Visible` | true | false builds it hidden (tests). |
+| `FlagWait` | true when visible | Wait until closed. |
+| `FlagVisible` | true | false builds it hidden (tests). |
 | `DataFolder` | [] (the one next to Functions) | The library's Data folder. |
 | `FigNum` | [] | -1: fast mode, no input checks. |
 
-**`selectedNames`**: the selected MATLAB names in the order shown; with none, `{<folder of a fresh copy of DefaultVehicle>}` (a message in the command window says so). With `Wait=false`: the selection when the window opened.
+**`selectedNames`**: the selected MATLAB names in the order shown; with none, `{<folder of a fresh copy of DefaultVehicle>}` (a message in the command window says so). With `FlagWait=false`: the selection when the window opened.
 
 **`browser`**: `Figure`, `Vehicles` (one element per vehicle: ID, Name, Year, Make, Model, Trim, Folder, class, size, score, build, license, review fields, picture files), `Order()`, `SetSort(key, (flagDescending))`, `SortOrder()`, `SetGroup(key)`, `ApplyFilter(text)` (true if applied), `ClearFilters()`, `Filters()`, `Open(name, tool, (flagUseCopy))` ('view', 'edit', 'review'), `Select(names)`, `Deselect(names)`, `Selected()`, `Result()`, `Close()`.
 

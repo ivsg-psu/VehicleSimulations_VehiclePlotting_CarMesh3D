@@ -16,7 +16,7 @@ function iconImage = fcn_CarMesh3D_icons(iconName, options)
 %
 % FORMAT:
 %
-%       iconImage = fcn_CarMesh3D_icons(iconName, (Enabled=flag), (Height=pixels), (FigNum=figNum))
+%       iconImage = fcn_CarMesh3D_icons(iconName, (FlagEnabled=flag), (Height=pixels), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -24,7 +24,7 @@ function iconImage = fcn_CarMesh3D_icons(iconName, options)
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Enabled: true (default) for the active look; false for the greyed
+%      FlagEnabled: true (default) for the active look; false for the greyed
 %      look.
 %
 %      Height: the icon's height in pixels (default 24); its width follows
@@ -70,7 +70,7 @@ function iconImage = fcn_CarMesh3D_icons(iconName, options)
 
 arguments
     iconName                 % One of the names, or 'list'
-    options.Enabled = true   % false: the greyed look
+    options.FlagEnabled = true   % false: the greyed look
     options.Height = 24      % Pixels
     options.FigNum = []      % Show it; -1 for fast mode
 end
@@ -97,7 +97,7 @@ if strcmp(char(iconName), 'list')
     return;
 end
 iconImage = fcn_INTERNAL_draw(char(iconName), options.Height);
-if ~options.Enabled
+if ~options.FlagEnabled
     iconImage = fcn_INTERNAL_greyed(iconImage);
 end
 
@@ -253,7 +253,7 @@ tiledlayout(2, numel(iconNames), 'TileSpacing', 'compact');
 for flagEnabled = [true false]
     for ith_icon = 1:numel(iconNames)
         nexttile;
-        image(fcn_CarMesh3D_icons(iconNames{ith_icon}, Enabled=flagEnabled, Height=options.Height, FigNum=-1));
+        image(fcn_CarMesh3D_icons(iconNames{ith_icon}, FlagEnabled=flagEnabled, Height=options.Height, FigNum=-1));
         axis image off;
         if flagEnabled
             title(iconNames{ith_icon}, 'FontWeight', 'normal', 'FontSize', 8);

@@ -2,7 +2,7 @@ function [visibleMesh, flagShown] = fcn_CarMesh3D_visibleMesh(vehicleMesh, optio
 % fcn_CarMesh3D_visibleMesh
 
 % The vehicle as it is shown: the mesh without its hidden faces. A face
-% can be hidden (FaceHiddenSet > 0, in a named set: HiddenSetNames) to
+% can be hidden (LabelFaceHiddenSet > 0, in a named set: LabelHiddenSetNames) to
 % keep a piece of the download that should not be seen, such as a hard
 % top taken off, a rear wiper, or a part of the download not wanted,
 % without deleting it: the finished mesh keeps every face, so the
@@ -23,7 +23,7 @@ function [visibleMesh, flagShown] = fcn_CarMesh3D_visibleMesh(vehicleMesh, optio
 % INPUTS:
 %
 %      vehicleMesh: a CarMesh3D mesh (Vertices, Faces, and the per-face
-%      fields), with or without FaceHiddenSet.
+%      fields), with or without LabelFaceHiddenSet.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -166,14 +166,14 @@ end
 
 numFaces = size(vehicleMesh.Faces,1);
 flagShown = true(numFaces,1);
-if isfield(vehicleMesh,'FaceHiddenSet') && numel(vehicleMesh.FaceHiddenSet) == numFaces
-    hiddenSet = double(vehicleMesh.FaceHiddenSet(:));
+if isfield(vehicleMesh,'LabelFaceHiddenSet') && numel(vehicleMesh.LabelFaceHiddenSet) == numFaces
+    hiddenSet = double(vehicleMesh.LabelFaceHiddenSet(:));
     flagShown = hiddenSet == 0;
     if islogical(options.ShowSets) && isscalar(options.ShowSets) && options.ShowSets
         flagShown(:) = true;
-    elseif ~islogical(options.ShowSets) && isfield(vehicleMesh,'HiddenSetNames')
+    elseif ~islogical(options.ShowSets) && isfield(vehicleMesh,'LabelHiddenSetNames')
         showNames = cellstr(options.ShowSets);
-        showIndices = find(ismember(cellstr(vehicleMesh.HiddenSetNames), showNames));
+        showIndices = find(ismember(cellstr(vehicleMesh.LabelHiddenSetNames), showNames));
         flagShown = flagShown | ismember(hiddenSet, showIndices);
     end
 end

@@ -15,7 +15,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
 loaded = load(vehicleFiles.LevelsFile, 'detailLevels');
 fitLevels = loaded.detailLevels;
@@ -37,7 +37,7 @@ Nlevels = numel(fitLevels.Levels);
 
 %% DEMO case: The Fit's detail levels, from its ID, in its own window (hidden)
 fprintf(1,'DEMO case: the Fit''s detail levels, from its ID, in its own window (hidden)\n');
-viewer = fcn_CarMesh3D_viewDetailLevels(vehicleID, Visible=false);
+viewer = fcn_CarMesh3D_viewDetailLevels(vehicleID, FlagVisible=false);
 assert(isgraphics(viewer.Figure) && isgraphics(viewer.LineupAxes) && isgraphics(viewer.SceneAxes));
 % (the line-up: the full mesh and each level; the scene: a pair per level)
 assert(numel(viewer.Transforms) == (1 + Nlevels) + 2*Nlevels);
@@ -59,7 +59,7 @@ assert(~isvalid(viewer.Figure));
 
 %% TEST case: The vehicles turn, and stop
 fprintf(1,'TEST case: the vehicles turn, and stop\n');
-viewer = fcn_CarMesh3D_viewDetailLevels(fitLevels, Mesh=fitMesh, Visible=false);
+viewer = fcn_CarMesh3D_viewDetailLevels(fitLevels, Mesh=fitMesh, FlagVisible=false);
 matrixBefore = viewer.Transforms(1).Matrix;
 pause(1);
 assert(~isequal(viewer.Transforms(1).Matrix, matrixBefore));   % (turned)
@@ -74,7 +74,7 @@ viewer.Close();
 
 %% TEST case: Reset views
 fprintf(1,'TEST case: reset views\n');
-viewer = fcn_CarMesh3D_viewDetailLevels(fitLevels, Mesh=fitMesh, Turn=false, Visible=false);
+viewer = fcn_CarMesh3D_viewDetailLevels(fitLevels, Mesh=fitMesh, FlagTurn=false, FlagVisible=false);
 startPosition = viewer.SceneAxes.CameraPosition;
 camdolly(viewer.SceneAxes, 0.3, 0.2, 0);
 assert(~isequal(viewer.SceneAxes.CameraPosition, startPosition));

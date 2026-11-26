@@ -414,7 +414,7 @@ vehicleMesh.FaceGroupIndex = allGroup;
 if flag_do_plots
     figure(figNum);
     clf;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     title(sprintf('%s: %d faces, style ''%s''',vehicleMesh.Name, size(vehicleMesh.Faces,1), char(options.Style)),'Interpreter','none');
 end
 

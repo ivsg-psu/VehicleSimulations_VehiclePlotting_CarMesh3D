@@ -38,10 +38,10 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %           (PartRules=partRules),...
 %           (BodyColor=[r g b]),...
 %           (GlassAlpha=alpha),...
-%           (UseMaterialColors=flag),...
+%           (FlagUseMaterialColors=flag),...
 %           (PartColors=partColors),...
-%           (SeeThroughGlass=flag),...
-%           (TextureColorParts=partList),...
+%           (FlagSeeThroughGlass=flag),...
+%           (LabelTextureColorParts=partList),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -77,7 +77,7 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      GlassAlpha: the transparency of glass faces, from 0 (invisible) to
 %      1 (opaque). Default is 0.35.
 %
-%      UseMaterialColors: true (default) to color faces from the file's
+%      FlagUseMaterialColors: true (default) to color faces from the file's
 %      material colors where known. Set false for models colored by
 %      texture images, whose material colors are just placeholders (often
 %      all the same gray); faces then get one color per part (and
@@ -89,14 +89,14 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      These are applied last, so they override material colors and
 %      BodyColor. Default is {} (none).
 %
-%      SeeThroughGlass: true (default) to use the see-through marks of a
+%      FlagSeeThroughGlass: true (default) to use the see-through marks of a
 %      mesh read with fcn_CarMesh3D_readGLB (its FaceTextureAlpha, when
-%      SeeThroughReliable): see-through faces not labeled wheel or light
+%      FlagSeeThroughReliable): see-through faces not labeled wheel or light
 %      become glass (a lamp lens is see-through but stays a light), and faces labeled glass by name that are opaque in a
 %      material that is see-through elsewhere (the painted black border of
 %      a window) become trim. Meshes without these fields are not changed.
 %
-%      LampCovers: true (default) to make each separate piece of glass
+%      FlagFindLampCovers: true (default) to make each separate piece of glass
 %      that lies over a lamp part of that lamp: a piece (glass faces
 %      joined by shared corners) at least half of whose faces are within
 %      2% of the vehicle's length of a light face. Many downloads give
@@ -104,27 +104,27 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %      a lamp stay glass. A cover over a lamp with lenses of its own
 %      (light faces near the cover with at least a quarter of its area)
 %      is the lamp's clear cover: it is both, a light (of its lenses'
-%      type) that is also glass (FaceAlsoParts), so that
+%      type) that is also glass (LabelFaceAlsoParts), so that
 %      fcn_CarMesh3D_plotVehicle draws it as glass while the lamp is off,
 %      the lenses showing through, and lit while the lamp is on.
 %      Last, fcn_CarMesh3D_findLampCovers looks behind each piece of
 %      glass (and each light that is also glass) for a lamp within
 %      LampCoverDistance: a cover that lies over a lamp becomes clear
 %      glass (15% opaque, untinted), recorded as a cover of that lamp
-%      in FaceCoverLamp, and fcn_CarMesh3D_plotVehicle tints it with the
+%      in LabelFaceCoverLamp, and fcn_CarMesh3D_plotVehicle tints it with the
 %      lamp's color while the lamp is lit. With LampCovers false,
-%      FaceCoverLamp is all zeros (no covers).
+%      LabelFaceCoverLamp is all zeros (no covers).
 %
 %      LampCoverDistance: how far behind a piece of glass to look for a
 %      lamp, in meters (fcn_CarMesh3D_findLampCovers Distance). Default
 %      is 0.05.
 %
-%      TextureColorParts: a cell array of part names whose faces take
+%      LabelTextureColorParts: a cell array of part names whose faces take
 %      their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB
 %      or fcn_CarMesh3D_transferTextureColors), for example
-%           TextureColorParts = {'light','trim','wheel'}
+%           LabelTextureColorParts = {'light','trim','wheel'}
 %      applied after PartColors. Default is {} (none). Kept in the mesh
-%      (TextureColorParts) so fcn_CarMesh3D_editLabels does the same for
+%      (LabelTextureColorParts) so fcn_CarMesh3D_editLabels does the same for
 %      faces it relabels.
 %
 %      FigNum: a figure number to plot the labeled parts. If empty or
@@ -134,27 +134,27 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % OUTPUTS:
 %
 %      vehicleMesh: the same structure with these fields added:
-%           PartNames (5 x 1 cell): {'body';'glass';'wheel';'light';'trim'}
-%           FacePartIndex (M x 1): index into PartNames for each face
+%           LabelPartNames (5 x 1 cell): {'body';'glass';'wheel';'light';'trim'}
+%           LabelFacePart (M x 1): index into LabelPartNames for each face
 %           FaceWheelIndex (M x 1): 0 for non-wheel faces, else 1 to 4
 %               (1 FL, 2 FR, 3 RL, 4 RR)
 %           FaceColors (M x 3): RGB display color of each face
 %           FaceAlpha (M x 1): transparency of each face
-%           LightTypeNames (cell, one per lamp type): the names of
+%           LabelLampNames (cell, one per lamp type): the names of
 %               fcn_CarMesh3D_lampTypes, in its order ('headlamp',
 %               'turnSignalLamp', 'runningLamp', 'tailBrakeLamp', 'backupLamp', 'highBeamLamp',
 %               'fogLamp', 'reflector', 'licensePlateLamp', 'markerLamp', 'warningLamp')
-%           FaceLightType (M x 1): index into LightTypeNames for light
+%           LabelFaceLamp (M x 1): index into LabelLampNames for light
 %               faces, 0 for all other faces
-%           TextureColorParts (cell): the TextureColorParts option
-%           FaceAlsoParts (M x numel(PartNames) logical): the other parts
+%           LabelTextureColorParts (cell): the LabelTextureColorParts option
+%           LabelFaceAlsoParts (M x numel(LabelPartNames) logical): the other parts
 %               each face also belongs to (one column per part). A face is
-%               drawn as its own part (FacePartIndex: light always wins);
+%               drawn as its own part (LabelFacePart: light always wins);
 %               a lamp's clear cover is a light that is also glass
 %               (until fcn_CarMesh3D_findLampCovers makes the ones over a
 %               lamp clear glass)
-%           FaceCoverLamp (M x 1): for each face that is a lamp's clear
-%               cover, the light type (index into LightTypeNames) of the
+%           LabelFaceCoverLamp (M x 1): for each face that is a lamp's clear
+%               cover, the light type (index into LabelLampNames) of the
 %               lamp it covers; 0 for all other faces
 %
 % DEPENDENCIES:
@@ -183,13 +183,13 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % when testing a downloaded FBX whose wheel groups included axles.
 %   % * Added UseMaterialColors option, for texture-colored models
 %   % * Added PartColors option, to set the color of any part
-%   % * Light faces get a light type (FaceLightType), for switchable lights
+%   % * Light faces get a light type (LabelFaceLamp), for switchable lights
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_labelParts
 %   % * SeeThroughGlass: glass from the see-through marks of .glb files
 %   %   % (fcn_CarMesh3D_readGLB), and opaque window borders as trim
-%   % * TextureColorParts: parts shown in their texture colors
+%   % * LabelTextureColorParts: parts shown in their texture colors
 %   % * SeeThroughGlass leaves faces labeled light alone (the Transit
 %   %   % Connect's see-through lamp lenses had all become glass)
 %
@@ -202,7 +202,7 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   %   % (light faces near it with at least a quarter of its area) stays
 %   %   % glass, so the lenses show through (Sean, 14:35: the Fit's
 %   %   % headlight covers were labeled headlight and hid its lenses)
-%   % * FaceAlsoParts: a face can belong to more than one part, light
+%   % * LabelFaceAlsoParts: a face can belong to more than one part, light
 %   %   % always winning (Sean's multi-part faces, 01:57; Sean, 23:04:
 %   %   % option B, drawn as glass while off). A lamp's clear cover is a
 %   %   % light of its lenses' type that is also glass
@@ -221,7 +221,7 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % - In fcn_CarMesh3D_labelParts
 %   % * Clear lamp covers (Sean, 09:22, option A): at the end of labeling,
 %   %   % fcn_CarMesh3D_findLampCovers makes each cover lying over a lamp
-%   %   % clear glass, recorded in the new per-face field FaceCoverLamp
+%   %   % clear glass, recorded in the new per-face field LabelFaceCoverLamp
 %   %   % (the covered lamp's light type), which fcn_CarMesh3D_plotVehicle
 %   %   % tints while that lamp is lit. New option LampCoverDistance
 %
@@ -230,7 +230,7 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %   % * The lamp types and their name rules come from fcn_CarMesh3D_lampTypes
 %   %   % (one list for every function), which adds fog lamps, reflectors,
 %   %   % the license plate lamp, marker lamps and warning lamps (Sean,
-%   %   % task 8); LightTypeNames now lists all eleven
+%   %   % task 8); LabelLampNames now lists all eleven
 
 % 2026_11_24 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_labelParts
@@ -259,13 +259,13 @@ arguments
     options.PartRules = {}    % N x 2 cell of {pattern, partName}, checked first
     options.BodyColor = []    % 1 x 3 RGB for all body faces
     options.GlassAlpha = 0.35 % Transparency of glass faces
-    options.UseMaterialColors = true % Use the file's material colors?
+    options.FlagUseMaterialColors = true % Use the file's material colors?
     options.PartColors = {}   % N x 2 cell of {partName, [r g b]}
-    options.SeeThroughGlass = true  % Use .glb see-through marks for glass?
-    options.LampCovers = true       % Glass pieces lying over a lamp become that lamp?
-    options.AutoHighBeams = true    % Split each headlight into low and high beams by position?
+    options.FlagSeeThroughGlass = true  % Use .glb see-through marks for glass?
+    options.FlagFindLampCovers = true       % Glass pieces lying over a lamp become that lamp?
+    options.FlagAutoHighBeams = true    % Split each headlight into low and high beams by position?
     options.LampCoverDistance = 0.05 % How far behind glass to look for a lamp it covers [m]
-    options.TextureColorParts = {}  % Parts shown in their texture colors
+    options.LabelTextureColorParts = {}  % Parts shown in their texture colors
     options.FigNum = []       % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -312,7 +312,7 @@ end
 %              |_|
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-partNames = {'body';'glass';'wheel';'light';'trim'};
+labelPartNames = {'body';'glass';'wheel';'light';'trim'};
 
 if 0==flag_max_speed
     if flag_check_inputs
@@ -336,7 +336,7 @@ if 0==flag_max_speed
                 error('PartRules must be an N x 2 cell array of {pattern, partName}');
             end
             for ith_rule = 1:size(options.PartRules,1)
-                if ~any(strcmpi(options.PartRules{ith_rule,2}, partNames))
+                if ~any(strcmpi(options.PartRules{ith_rule,2}, labelPartNames))
                     error('PartRules row %d has an unknown part name: %s. Allowed: body, glass, wheel, light, trim.',ith_rule,char(options.PartRules{ith_rule,2}));
                 end
             end
@@ -355,7 +355,7 @@ if 0==flag_max_speed
                 error('PartColors must be an N x 2 cell array of {partName, [r g b]}');
             end
             for ith_row = 1:size(options.PartColors,1)
-                if ~any(strcmpi(options.PartColors{ith_row,1}, partNames))
+                if ~any(strcmpi(options.PartColors{ith_row,1}, labelPartNames))
                     error('PartColors row %d has an unknown part name: %s. Allowed: body, glass, wheel, light, trim.',ith_row,char(options.PartColors{ith_row,1}));
                 end
                 thisColor = options.PartColors{ith_row,2};
@@ -366,13 +366,13 @@ if 0==flag_max_speed
         end
 
         % Check the UseMaterialColors input
-        if ~(islogical(options.UseMaterialColors) || isnumeric(options.UseMaterialColors)) || ~isscalar(options.UseMaterialColors)
+        if ~(islogical(options.FlagUseMaterialColors) || isnumeric(options.FlagUseMaterialColors)) || ~isscalar(options.FlagUseMaterialColors)
             error('UseMaterialColors must be true or false');
         end
 
-        % Check the TextureColorParts input
-        if ~iscell(options.TextureColorParts) || ~all(ismember(lower(options.TextureColorParts), partNames))
-            error('TextureColorParts must be a cell array of part names: body, glass, wheel, light, trim');
+        % Check the LabelTextureColorParts input
+        if ~iscell(options.LabelTextureColorParts) || ~all(ismember(lower(options.LabelTextureColorParts), labelPartNames))
+            error('LabelTextureColorParts must be a cell array of part names: body, glass, wheel, light, trim');
         end
 
         % Check the GlassAlpha input
@@ -428,30 +428,30 @@ for ith_pair = 1:size(uniquePairs,1)
                  fcn_INTERNAL_nameOrEmpty(vehicleMesh.GroupNames,    uniquePairs(ith_pair,2))];
     for ith_rule = 1:size(allRules,1)
         if ~isempty(regexpi(labelText, allRules{ith_rule,1}, 'once'))
-            pairPart(ith_pair) = find(strcmpi(allRules{ith_rule,2}, partNames));
+            pairPart(ith_pair) = find(strcmpi(allRules{ith_rule,2}, labelPartNames));
             break;
         end
     end
 end
-facePartIndex = pairPart(pairOfFace);
+labelFacePart = pairPart(pairOfFace);
 
 % See-through marks of a .glb file: see-through faces are glass, and the
 % opaque faces of a see-through material that were named glass (a window's
 % painted border) are trim
 flagHasTexture = isfield(vehicleMesh,'FaceTextureAlpha') && size(vehicleMesh.FaceTextureAlpha,1)==Nfaces;
-if options.SeeThroughGlass && flagHasTexture && (~isfield(vehicleMesh,'SeeThroughReliable') || vehicleMesh.SeeThroughReliable)
+if options.FlagSeeThroughGlass && flagHasTexture && (~isfield(vehicleMesh,'FlagSeeThroughReliable') || vehicleMesh.FlagSeeThroughReliable)
     flagSeeThrough = vehicleMesh.FaceTextureAlpha < 0.9;
     % (not the wheels, 3, nor the lights, 4: a see-through lamp lens stays
     % a light, as the 2014 Transit Connect's do)
-    facePartIndex(flagSeeThrough & facePartIndex~=3 & facePartIndex~=4) = 2;
+    labelFacePart(flagSeeThrough & labelFacePart~=3 & labelFacePart~=4) = 2;
     seeThroughMaterials = unique(materialIndex(flagSeeThrough & materialIndex>0));
-    flagBorder = facePartIndex==2 & ~flagSeeThrough & ismember(materialIndex, seeThroughMaterials) & vehicleMesh.FaceTextureAlpha >= 0.95;
-    facePartIndex(flagBorder) = 5;
+    flagBorder = labelFacePart==2 & ~flagSeeThrough & ismember(materialIndex, seeThroughMaterials) & vehicleMesh.FaceTextureAlpha >= 0.95;
+    labelFacePart(flagBorder) = 5;
 end
 
 % Number the wheels by corner, using the face centers
 faceWheelIndex = zeros(Nfaces,1);
-flagWheelFace = facePartIndex==3;
+flagWheelFace = labelFacePart==3;
 if any(flagWheelFace)
     if ~isfield(vehicleMesh,'Frame') || ~strcmp(vehicleMesh.Frame,'ISO8855')
         warning('on','backtrace');
@@ -464,7 +464,7 @@ if any(flagWheelFace)
         % the middle half of the width become trim
         halfWidthOfWheels = max(abs(faceCenters(flagWheelFace,2)));
         flagAxleFace = flagWheelFace & abs(faceCenters(:,2)) < 0.5*halfWidthOfWheels;
-        facePartIndex(flagAxleFace) = 5;
+        labelFacePart(flagAxleFace) = 5;
         flagWheelFace = flagWheelFace & ~flagAxleFace;
 
         wheelCenters = faceCenters(flagWheelFace,:);
@@ -487,8 +487,8 @@ defaultPartColors = [...
     0.10 0.10 0.10;   % wheel
     0.95 0.90 0.80;   % light
     0.20 0.20 0.20];  % trim
-faceColors = defaultPartColors(facePartIndex,:);
-if options.UseMaterialColors && isfield(vehicleMesh,'MaterialColors') && ~isempty(vehicleMesh.MaterialColors)
+faceColors = defaultPartColors(labelFacePart,:);
+if options.FlagUseMaterialColors && isfield(vehicleMesh,'MaterialColors') && ~isempty(vehicleMesh.MaterialColors)
     flagHasMaterial = materialIndex>0;
     materialFaceColors = nan(Nfaces,3);
     materialFaceColors(flagHasMaterial,:) = vehicleMesh.MaterialColors(materialIndex(flagHasMaterial),:);
@@ -496,14 +496,14 @@ if options.UseMaterialColors && isfield(vehicleMesh,'MaterialColors') && ~isempt
     faceColors(flagKnownColor,:) = materialFaceColors(flagKnownColor,:);
 end
 if ~isempty(options.BodyColor)
-    flagBody = facePartIndex==1;
+    flagBody = labelFacePart==1;
     faceColors(flagBody,:) = repmat(options.BodyColor, sum(flagBody), 1);
 end
 
 % Colors set by part name override everything else
 for ith_row = 1:size(options.PartColors,1)
-    thisPart = find(strcmpi(options.PartColors{ith_row,1}, partNames));
-    flagThisPart = facePartIndex==thisPart;
+    thisPart = find(strcmpi(options.PartColors{ith_row,1}, labelPartNames));
+    flagThisPart = labelFacePart==thisPart;
     faceColors(flagThisPart,:) = repmat(options.PartColors{ith_row,2}, sum(flagThisPart), 1);
 end
 
@@ -515,9 +515,9 @@ end
 if isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces ...
         && isfield(vehicleMesh,'MaterialNames') && isfield(vehicleMesh,'FaceMaterialIndex')
     tireMaterials = find(contains(lower(cellstr(vehicleMesh.MaterialNames)), 'tire'));
-    wheelPart = find(strcmp(partNames, 'wheel'), 1);
+    wheelPart = find(strcmp(labelPartNames, 'wheel'), 1);
     for ith_material = reshape(tireMaterials,1,[])
-        flagTire = vehicleMesh.FaceMaterialIndex(:)==ith_material & facePartIndex(:)==wheelPart;
+        flagTire = vehicleMesh.FaceMaterialIndex(:)==ith_material & labelFacePart(:)==wheelPart;
         if any(flagTire)
             vehicleMesh.FaceTextureColors(flagTire,:) = repmat(median(vehicleMesh.FaceTextureColors(flagTire,:),1), nnz(flagTire), 1);
         end
@@ -525,30 +525,30 @@ if isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColor
 end
 
 % Texture colors, for the parts listed
-textureColorParts = lower(reshape(options.TextureColorParts,1,[]));
-if ~isempty(textureColorParts) && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces
-    flagTextured = ismember(facePartIndex, find(ismember(partNames, textureColorParts)));
+labelTextureColorParts = lower(reshape(options.LabelTextureColorParts,1,[]));
+if ~isempty(labelTextureColorParts) && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==Nfaces
+    flagTextured = ismember(labelFacePart, find(ismember(labelPartNames, labelTextureColorParts)));
     faceColors(flagTextured,:) = vehicleMesh.FaceTextureColors(flagTextured,:);
 end
 
 % Alpha: glass faces get GlassAlpha, everything else is opaque
 faceAlpha = ones(Nfaces,1);
-faceAlpha(facePartIndex==2) = options.GlassAlpha;
+faceAlpha(labelFacePart==2) = options.GlassAlpha;
 
 % Lamp covers: separate glass pieces lying over a lamp become that lamp
 flagClearCover = false(Nfaces,1);
-if options.LampCovers && any(facePartIndex==2) && any(facePartIndex==4)
-    [facePartIndex, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex);
+if options.FlagFindLampCovers && any(labelFacePart==2) && any(labelFacePart==4)
+    [labelFacePart, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, labelFacePart);
 end
 
 % Light types, for switchable lights
 % (the lamp types and their name rules, in one place: fcn_CarMesh3D_lampTypes)
 lampTypes = fcn_CarMesh3D_lampTypes();
-lightTypeNames = {lampTypes.Name}';
+labelLampNames = {lampTypes.Name}';
 [~, ruleOrder] = sort([lampTypes.RuleOrder]);
 lightTypeRules = [{lampTypes(ruleOrder).NameRule}', {lampTypes(ruleOrder).Name}'];
-faceLightType = zeros(Nfaces,1);
-flagLightFace = facePartIndex==4;
+labelFaceLamp = zeros(Nfaces,1);
+flagLightFace = labelFacePart==4;
 if any(flagLightFace)
     % By name
     pairLightType = zeros(size(uniquePairs,1),1);
@@ -557,70 +557,70 @@ if any(flagLightFace)
                      fcn_INTERNAL_nameOrEmpty(vehicleMesh.GroupNames,    uniquePairs(ith_pair,2))];
         for ith_rule = 1:size(lightTypeRules,1)
             if ~isempty(regexpi(labelText, lightTypeRules{ith_rule,1}, 'once'))
-                pairLightType(ith_pair) = find(strcmp(lightTypeRules{ith_rule,2}, lightTypeNames));
+                pairLightType(ith_pair) = find(strcmp(lightTypeRules{ith_rule,2}, labelLampNames));
                 break;
             end
         end
     end
-    faceLightType(flagLightFace) = pairLightType(pairOfFace(flagLightFace));
+    labelFaceLamp(flagLightFace) = pairLightType(pairOfFace(flagLightFace));
 
     % By position, for lights whose names did not say
-    flagUntyped = flagLightFace & faceLightType==0;
+    flagUntyped = flagLightFace & labelFaceLamp==0;
     if any(flagUntyped) && isfield(vehicleMesh,'Frame') && strcmp(vehicleMesh.Frame,'ISO8855')
         lightCentersX = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),1) + ...
             vehicleMesh.Vertices(vehicleMesh.Faces(:,2),1) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),1))/3;
         middleX = (min(vehicleMesh.Vertices(:,1)) + max(vehicleMesh.Vertices(:,1)))/2;
-        faceLightType(flagUntyped & lightCentersX>=middleX) = 1; % headlight
-        faceLightType(flagUntyped & lightCentersX<middleX)  = 4; % tail
+        labelFaceLamp(flagUntyped & lightCentersX>=middleX) = 1; % headlight
+        labelFaceLamp(flagUntyped & lightCentersX<middleX)  = 4; % tail
     end
 
     % High beams: each side's headlight split in two, where its faces
     % clearly form two clusters (only when no high beams were named)
-    if options.AutoHighBeams && ~any(faceLightType==6) && any(faceLightType==1)
-        faceLightType = fcn_INTERNAL_splitHighBeams(vehicleMesh, faceLightType, flagClearCover);
+    if options.FlagAutoHighBeams && ~any(labelFaceLamp==6) && any(labelFaceLamp==1)
+        labelFaceLamp = fcn_INTERNAL_splitHighBeams(vehicleMesh, labelFaceLamp, flagClearCover);
     end
 
     % A clear cover takes the type of the nearest lens under it
     if any(flagClearCover)
-        lensFaces = find(flagLightFace & ~flagClearCover & faceLightType>0);
+        lensFaces = find(flagLightFace & ~flagClearCover & labelFaceLamp>0);
         if ~isempty(lensFaces)
             faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
                 vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
             coverFaces = find(flagClearCover);
             nearestLens = fcn_INTERNAL_nearestPoint(faceCenters(lensFaces,:), faceCenters(coverFaces,:));
-            faceLightType(coverFaces) = faceLightType(lensFaces(nearestLens));
+            labelFaceLamp(coverFaces) = labelFaceLamp(lensFaces(nearestLens));
         end
     end
 end
 
 % The other parts each face also belongs to: a clear cover is also glass
-faceAlsoParts = false(Nfaces, numel(partNames));
-faceAlsoParts(flagClearCover, 2) = true;
+labelFaceAlsoParts = false(Nfaces, numel(labelPartNames));
+labelFaceAlsoParts(flagClearCover, 2) = true;
 
-vehicleMesh.PartNames = partNames;
-vehicleMesh.LightTypeNames = lightTypeNames;
-vehicleMesh.FaceLightType = faceLightType;
-vehicleMesh.FacePartIndex = facePartIndex;
+vehicleMesh.LabelPartNames = labelPartNames;
+vehicleMesh.LabelLampNames = labelLampNames;
+vehicleMesh.LabelFaceLamp = labelFaceLamp;
+vehicleMesh.LabelFacePart = labelFacePart;
 vehicleMesh.FaceWheelIndex = faceWheelIndex;
 vehicleMesh.FaceColors = faceColors;
 vehicleMesh.FaceAlpha = faceAlpha;
-vehicleMesh.TextureColorParts = textureColorParts;
-vehicleMesh.FaceAlsoParts = faceAlsoParts;
+vehicleMesh.LabelTextureColorParts = labelTextureColorParts;
+vehicleMesh.LabelFaceAlsoParts = labelFaceAlsoParts;
 
 % Clear lamp covers: glass (or a light that is also glass) lying over a
 % lamp becomes clear glass, recorded as a cover of that lamp
-% (FaceCoverLamp), which fcn_CarMesh3D_plotVehicle tints while the lamp
+% (LabelFaceCoverLamp), which fcn_CarMesh3D_plotVehicle tints while the lamp
 % is lit. With LampCovers off, no face is a cover.
-if options.LampCovers
+if options.FlagFindLampCovers
     vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, Distance=options.LampCoverDistance, FigNum=-1);
-    facePartIndex = vehicleMesh.FacePartIndex;
+    labelFacePart = vehicleMesh.LabelFacePart;
 else
-    vehicleMesh.FaceCoverLamp = zeros(Nfaces,1);
+    vehicleMesh.LabelFaceCoverLamp = zeros(Nfaces,1);
 end
 
 if flag_do_debug
-    for ith_part = 1:length(partNames)
-        fprintf(1,'\t%s: %d faces\n', partNames{ith_part}, sum(facePartIndex==ith_part));
+    for ith_part = 1:length(labelPartNames)
+        fprintf(1,'\t%s: %d faces\n', labelPartNames{ith_part}, sum(labelFacePart==ith_part));
     end
 end
 
@@ -649,14 +649,14 @@ if flag_do_plots
     nexttile;
     falseColors = [0.85 0.85 0.85; 0.20 0.60 1.00; 0.20 0.20 0.20; 1.00 0.85 0.10; 0.90 0.40 0.10];
     labelMesh = vehicleMesh;
-    labelMesh.FaceColors = falseColors(facePartIndex,:);
+    labelMesh.FaceColors = falseColors(labelFacePart,:);
     labelMesh.FaceAlpha = ones(Nfaces,1);
-    fcn_CarMesh3D_plotVehicle(labelMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(labelMesh, FlagShowEdges=true, FigNum=figNum);
     hold on;
     % Invisible lines just to make a legend of the part colors
-    for ith_part = 1:length(partNames)
+    for ith_part = 1:length(labelPartNames)
         plot3(NaN,NaN,NaN,'s','MarkerSize',10,'MarkerFaceColor',falseColors(ith_part,:),...
-            'MarkerEdgeColor','k','DisplayName',sprintf('%s (%d faces)',partNames{ith_part},sum(facePartIndex==ith_part)));
+            'MarkerEdgeColor','k','DisplayName',sprintf('%s (%d faces)',labelPartNames{ith_part},sum(labelFacePart==ith_part)));
     end
     legend(findobj(gca,'Type','line'),'Location','southoutside');
     title('Part labels');
@@ -693,7 +693,7 @@ end
 end % Ends fcn_INTERNAL_nameOrEmpty
 
 %% fcn_INTERNAL_lampCovers
-function [facePartIndex, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, facePartIndex)
+function [labelFacePart, flagClearCover] = fcn_INTERNAL_lampCovers(vehicleMesh, labelFacePart)
 % Each separate piece of glass (glass faces joined by shared corners)
 % that lies mostly over a lamp becomes part of the lamp: a piece at least
 % half of whose faces are within 2% of the vehicle's length of a light
@@ -704,8 +704,8 @@ faces = vehicleMesh.Faces;
 centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
 vehicleLength = max(max(vertices,[],1) - min(vertices,[],1));
 nearDistance = 0.02*vehicleLength;
-glassFaces = find(facePartIndex==2);
-lightCenters = centers(facePartIndex==4,:);
+glassFaces = find(labelFacePart==2);
+lightCenters = centers(labelFacePart==4,:);
 
 % The glass pieces: faces joined by shared corners (union-find on corners)
 Ncorners = size(vertices,1);
@@ -747,7 +747,7 @@ nearShare = accumarray(pieceIndex, double(flagNear))./accumarray(pieceIndex, 1);
 candidatePieces = find(nearShare >= 0.5);
 faceAreas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
     vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
-lightFaces = find(facePartIndex==4);
+lightFaces = find(labelFacePart==4);
 coverPieces = [];
 clearPieces = [];
 for ith_candidate = candidatePieces(:)'
@@ -767,13 +767,13 @@ for ith_candidate = candidatePieces(:)'
         clearPieces(end+1) = pieces(ith_candidate); %#ok<AGROW>
     end
 end
-flagClearCover = false(size(facePartIndex));
+flagClearCover = false(size(labelFacePart));
 flagClearCover(glassFaces(ismember(pieceOfFace, clearPieces))) = true;
-facePartIndex(glassFaces(ismember(pieceOfFace, [coverPieces clearPieces]))) = 4;
+labelFacePart(glassFaces(ismember(pieceOfFace, [coverPieces clearPieces]))) = 4;
 end % Ends fcn_INTERNAL_lampCovers
 
 %% fcn_INTERNAL_nearestPoint
-function faceLightType = fcn_INTERNAL_splitHighBeams(vehicleMesh, faceLightType, flagClearCover)
+function labelFaceLamp = fcn_INTERNAL_splitHighBeams(vehicleMesh, labelFaceLamp, flagClearCover)
 % Each side's headlight faces (lenses, not clear covers) split into two
 % clusters by position (2-means on the face centers): kept as a low beam
 % and a high beam only when the split is clear: each cluster has at
@@ -784,7 +784,7 @@ function faceLightType = fcn_INTERNAL_splitHighBeams(vehicleMesh, faceLightType,
 faceCenters = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + ...
     vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
 for sideSign = [1 -1]
-    sideFaces = find(faceLightType==1 & ~flagClearCover & sign(faceCenters(:,2))==sideSign);
+    sideFaces = find(labelFaceLamp==1 & ~flagClearCover & sign(faceCenters(:,2))==sideSign);
     if numel(sideFaces) < 8
         continue;
     end
@@ -827,7 +827,7 @@ for sideSign = [1 -1]
     else
         [~, highCluster] = max(centers(:,3));
     end
-    faceLightType(sideFaces(cluster==highCluster)) = 6;
+    labelFaceLamp(sideFaces(cluster==highCluster)) = 6;
 end
 end
 

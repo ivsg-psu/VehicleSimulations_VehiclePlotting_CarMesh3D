@@ -1,7 +1,7 @@
 function report = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec, options)
 % fcn_CarMesh3D_checkHiddenFaces
 
-% Warns about hidden faces (FaceHiddenSet, in named sets: see
+% Warns about hidden faces (LabelFaceHiddenSet, in named sets: see
 % fcn_CarMesh3D_editLabels's Hide) that could mislead. The checks and
 % outlines measure the vehicle as it is shown (fcn_CarMesh3D_visibleMesh),
 % which is right for a vehicle shown that way (a coupe with its hard top
@@ -26,12 +26,12 @@ function report = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec, optio
 %
 % Each finding is printed as a warning (IDs CarMesh3D:hiddenMany,
 % CarMesh3D:hiddenChangesDimension, CarMesh3D:hiddenOutsideBox) unless
-% Quiet is true, and is returned in the report.
+% FlagVerbose is false, and is returned in the report.
 %
 % FORMAT:
 %
 %       report = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec,...
-%           (Tolerance=meters), (ManyFraction=fraction), (Quiet=flag),...
+%           (Tolerance=meters), (ManyFraction=fraction), (FlagVerbose=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -50,8 +50,8 @@ function report = fcn_CarMesh3D_checkHiddenFaces(vehicleMesh, vehicleSpec, optio
 %      ManyFraction: the share of faces hidden above which it is
 %      reported. Default 0.10.
 %
-%      Quiet: true to return the report without printing warnings.
-%      Default false.
+%      FlagVerbose: false to return the report without printing warnings.
+%      Default true.
 %
 %      FigNum: a figure to show the shown faces (gray), the hidden faces
 %      (red), and the shown vehicle's bounding box (blue). If empty or
@@ -112,7 +112,7 @@ arguments
     vehicleSpec
     options.Tolerance = 0.01          % [m] how much a dimension may change, or a hidden face reach out
     options.ManyFraction = 0.10       % share of faces hidden above which it is reported
-    options.Quiet = false             % true: no warnings printed
+    options.FlagVerbose = true              % false: no warnings printed (the report only)
     options.FigNum = []               % figure to show the result; -1 for fast mode
 end
 
@@ -218,8 +218,8 @@ report.FullBox = [min(usedVertices,[],1); max(usedVertices,[],1)];
 report.Messages = {};
 
 if report.NumHidden > 0
-    faceSet = double(vehicleMesh.FaceHiddenSet(:));
-    setNames = reshape(cellstr(vehicleMesh.HiddenSetNames), [], 1);
+    faceSet = double(vehicleMesh.LabelFaceHiddenSet(:));
+    setNames = reshape(cellstr(vehicleMesh.LabelHiddenSetNames), [], 1);
     for ith_set = 1:numel(setNames)
         report.Sets(end+1,:) = {string(setNames{ith_set}), nnz(faceSet==ith_set)};
     end
@@ -229,7 +229,7 @@ if report.NumHidden > 0
         report.Messages{end+1} = sprintf(['%d of %d faces (%.0f%%) are hidden (sets: %s). Hidden faces stay in the ' ...
             'mesh: check they are meant to be there.'], report.NumHidden, numFaces, 100*report.HiddenFraction, ...
             fcn_INTERNAL_setList(report.Sets));
-        fcn_INTERNAL_warn(options.Quiet, 'CarMesh3D:hiddenMany', report.Messages{end});
+        fcn_INTERNAL_warn(~options.FlagVerbose, 'CarMesh3D:hiddenMany', report.Messages{end});
     end
 
     % 2. Dimensions the hidden faces change
@@ -237,7 +237,7 @@ if report.NumHidden > 0
         warningState = warning('off', 'all');
         shownTable = fcn_CarMesh3D_validateMesh(shownMesh, vehicleSpec, FigNum=-1);
         fullMesh = vehicleMesh;
-        fullMesh.FaceHiddenSet(:) = 0;   % (every face, as if none were hidden)
+        fullMesh.LabelFaceHiddenSet(:) = 0;   % (every face, as if none were hidden)
         fullTable = fcn_CarMesh3D_validateMesh(fullMesh, vehicleSpec, FigNum=-1);
         warning(warningState);
         difference = fullTable.Measured_m - shownTable.Measured_m;
@@ -252,7 +252,7 @@ if report.NumHidden > 0
             report.Messages{end+1} = sprintf(['The hidden faces change %d dimension(s). The checks measure the vehicle as ' ...
                 'shown; with the hidden faces (sets: %s), they would be:\n%s'], numel(changed), ...
                 fcn_INTERNAL_setList(report.Sets), strjoin(lines, '\n'));
-            fcn_INTERNAL_warn(options.Quiet, 'CarMesh3D:hiddenChangesDimension', report.Messages{end});
+            fcn_INTERNAL_warn(~options.FlagVerbose, 'CarMesh3D:hiddenChangesDimension', report.Messages{end});
         end
     end
 
@@ -284,7 +284,7 @@ if report.NumHidden > 0
             'hidden faces would make collisions with something nobody can see, which is very hard to debug. ' ...
             'Take the box from the shown faces (fcn_CarMesh3D_visibleMesh), or keep hidden pieces inside the ' ...
             'shown vehicle.'], strjoin(outsideLines, '\n'));
-        fcn_INTERNAL_warn(options.Quiet, 'CarMesh3D:hiddenOutsideBox', report.Messages{end});
+        fcn_INTERNAL_warn(~options.FlagVerbose, 'CarMesh3D:hiddenOutsideBox', report.Messages{end});
     end
 end
 

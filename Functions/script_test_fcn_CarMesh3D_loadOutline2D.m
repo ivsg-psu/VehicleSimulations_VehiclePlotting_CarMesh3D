@@ -57,7 +57,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 warningState = warning('off','CarMesh3D:outlineMade');
-vehicleOutline = fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, SaveIfMade=true, FigNum=figNum);
+vehicleOutline = fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, FlagSaveIfMade=true, FigNum=figNum);
 warning(warningState);
 
 % Check variable types
@@ -99,7 +99,7 @@ figure(figNum); close(figNum);
 delete(testFiles.OutlineFile);
 lastwarn('');
 warningState = warning('off','CarMesh3D:outlineMade');
-fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, SaveIfMade=true);
+fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, FlagSaveIfMade=true);
 warning(warningState);
 [~, warningID] = lastwarn;
 assert(strcmp(warningID, 'CarMesh3D:outlineMade'));
@@ -160,5 +160,5 @@ end
 
 %% FAIL case: No outline file, and not allowed to make one
 if 1==0
-    fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, MakeIfMissing=false);
+    fcn_CarMesh3D_loadOutline2D('2013_Toyota_Prius_Four', DataFolder=testData, FlagMakeIfMissing=false);
 end

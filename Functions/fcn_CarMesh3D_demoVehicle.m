@@ -16,8 +16,8 @@ function [vehicleID, info] = fcn_CarMesh3D_demoVehicle(options)
 % FORMAT:
 %
 %       [vehicleID, info] = fcn_CarMesh3D_demoVehicle(...
-%           (Which=which), (UsePreference=flag), (Set=newID),
-%           (Reset=flag), (FigNum=figNum))
+%           (Which=which), (FlagUsePreference=flag), (Set=newID),
+%           (FlagReset=flag), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs, in any order. Any
 %      option not given takes its default.
@@ -29,7 +29,7 @@ function [vehicleID, info] = fcn_CarMesh3D_demoVehicle(options)
 %      Which: 'demo' (default) for the demo vehicle, or 'guiTest' for the
 %      GUI test vehicle.
 %
-%      UsePreference: true (default) to use the user's own choice of demo
+%      FlagUsePreference: true (default) to use the user's own choice of demo
 %      vehicle when there is one; false for the repo's choice (tests use
 %      false). Not used for the GUI test vehicle.
 %
@@ -39,7 +39,7 @@ function [vehicleID, info] = fcn_CarMesh3D_demoVehicle(options)
 %      pictures); if not, an error says what is missing and nothing is
 %      saved. Default '' (nothing set).
 %
-%      Reset: true to remove this user's own choice, so the repo's choice
+%      FlagReset: true to remove this user's own choice, so the repo's choice
 %      is used again. Default false.
 %
 %      FigNum: if given (and not -1), the demo vehicle and where its choice
@@ -70,11 +70,11 @@ function [vehicleID, info] = fcn_CarMesh3D_demoVehicle(options)
 %       demoFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID);
 %
 %       % In a test: always the repo's choice
-%       vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false);
+%       vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false);
 %
 %       % Pick your own demo vehicle, then go back to the repo's
 %       fcn_CarMesh3D_demoVehicle(Set='2009_Toyota_Corolla_LE');
-%       fcn_CarMesh3D_demoVehicle(Reset=true);
+%       fcn_CarMesh3D_demoVehicle(FlagReset=true);
 %
 %       See the script: script_test_fcn_CarMesh3D_demoVehicle.m for a full
 %       test suite.
@@ -107,9 +107,9 @@ function [vehicleID, info] = fcn_CarMesh3D_demoVehicle(options)
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     options.Which = 'demo'          % 'demo' or 'guiTest'
-    options.UsePreference = true    % Use this user's own choice, if any (tests: false)
+    options.FlagUsePreference = true    % Use this user's own choice, if any (tests: false)
     options.Set = ''                % A vehicle ID to save as this user's own choice
-    options.Reset = false           % Remove this user's own choice
+    options.FlagReset = false           % Remove this user's own choice
     options.FigNum = []             % Print the choice if given; -1 for fast mode
 end
 
@@ -173,7 +173,7 @@ if 0==flag_max_speed
         if ~(ischar(options.Set) || (isstring(options.Set) && isscalar(options.Set)))
             error('CarMesh3D:badInput', 'Set must be a vehicle ID (text), such as ''2009_Toyota_Corolla_LE''.');
         end
-        if ~isscalar(options.UsePreference) || ~isscalar(options.Reset)
+        if ~isscalar(options.FlagUsePreference) || ~isscalar(options.FlagReset)
             error('CarMesh3D:badInput', 'UsePreference and Reset must be true or false.');
         end
     end
@@ -200,7 +200,7 @@ end
 
 % A user's own choice to remove, or to save (checked first: only a
 % finished vehicle with photos can be the demo vehicle)
-if logical(options.Reset)
+if logical(options.FlagReset)
     fcn_INTERNAL_setPref('');
 end
 newID = char(options.Set);
@@ -219,7 +219,7 @@ if strcmp(char(options.Which), 'guiTest')
 else
     vehicleID = repoDemoID;
     source = 'repo';
-    if logical(options.UsePreference)
+    if logical(options.FlagUsePreference)
         preferredID = fcn_INTERNAL_getPref();
         if ~isempty(preferredID)
             if fcn_INTERNAL_usable(preferredID)
@@ -229,7 +229,7 @@ else
                 % (a saved choice that is no longer usable, such as a
                 % vehicle since removed: the repo's choice, with a warning)
                 warning('CarMesh3D:demoVehicle', ['Your demo vehicle %s is no longer usable, so the repo''s demo ' ...
-                    'vehicle %s is used. To clear your choice: fcn_CarMesh3D_demoVehicle(Reset=true)'], preferredID, repoDemoID);
+                    'vehicle %s is used. To clear your choice: fcn_CarMesh3D_demoVehicle(FlagReset=true)'], preferredID, repoDemoID);
             end
         end
     end

@@ -58,7 +58,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
 % (the body square second in the list: still the trim is lifted)
 testMesh = fcn_INTERNAL_twoSquares('trim', 0);
-testMesh.FacePartIndex = testMesh.FacePartIndex([3 4 1 2]);
+testMesh.LabelFacePart = testMesh.LabelFacePart([3 4 1 2]);
 testMesh.Faces = testMesh.Faces([3 4 1 2],:);
 [liftedMesh, numLifted] = fcn_CarMesh3D_separateOverlays(testMesh, FigNum=[]);
 assert(numLifted == 2);
@@ -76,14 +76,14 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 % (a glass square on a trim square: the glass moves, not the trim; the
 % 2009 Honda Fit's quarter-window trim was lifted in front of its glass)
 testMesh = fcn_INTERNAL_twoSquares('glass', 0);
-testMesh.FacePartIndex(1:2) = find(strcmp(testMesh.PartNames, 'trim'));
+testMesh.LabelFacePart(1:2) = find(strcmp(testMesh.LabelPartNames, 'trim'));
 [liftedMesh, numLifted] = fcn_CarMesh3D_separateOverlays(testMesh, FigNum=[]);
 assert(numLifted == 2);
 assert(max(abs(liftedMesh.Vertices(5:8,3) - 0.002)) < 1e-12);       % (the glass, lifted)
 assert(isequal(liftedMesh.Vertices(1:4,:), testMesh.Vertices(1:4,:)));  % (the trim, not)
 % (and the other way round: trim on glass, the glass is still the one lifted)
 testMesh = fcn_INTERNAL_twoSquares('trim', 0);
-testMesh.FacePartIndex(1:2) = find(strcmp(testMesh.PartNames, 'glass'));
+testMesh.LabelFacePart(1:2) = find(strcmp(testMesh.LabelPartNames, 'glass'));
 [liftedMesh, numLifted] = fcn_CarMesh3D_separateOverlays(testMesh, FigNum=[]);
 assert(numLifted == 2);
 assert(max(abs(liftedMesh.Vertices(1:4,3) - 0.002)) < 1e-12);
@@ -201,12 +201,12 @@ end
 function testMesh = fcn_INTERNAL_twoSquares(topPart, gap)
 % A 1 m body square at z = 0 and a 0.4 m square of topPart above its
 % middle at z = gap, both facing +z, as two triangles each
-partNames = {'body';'glass';'wheel';'light';'trim'};
+labelPartNames = {'body';'glass';'wheel';'light';'trim'};
 big = [0 0 0; 1 0 0; 1 1 0; 0 1 0];
 small = [0.3 0.3 gap; 0.7 0.3 gap; 0.7 0.7 gap; 0.3 0.7 gap];
 testMesh = struct();
 testMesh.Vertices = [big; small];
 testMesh.Faces = [1 2 3; 1 3 4; 5 6 7; 5 7 8];
-testMesh.PartNames = partNames;
-testMesh.FacePartIndex = [1; 1; find(strcmp(partNames, topPart)); find(strcmp(partNames, topPart))];
+testMesh.LabelPartNames = labelPartNames;
+testMesh.LabelFacePart = [1; 1; find(strcmp(labelPartNames, topPart)); find(strcmp(labelPartNames, topPart))];
 end % Ends fcn_INTERNAL_twoSquares

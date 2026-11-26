@@ -23,13 +23,13 @@ function [units, faceUnit] = fcn_CarMesh3D_lampUnits(vehicleMesh, options)
 %     words in brackets are dropped: "Backup (reverse) lamp" gives "backup
 %     lamp"). Two units with one name are numbered: "front-left marker
 %     lamp 2".
-%   - Cover glass: a face whose FaceCoverLamp names a kind belongs to the
+%   - Cover glass: a face whose LabelFaceCoverLamp names a kind belongs to the
 %     nearest unit of that kind (within MaxCoverDistance); when the mesh
 %     has no unit of that kind (the 2009 Fit's covers over its high beams,
 %     which are its headlamps lit by the high-beam signal), to the nearest
 %     unit of any kind.
 %   - Labels only: what lights a unit (layer 3) is the L2F matrix's job,
-%     so FaceLightFunctions is not read here.
+%     so LabelFaceAlsoLamps is not read here.
 %
 % FORMAT:
 %
@@ -39,7 +39,7 @@ function [units, faceUnit] = fcn_CarMesh3D_lampUnits(vehicleMesh, options)
 % INPUTS:
 %
 %      vehicleMesh: a labeled CarMesh3D mesh (Vertices, Faces,
-%      FaceLightType, LightTypeNames; FaceCoverLamp if it has covers).
+%      LabelFaceLamp, LabelLampNames; LabelFaceCoverLamp if it has covers).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -158,11 +158,11 @@ end
 if 0==flag_max_speed
     if flag_check_inputs
         % Check the vehicleMesh input
-        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','FaceLightType','LightTypeNames'})))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, FaceLightType, LightTypeNames)');
+        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','LabelFaceLamp','LabelLampNames'})))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelFaceLamp, LabelLampNames)');
         end
-        if numel(vehicleMesh.FaceLightType) ~= size(vehicleMesh.Faces,1)
-            error('vehicleMesh.FaceLightType must have one value per face');
+        if numel(vehicleMesh.LabelFaceLamp) ~= size(vehicleMesh.Faces,1)
+            error('vehicleMesh.LabelFaceLamp must have one value per face');
         end
         % Check the distances
         for optionName = {'Gap', 'MaxCoverDistance'}
@@ -196,8 +196,8 @@ end
 vertices = double(vehicleMesh.Vertices);
 faces = double(vehicleMesh.Faces);
 numFaces = size(faces,1);
-faceType = double(vehicleMesh.FaceLightType(:));
-typeNames = cellstr(vehicleMesh.LightTypeNames);
+faceType = double(vehicleMesh.LabelFaceLamp(:));
+typeNames = cellstr(vehicleMesh.LabelLampNames);
 centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
 middleX = (min(vertices(:,1)) + max(vertices(:,1)))/2;
 halfWidth = max(abs(vertices(:,2)));
@@ -296,8 +296,8 @@ for ith_unit = 1:numUnits
     faceUnit(unitFaces{ith_unit}) = ith_unit;
 end
 unitCovers = repmat({zeros(0,1)}, numUnits, 1);
-if isfield(vehicleMesh, 'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) == numFaces
-    coverKind = double(vehicleMesh.FaceCoverLamp(:));
+if isfield(vehicleMesh, 'LabelFaceCoverLamp') && numel(vehicleMesh.LabelFaceCoverLamp) == numFaces
+    coverKind = double(vehicleMesh.LabelFaceCoverLamp(:));
     for ith_type = unique(coverKind(coverKind > 0))'
         kindUnits = find(unitKind == ith_type);
         coverFaces = find(coverKind == ith_type);

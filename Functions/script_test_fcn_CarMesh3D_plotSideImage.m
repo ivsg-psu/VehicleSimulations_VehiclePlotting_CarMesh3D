@@ -110,7 +110,7 @@ vehicleMesh = fcn_INTERNAL_fittedSample;
 wheelPixels = [650 220; 150 220]; % [rear; front]
 sideImage = fcn_INTERNAL_twoWheelPicture(300, 800, wheelPixels, 60);
 overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, ...
-    WheelCentersPixels=wheelPixels, ShowVehicle=false, FigNum=figNum);
+    WheelCentersPixels=wheelPixels, FlagShowVehicle=false, FigNum=figNum);
 title(titleString, 'Interpreter','none');
 
 % Check variable values
@@ -136,7 +136,7 @@ figure(figNum); clf;
 wheelPixels = [100 200; 600 250]; % The front wheel is 50 pixels lower
 sideImage = fcn_INTERNAL_twoWheelPicture(400, 700, wheelPixels, 50);
 overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, ...
-    WheelCentersPixels=wheelPixels, ShowVehicle=false, FigNum=figNum);
+    WheelCentersPixels=wheelPixels, FlagShowVehicle=false, FigNum=figNum);
 title(titleString, 'Interpreter','none');
 
 % Check variable values: rotated by atan(50/500), and both wheels level
@@ -192,7 +192,7 @@ figure(figNum); clf;
 wheelPixels = [650 220; 150 220];
 sideImage = fcn_INTERNAL_twoWheelPicture(300, 800, wheelPixels, 60);
 overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, ...
-    WheelCentersPixels=wheelPixels, ShowVehicle=false, FigNum=-1);
+    WheelCentersPixels=wheelPixels, FlagShowVehicle=false, FigNum=-1);
 
 % Check variable values: same placement as with input checks
 assert(overlayHandles.FlippedImage);

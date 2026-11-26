@@ -26,7 +26,7 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 % INPUTS:
 %
 %      vehicleMesh: a labeled CarMesh3D mesh (Vertices, Faces,
-%      PartNames, FacePartIndex), fit to its spec (in meters).
+%      LabelPartNames, LabelFacePart), fit to its spec (in meters).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -142,8 +142,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if 0==flag_max_speed
     if flag_check_inputs
-        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex'}))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex)');
+        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','LabelPartNames','LabelFacePart'}))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart)');
         end
         if ~(isnumeric(options.Distance) && isscalar(options.Distance) && options.Distance > 0)
             error('Distance must be a positive number of meters');
@@ -179,13 +179,13 @@ end
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 numFaces = size(faces,1);
-facePart = vehicleMesh.FacePartIndex(:);
+facePart = vehicleMesh.LabelFacePart(:);
 
 % Which part is drawn on top: a higher rank wins (wheels: never moved)
-partRank = zeros(numel(vehicleMesh.PartNames),1);
+partRank = zeros(numel(vehicleMesh.LabelPartNames),1);
 rankOrder = {'body',1; 'trim',2; 'glass',3; 'light',4};   % (higher is on top: glass over trim)
 for ith_rank = 1:size(rankOrder,1)
-    partRank(strcmp(vehicleMesh.PartNames, rankOrder{ith_rank,1})) = rankOrder{ith_rank,2};
+    partRank(strcmp(vehicleMesh.LabelPartNames, rankOrder{ith_rank,1})) = rankOrder{ith_rank,2};
 end
 faceRank = zeros(numFaces,1);
 faceRank(facePart > 0) = partRank(facePart(facePart > 0));

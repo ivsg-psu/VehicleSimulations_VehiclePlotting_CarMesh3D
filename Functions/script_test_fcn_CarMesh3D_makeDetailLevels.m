@@ -106,9 +106,9 @@ for ith_level = 1:numel(detailLevels.Levels)-1
     assert(sum(dot(corner1, cross(corner2, corner3, 2), 2)) > 0);              % outward
     assert(all(levelMesh.FaceWheelIndex==0));
     assert(isequal(sort(fieldnames(levelMesh)), sort(fieldnames(priusMesh))));
-    assert(any(levelMesh.FacePartIndex==1));                                    % body
+    assert(any(levelMesh.LabelFacePart==1));                                    % body
     if size(levelMesh.Faces,1) >= 64
-        assert(any(levelMesh.FacePartIndex==3));                                % and wheels, except the smallest
+        assert(any(levelMesh.LabelFacePart==3));                                % and wheels, except the smallest
     end
 end
 

@@ -50,7 +50,7 @@ figure(figNum); clf;
 if fcn_INTERNAL_blenderAvailable
     sourceFile = fcn_INTERNAL_sampleOBJ;
     originalMesh = fcn_CarMesh3D_importMesh(sourceFile);
-    objFile = fcn_CarMesh3D_convertToOBJ(sourceFile, Overwrite=true, FigNum=figNum);
+    objFile = fcn_CarMesh3D_convertToOBJ(sourceFile, FlagOverwrite=true, FigNum=figNum);
     sgtitle(titleString, 'Interpreter','none');
 
     % Check variable types
@@ -113,7 +113,7 @@ figure(figNum); close(figNum);
 
 if fcn_INTERNAL_blenderAvailable
     sourceFile = fcn_INTERNAL_sampleOBJ;
-    objFile = fcn_CarMesh3D_convertToOBJ(sourceFile, Overwrite=true);
+    objFile = fcn_CarMesh3D_convertToOBJ(sourceFile, FlagOverwrite=true);
     firstInfo = dir(objFile);
     pause(1.1); % File times have about 1 second resolution
     objFile = fcn_CarMesh3D_convertToOBJ(sourceFile);
@@ -245,7 +245,7 @@ end
 
 %% FAIL case: Blender not at the given path
 if 1==0
-    objFile = fcn_CarMesh3D_convertToOBJ(fcn_INTERNAL_sampleOBJ, BlenderPath='C:\no\such\blender.exe', Overwrite=true);
+    objFile = fcn_CarMesh3D_convertToOBJ(fcn_INTERNAL_sampleOBJ, BlenderPath='C:\no\such\blender.exe', FlagOverwrite=true);
 end
 
 %% FAIL case: Output file not .obj
@@ -313,7 +313,7 @@ if isempty(savedFlag)
     fprintf(fid,'%s\n','v 0 0 0','v 1 0 0','v 0 1 0','f 1 2 3');
     fclose(fid);
     try
-        fcn_CarMesh3D_convertToOBJ(objFile, Overwrite=true);
+        fcn_CarMesh3D_convertToOBJ(objFile, FlagOverwrite=true);
         savedFlag = true;
     catch ME
         if contains(ME.message,'Blender was not found')

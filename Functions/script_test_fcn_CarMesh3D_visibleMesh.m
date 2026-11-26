@@ -23,7 +23,7 @@ close all
 % The labeled sample, with its tail lights hidden in the set 'tail lamps'
 % and the front left wheel in the set 'front left wheel'
 sampleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
-tailFaces = find(sampleMesh.FaceLightType==find(strcmp(sampleMesh.LightTypeNames,'tailBrakeLamp')));
+tailFaces = find(sampleMesh.LabelFaceLamp==find(strcmp(sampleMesh.LabelLampNames,'tailBrakeLamp')));
 wheelFaces = find(sampleMesh.FaceWheelIndex==1);
 hiddenMesh = fcn_CarMesh3D_editLabels(sampleMesh, Edits={struct('FaceIndices',tailFaces,'Hide','tail lamps'), ...
     struct('FaceIndices',wheelFaces,'Hide','front left wheel')}, FigNum=-1);
@@ -93,11 +93,11 @@ figure(figNum); close(figNum);
 
 [visibleMesh, flagShown] = fcn_CarMesh3D_visibleMesh(hiddenMesh);
 numShown = nnz(flagShown);
-for name = {'FacePartIndex','FaceLightType','FaceWheelIndex','FaceColors','FaceAlpha','FaceHiddenSet'}
+for name = {'LabelFacePart','LabelFaceLamp','FaceWheelIndex','FaceColors','FaceAlpha','LabelFaceHiddenSet'}
     assert(size(visibleMesh.(name{1}),1) == numShown, name{1});
 end
-assert(isequal(visibleMesh.FacePartIndex, hiddenMesh.FacePartIndex(flagShown)));
-assert(all(visibleMesh.FaceHiddenSet == 0));
+assert(isequal(visibleMesh.LabelFacePart, hiddenMesh.LabelFacePart(flagShown)));
+assert(all(visibleMesh.LabelFaceHiddenSet == 0));
 assert(isequal(unique(visibleMesh.Faces(:))', 1:size(visibleMesh.Vertices,1)));   % (no unused vertices)
 % (the shown faces in the same places)
 shownCorners = hiddenMesh.Vertices(hiddenMesh.Faces(flagShown,:)', :);

@@ -37,7 +37,7 @@ labelsPanel = uipanel(hostGrid, 'Title', 'Labels To Display');
 lampsPanel = uipanel(hostGrid, 'Title', 'Lamps To Display');
 viewerPanel = uipanel(hostGrid);
 changeCount = 0;
-[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=viewerPanel, ShowTools=false, FigNum=-1);
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=viewerPanel, FlagShowTools=false, FigNum=-1);
 panels = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=overallPanel, Labels=labelsPanel, Lamps=lampsPanel, ...
     OnChange=@() fcn_INTERNAL_count());
 assert(all(isfield(panels, {'MarkAll','MarkOverall','MarkLabels','MarkLamps','RebuildLabels','Controls'})));
@@ -71,15 +71,15 @@ assert(any(strcmp(viewer.Hidden(), 'part_trim')), 'Shown? No');
 fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'allShown'), true);
 assert(~any(strcmp(viewer.Hidden(), 'part_trim')), 'All labels Shown? Yes');
 fcn_INTERNAL_pickRadio(findall(lampsPanel, 'Tag', 'lamp_Tail'), 'brake');
-assert(strcmp(viewer.NightLights().Tail, 'brake'), 'Tail lights Brake');
+assert(viewer.NightLights().Tail && viewer.NightLights().Brake, 'Tail lights Brake');
 fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_All'), false);
-assert(strcmp(viewer.NightLights().Tail, 'off') && ~viewer.NightLights().LowBeam, 'All lamps Off');
+assert(~viewer.NightLights().Tail && ~viewer.NightLights().Brake && ~viewer.NightLights().LowBeam, 'All lamps Off');
 assert(fcn_INTERNAL_count(0) > changesBefore, 'OnChange called');
 
 %% TEST case: the panels show changes made elsewhere (the viewer's hooks), once marked
 figNum = 20003;
 fprintf(1,'Figure %.0f: TEST case: marking\n', figNum);
-viewer.SetBoundaries(true);
+viewer.SetFlagShowEdges(true);
 viewer.SetNightLights(struct('LowBeam', true));
 panels.MarkAll();
 boundaries = findall(overallPanel, 'Tag', 'overallBoundaries');
@@ -89,14 +89,14 @@ assert(isa(lowBeam, 'matlab.ui.control.CheckBox') && lowBeam.Value, 'Low beams m
 allLamps = findall(lampsPanel, 'Tag', 'lamp_All');
 assert(~allLamps.Value, 'All lamps: not ticked while only some are on');
 % (one click switches a lamp; the headings stay above the rows that scroll)
-fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_FogLights'), true);
-assert(logical(viewer.NightLights().FogLights), 'One tick switches the fog lamps on');
-fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_FogLights'), false);
+fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_Fog'), true);
+assert(logical(viewer.NightLights().Fog), 'One tick switches the fog lamps on');
+fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_Fog'), false);
 for headingTag = {'labelsHeadings', 'lampsHeadings'}
     headings = findall(hostFigure, 'Tag', headingTag{1});
     assert(isscalar(headings) && strcmp(headings.Scrollable, 'off'), 'The headings do not scroll: %s', headingTag{1});
 end
-viewer.SetBoundaries(false);
+viewer.SetFlagShowEdges(false);
 
 %% TEST case: driven by script (fcn_CarMesh3D_guiDriver): every control tagged, each value set, the viewer follows
 figNum = 20005;
@@ -127,7 +127,7 @@ for panelHandle = [overallPanel, labelsPanel, lampsPanel]
         for ith_radio = 1:numel(radios)
             fcn_CarMesh3D_guiDriver(panelHandle, 'set', groups(ith_group).Tag, radios(ith_radio).UserData);
             stateNow = fcn_CarMesh3D_guiDriver(hostFigure, 'state');
-            assert(isequal(stateNow.Values.overallNight, viewer.NightView()) && isequal(stateNow.Values.overallColors, viewer.Colors()) ...
+            assert(isequal(stateNow.Values.overallNight, viewer.FlagNight()) && isequal(stateNow.Values.overallColors, viewer.Colors()) ...
                 && isequal(stateNow.Values.lamp_Hazards, logical(viewer.NightLights().TurnLeft) && logical(viewer.NightLights().TurnRight)) ...
                 && isequal(stateNow.Values.shown_part_glass, ~any(strcmp(viewer.Hidden(), 'part_glass'))), ...
                 'After %s = %s the panels differ from the viewer', groups(ith_group).Tag, mat2str(radios(ith_radio).UserData));
@@ -155,7 +155,7 @@ photoFigure = uifigure('Visible', 'off', 'Position', [50 50 1200 820]);
 photoGrid = uigridlayout(photoFigure, [1 2], 'ColumnWidth', {320, '1x'});
 photoOverall = uipanel(photoGrid, 'Title', 'Overall Display');
 photoViewerPanel = uipanel(photoGrid);
-[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Parent=photoViewerPanel, ShowTools=false, FigNum=-1);
+[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Parent=photoViewerPanel, FlagShowTools=false, FigNum=-1);
 fcn_CarMesh3D_makeDisplayPanels(photoViewer, Overall=photoOverall);
 state = fcn_CarMesh3D_guiDriver(photoOverall, 'state');
 assert(state.Enabled.turnWithPhoto && state.Enabled.turnPhotoWithModel && state.Enabled.photoSize, 'With photos: the options can be picked');
@@ -168,21 +168,21 @@ assert(photoViewer.PhotoHeight() == 420 && getpref('CarMesh3D', 'PhotoHeight') =
 photoViewer.Stop();
 delete(photoFigure);
 % (a viewer opened now starts with the remembered options)
-[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Visible=false, Wait=false, FigNum=-1);
+[~, photoViewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, FlagVisible=false, FlagWait=false, FigNum=-1);
 assert(~photoViewer.TurnPhotoWithModel() && ~photoViewer.TurnWithPhoto(), 'The next window starts with them');
 photoViewer.Close();
 clear cleanupPhotoPrefs;   % (the photo options' preferences put back as they were)
 
 %% TEST case: a host keeps the hidden faces' setting (as the painter does)
 figNum = 20004;
-fprintf(1,'Figure %.0f: TEST case: a host''s ShowHidden\n', figNum);
+fprintf(1,'Figure %.0f: TEST case: a host''s FlagShowHidden\n', figNum);
 hostLabelsPanel = uipanel(hostGrid);
 fcn_INTERNAL_setHostFlag(false);
 panels2 = fcn_CarMesh3D_makeDisplayPanels(viewer, Labels=hostLabelsPanel, ...
-    ShowHidden=@() fcn_INTERNAL_setHostFlag(), SetShowHidden=@(flag) fcn_INTERNAL_setHostFlag(flag)); %#ok<NASGU>
+    FlagShowHidden=@() fcn_INTERNAL_setHostFlag(), SetFlagShowHidden=@(flag) fcn_INTERNAL_setHostFlag(flag)); %#ok<NASGU>
 shownHidden = findall(hostLabelsPanel, 'Tag', 'shown_hidden');   % (this panel's row)
 fcn_INTERNAL_pickRadio(shownHidden, true);
-assert(fcn_INTERNAL_setHostFlag() == true, 'The host''s SetShowHidden called');
+assert(fcn_INTERNAL_setHostFlag() == true, 'The host''s SetFlagShowHidden called');
 
 viewer.Close();
 delete(hostFigure);
@@ -191,7 +191,7 @@ delete(hostFigure);
 figNum = 80001;
 fprintf(1,'Figure %.0f: FAST mode cases\n', figNum);
 hostFigure = uifigure('Visible', 'off');
-[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=uipanel(hostFigure), ShowTools=false, FigNum=-1);
+[~, viewer] = fcn_CarMesh3D_viewLabels(loaded.vehicleMesh, Parent=uipanel(hostFigure), FlagShowTools=false, FigNum=-1);
 panelsFast = fcn_CarMesh3D_makeDisplayPanels(viewer, Overall=uipanel(hostFigure), FigNum=-1);
 assert(isfield(panelsFast, 'MarkAll'));
 panelsNone = fcn_CarMesh3D_makeDisplayPanels(viewer, FigNum=[]);   % (no panels: nothing built)

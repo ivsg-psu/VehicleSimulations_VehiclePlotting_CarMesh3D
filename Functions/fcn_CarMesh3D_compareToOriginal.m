@@ -140,7 +140,7 @@ function report = fcn_CarMesh3D_compareToOriginal(reducedMesh, originalMesh, opt
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_compareToOriginal
-%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   % * Measures the vehicle as it is shown: hidden faces (LabelFaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
 
 % TO-DO:
@@ -218,8 +218,8 @@ if 0==flag_max_speed
         % arguments block above
 
         for thisMesh = {reducedMesh, originalMesh}
-            if ~(isstruct(thisMesh{1}) && all(isfield(thisMesh{1}, {'Vertices','Faces','PartNames','FacePartIndex'})))
-                error('reducedMesh and originalMesh must be labeled CarMesh3D meshes (Vertices, Faces, PartNames, FacePartIndex)');
+            if ~(isstruct(thisMesh{1}) && all(isfield(thisMesh{1}, {'Vertices','Faces','LabelPartNames','LabelFacePart'})))
+                error('reducedMesh and originalMesh must be labeled CarMesh3D meshes (Vertices, Faces, LabelPartNames, LabelFacePart)');
             end
         end
         if ~(isnumeric(options.ImageWidth) && isscalar(options.ImageWidth) && options.ImageWidth >= 100)
@@ -293,9 +293,9 @@ end
 % Wheel faces of the reduced mesh (see-through gaps near them are not
 % counted: spokes and wheel arches)
 flagWheel = false(size(reducedMesh.Faces,1),1);
-wheelPart = find(strcmp(reducedMesh.PartNames,'wheel'), 1);
+wheelPart = find(strcmp(reducedMesh.LabelPartNames,'wheel'), 1);
 if ~isempty(wheelPart)
-    flagWheel = reducedMesh.FacePartIndex(:)==wheelPart;
+    flagWheel = reducedMesh.LabelFacePart(:)==wheelPart;
 end
 
 renderSettings = struct('Low',limitsLow, 'High',limitsHigh, 'Width',round(options.ImageWidth));
@@ -724,13 +724,13 @@ faces = vehicleMesh.Faces;
 areas = 0.5*vecnorm(cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
     vertices(faces(:,3),:) - vertices(faces(:,1),:), 2), 2, 2);
 keys = repmat({'(none)'}, size(faces,1), 1);
-if isfield(vehicleMesh, 'PartNames') && isfield(vehicleMesh, 'FacePartIndex')
-    flagPart = vehicleMesh.FacePartIndex(:) > 0;
-    keys(flagPart) = vehicleMesh.PartNames(vehicleMesh.FacePartIndex(flagPart));
+if isfield(vehicleMesh, 'LabelPartNames') && isfield(vehicleMesh, 'LabelFacePart')
+    flagPart = vehicleMesh.LabelFacePart(:) > 0;
+    keys(flagPart) = vehicleMesh.LabelPartNames(vehicleMesh.LabelFacePart(flagPart));
 end
-if isfield(vehicleMesh, 'FaceLightType') && isfield(vehicleMesh, 'LightTypeNames')
-    flagLight = vehicleMesh.FaceLightType(:) > 0;
-    keys(flagLight) = strcat('light: ', vehicleMesh.LightTypeNames(vehicleMesh.FaceLightType(flagLight)));
+if isfield(vehicleMesh, 'LabelFaceLamp') && isfield(vehicleMesh, 'LabelLampNames')
+    flagLight = vehicleMesh.LabelFaceLamp(:) > 0;
+    keys(flagLight) = strcat('light: ', vehicleMesh.LabelLampNames(vehicleMesh.LabelFaceLamp(flagLight)));
 end
 keys = keys(:);
 end % Ends fcn_INTERNAL_labelAreas

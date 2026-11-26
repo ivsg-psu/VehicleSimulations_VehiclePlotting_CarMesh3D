@@ -23,7 +23,7 @@ function [vehicleMesh, interiorInfo] = fcn_CarMesh3D_labelInterior(vehicleMesh, 
 %
 % Only faces of the parts in Parts (body and trim) are relabeled: glass,
 % lights, and wheels never are. The new part 'interior' is added to
-% PartNames if it is not there; the faces keep their colors. Painted
+% LabelPartNames if it is not there; the faces keep their colors. Painted
 % fixes (fcn_CarMesh3D_editLabels) can still change any face afterward.
 %
 % FORMAT:
@@ -34,8 +34,8 @@ function [vehicleMesh, interiorInfo] = fcn_CarMesh3D_labelInterior(vehicleMesh, 
 %
 % INPUTS:
 %
-%      vehicleMesh: a labeled CarMesh3D mesh (Vertices, Faces, PartNames,
-%      FacePartIndex, FaceWheelIndex), fit to its spec (in meters). Run
+%      vehicleMesh: a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames,
+%      LabelFacePart, FaceWheelIndex), fit to its spec (in meters). Run
 %      it after the floor panel is added (fcn_CarMesh3D_addFloorPanel), so
 %      a download with no floor is closed from below.
 %
@@ -59,8 +59,8 @@ function [vehicleMesh, interiorInfo] = fcn_CarMesh3D_labelInterior(vehicleMesh, 
 %
 % OUTPUTS:
 %
-%      vehicleMesh: the mesh with its interior faces' FacePartIndex set to
-%      the 'interior' part (added to PartNames if needed), and
+%      vehicleMesh: the mesh with its interior faces' LabelFacePart set to
+%      the 'interior' part (added to LabelPartNames if needed), and
 %      InteriorInfo set to interiorInfo.
 %
 %      interiorInfo: a structure with VoxelSize, GapSize, NumInterior
@@ -159,8 +159,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if 0==flag_max_speed
     if flag_check_inputs
-        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex','FaceWheelIndex'}))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex, FaceWheelIndex)');
+        if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, {'Vertices','Faces','LabelPartNames','LabelFacePart','FaceWheelIndex'}))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart, FaceWheelIndex)');
         end
         if ~(isnumeric(options.VoxelSize) && isscalar(options.VoxelSize) && options.VoxelSize > 0)
             error('VoxelSize must be a positive number of meters');
@@ -199,9 +199,9 @@ end
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 numFaces = size(faces,1);
-facePart = vehicleMesh.FacePartIndex(:);
+facePart = vehicleMesh.LabelFacePart(:);
 flagWheel = vehicleMesh.FaceWheelIndex(:) > 0;
-glassIndex = find(strcmp(vehicleMesh.PartNames, 'glass'));
+glassIndex = find(strcmp(vehicleMesh.LabelPartNames, 'glass'));
 flagGlass = ismember(facePart, glassIndex);
 voxelSize = options.VoxelSize;
 
@@ -232,21 +232,21 @@ pointNearA = nearA(pointKey);
 pointNearB = nearB(pointKey);
 reachedA = accumarray(sourceFace, double(pointNearA), [numFaces 1]) > 0;
 reachedB = accumarray(sourceFace, double(pointNearB), [numFaces 1]) > 0;
-allowedParts = find(ismember(vehicleMesh.PartNames, cellstr(options.Parts)));
+allowedParts = find(ismember(vehicleMesh.LabelPartNames, cellstr(options.Parts)));
 flagInterior = reachedB & ~reachedA & ismember(facePart, allowedParts) & ~flagWheel;
 
 % The 'interior' part (added if needed); the faces keep their colors
-interiorIndex = find(strcmp(vehicleMesh.PartNames, 'interior'), 1);
+interiorIndex = find(strcmp(vehicleMesh.LabelPartNames, 'interior'), 1);
 if isempty(interiorIndex)
-    vehicleMesh.PartNames{end+1} = 'interior';
-    interiorIndex = numel(vehicleMesh.PartNames);
+    vehicleMesh.LabelPartNames{end+1} = 'interior';
+    interiorIndex = numel(vehicleMesh.LabelPartNames);
 end
 fromPart = facePart(flagInterior);
-vehicleMesh.FacePartIndex(flagInterior) = interiorIndex;
+vehicleMesh.LabelFacePart(flagInterior) = interiorIndex;
 
 numFromPart = struct();
 for thisPart = reshape(allowedParts,1,[])
-    numFromPart.(matlab.lang.makeValidName(vehicleMesh.PartNames{thisPart})) = nnz(fromPart==thisPart);
+    numFromPart.(matlab.lang.makeValidName(vehicleMesh.LabelPartNames{thisPart})) = nnz(fromPart==thisPart);
 end
 interiorInfo = struct('VoxelSize',voxelSize, 'GapSize',options.GapSize, 'NumInterior',nnz(flagInterior), ...
     'NumFromPart',numFromPart, 'GridSize',gridSize);

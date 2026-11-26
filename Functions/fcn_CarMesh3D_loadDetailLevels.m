@@ -16,7 +16,7 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 % FORMAT:
 %
 %       detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID,...
-%           (DataFolder=folder), (MakeIfMissing=flag), (SaveIfMade=flag),...
+%           (DataFolder=folder), (FlagMakeIfMissing=flag), (FlagSaveIfMade=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -29,13 +29,13 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %      DataFolder: the Data folder. Default [] uses the one next to the
 %      Functions folder.
 %
-%      MakeIfMissing: make the levels from the finished mesh if there is
+%      FlagMakeIfMissing: make the levels from the finished mesh if there is
 %      no levels file. Default true. (False: an error.)
 %
-%      SaveIfMade: save the levels made that way to the vehicle's folder.
+%      FlagSaveIfMade: save the levels made that way to the vehicle's folder.
 %      Default false.
 %
-%      OrientFaces: true (default) to turn each level's faces to point the
+%      FlagOrientFaces: true (default) to turn each level's faces to point the
 %      same way as their neighbors (fcn_CarMesh3D_orientFaces), as
 %      fcn_CarMesh3D_meshWithLabelEdits does for the full mesh, so levels
 %      saved before that fix show no faces pointing the wrong way (Q87
@@ -63,7 +63,7 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %      last build show (AnimateCar3D, 2026-11-25: Sean's "flow" of
 %      vehicles out of CarMesh3D into the animator). FacesTurned: the
 %      faces fcn_CarMesh3D_orientFaces turned in each level (0 for the
-%      box, and with OrientFaces=false).
+%      box, and with FlagOrientFaces=false).
 %
 % DEPENDENCIES:
 %
@@ -123,9 +123,9 @@ arguments
 
     vehicleID
     options.DataFolder = []           % the Data folder; [] for the one next to Functions
-    options.MakeIfMissing = true      % make the levels if there is no levels file
-    options.SaveIfMade = false        % save levels made that way
-    options.OrientFaces = true        % turn each level's faces to agree with their neighbors
+    options.FlagMakeIfMissing = true      % make the levels if there is no levels file
+    options.FlagSaveIfMade = false        % save levels made that way
+    options.FlagOrientFaces = true        % turn each level's faces to agree with their neighbors
     options.FigNum = []               % figure to show the levels; -1 for fast mode
 end
 
@@ -184,7 +184,7 @@ if 0==flag_max_speed
         end
 
         % Check the flags
-        if ~isscalar(options.MakeIfMissing) || ~isscalar(options.SaveIfMade)
+        if ~isscalar(options.FlagMakeIfMissing) || ~isscalar(options.FlagSaveIfMade)
             error('MakeIfMissing and SaveIfMade must be true or false');
         end
     end
@@ -241,17 +241,17 @@ if vehicleFiles.HasLevels
                 'its label fixes; making them again (run %s to save them).'], vehicleFiles.ID, vehicleFiles.ScriptFile);
             detailLevels = fcn_CarMesh3D_makeDetailLevels(fcn_INTERNAL_currentMesh(vehicleFiles), FigNum=-1);
             detailLevels.Source = 'remade';
-            if options.SaveIfMade
+            if options.FlagSaveIfMade
                 save(vehicleFiles.LevelsFile, 'detailLevels');
             end
         end
     end
-elseif options.MakeIfMissing && vehicleFiles.HasMesh
+elseif options.FlagMakeIfMissing && vehicleFiles.HasMesh
     warning('CarMesh3D:detailLevelsMade', ['%s has no detail levels file; making them from its finished mesh ' ...
         '(run its script to make and save them).'], vehicleFiles.ID);
     detailLevels = fcn_CarMesh3D_makeDetailLevels(fcn_INTERNAL_currentMesh(vehicleFiles), FigNum=-1);
     detailLevels.Source = 'made';
-    if options.SaveIfMade
+    if options.FlagSaveIfMade
         save(vehicleFiles.LevelsFile, 'detailLevels');
     end
 elseif ~vehicleFiles.HasMesh
@@ -280,7 +280,7 @@ end
 % Each level's faces turned to point the same way as their neighbors (a
 % few hundredths of a second for all of them; Q87 (A))
 detailLevels.FacesTurned = zeros(1, numel(detailLevels.Levels));
-if options.OrientFaces
+if options.FlagOrientFaces
     for ith_level = 1:numel(detailLevels.Levels)
         thisLevel = detailLevels.Levels(ith_level);
         if (isfield(thisLevel, 'IsBox') && thisLevel.IsBox) || ~isstruct(thisLevel.Mesh) ...

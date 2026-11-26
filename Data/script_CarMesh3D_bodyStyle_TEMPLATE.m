@@ -105,7 +105,7 @@ fprintf(1,'%s\n   width: %s\n', vehicleMesh.Source, vehicleMesh.BodyStyleInfo.Wi
 % (the refit clears the normals; this remakes them, and nothing else: the
 % exemplar was already reduced and repaired)
 vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, 'StitchTolerance',0, 'EdgeSmoothing',0, ...
-    TargetFaces=size(vehicleMesh.Faces,1), Symmetric=false, PartShares={}, VisibilityCheck=false);
+    TargetFaces=size(vehicleMesh.Faces,1), FlagSymmetric=false, PartShares={}, FlagVisibilityCheck=false);
 fprintf(1,'Finished mesh: %d faces\n', size(vehicleMesh.Faces,1));
 
 %% Step 3: Check the dimensions against yours

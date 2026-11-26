@@ -149,7 +149,7 @@ disp('Welcome to the demo code for the CarMesh3D library!')
 % shown (in Data\answersSoFar_CarMesh3D_demo.mat); s clears the marks.
 
 demoVehicleID = fcn_CarMesh3D_demoVehicle();   % The vehicle the examples copy: the repo's demo vehicle, or your own (fcn_CarMesh3D_demoVehicle)
-flag_runStepByStepDemo = false;           % (set by the menu's p option)
+flagRunStepByStepDemo = false;           % (set by the menu's p option)
 demoExamples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=demoVehicleID);
 
 clear demoMenu
@@ -167,13 +167,13 @@ demoMenu(end).Text = sprintf(['WARNING: the examples use a temporary COPY of the
 demoMenu(end).FunctionSubmission = sprintf('fcn_CarMesh3D_runDemoExample(''warning'', VehicleID=''%s''); pause;', demoVehicleID);
 demoMenu(end+1).MenuChar = 'p';
 demoMenu(end).Text = 'script_demo_CarMesh3D: leave the menu and run the step-by-step demo (Steps 1-14: build a mesh from a download)';
-demoMenu(end).FunctionSubmission = 'flag_exitMain = 1; assignin(''base'', ''flag_runStepByStepDemo'', true);';
+demoMenu(end).FunctionSubmission = 'flagExitMain = 1; assignin(''base'', ''flagRunStepByStepDemo'', true);';
 demoMenu(end+1).MenuChar = 's';
 demoMenu(end).Text = 'Start over: clear the "shown" marks (asks to confirm while some are not shown)';
 demoMenu(end).FunctionSubmission = 'answers = cell(size(answers));';
 demoMenu(end+1).MenuChar = 'q';
 demoMenu(end).Text = 'Quit the menu (the last example''s commands are printed again)';
-demoMenu(end).FunctionSubmission = 'flag_exitMain = 1;';
+demoMenu(end).FunctionSubmission = 'flagExitMain = 1;';
 [demoMenu.AnswerDefault] = deal(' ');
 [demoMenu.FunctionMore] = deal('');
 [demoMenu.isAllowableMenuOption] = deal(true);
@@ -183,7 +183,7 @@ fcn_DebugTools_menuManageSelections(demoMenu);
 
 % Leaving the menu: the last example's commands again, to copy
 fcn_CarMesh3D_runDemoExample('last');
-if ~flag_runStepByStepDemo
+if ~flagRunStepByStepDemo
     return;   % (the step-by-step demo was not chosen)
 end
 
@@ -227,18 +227,18 @@ figNum = 3;
 modelFile = fullfile(priusFiles.ModelFolder,'source','2010 Toyota Prius.glb');
 
 
-flag_useDownloadedModel = exist(modelFile,'file')==2;
-if flag_useDownloadedModel
+flagUseDownloadedModel = exist(modelFile,'file')==2;
+if flagUseDownloadedModel
     try
         vehicleMesh = fcn_CarMesh3D_importMesh(modelFile, ...
             License='(fill in from the model''s download page)', FigNum=figNum);
         vehicleMesh.Name = '2010 Toyota Prius (downloaded model)';
     catch ME
         fprintf(1,'Could not import %s:\n  %s\nUsing the built-in sample car instead.\n', modelFile, ME.message);
-        flag_useDownloadedModel = false;
+        flagUseDownloadedModel = false;
     end
 end
-if ~flag_useDownloadedModel
+if ~flagUseDownloadedModel
     % The sample's "messy" style imitates a downloaded file: millimeters,
     % Y up, Z forward, offset from the origin
     vehicleMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, Style='messy', FigNum=figNum);
@@ -251,7 +251,7 @@ end
 % misleading, so trust the picture.
 
 figNum = 4;
-if flag_useDownloadedModel
+if flagUseDownloadedModel
     % Blender writes Z up. For this Prius model, the front is toward +X.
     vehicleMesh = fcn_CarMesh3D_normalizeMesh(vehicleMesh, UpAxis='+z', ForwardAxis='+x', FigNum=figNum);
 else
@@ -267,10 +267,10 @@ end
 % spec's body color.
 
 figNum = 5;
-if flag_useDownloadedModel
+if flagUseDownloadedModel
     vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, ...
         PartRules={'17in','wheel'; 'color_notint','trim'}, ...
-        BodyColor=vehicleSpec.BodyColor, UseMaterialColors=false, FigNum=figNum);
+        BodyColor=vehicleSpec.BodyColor, FlagUseMaterialColors=false, FigNum=figNum);
 else
     vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, BodyColor=vehicleSpec.BodyColor, FigNum=figNum);
 end
@@ -286,7 +286,7 @@ end
 % width WITH mirrors (WidthReference='mirrors').
 
 figNum = 6;
-if flag_useDownloadedModel
+if flagUseDownloadedModel
     vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference='mirrors', FigNum=figNum);
 else
     vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, FigNum=figNum);
@@ -314,8 +314,8 @@ disp(validationTable);
 % One .mat file per vehicle, holding the finished mesh (which also keeps
 % a copy of its spec in vehicleMesh.VehicleSpec).
 
-flag_saveToLibrary = 0; % Set to 1 to save
-if flag_saveToLibrary
+flagSaveToLibrary = 0; % Set to 1 to save
+if flagSaveToLibrary
     libraryFile = fullfile('Data', ['CarMesh3D_' regexprep(vehicleSpec.Name,'\W','') '.mat']); %#ok<UNRCH>
     save(libraryFile,'vehicleMesh');
     fprintf(1,'Saved: %s\n', libraryFile);
@@ -359,20 +359,20 @@ trimBlack = [0.02 0.02 0.02];
 variantColors = {'body',bodyBlue; 'glass',glassGray; 'trim',trimBlack};
 
 figNum = 10;
-if flag_useDownloadedModel
+if flagUseDownloadedModel
     variantMesh = fcn_CarMesh3D_importMesh(modelFile, ...
         License='(fill in from the model''s download page)', FigNum=-1); % Reuses the converted file
     variantMesh.Name = '2010 Toyota Prius (full detail, blue)';
     variantMesh = fcn_CarMesh3D_normalizeMesh(variantMesh, UpAxis='+z', ForwardAxis='+x', FigNum=-1);
     variantMesh = fcn_CarMesh3D_labelParts(variantMesh, ...
         PartRules={'17in','wheel'; 'color_notint','trim'}, ...
-        UseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
+        FlagUseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
     variantMesh = fcn_CarMesh3D_fitMeshToSpec(variantMesh, vehicleSpec, WidthReference='mirrors', FigNum=-1);
 else
     variantMesh = fcn_CarMesh3D_fillSampleMesh(VehicleSpec=vehicleSpec, FigNum=-1);
     variantMesh.Name = 'Sample car (full detail, blue)';
     variantMesh = fcn_CarMesh3D_labelParts(variantMesh, ...
-        UseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
+        FlagUseMaterialColors=false, PartColors=variantColors, GlassAlpha=0.85, FigNum=figNum);
     variantMesh = fcn_CarMesh3D_fitMeshToSpec(variantMesh, vehicleSpec, FigNum=-1);
 end
 
@@ -411,10 +411,10 @@ figNum = 14;
 figure(figNum); clf;
 tiledlayout(1,2);
 nexttile;
-fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', ShowEdges=true, EdgeColor=[0 0 0], FigNum=figNum);
+fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', FlagShowEdges=true, EdgeColor=[0 0 0], FigNum=figNum);
 title('Black edges');
 nexttile;
-fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', ShowEdges=true, EdgeColor=[0.85 0.85 0.85], FigNum=figNum);
+fcn_CarMesh3D_plotVehicle(variantMesh, Finish='glossy', FlagShowEdges=true, EdgeColor=[0.85 0.85 0.85], FigNum=figNum);
 title('Light gray edges');
 
 %% Step 13: Check the outline against a side-view picture
@@ -446,10 +446,10 @@ title(sprintf('Side picture on the centerline: %.2f mm per pixel', 1000*overlayH
 %% Step 14: Browse the finished vehicles
 % A menu, in the command window, of every finished vehicle with its
 % quality score: type a vehicle's number to see it in 3D and 2D. Set
-% flag_openBrowser to 1 to open it (it waits for typed choices); here the
+% flagOpenBrowser to 1 to open it (it waits for typed choices); here the
 % list is only printed.
-flag_openBrowser = 0;
-fcn_CarMesh3D_browseVehicles(Interactive=flag_openBrowser, FigNum=14);
+flagOpenBrowser = 0;
+fcn_CarMesh3D_browseVehicles(FlagInteractive=flagOpenBrowser, FigNum=14);
 
 %% Functions follow
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -73,7 +73,7 @@ if flagTransitPile
     fig_num = 20001;
     fprintf(1,'Figure %d: TEST case: a second run changes nothing\n', fig_num);
     stateBefore = dir(fullfile(pileFolder, '**', '*'));
-    report2 = fcn_CarMesh3D_convertPhotos(pileFolder, Verbose=false, FigNum=-1);
+    report2 = fcn_CarMesh3D_convertPhotos(pileFolder, FlagVerbose=false, FigNum=-1);
     stateAfter = dir(fullfile(pileFolder, '**', '*'));
     assert(isequal({stateBefore.name}, {stateAfter.name}) && isequal([stateBefore.datenum], [stateAfter.datenum]), ...
         'A second run writes and moves nothing');
@@ -100,13 +100,13 @@ imwrite(small, fullfile(madeFolder, 'RearBumper.jpg'));           % (another nam
 
 % (a dry run first: nothing changes)
 stateBefore = dir(fullfile(madeFolder, '**', '*'));
-reportDry = fcn_CarMesh3D_convertPhotos(madeFolder, DryRun=true, Verbose=false, FigNum=[]);
+reportDry = fcn_CarMesh3D_convertPhotos(madeFolder, FlagDryRun=true, FlagVerbose=false, FigNum=[]);
 stateAfter = dir(fullfile(madeFolder, '**', '*'));
 assert(isequal({stateBefore.name}, {stateAfter.name}) && isequal([stateBefore.datenum], [stateAfter.datenum]), 'A dry run changes nothing');
 assert(all(startsWith(reportDry.Action, '(dry run)')), 'A dry run says so');
 
 lastwarn('');
-reportMade = fcn_CarMesh3D_convertPhotos(madeFolder, Verbose=false, FigNum=[]);
+reportMade = fcn_CarMesh3D_convertPhotos(madeFolder, FlagVerbose=false, FigNum=[]);
 [warningText, warningID] = lastwarn;
 assert(strcmp(warningID, 'CarMesh3D:photosSkipped') && contains(warningText, 'ViewInDegrees_45.jpg') && ...
     contains(warningText, 'ViewInDegrees_400.jpg') && contains(warningText, 'ViewInDegrees_020.xyz') && contains(warningText, 'RearBumper.jpg'), ...
@@ -122,7 +122,7 @@ assert(startsWith(reportMade.Action{strcmp(reportMade.File, 'ViewInDegrees_040.j
 
 % (a second run: the JPEGs made from the PNGs, now in originals, are kept)
 stateBefore = dir(fullfile(madeFolder, '**', '*'));
-fcn_CarMesh3D_convertPhotos(madeFolder, Verbose=false, FigNum=-1);
+fcn_CarMesh3D_convertPhotos(madeFolder, FlagVerbose=false, FigNum=-1);
 stateAfter = dir(fullfile(madeFolder, '**', '*'));
 assert(isequal([stateBefore.datenum], [stateAfter.datenum]), 'The second run changes nothing here either');
 
@@ -130,14 +130,14 @@ assert(isequal([stateBefore.datenum], [stateAfter.datenum]), 'The second run cha
 fig_num = 20003;
 fprintf(1,'Figure %d: TEST case: a vehicle ID, dry run\n', fig_num);
 if flagTransitPile
-    reportID = fcn_CarMesh3D_convertPhotos('2014_Ford_TransitConnect_XLTCargoLWB', DryRun=true, Verbose=false, FigNum=-1);
+    reportID = fcn_CarMesh3D_convertPhotos('2014_Ford_TransitConnect_XLTCargoLWB', FlagDryRun=true, FlagVerbose=false, FigNum=-1);
     assert(height(reportID) == numel(transitBefore(~[transitBefore.isdir])), 'The vehicle''s own photos folder is used');
 end
 
 %% FAST mode cases
 fig_num = 80001;
 fprintf(1,'Figure %d: FAST mode cases\n', fig_num);
-tic; fcn_CarMesh3D_convertPhotos(madeFolder, Verbose=false, FigNum=[]); slowTime = toc;
+tic; fcn_CarMesh3D_convertPhotos(madeFolder, FlagVerbose=false, FigNum=[]); slowTime = toc;
 tic; fcn_CarMesh3D_convertPhotos(madeFolder, FigNum=-1); fastTime = toc;
 fprintf(1, '  normal %.3f s, fast mode %.3f s\n', slowTime, fastTime);
 assert(isempty(findall(0, 'Type', 'figure', 'Number', fig_num)), 'Fast mode makes no plot');

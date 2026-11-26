@@ -31,8 +31,8 @@ V1. **The viewer never changes a file.** It has no Undo, no Save, and no questio
 V2. (Now G26 and the shared-panels file: the panels are built once, by `fcn_CarMesh3D_makeDisplayPanels`.) **Its panels are the painter's viewing panels** (Overall Display, Labels To Display, Lamps To Display, GUI settings), the same controls, in the same order, with the same words and the same pale blue band; there is no Modify Labels panel. The viewing panels are built once, in `fcn_CarMesh3D_viewLabels`; the painter uses them and adds its own panels to the same menu through a hook, so a fix to a panel is a fix in both windows (C2S 1).
 V3. **The view settings stay the window's memory.** What the user sets (camera, labels, colors, lamps, photo) is returned by the call and put in the view call, as now; MATLAB preferences hold only GUI settings (rule 17, as changed by the painter's open issue: the window always opens at Overall Display).
 V4. **Old view calls keep working.** A view call copied before the change opens the same view after it: the settings keep `Label` and `Hidden` and add `Uncolored` (C2S 3).
-V5. **Built into a host, the host decides** which parts show: the tool row (now `ShowTools`), the photo options (`PhotoOptions`), the lists (`LabelListParent`), the hint line (`OnHint`), as today.
-V6. **(Sean) Every input argument is shown in the GUI in some way** (painter rule 25, for every window), so what a call can set, the window can show or set too. Photo options are therefore on by default in the viewer's own window (`PhotoOptions` default true); a host can still turn them off. (C2S 4)
+V5. **Built into a host, the host decides** which parts show: the tool row (now `FlagShowTools`), the photo options (`FlagPhotoOptions`), the lists (`LabelListParent`), the hint line (`OnHint`), as today.
+V6. **(Sean) Every input argument is shown in the GUI in some way** (painter rule 25, for every window), so what a call can set, the window can show or set too. Photo options are therefore on by default in the viewer's own window (`FlagPhotoOptions` default true); a host can still turn them off. (C2S 4)
 V7. **Every label is listed, as in the painter** (rule 13): labels the mesh does not have appear with gray italic names. (C2S 5)
 V8. **One starting view for both windows:** a GUI setting, 60 degrees on the dial and 20 degrees down, used to open and by Reset view; opening at a photo or at given view settings still wins. (C2S 6)
 
@@ -64,7 +64,7 @@ V8. **One starting view for both windows:** a GUI setting, 60 degrees on the dia
 - Window: `uifigure`, 1500 x 860 pixels at [60 60], named `fcn_CarMesh3D_viewLabels: <vehicle name>`; resizable.
 - Title bar: `fcn_CarMesh3D_addTitleBar` (50 px; the function name 22 pt bold; "Version: fcn_CarMesh3D_viewLabels.m, last modified ..." with the vehicle's name after a bar).
 - Under it a grid of two columns: **235 px** (the lists) and the rest (the viewer), padding 6, spacing 6.
-- The viewer column is four rows: the tool row **34 px** (0 with `ShowTools=false`), the display (rest), the hint line **22 px** (0 when a host takes the hints), the fine print **28 px** (0 with no history).
+- The viewer column is four rows: the tool row **34 px** (0 with `FlagShowTools=false`), the display (rest), the hint line **22 px** (0 when a host takes the hints), the fine print **28 px** (0 with no history).
 - The tool row, pale blue `[0.93 0.95 1]`, columns 60, 210, 100, 130, 175, 120, 130, 150, rest, 80 px.
 - The display: with photos, three columns: the model (rest), the dial (**300 px**), the photo (its height x its width/height ratio; **300 px** high at the start), white, spacing 4. With no photos, the model alone.
 - The list column: the Labels box (rest of the height, scrolls) over the Lamps box (**350 px**, scrolls), spacing 4.
@@ -121,7 +121,7 @@ A button group titled "Labels", scrolling, one row per label, rows 24 px apart:
 - **The radio button** (160 px wide) picks one label to see **alone**: its faces in their color, every other face light gray `[0.88 0.88 0.88]` and opaque. "All labels" colors every label. Picking **interior** is special: the glass is drawn nearly clear (`[0.80 0.88 0.96]`, 12% opaque) and the interior strong orange `[1.00 0.50 0.05]`, so it can be seen through the windows.
 - **The Show box** (tooltip "Show these faces (untick to hide them, to see the faces under them)"): unticked takes that label's faces out of view (opacity 0), not out of the mesh. A face with several labels (a lamp's clear cover, which is light and glass) stays while any of its labels is shown.
 - **The swatch** (16 x 16, tooltip "This label's color on the model"): the color most of the label's faces have. The name is drawn bold in the same color, or darker (45%) when the color is too pale to read on white.
-- **Rows** (only labels that have faces): the parts other than light, in the mesh's `PartNames` order (body, glass, wheel, trim, interior ...); then each light type that has faces: "headlight (low beam)", "high beam", "turn signal light", "running light", "tail light", "backup light"; then "light with no type" (light faces with no type), if any; then "hidden (not drawn)" for faces in a hidden set (`FaceHiddenSet`), if any and if no host decides the hidden faces.
+- **Rows** (only labels that have faces): the parts other than light, in the mesh's `LabelPartNames` order (body, glass, wheel, trim, interior ...); then each light type that has faces: "headlight (low beam)", "high beam", "turn signal light", "running light", "tail light", "backup light"; then "light with no type" (light faces with no type), if any; then "hidden (not drawn)" for faces in a hidden set (`LabelFaceHiddenSet`), if any and if no host decides the hidden faces.
 - **Hidden faces start out of view**: the "hidden" row's Show box starts unticked (unless the call or view settings say otherwise).
 
 ### 4.3 The Lamps list (left, under the labels)
@@ -152,7 +152,7 @@ A panel titled "Lamps", 350 px, scrolling:
 - **The dial** (300 px wide, its ring 220 px, kept level with the photo's middle): the vehicle from above (its 2D outline if given with `Outline=`, else the mesh's outline with boxes for the tires), front to the right, a small red triangle for the front; a gray ring with a dot per photo and its angle; the four sides in words ("0° from ahead", "90° from the left", "180° from behind", "270° from the right"); a red arrow for the camera. The photo shown has a red, larger dot.
 - **Dragging the arrow** (press anywhere on the dial) shows the nearest photo and turns the model to the same side (elevation kept between 5 and 30 degrees); letting go snaps the arrow to the photo's own angle.
 - **Turning the model** moves the arrow and the photo: a timer checks the camera four times a second (rotating sends no event) and is stopped when the window closes.
-- **Photo options** (only with `PhotoOptions=true`, as the painter asks): a pale blue panel "Photo" under the photo, three rows of 24 px, columns 150, rest, 80:
+- **Photo options** (only with `FlagPhotoOptions=true`, as the painter asks): a pale blue panel "Photo" under the photo, three rows of 24 px, columns 150, rest, 80:
 
 | Control | Kind | Default | Tooltip | What it does |
 |---|---|---|---|---|
@@ -168,7 +168,7 @@ A panel titled "Lamps", 350 px, scrolling:
 
 ### 4.6 The nighttime view
 
-The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): a dark sky `[0.04 0.05 0.09]`; a checkered ground of 2 m squares in two dark shades, 15 m past the vehicle on every side, just under its lowest point; a faint light from above; the vehicle drawn by `fcn_CarMesh3D_plotVehicle` (matte, its own colors, `LightEffects` on) with the lamps as the lamp list says, their glow and their pools of light on the ground. The label model and the day lights are hidden; the camera stays where it was. Labels hidden with the Show boxes are left out of the night vehicle (to take the glass off a lamp). The hint line says: "Nighttime view: switch the lamps in the lamp list; hide a label (its Show box, or Shown? No) to take it away (the glass over a lamp, say). Paint by day: turn the nighttime view off." Turned off, the night objects are deleted and the label colors return.
+The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): a dark sky `[0.04 0.05 0.09]`; a checkered ground of 2 m squares in two dark shades, 15 m past the vehicle on every side, just under its lowest point; a faint light from above; the vehicle drawn by `fcn_CarMesh3D_plotVehicle` (matte, its own colors, `FlagLightEffects` on) with the lamps as the lamp list says, their glow and their pools of light on the ground. The label model and the day lights are hidden; the camera stays where it was. Labels hidden with the Show boxes are left out of the night vehicle (to take the glass off a lamp). The hint line says: "Nighttime view: switch the lamps in the lamp list; hide a label (its Show box, or Shown? No) to take it away (the glass over a lamp, say). Paint by day: turn the nighttime view off." Turned off, the night objects are deleted and the label colors return.
 
 ### 4.7 Hint line and fine print
 
@@ -188,20 +188,20 @@ The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): 
 | `Outline` | [] | 2D outline (or its file) for the dial. |
 | `Parent` | [] (own window) | A panel or grid to build into. |
 | `LabelListParent` | [] | Where the lists go; default the left column in its own window, none inside a Parent. |
-| `ShowTools` | true | false leaves out the tool row (the painter). |
+| `FlagShowTools` | true | false leaves out the tool row (the painter). |
 | `OnHint` | [] | Function called with each hint (HTML). |
 | `ColorFilter` | [] | `[colors, alpha] = f(colors, alpha)`, called at each redraw before hidden faces are cleared (the painter's paint). |
 | `HiddenFaces` | [] | `flagHidden = f(keys)`: a host's own hidden faces (then no "hidden" row). |
 | `History` | [] (the file's) | The mesh's history for the fine print; false for none. |
-| `PhotoOptions` | false | The photo options under the photo (the painter sets true). |
+| `FlagPhotoOptions` | false | The photo options under the photo (the painter sets true). |
 | `OnLamps` | [] | Function called with the lamp states each time they change (the painter's lamp panel). |
-| `Wait` | false (Q68 (A)) | true: wait until closed and return the settings then. By default the viewer returns at once and the prompt stays free. |
-| `Visible` | true | false builds it hidden (tests). |
+| `FlagWait` | false (Q68 (A)) | true: wait until closed and return the settings then. By default the viewer returns at once and the prompt stays free. |
+| `FlagVisible` | true | false builds it hidden (tests). |
 | `FigNum` | [] | -1: fast mode, no input checks. |
 
 ### 4.9 Outputs and hooks
 
-**`viewSettings`**: `MeshFile` ('' for a variable), `Camera` (CameraPosition, CameraTarget, CameraUpVector, CameraViewAngle, Projection, XLim, YLim, ZLim), `Label`, `Hidden`, `Colors`, `PhotoAngle` (NaN for none), `SeeThrough` (0 to 0.9), `MeshBoundaries`, `NightView`, `NightLights` (LowBeam, HighBeam, Running, TurnLeft, TurnRight, Tail 'off'/'on'/'brake', Backup), `PhotoHeight`. The view call is `fcn_CarMesh3D_viewLabels('<file>', ViewSettings=struct(...));` (numbers to 8 digits; `vehicleMesh` in place of the file for a mesh variable).
+**`viewSettings`**: `MeshFile` ('' for a variable), `Camera` (CameraPosition, CameraTarget, CameraUpVector, CameraViewAngle, Projection, XLim, YLim, ZLim), `Label`, `Hidden`, `Colors`, `PhotoAngle` (NaN for none), `SeeThrough` (0 to 0.9), `FlagShowEdges`, `FlagNight`, `NightLights` (LowBeam, HighBeam, Running, TurnLeft, TurnRight, Tail 'off'/'on'/'brake', Backup), `PhotoHeight`. The view call is `fcn_CarMesh3D_viewLabels('<file>', ViewSettings=struct(...));` (numbers to 8 digits; `vehicleMesh` in place of the file for a mesh variable).
 
 **`viewer`** (also in the figure's `UserData` in its own window):
 
@@ -218,7 +218,7 @@ The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): 
 
 ### 4.10 What the painter drives today
 
-The painter calls `fcn_CarMesh3D_viewLabels(baseMesh, Parent=..., ShowTools=false, PhotoFolder=..., Outline=..., OnHint=@setHint, ColorFilter=@paintedColors, HiddenFaces=@hiddenFaces, History=..., PhotoOptions=true, OnLamps=@markLamps, FigNum=-1)`. So inside the painter: no tool row and no lists from the viewer (the painter's panels replace them), the photo options under the photo, the hints in the painter's hint line, and the painter's own paint colors and hidden sets. The painter's panels drive the viewer through `SetColors`, `SetBoundaries`, `SetNightView`, `SetSeeThrough`, `ResetView`, `CopyViewCall`, `SetUncolored` ("Colored? No"), `SetHidden` ("Shown? No"), `SetNightLamp` and `NightLights` (Status?), `LabelKinds` and `LampTypes` (to build its rows), `SetMesh` and `SetHistory` (after a save), and the mouse hooks. The viewer on its own still shows the old tool row and lists (section 4.1 to 4.3).
+The painter calls `fcn_CarMesh3D_viewLabels(baseMesh, Parent=..., FlagShowTools=false, PhotoFolder=..., Outline=..., OnHint=@setHint, ColorFilter=@paintedColors, HiddenFaces=@hiddenFaces, History=..., FlagPhotoOptions=true, OnLamps=@markLamps, FigNum=-1)`. So inside the painter: no tool row and no lists from the viewer (the painter's panels replace them), the photo options under the photo, the hints in the painter's hint line, and the painter's own paint colors and hidden sets. The painter's panels drive the viewer through `SetColors`, `SetFlagShowEdges`, `SetFlagNight`, `SetSeeThrough`, `ResetView`, `CopyViewCall`, `SetUncolored` ("Colored? No"), `SetHidden` ("Shown? No"), `SetNightLamp` and `NightLights` (Status?), `LabelKinds` and `LampTypes` (to build its rows), `SetMesh` and `SetHistory` (after a save), and the mouse hooks. The viewer on its own still shows the old tool row and lists (section 4.1 to 4.3).
 
 ### 4.11 What is remembered
 
@@ -303,7 +303,7 @@ As in the painter: the photo, the dial between the model and the photo, and the 
 
 ### 5.7 Kept as now
 
-The mouse (4.5), the night view (4.6), the hint line and fine print (4.7; the night hint's words "Shown? No" and "Paint by day" fit the painter only and become "set its Shown? to No" in the viewer), all options (4.8; `ShowTools=false` hides the top bar's menu inside a host), the outputs and all hooks (4.9), the timer, and "nothing saved" (4.11).
+The mouse (4.5), the night view (4.6), the hint line and fine print (4.7; the night hint's words "Shown? No" and "Paint by day" fit the painter only and become "set its Shown? to No" in the viewer), all options (4.8; `FlagShowTools=false` hides the top bar's menu inside a host), the outputs and all hooks (4.9), the timer, and "nothing saved" (4.11).
 
 ## 6. Test vehicle
 
@@ -387,8 +387,8 @@ When a question is answered, its content moves into the right section above, and
 
   (A)
 
-  **C2S 4. Photo options in the viewer's own window.** Today they appear only inside the painter (`PhotoOptions=true`).
-  - (A) *Recommended.* On by default in every window (the default of `PhotoOptions` becomes true); a host can still turn them off.
+  **C2S 4. Photo options in the viewer's own window.** Today they appear only inside the painter (`FlagPhotoOptions=true`).
+  - (A) *Recommended.* On by default in every window (the default of `FlagPhotoOptions` becomes true); a host can still turn them off.
   - (B) Off by default, as now.
 
   (A) All input arguments should be in some way presented in the GUI
@@ -406,7 +406,7 @@ When a question is answered, its content moves into the right section above, and
   (A)
 - 2026-11-23 18:02 (Sean, Q20 (A)): V6 made a rule for every window, as painter rule 25; V6 now refers to it.
 - 2026-11-24 00:48 to 01:15 (Claude; Sean's tests in the chat, recorded here at 01:45):
-  - **Q29 (A), Sean 00:48:** in label colors, a lamp's clear cover (`FaceCoverLamp`) is drawn as glass, 40% opaque, so the glass layer shows and the lamp shows through it; it is glass, so the glass Colored? and Shown? switches act on it. Vehicle colors unchanged (nearly clear).
+  - **Q29 (A), Sean 00:48:** in label colors, a lamp's clear cover (`LabelFaceCoverLamp`) is drawn as glass, 40% opaque, so the glass layer shows and the lamp shows through it; it is glass, so the glass Colored? and Shown? switches act on it. Vehicle colors unchanged (nearly clear).
   - **Turn signals at night, Sean 00:57** ("the activation and deactivation of the turn signals isn't shutting the lights or ground lighting correctly"): Hazards stayed on when one turn signal was unticked, and plotVehicle lights both turn signals while Hazards is on. Now Hazards is on only while both turn boxes are; a host setting Hazards ticks both. Tests T5 to T9: **all pass** (Sean 01:03); T9 (by day) passed "but the signal is VERY dim".
   - **Lit lamps by day, Sean 01:03:** a lit lamp's clear cover now glows in the lamp's lit color (at least 55% opaque), as at night; the Q29 glass had washed it out. T14 (left turn by day clearly orange) and T15 (low beam: headlamp glass warm white): **pass** (Sean 01:11). Note: in label colors the rear turn signal's label color and lit color are both orange, so it looks the same on and off.
   - **Scrolling, Sean 00:58** ("Can we have a rule to make all panels scrollable up/down?"): the Lamps panel cut off All on / All off. The panel was scrollable but the grid inside it fills the panel and squeezes its rows; now the grid scrolls (Lamps and Photo options). T10: **pass** (Sean 01:28). Rule added to how_we_work; and (Sean 01:28) a GUI's tests include making the window short, to check no panel vanishes.
@@ -419,7 +419,7 @@ When a question is answered, its content moves into the right section above, and
   - **One ground for day and night** (T6): squares of exactly 1 m on whole-meter lines, 10 m past the vehicle, the same squares and extent by day and at night (light or dark); one function, so the painter's is the same. The camera is framed on the vehicle, not the ground.
   - **Colors? and see-through grayed at night** with a tooltip (T3's two bugs: at night the vehicle is drawn solid in its own colors, so these did nothing then; not a fault of the ground switch).
   - **Camera readout** under Copy view call (T7): the dial angle, the angle down, and the distance from the center of view (hook `CameraInfo`, option `OnView`; the view timer now runs with no photos too). The 105° reading is Q34.
-  - **Photo options in Overall Display** (T8): photo folder, Turn model with photo?, Photo size?; no longer under the photo, in either window (the painter's `PhotoOptions=false`).
+  - **Photo options in Overall Display** (T8): photo folder, Turn model with photo?, Photo size?; no longer under the photo, in either window (the painter's `FlagPhotoOptions=false`).
   - Found while testing: `axis equal` sets the axes' limits back to automatic, so the framing now sets equal axes itself; and `view()` reads angles in the plot box's units, so the test reads the camera's own angles (as the dial does since 2026-11-23 14:37).
   - Tests: makeDisplayPanels, viewLabels, paintLabels, animateChecks, openTool, browseLibrary all pass (hidden); the Fit's label edits and review files unchanged. Not yet: Browse... to a photo folder when the viewer opened with no photos (it says "No folder"; the photo side is only built when there are photos).
 
@@ -554,7 +554,7 @@ When a question is answered, its content moves into the right section above, and
   ```matlab
   close all force; clear functions; clc
   vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2009_Honda_Fit_Sport');
-  [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, Wait=false);
+  [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, FlagWait=false);
   ```
   
   - **T31. Camera readout, larger and in four lines** (Sean, 04:37): in Overall Display under Copy view call, at 13 points: `Camera view:` / `yaw angle: 60° (from the front, left)` / `altitude angle: -20° (down)` / `distance from center: 28 m` at Reset view on the Fit. Turn the model: the yaw's words follow in eight 45° sectors (front, front left, left side, behind left, behind, ...); the altitude is negative looking down, "(level)" near 0, "(up)" from below.
@@ -578,4 +578,4 @@ When a question is answered, its content moves into the right section above, and
   * PASS: very clear. 
   )
 - 2026-11-24 16:25 (Claude, Sean 16:20 to 16:23): section 2 now points to `Documentation_CarMesh3D_GUIdesign_rules.md` for the general rules; V1 to V8 stay here (this window only).
-- 2026-11-25 23:15 (Sean, in the answer queue, on Claude's Q68 after Sean's 17:02 aside that the GUIs block the prompt): **Q68 (A)**: the viewer returns at once by default (`Wait=false`); `Wait=true` still waits and returns the closing view. Built 23:24; the demo menu's viewer examples pass `Wait=true`. Sean's note, that a second viewer window opened, became Q71 (`Documentation_CarMesh3D_GUIdesign_sharedPanels.md`, section 7).
+- 2026-11-25 23:15 (Sean, in the answer queue, on Claude's Q68 after Sean's 17:02 aside that the GUIs block the prompt): **Q68 (A)**: the viewer returns at once by default (`FlagWait=false`); `FlagWait=true` still waits and returns the closing view. Built 23:24; the demo menu's viewer examples pass `FlagWait=true`. Sean's note, that a second viewer window opened, became Q71 (`Documentation_CarMesh3D_GUIdesign_sharedPanels.md`, section 7).

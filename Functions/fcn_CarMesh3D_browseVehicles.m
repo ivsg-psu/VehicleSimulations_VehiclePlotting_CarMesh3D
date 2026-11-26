@@ -17,7 +17,7 @@ function [vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(options)
 % FORMAT:
 %
 %       [vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(...
-%           (SortBy=order), (IncludeUnfinished=flag), (Interactive=flag),...
+%           (SortBy=order), (FlagIncludeUnfinished=flag), (FlagInteractive=flag),...
 %           (ViewFigNum=figNum), (DataFolder=folder), (FigNum=figNum))
 %
 % INPUTS:
@@ -27,11 +27,11 @@ function [vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(options)
 %      SortBy: the order of the list: 'bodyStyle' (default: by body
 %      style, then ID), 'score' (best first), or 'name'.
 %
-%      IncludeUnfinished: true to list vehicles without a finished mesh
+%      FlagIncludeUnfinished: true to list vehicles without a finished mesh
 %      too (they are shown grayed out and cannot be chosen). Default
 %      false.
 %
-%      Interactive: true (default) to open the menu. False only builds
+%      FlagInteractive: true (default) to open the menu. False only builds
 %      the menu (selections) and returns, for scripts and tests.
 %
 %      ViewFigNum: the figure a chosen vehicle is shown in (its 2D
@@ -98,8 +98,8 @@ function [vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(options)
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     options.SortBy = 'bodyStyle'        % 'bodyStyle', 'score', or 'name'
-    options.IncludeUnfinished = false   % List vehicles without a mesh too?
-    options.Interactive = true          % Open the menu? (false: only build it)
+    options.FlagIncludeUnfinished = false   % List vehicles without a mesh too?
+    options.FlagInteractive = true          % Open the menu? (false: only build it)
     options.ViewFigNum = 1              % The figure a chosen vehicle is shown in
     options.DataFolder = []             % The Data folder; [] for the one next to Functions
     options.FigNum = []                 % Print the list if given; -1 for fast mode
@@ -155,10 +155,10 @@ if 0==flag_max_speed
         if ~any(strcmpi(char(options.SortBy), {'bodyStyle','score','name'}))
             error('SortBy must be ''bodyStyle'', ''score'', or ''name''');
         end
-        if ~(islogical(options.IncludeUnfinished) || isnumeric(options.IncludeUnfinished)) || ~isscalar(options.IncludeUnfinished)
+        if ~(islogical(options.FlagIncludeUnfinished) || isnumeric(options.FlagIncludeUnfinished)) || ~isscalar(options.FlagIncludeUnfinished)
             error('IncludeUnfinished must be true or false');
         end
-        if ~(islogical(options.Interactive) || isnumeric(options.Interactive)) || ~isscalar(options.Interactive)
+        if ~(islogical(options.FlagInteractive) || isnumeric(options.FlagInteractive)) || ~isscalar(options.FlagInteractive)
             error('Interactive must be true or false');
         end
         if ~isnumeric(options.ViewFigNum) || ~isscalar(options.ViewFigNum) || options.ViewFigNum<1 || options.ViewFigNum~=round(options.ViewFigNum)
@@ -188,7 +188,7 @@ end
 %  | |  | | (_| | | | | |
 %  |_|  |_|\__,_|_|_| |_|
 %
-vehicleTable = fcn_CarMesh3D_listVehicles(IncludeUnfinished=options.IncludeUnfinished, ...
+vehicleTable = fcn_CarMesh3D_listVehicles(FlagIncludeUnfinished=options.FlagIncludeUnfinished, ...
     DataFolder=options.DataFolder, FigNum=-1);
 switch lower(char(options.SortBy))
     case 'score'
@@ -267,7 +267,7 @@ newLine.Name = 'Table';
 newLine.Text = '(T)able: print every vehicle, with face counts and mesh versions.';
 newLine.AnswerDefault = ' ';
 newLine.FunctionSubmission = { ...
-    sprintf('fcn_CarMesh3D_listVehicles(IncludeUnfinished=%d, %s, FigNum=0);', logical(options.IncludeUnfinished), dataFolderText);
+    sprintf('fcn_CarMesh3D_listVehicles(FlagIncludeUnfinished=%d, %s, FigNum=0);', logical(options.FlagIncludeUnfinished), dataFolderText);
     'fprintf(1,''Hit any key to return to the list.\\n''); pause;'};
 selections(end+1,1) = newLine;
 
@@ -277,15 +277,15 @@ newLine.MenuChar = 'q';
 newLine.Name = 'Quit';
 newLine.Text = '(Q)uit the vehicle browser.';
 newLine.AnswerDefault = ' ';
-newLine.FunctionSubmission = 'flag_exitMain = 1; fprintf(1,''Leaving the vehicle browser.\\n'');';
+newLine.FunctionSubmission = 'flagExitMain = 1; fprintf(1,''Leaving the vehicle browser.\\n'');';
 selections(end+1,1) = newLine;
 selections(1).AssignmentString = 'CarMesh3D_vehicleBrowser';   % (names the menu's answers file)
 
 %% Open the menu
 if flag_do_plots
-    fcn_CarMesh3D_listVehicles(IncludeUnfinished=options.IncludeUnfinished, DataFolder=options.DataFolder, FigNum=0);
+    fcn_CarMesh3D_listVehicles(FlagIncludeUnfinished=options.FlagIncludeUnfinished, DataFolder=options.DataFolder, FigNum=0);
 end
-if logical(options.Interactive)
+if logical(options.FlagInteractive)
     if 2~=exist('fcn_DebugTools_menuManageSelections','file')
         error('CarMesh3D:noDebugTools', ['The vehicle browser needs DebugTools (fcn_DebugTools_menuManageSelections). ' ...
             'Run script_demo_CarMesh3D once: its installer puts DebugTools in the Utilities folder and on the path.']);

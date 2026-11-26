@@ -29,7 +29,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %   Interior: the interior OBJECTS seen from above, one outline each:
 %       the driver's seat, the passenger's seat and the steering wheel
 %       (found by fcn_CarMesh3D_findInteriorObjects; stored in the mesh as
-%       FaceInteriorObject and InteriorObjectNames, or given with
+%       LabelFaceInterior and LabelInteriorNames, or given with
 %       InteriorObjects=). Only these objects are outlined (Sean,
 %       2026-11-24 09:20: "update the 2D views accordingly using only the
 %       seats and steering wheel as the interior objects"). A mesh with no
@@ -41,7 +41,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 % SYMMETRY. Vehicles are (nearly always) mirror images about their
 % centerline (the XZ plane), but downloaded models are not always: a
 % window piece may be missing a corner, or one lamp may be labeled and
-% its twin not. With Symmetric=true (the default) each outline is made
+% its twin not. With FlagSymmetric=true (the default) each outline is made
 % symmetric by joining it with its mirror image: the body takes the wider
 % side at each slice; each window is joined with the mirror image of its
 % twin (a centered window, with its own); each lamp is joined with its
@@ -59,7 +59,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %
 %       vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh,...
 %           (SliceSpacing=meters), (Tolerance=meters),...
-%           (MinWindowArea=squareMeters), (Symmetric=flag),...
+%           (MinWindowArea=squareMeters), (FlagSymmetric=flag),...
 %           (SymmetryTolerance=fraction), (LampGap=meters),...
 %           (MinInteriorArea=squareMeters), (InteriorObjects=found),...
 %           (FigNum=figNum))
@@ -80,13 +80,13 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %      MinWindowArea: square meters: smaller pieces of upward glass are
 %      dropped. Default 0.05.
 %
-%      Symmetric: true (default) to make every outline symmetric about
+%      FlagSymmetric: true (default) to make every outline symmetric about
 %      the centerline (see SYMMETRY above); false to keep them as traced.
 %
 %      SymmetryTolerance: the fraction of an outline's area (for the body,
 %      of its width) above which a change made for symmetry is warned
 %      about. Default 0.05 (5 percent). The changes are measured either
-%      way, so with Symmetric=false the warning still names the outlines
+%      way, so with FlagSymmetric=false the warning still names the outlines
 %      that are not symmetric.
 %
 %      LampGap: meters; pieces of lamps of one type and side closer than
@@ -99,7 +99,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %      fcn_CarMesh3D_findInteriorObjects returns them (DriverSeat,
 %      PassengerSeat, SteeringWheel, each with Found and Faces: face
 %      numbers of this mesh). Used in place of the mesh's own
-%      FaceInteriorObject. Default [] (the mesh's own, if any).
+%      LabelFaceInterior. Default [] (the mesh's own, if any).
 %
 %      FigNum: a figure to plot the outlines, in two panels: alone (as a
 %      2D plot would draw them) and over the mesh seen from above
@@ -190,7 +190,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_makeOutline2D
-%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   % * Measures the vehicle as it is shown: hidden faces (LabelFaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
 %
 % 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
@@ -202,7 +202,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 % - In fcn_CarMesh3D_makeOutline2D
 %   % * Interior: only the interior objects, one outline each (driver
 %   %   % seat, passenger seat, steering wheel), from the mesh's
-%   %   % FaceInteriorObject or the new option InteriorObjects (the
+%   %   % LabelFaceInterior or the new option InteriorObjects (the
 %   %   % result of fcn_CarMesh3D_findInteriorObjects); the older
 %   %   % 'interior' part pieces only for a mesh without objects (Sean,
 %   %   % 2026-11-24 09:20)
@@ -229,7 +229,7 @@ arguments
     options.LampGap = 0.02         % meters: lamp pieces closer than this are one lamp
     options.MinInteriorArea = 0.01 % square meters: smaller interior pieces are dropped
     options.InteriorObjects = []   % Found interior objects (fcn_CarMesh3D_findInteriorObjects); [] for the mesh's own
-    options.Symmetric = true       % true: make every outline symmetric about the centerline
+    options.FlagSymmetric = true       % true: make every outline symmetric about the centerline
     options.SymmetryTolerance = 0.05   % fraction: warn about outlines changed more than this
     options.FigNum = []            % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -283,10 +283,10 @@ if 0==flag_max_speed
         % arguments block above
 
 
-        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex','FaceWheelIndex'})))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex, FaceWheelIndex)');
+        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','LabelPartNames','LabelFacePart','FaceWheelIndex'})))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart, FaceWheelIndex)');
         end
-        if ~((islogical(options.Symmetric) || isnumeric(options.Symmetric)) && isscalar(options.Symmetric))
+        if ~((islogical(options.FlagSymmetric) || isnumeric(options.FlagSymmetric)) && isscalar(options.FlagSymmetric))
             error('Symmetric must be true or false');
         end
         for fieldName = {'SliceSpacing','Tolerance','MinWindowArea','SymmetryTolerance','LampGap','MinInteriorArea'}
@@ -331,7 +331,7 @@ vehicleMesh = fcn_CarMesh3D_visibleMesh(vehicleMesh, FigNum=-1);
 
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
-partOf = @(partName) vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames, partName), 1);
+partOf = @(partName) vehicleMesh.LabelFacePart==find(strcmp(vehicleMesh.LabelPartNames, partName), 1);
 
 %%%% Body: the widest point at each slice along X (all but the wheels)
 bodyFaces = faces(vehicleMesh.FaceWheelIndex==0, :);
@@ -339,13 +339,13 @@ bodyFaces = faces(vehicleMesh.FaceWheelIndex==0, :);
 bodyLength = max(sliceX) - min(sliceX);
 bodyWidth = max(sliceLeft) - min(sliceRight);
 symmetryBody = max(abs(sliceLeft + sliceRight))/bodyWidth;      % (left and right half-widths differ by this)
-if options.Symmetric
+if options.FlagSymmetric
     halfWidth = max(sliceLeft, -sliceRight);                     % (the wider side at each slice)
     sliceLeft = halfWidth;
     sliceRight = -halfWidth;
     bodyWidth = 2*max(halfWidth);
 end
-if options.Symmetric
+if options.FlagSymmetric
     % (the right side thinned, then mirrored, so the thinned body stays
     % exactly symmetric)
     rightSide = fcn_INTERNAL_douglasPeucker([sliceX(1) 0; sliceX, sliceRight; sliceX(end) 0], options.Tolerance);
@@ -361,7 +361,7 @@ end
 
 %%%% Windows: upward glass, each connected piece
 windows = struct('Name',{}, 'Polygon',{});
-if any(strcmp(vehicleMesh.PartNames, 'glass'))
+if any(strcmp(vehicleMesh.LabelPartNames, 'glass'))
     faceNormals = fcn_INTERNAL_faceNormals(vertices, faces);
     upwardGlass = find(partOf('glass') & faceNormals(:,3) > 0.3);
     pieces = fcn_INTERNAL_connectedPieces(faces(upwardGlass,:));
@@ -378,7 +378,7 @@ if any(strcmp(vehicleMesh.PartNames, 'glass'))
         pieceShapes{end+1} = regionsOfPiece(largest); %#ok<AGROW>
     end
     % (each joined with the mirror image of its twin; twinless ones mirrored)
-    [windowShapes, symmetryWindows, addedWindows] = fcn_INTERNAL_symmetricShapes(pieceShapes, options.Symmetric);
+    [windowShapes, symmetryWindows, addedWindows] = fcn_INTERNAL_symmetricShapes(pieceShapes, options.FlagSymmetric);
     windowPolygons = {};
     windowCenters = [];
     for ith_shape = 1:numel(windowShapes)
@@ -421,15 +421,15 @@ end
 
 %%%% Lights: by type and side, the convex outline from above
 lights = struct('Type',{}, 'Side',{}, 'Polygon',{});
-if any(strcmp(vehicleMesh.PartNames, 'light'))
+if any(strcmp(vehicleMesh.LabelPartNames, 'light'))
     lightFaces = find(partOf('light'));
     lightTypes = zeros(numel(lightFaces), 1);
-    if isfield(vehicleMesh, 'FaceLightType') && ~isempty(vehicleMesh.FaceLightType)
-        lightTypes = vehicleMesh.FaceLightType(lightFaces);
+    if isfield(vehicleMesh, 'LabelFaceLamp') && ~isempty(vehicleMesh.LabelFaceLamp)
+        lightTypes = vehicleMesh.LabelFaceLamp(lightFaces);
     end
     typeNames = {};
-    if isfield(vehicleMesh, 'LightTypeNames')
-        typeNames = vehicleMesh.LightTypeNames;
+    if isfield(vehicleMesh, 'LabelLampNames')
+        typeNames = vehicleMesh.LabelLampNames;
     end
     faceCentersY = (vertices(faces(lightFaces,1),2) + vertices(faces(lightFaces,2),2) + vertices(faces(lightFaces,3),2))/3;
     for thisType = unique(lightTypes)'
@@ -470,11 +470,11 @@ if any(strcmp(vehicleMesh.PartNames, 'light'))
     end
 end
 % (each lamp joined with its twin of the same type on the other side)
-[lights, symmetryLights, addedLights] = fcn_INTERNAL_symmetricLights(lights, options.Symmetric);
+[lights, symmetryLights, addedLights] = fcn_INTERNAL_symmetricLights(lights, options.FlagSymmetric);
 symmetryWorst = max([symmetryBody; symmetryWindows(:); symmetryLights(:)]);
 addedNames = [arrayfun(@(w) w.Name, windows(addedWindows), 'UniformOutput', false), ...
     arrayfun(@(l) sprintf('%s %s', l.Side, l.Type), lights(addedLights), 'UniformOutput', false)];
-symmetry = struct('Symmetric',logical(options.Symmetric), 'Body',symmetryBody, 'Windows',symmetryWindows(:), ...
+symmetry = struct('Symmetric',logical(options.FlagSymmetric), 'Body',symmetryBody, 'Windows',symmetryWindows(:), ...
     'Lights',symmetryLights(:), 'Added',{addedNames}, 'Worst',symmetryWorst);
 if symmetryWorst > options.SymmetryTolerance || ~isempty(addedNames)
     changed = {};
@@ -502,7 +502,7 @@ if symmetryWorst > options.SymmetryTolerance || ~isempty(addedNames)
         changed{end+1} = sprintf('%s (no twin: mirrored)', addedNames{ith_added}); %#ok<AGROW>
     end
     verb = 'were made symmetric';
-    if ~options.Symmetric
+    if ~options.FlagSymmetric
         verb = 'are not symmetric (Symmetric=false: kept as traced)';
     end
     warning('CarMesh3D:asymmetricOutline', 'Outlines of %s that %s: %s. Check the labels on both sides.', ...
@@ -521,15 +521,15 @@ end
 %%%% Interior: each piece, seen from above, not mirrored (the steering
 % wheel is on one side)
 interior = struct('Name',{}, 'Polygon',{});
-interiorPart = find(strcmp(vehicleMesh.PartNames, 'interior'), 1);
-flagObjects = isfield(vehicleMesh, 'FaceInteriorObject') && isfield(vehicleMesh, 'InteriorObjectNames') ...
-    && numel(vehicleMesh.FaceInteriorObject) == size(faces,1) && any(vehicleMesh.FaceInteriorObject(:) > 0);
+interiorPart = find(strcmp(vehicleMesh.LabelPartNames, 'interior'), 1);
+flagObjects = isfield(vehicleMesh, 'LabelFaceInterior') && isfield(vehicleMesh, 'LabelInteriorNames') ...
+    && numel(vehicleMesh.LabelFaceInterior) == size(faces,1) && any(vehicleMesh.LabelFaceInterior(:) > 0);
 if flagObjects
     % (the interior objects only, one outline each, in their own order:
     % driver seat, passenger seat, steering wheel; all their pieces seen
     % from above are joined, and holes filled)
-    for ith_object = 1:numel(vehicleMesh.InteriorObjectNames)
-        objectFaces = find(vehicleMesh.FaceInteriorObject(:) == ith_object);
+    for ith_object = 1:numel(vehicleMesh.LabelInteriorNames)
+        objectFaces = find(vehicleMesh.LabelFaceInterior(:) == ith_object);
         if isempty(objectFaces)
             continue;
         end
@@ -550,11 +550,11 @@ if flagObjects
         if fcn_INTERNAL_signedArea(outline) < 0
             outline = flipud(outline);
         end
-        interior(end+1) = struct('Name', vehicleMesh.InteriorObjectNames{ith_object}, ...
+        interior(end+1) = struct('Name', vehicleMesh.LabelInteriorNames{ith_object}, ...
             'Polygon', fcn_INTERNAL_thin([outline; outline(1,:)], options.Tolerance)); %#ok<AGROW>
     end
-elseif ~isempty(interiorPart) && any(vehicleMesh.FacePartIndex==interiorPart)
-    interiorFaces = find(vehicleMesh.FacePartIndex==interiorPart);
+elseif ~isempty(interiorPart) && any(vehicleMesh.LabelFacePart==interiorPart)
+    interiorFaces = find(vehicleMesh.LabelFacePart==interiorPart);
     [~, ~, positionIDs] = unique(round(vertices(faces(interiorFaces,:),:)/1e-5), 'rows');
     interiorPieces = fcn_INTERNAL_connectedPieces(reshape(positionIDs, [], 3));
     interiorPolygons = {};
@@ -928,8 +928,8 @@ end % Ends fcn_INTERNAL_faceNormals
 %% fcn_INTERNAL_labelInteriorObjects
 function vehicleMesh = fcn_INTERNAL_labelInteriorObjects(vehicleMesh, found)
 % The interior objects found by fcn_CarMesh3D_findInteriorObjects as the
-% mesh's per-face labels: FaceInteriorObject (0 none, else the object's
-% number in InteriorObjectNames)
+% mesh's per-face labels: LabelFaceInterior (0 none, else the object's
+% number in LabelInteriorNames)
 objectFields = {'DriverSeat', 'PassengerSeat', 'SteeringWheel'};
 objectNames = {'driver seat', 'passenger seat', 'steering wheel'};
 numFaces = size(vehicleMesh.Faces,1);
@@ -944,8 +944,8 @@ for ith_object = 1:numel(objectFields)
         end
     end
 end
-vehicleMesh.FaceInteriorObject = faceObject;
-vehicleMesh.InteriorObjectNames = objectNames;
+vehicleMesh.LabelFaceInterior = faceObject;
+vehicleMesh.LabelInteriorNames = objectNames;
 end % Ends fcn_INTERNAL_labelInteriorObjects
 
 %% fcn_INTERNAL_connectedPieces

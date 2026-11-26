@@ -10,34 +10,34 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 
 %% DEMO case: the step from the browser, opened by the trunk (hidden here)
 figNum = 10001;
 fprintf(1,'Figure %.0f: DEMO case: the browser returns a step; openTool opens it\n', figNum);
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={vehicleID});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={vehicleID});
 figuresBefore = numel(findall(groot, 'Type', 'figure'));
 nextStep = browser.Open(vehicleID, 'view');
 assert(numel(findall(groot, 'Type', 'figure')) == figuresBefore, 'The browser opened a window itself');
 assert(strcmp(nextStep.Tool, 'view') && strcmp(nextStep.VehicleID, vehicleID));
 assert(isequal(browser.NextStep(), nextStep));
 browser.Close();
-viewer = fcn_CarMesh3D_openTool(nextStep, Visible=false);
+viewer = fcn_CarMesh3D_openTool(nextStep, FlagVisible=false);
 assert(isgraphics(viewer.Figure));
 viewer.Close();
 
 %% TEST case: the editor and the reviewer, on a demo copy
 figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: edit and review steps on a demo copy\n', figNum);
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={vehicleID});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={vehicleID});
 editStep = browser.Open(vehicleID, 'edit');          % (hidden: a demo copy)
 reviewStep = browser.Open(vehicleID, 'review', true);
 browser.Close();
 assert(contains(editStep.Folder, fullfile(tempdir, 'CarMesh3D_demo')), 'Hidden: the editor step uses a demo copy');
-painter = fcn_CarMesh3D_openTool(editStep, Visible=false);
+painter = fcn_CarMesh3D_openTool(editStep, FlagVisible=false);
 assert(contains(painter.EditsFile, fullfile(tempdir, 'CarMesh3D_demo')));
 painter.Close();
-reviewWindow = fcn_CarMesh3D_openTool(reviewStep, Visible=false);
+reviewWindow = fcn_CarMesh3D_openTool(reviewStep, FlagVisible=false);
 assert(isgraphics(reviewWindow));
 delete(reviewWindow);
 

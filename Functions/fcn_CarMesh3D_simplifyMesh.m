@@ -31,10 +31,10 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      See-through faces (glass) do not block the rays.
 %   5. Compute unit face normals.
 %
-% SYMMETRIC (Symmetric=true): vehicles are mirror images about their
+% SYMMETRIC (FlagSymmetric=true): vehicles are mirror images about their
 % centerline (Y = 0 in the vehicle frame), but reducing a dense mesh
 % treats the two sides differently, so they come out lopsided. With
-% Symmetric=true only the left half is reduced: the faces with any corner
+% FlagSymmetric=true only the left half is reduced: the faces with any corner
 % at Y >= -0.15 m (15 cm past the centerline, since a reduction pulls in
 % a piece's cut edge), to about half the face budget. It is then trimmed
 % at the centerline (faces with any corner at Y > 0 kept, their corners
@@ -44,7 +44,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 % budget's worth of detail. Wheels 1 (FL) and 3 (RL) are mirrored into 2
 % (FR) and 4 (RR). Steps 4 and 4b then run on the whole vehicle.
 %
-% ONE-SIDED PIECES (KeepOneSided=true, the default, with Symmetric=true):
+% ONE-SIDED PIECES (FlagKeepOneSided=true, the default, with FlagSymmetric=true):
 % a piece that is on one side only (the steering wheel, a fuel door, an
 % offset exhaust tip or antenna) would come out on both sides, or, on the
 % right, be lost. So before the half is cut, each connected piece that is
@@ -62,11 +62,11 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %
 %       vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh,...
 %           (TargetFaces=numFaces), (WheelFaces=numFaces),...
-%           (Symmetric=flag), (KeepOneSided=flag), (PartShares=shares),...
-%           (MergeTolerance=tolerance), (ClearWheels=flag),...
+%           (FlagSymmetric=flag), (FlagKeepOneSided=flag), (PartShares=shares),...
+%           (MergeTolerance=tolerance), (FlagClearWheels=flag),...
 %           (RestoreTolerance=meters), (EdgeSmoothing=passes),...
 %           (StitchTolerance=meters),...
-%           (VisibilityCheck=flag), (MaxVisibilityFaces=numFaces),...
+%           (FlagVisibilityCheck=flag), (MaxVisibilityFaces=numFaces),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -115,7 +115,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      turns it off. The count of corners moved is
 %      SimplifyInfo.StitchMoves.
 %
-%      ClearWheels: true (default) to delete faces of other parts that
+%      FlagClearWheels: true (default) to delete faces of other parts that
 %      pass through a tire. A heavy reduction can turn a wheel-arch liner
 %      into a few large triangles that cut through the tire; such faces
 %      are hidden behind the tire when the mesh is right, so deleting them
@@ -130,12 +130,12 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      trim). Parts not listed share what is left, in proportion to their
 %      faces. Default {} (every part in proportion to its faces).
 %
-%      Symmetric: true to reduce the left half and mirror it (see
+%      FlagSymmetric: true to reduce the left half and mirror it (see
 %      SYMMETRIC above); the mesh must be in the vehicle frame
 %      (centerline at Y = 0, as after fcn_CarMesh3D_fitMeshToSpec).
 %      Default false.
 %
-%      KeepOneSided: with Symmetric=true, true (default) to keep pieces
+%      FlagKeepOneSided: with FlagSymmetric=true, true (default) to keep pieces
 %      that are on one side only (see ONE-SIDED PIECES above) where they
 %      are, instead of mirroring the left half's copy. Ignored when
 %      Symmetric is false.
@@ -143,7 +143,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %      MergeTolerance: vertices closer than this distance (in mesh units,
 %      normally meters) are merged. Default is 1e-4 (0.1 mm).
 %
-%      VisibilityCheck: true (default) to do step 4b. Its time grows with
+%      FlagVisibilityCheck: true (default) to do step 4b. Its time grows with
 %      the square of the face count (about 10 s for 15000 faces), so it is
 %      skipped, with a warning, above MaxVisibilityFaces.
 %
@@ -157,16 +157,16 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 % OUTPUTS:
 %
 %      vehicleMesh: the same structure with new Vertices, Faces, and
-%      per-face fields (FacePartIndex, FaceWheelIndex, FaceColors,
+%      per-face fields (LabelFacePart, FaceWheelIndex, FaceColors,
 %      FaceAlpha, FaceMaterialIndex, FaceGroupIndex, and any other
-%      per-face field named Face..., such as FaceAlsoParts and
-%      FaceLightFunctions: each rebuilt face takes the values of the
+%      per-face field named Face..., such as LabelFaceAlsoParts and
+%      LabelFaceAlsoLamps: each rebuilt face takes the values of the
 %      faces it was made from), plus:
 %           FaceNormals (M x 3): unit outward normal of each face
 %           SimplifyInfo: a structure with OriginalFaces, FinalFaces,
 %               OriginalVertices, FinalVertices, and VisibilityFlips (the
 %               number of faces step 4b turned around; NaN if skipped)
-%               With Symmetric=true, also Symmetric (true),
+%               With FlagSymmetric=true, also Symmetric (true),
 %               OneSidedPieces and OneSidedFaces (the pieces kept on one
 %               side, and their faces before the reduction), and
 %               OneSidedBoxes (one row per piece: [xmin xmax ymin ymax
@@ -198,8 +198,8 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
-%   % * Light types (FaceLightType) are kept, and groups split by them
-%   % * Added the visibility check (step 4b, VisibilityCheck=): panels
+%   % * Light types (LabelFaceLamp) are kept, and groups split by them
+%   % * Added the visibility check (step 4b, FlagVisibilityCheck=): panels
 %   %   % that were pointed inward looked darker than their neighbors
 %   %   % (seen on the 2014 Ford Transit Connect model)
 %
@@ -212,7 +212,7 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
-%   % * Symmetric: faces that crossed the centerline were kept and then
+%   % * FlagSymmetric: faces that crossed the centerline were kept and then
 %   %   % mirrored, so each overlapped its mirror image (a dark strip
 %   %   % down the roof of the 2010 Toyota Camry). Corners at Y < 0 of the
 %   %   % kept half are now moved to Y = 0 (before and after the
@@ -234,10 +234,10 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 %   % * ClearWheels (default true): faces of other parts that pass through
 %   %   % a tire are deleted (large liner triangles cut through the tires
 %   %   % of the 2025 Toyota Camry and 2017 Honda Accord)
-%   % * Symmetric: the half is cut 15 cm past the centerline, reduced, and
+%   % * FlagSymmetric: the half is cut 15 cm past the centerline, reduced, and
 %   %   % then trimmed at the centerline (a notch at the bottom center of
 %   %   % the windshield of the 2010 Toyota Camry, from its cut edge)
-%   % * Symmetric: open-edge corners within 2 cm of the centerline go onto
+%   % * FlagSymmetric: open-edge corners within 2 cm of the centerline go onto
 %   %   % it, so the two halves meet (a seam down the 2023 Honda Civic)
 %
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
@@ -247,15 +247,15 @@ function vehicleMesh = fcn_CarMesh3D_simplifyMesh(vehicleMesh, options)
 
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
-%   % * KeepOneSided (default true): with Symmetric=true, pieces on one
+%   % * KeepOneSided (default true): with FlagSymmetric=true, pieces on one
 %   %   % side only are kept where they are, not mirrored (the steering
 %   %   % wheel of the 2009 Honda Fit came out on both sides; a piece on
 %   %   % the right only was lost)
 
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_simplifyMesh
-%   % * Every other per-face field named Face... (FaceAlsoParts,
-%   %   % FaceLightFunctions) is kept: faces are grouped by it too, and
+%   % * Every other per-face field named Face... (LabelFaceAlsoParts,
+%   %   % LabelFaceAlsoLamps) is kept: faces are grouped by it too, and
 %   %   % each rebuilt face takes its group's values (these fields were
 %   %   % left at the old face count; Sean's multi-part faces, 23:04)
 
@@ -279,15 +279,15 @@ arguments
     vehicleMesh
     options.TargetFaces = 5000      % Approximate total faces after reduction
     options.WheelFaces = 2000       % Fewest faces each wheel keeps (round tires)
-    options.Symmetric = false       % true: reduce the left half and mirror it
-    options.KeepOneSided = true     % Symmetric: keep one-sided pieces where they are
+    options.FlagSymmetric = false       % true: reduce the left half and mirror it
+    options.FlagKeepOneSided = true     % Symmetric: keep one-sided pieces where they are
     options.PartShares = {}         % {part, fraction; ...}: set shares of the budget
     options.MergeTolerance = 1e-4   % Distance for merging vertices
-    options.ClearWheels = true      % Delete other faces that pass through a tire
+    options.FlagClearWheels = true      % Delete other faces that pass through a tire
     options.RestoreTolerance = 0    % meters: move reduced open edges back out this far, at most (0: off)
     options.EdgeSmoothing = 3       % passes smoothing reduced open edges along their line (0: off)
     options.StitchTolerance = 0.02  % meters: close gaps between pieces up to this wide (0: off)
-    options.VisibilityCheck = true  % Flip faces that are only seen from behind (step 4b)
+    options.FlagVisibilityCheck = true  % Flip faces that are only seen from behind (step 4b)
     options.MaxVisibilityFaces = 30000  % Skip step 4b above this many faces
     options.FigNum = []             % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -341,7 +341,7 @@ if 0==flag_max_speed
         % arguments block above
 
         % Check the vehicleMesh input
-        requiredFields = {'Vertices','Faces','FacePartIndex','FaceWheelIndex','FaceColors','FaceAlpha'};
+        requiredFields = {'Vertices','Faces','LabelFacePart','FaceWheelIndex','FaceColors','FaceAlpha'};
         if ~isstruct(vehicleMesh)
             error('vehicleMesh must be a CarMesh3D mesh structure');
         end
@@ -362,12 +362,12 @@ if 0==flag_max_speed
         end
 
         % Check the Symmetric input
-        if ~(islogical(options.Symmetric) || isnumeric(options.Symmetric)) || ~isscalar(options.Symmetric)
+        if ~(islogical(options.FlagSymmetric) || isnumeric(options.FlagSymmetric)) || ~isscalar(options.FlagSymmetric)
             error('Symmetric must be true or false');
         end
 
         % Check the KeepOneSided input
-        if ~(islogical(options.KeepOneSided) || isnumeric(options.KeepOneSided)) || ~isscalar(options.KeepOneSided)
+        if ~(islogical(options.FlagKeepOneSided) || isnumeric(options.FlagKeepOneSided)) || ~isscalar(options.FlagKeepOneSided)
             error('KeepOneSided must be true or false');
         end
 
@@ -387,7 +387,7 @@ if 0==flag_max_speed
         end
 
         % Check the ClearWheels input
-        if ~(islogical(options.ClearWheels) || isnumeric(options.ClearWheels)) || ~isscalar(options.ClearWheels)
+        if ~(islogical(options.FlagClearWheels) || isnumeric(options.FlagClearWheels)) || ~isscalar(options.FlagClearWheels)
             error('ClearWheels must be true or false');
         end
 
@@ -402,7 +402,7 @@ if 0==flag_max_speed
         end
 
         % Check the VisibilityCheck and MaxVisibilityFaces inputs
-        if ~(islogical(options.VisibilityCheck) || isnumeric(options.VisibilityCheck)) || ~isscalar(options.VisibilityCheck)
+        if ~(islogical(options.FlagVisibilityCheck) || isnumeric(options.FlagVisibilityCheck)) || ~isscalar(options.FlagVisibilityCheck)
             error('VisibilityCheck must be true or false');
         end
         if ~isnumeric(options.MaxVisibilityFaces) || ~isscalar(options.MaxVisibilityFaces) || options.MaxVisibilityFaces<0
@@ -431,7 +431,7 @@ end
 %  |_|  |_|\__,_|_|_| |_|
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if options.Symmetric
+if options.FlagSymmetric
     % Reduce the left half, mirror it, then finish the whole vehicle
     % (orientation, visibility, normals) with a second pass that does not
     % reduce
@@ -449,25 +449,25 @@ vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 Nfaces = size(faces,1);
 
-facePart  = vehicleMesh.FacePartIndex(:);
+facePart  = vehicleMesh.LabelFacePart(:);
 faceWheel = vehicleMesh.FaceWheelIndex(:);
 faceColors = vehicleMesh.FaceColors;
 faceAlpha = vehicleMesh.FaceAlpha(:);
 faceMaterial = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceMaterialIndex',Nfaces);
 faceGroup    = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceGroupIndex',Nfaces);
-faceLightType = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'FaceLightType',Nfaces);
+labelFaceLamp = fcn_INTERNAL_fieldOrZeros(vehicleMesh,'LabelFaceLamp',Nfaces);
 
-% Any other per-face fields (named Face..., such as FaceAlsoParts and
-% FaceLightFunctions): kept, and faces are grouped by them too
-handledFields = {'Faces','FacePartIndex','FaceWheelIndex','FaceColors','FaceAlpha', ...
-    'FaceMaterialIndex','FaceGroupIndex','FaceLightType','FaceNormals'};
+% Any other per-face fields (named Face..., such as LabelFaceAlsoParts and
+% LabelFaceAlsoLamps): kept, and faces are grouped by them too
+handledFields = {'Faces','LabelFacePart','FaceWheelIndex','FaceColors','FaceAlpha', ...
+    'FaceMaterialIndex','FaceGroupIndex','LabelFaceLamp','FaceNormals'};
 extraFields = {};
 allFields = fieldnames(vehicleMesh);
 for ith_field = 1:numel(allFields)
     thisValue = vehicleMesh.(allFields{ith_field});
     % (texture fields, a color per face, are left out: grouping by them
     % would keep every face; the vehicle scripts drop them first)
-    if startsWith(allFields{ith_field},'Face') && ~startsWith(allFields{ith_field},'FaceTexture') && ~any(strcmp(allFields{ith_field}, handledFields)) ...
+    if startsWith(allFields{ith_field}, {'Face','LabelFace'}) && ~startsWith(allFields{ith_field},'FaceTexture') && ~any(strcmp(allFields{ith_field}, handledFields)) ...
             && (isnumeric(thisValue) || islogical(thisValue)) && size(thisValue,1)==Nfaces && ismatrix(thisValue)
         extraFields{end+1} = allFields{ith_field}; %#ok<AGROW>
     end
@@ -486,7 +486,7 @@ end
 % mix materials: without the material, the 2005 HiAce's grille, glass2,
 % and chrome faces were renamed to the first material of their group)
 [~,~,colorIndex] = unique(round([faceColors faceAlpha]*1e4)/1e4, 'rows');
-[groupKeys,~,groupOfFace] = unique([facePart faceWheel faceLightType colorIndex faceMaterial extraIndex], 'rows');
+[groupKeys,~,groupOfFace] = unique([facePart faceWheel labelFaceLamp colorIndex faceMaterial extraIndex], 'rows');
 numGroups = size(groupKeys,1);
 
 % Vehicle center, used to point open surfaces outward
@@ -507,12 +507,12 @@ reductionRatio = min(1, otherBudget/max(otherFaces,1));
 % the parts not listed share what is left, in proportion to their faces)
 partRatio = repmat(reductionRatio, max(facePart), 1);
 if ~isempty(options.PartShares)
-    partNames = vehicleMesh.PartNames;
-    partCounts = accumarray(facePart(faceWheel==0), 1, [numel(partNames) 1]);
-    listed = false(numel(partNames),1);
+    labelPartNames = vehicleMesh.LabelPartNames;
+    partCounts = accumarray(facePart(faceWheel==0), 1, [numel(labelPartNames) 1]);
+    listed = false(numel(labelPartNames),1);
     usedBudget = 0;
     for ith_share = 1:size(options.PartShares,1)
-        partIndex = find(strcmp(partNames, options.PartShares{ith_share,1}), 1);
+        partIndex = find(strcmp(labelPartNames, options.PartShares{ith_share,1}), 1);
         if isempty(partIndex) || partCounts(partIndex)==0
             continue;
         end
@@ -601,7 +601,7 @@ for ith_group = 1:numGroups
     newAlpha = [newAlpha; repmat(faceAlpha(firstFace), numThese, 1)]; %#ok<AGROW>
     newMaterial = [newMaterial; repmat(faceMaterial(firstFace), numThese, 1)]; %#ok<AGROW>
     newGroup = [newGroup; repmat(faceGroup(firstFace), numThese, 1)]; %#ok<AGROW>
-    newLightType = [newLightType; repmat(faceLightType(firstFace), numThese, 1)]; %#ok<AGROW>
+    newLightType = [newLightType; repmat(labelFaceLamp(firstFace), numThese, 1)]; %#ok<AGROW>
     newGroupOfFace = [newGroupOfFace; repmat(ith_group, numThese, 1)]; %#ok<AGROW>
     newFirstFace = [newFirstFace; repmat(firstFace, numThese, 1)]; %#ok<AGROW>
 end
@@ -637,7 +637,7 @@ end
 % ten points on it (corners, edge midpoints, center, and three more) is
 % within 95% of the radius and 90% of the half-width
 wheelClearFaces = 0;
-if options.ClearWheels && any(newWheel>0)
+if options.FlagClearWheels && any(newWheel>0)
     corner1 = newVertices(newFaces(:,1),:);
     corner2 = newVertices(newFaces(:,2),:);
     corner3 = newVertices(newFaces(:,3),:);
@@ -740,7 +740,7 @@ end
 
 % 4b. Visibility: flip faces that can only be seen from behind
 visibilityFlips = NaN;
-if options.VisibilityCheck
+if options.FlagVisibilityCheck
     if size(newFaces,1) <= options.MaxVisibilityFaces
         [escapeFront, escapeBack] = fcn_INTERNAL_rayEscapes(newVertices, newFaces, newAlpha < 0.999);
         flagSeenFromBehind = escapeBack & ~escapeFront;
@@ -761,14 +761,14 @@ faceNormals = faceNormals ./ max(vecnorm(faceNormals,2,2), eps);
 
 vehicleMesh.Vertices = newVertices;
 vehicleMesh.Faces = newFaces;
-vehicleMesh.FacePartIndex = newPart;
+vehicleMesh.LabelFacePart = newPart;
 vehicleMesh.FaceWheelIndex = newWheel;
 vehicleMesh.FaceColors = newColors;
 vehicleMesh.FaceAlpha = newAlpha;
 vehicleMesh.FaceMaterialIndex = newMaterial;
 vehicleMesh.FaceGroupIndex = newGroup;
-if isfield(vehicleMesh,'FaceLightType')
-    vehicleMesh.FaceLightType = newLightType;
+if isfield(vehicleMesh,'LabelFaceLamp')
+    vehicleMesh.LabelFaceLamp = newLightType;
 end
 for ith_field = 1:numel(extraFields)
     vehicleMesh.(extraFields{ith_field}) = vehicleMesh.(extraFields{ith_field})(newFirstFace,:);
@@ -807,11 +807,11 @@ if flag_do_plots
     tiledlayout(1,3);
 
     nexttile;
-    fcn_CarMesh3D_plotVehicle(originalMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(originalMesh, FlagShowEdges=true, FigNum=figNum);
     title(sprintf('Before: %d faces', Nfaces));
 
     nexttile;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     title(sprintf('After: %d faces', size(newFaces,1)));
 
     % Normals check: short lines from each face center along its normal
@@ -1241,7 +1241,7 @@ function vehicleMesh = fcn_INTERNAL_symmetric(vehicleMesh, options)
 Nfaces = size(vehicleMesh.Faces,1);
 % Pieces on one side only (the steering wheel) are not mirrored: they are
 % set aside, reduced by themselves, and added back where they are
-if options.KeepOneSided
+if options.FlagKeepOneSided
     [flagOneSided, numOneSided, oneSidedBoxes] = fcn_INTERNAL_oneSidedFaces(vehicleMesh);
 else
     flagOneSided = false(Nfaces,1);
@@ -1260,7 +1260,7 @@ cornerY = reshape(vehicleMesh.Vertices(vehicleMesh.Faces(:),2), [], 3);
 keepFaces = any(cornerY >= -cutMargin, 2) & ~flagOneSided;
 halfMesh = fcn_INTERNAL_selectFaces(vehicleMesh, keepFaces, Nfaces);
 halfMesh = fcn_CarMesh3D_simplifyMesh(halfMesh, TargetFaces=max(4,round((options.TargetFaces - sideTarget)/2*(1 + cutMargin))), ...
-    WheelFaces=options.WheelFaces, PartShares=options.PartShares, MergeTolerance=options.MergeTolerance, ClearWheels=options.ClearWheels, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=options.StitchTolerance, VisibilityCheck=false, FigNum=-1);
+    WheelFaces=options.WheelFaces, PartShares=options.PartShares, MergeTolerance=options.MergeTolerance, FlagClearWheels=options.FlagClearWheels, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=options.StitchTolerance, FlagVisibilityCheck=false, FigNum=-1);
 halfInfo = halfMesh.SimplifyInfo;
 % ...then trimmed at the centerline: faces with any corner at Y >= 0 are
 % kept, and their corners at Y < 0 go onto Y = 0 (so the reduced surface
@@ -1309,7 +1309,7 @@ end
 if any(flagOneSided)
     sideMesh = fcn_INTERNAL_selectFaces(vehicleMesh, flagOneSided, Nfaces);
     sideMesh = fcn_CarMesh3D_simplifyMesh(sideMesh, TargetFaces=max(4,sideTarget), ...
-        WheelFaces=0, MergeTolerance=options.MergeTolerance, ClearWheels=false, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=0, VisibilityCheck=false, FigNum=-1);
+        WheelFaces=0, MergeTolerance=options.MergeTolerance, FlagClearWheels=false, RestoreTolerance=options.RestoreTolerance, EdgeSmoothing=options.EdgeSmoothing, StitchTolerance=0, FlagVisibilityCheck=false, FigNum=-1);
     wholeFaces = size(wholeMesh.Faces,1);
     sideFaces = size(sideMesh.Faces,1);
     fieldNames = fieldnames(wholeMesh);
@@ -1336,7 +1336,7 @@ end
 
 % (no reduction: orientation, visibility, and normals of the whole)
 vehicleMesh = fcn_CarMesh3D_simplifyMesh(wholeMesh, TargetFaces=size(wholeMesh.Faces,1)+1, ...
-    WheelFaces=0, MergeTolerance=options.MergeTolerance, ClearWheels=options.ClearWheels, RestoreTolerance=0, EdgeSmoothing=0, StitchTolerance=options.StitchTolerance, VisibilityCheck=options.VisibilityCheck, ...
+    WheelFaces=0, MergeTolerance=options.MergeTolerance, FlagClearWheels=options.FlagClearWheels, RestoreTolerance=0, EdgeSmoothing=0, StitchTolerance=options.StitchTolerance, FlagVisibilityCheck=options.FlagVisibilityCheck, ...
     MaxVisibilityFaces=options.MaxVisibilityFaces, FigNum=-1);
 vehicleMesh.SimplifyInfo.OriginalFaces = Nfaces;
 vehicleMesh.SimplifyInfo.Symmetric = true;

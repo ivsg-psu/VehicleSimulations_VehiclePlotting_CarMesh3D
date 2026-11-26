@@ -22,7 +22,7 @@ if flagHadDemoPref
     demoPrefBefore = getpref('CarMesh3D', 'DemoVehicle');
 end
 cleanupDemoPref = onCleanup(@() fcn_INTERNAL_restoreDemoPref(flagHadDemoPref, demoPrefBefore));
-fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);
+fcn_CarMesh3D_demoVehicle(FlagReset=true, FigNum=-1);
 
 %% DEMO case: the demo vehicle, printed
 fig_num = 10001;
@@ -43,7 +43,7 @@ assert(guiInfo.Files.Found, 'The GUI test vehicle exists');
 %% TEST case: a user's own choice, used by demos but not by tests
 fig_num = 20002;
 fprintf(1,'Figure %d: TEST case: a user''s own choice\n', fig_num);
-repoID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+repoID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
 % (another finished vehicle with photos, if the library has one)
 libraryFolder = fullfile(fileparts(fileparts(which('fcn_CarMesh3D_demoVehicle'))), 'Data');
 photoFiles = dir(fullfile(libraryFolder, '**', 'photos', 'ViewInDegrees_*'));
@@ -61,8 +61,8 @@ if ~isempty(otherID)
     fcn_CarMesh3D_demoVehicle(Set=otherID, FigNum=-1);
     [chosenID, chosenInfo] = fcn_CarMesh3D_demoVehicle(FigNum=-1);
     assert(strcmp(chosenID, otherID) && strcmp(chosenInfo.Source, 'preference'), 'Demos use the user''s choice');
-    assert(strcmp(fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1), repoID), 'Tests use the repo''s choice');
-    fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);
+    assert(strcmp(fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1), repoID), 'Tests use the repo''s choice');
+    fcn_CarMesh3D_demoVehicle(FlagReset=true, FigNum=-1);
     assert(strcmp(fcn_CarMesh3D_demoVehicle(FigNum=-1), repoID), 'Reset: the repo''s choice again');
 else
     fprintf(1, '    (no second finished vehicle with photos in the library: skipped)\n');
@@ -86,12 +86,12 @@ assert(strcmp(fcn_CarMesh3D_demoVehicle(FigNum=[]), fcn_CarMesh3D_demoVehicle(Fi
 Niterations = 50;
 tic;
 for ith_test = 1:Niterations
-    fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=[]);
+    fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=[]);
 end
 slowTime = toc;
 tic;
 for ith_test = 1:Niterations
-    fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+    fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
 end
 fastTime = toc;
 fprintf(1, 'Average time, normal mode: %.4f s; fast mode: %.4f s\n', slowTime/Niterations, fastTime/Niterations);

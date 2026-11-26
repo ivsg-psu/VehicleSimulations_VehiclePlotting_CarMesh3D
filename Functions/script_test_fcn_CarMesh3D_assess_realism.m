@@ -17,7 +17,7 @@
 
 %% Set up the workspace
 close all
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle, read only)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle, read only)
 vehicle = fcn_CarMesh3D_reviewInput(vehicleID, FigNum=-1);
 
 %% Describe mode: no vehicle, no file, no figure

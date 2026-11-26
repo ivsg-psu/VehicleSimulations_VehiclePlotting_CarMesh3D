@@ -256,7 +256,7 @@ end
 if flag_do_plots
     figure(figNum);
     clf;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     title(sprintf('Imported: %s (%d faces, frame and units as stored in file)',...
         vehicleMesh.Name, size(vehicleMesh.Faces,1)),'Interpreter','none');
     xlabel('X (file units)'); ylabel('Y (file units)'); zlabel('Z (file units)');

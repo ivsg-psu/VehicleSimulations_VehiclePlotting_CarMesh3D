@@ -14,8 +14,8 @@ function viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput, options)
 % FORMAT:
 %
 %       viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput,...
-%           (Mesh=vehicleMesh), (Parent=container), (Turn=flag),...
-%           (OnHint=function), (Visible=flag), (FigNum=figNum))
+%           (Mesh=vehicleMesh), (Parent=container), (FlagTurn=flag),...
+%           (OnHint=function), (FlagVisible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -32,13 +32,13 @@ function viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput, options)
 %      Parent: a panel or grid to build into; [] (default) for a window of
 %      its own.
 %
-%      Turn: true (default) to turn every vehicle slowly (20 degrees a
+%      FlagTurn: true (default) to turn every vehicle slowly (20 degrees a
 %      second).
 %
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show it in its own window's hint line (or not at all, in a parent).
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      FigNum: not used (a window); [] or -1 (fast mode: no input checks).
 %
@@ -100,9 +100,9 @@ arguments
     vehicleInput
     options.Mesh = []           % The full mesh; [] for the vehicle's mesh file (an ID)
     options.Parent = []         % Panel or grid to build into; [] for a window of its own
-    options.Turn = true         % Turn every vehicle slowly
+    options.FlagTurn = true         % Turn every vehicle slowly
     options.OnHint = []         % Called with hint text
-    options.Visible = true      % Build the window hidden (tests)
+    options.FlagVisible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
 
@@ -208,7 +208,7 @@ turnStart = [];
 startViews = {};
 if flagOwnWindow
     visibleText = 'on';
-    if ~options.Visible
+    if ~options.FlagVisible
         visibleText = 'off';
     end
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_viewDetailLevels: %s', vehicleName), 'Position', [100 80 1300 860], ...
@@ -234,7 +234,7 @@ if flagOwnWindow
     sideGrid = uigridlayout(rootGrid, [4 1], 'RowHeight', {30, 30, 30, '1x'}, 'Padding', [0 0 0 0]);
     sideGrid.Layout.Row = 1;
     sideGrid.Layout.Column = 2;
-    uibutton(sideGrid, 'state', 'Text', 'Turning', 'Value', options.Turn && ~isempty(turnTimer), ...
+    uibutton(sideGrid, 'state', 'Text', 'Turning', 'Value', options.FlagTurn && ~isempty(turnTimer), ...
         'ValueChangedFcn', @(source,~) onTurnButton(source), 'Tag', 'turnButton');
     uibutton(sideGrid, 'Text', 'Reset views', 'ButtonPushedFcn', @(~,~) resetViews());
     uibutton(sideGrid, 'Text', 'Close', 'ButtonPushedFcn', @(~,~) closeViewer());
@@ -306,7 +306,7 @@ end
         % (the timer stops when the views are deleted, as when the reviewer
         % clears its panel)
         lineupAxes.DeleteFcn = @(~,~) stopTurning();
-        if options.Turn
+        if options.FlagTurn
             startTurning();
         end
     end

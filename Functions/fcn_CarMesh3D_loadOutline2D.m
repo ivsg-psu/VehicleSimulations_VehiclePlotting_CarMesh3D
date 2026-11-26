@@ -15,7 +15,7 @@ function vehicleOutline = fcn_CarMesh3D_loadOutline2D(vehicleID, options)
 % FORMAT:
 %
 %       vehicleOutline = fcn_CarMesh3D_loadOutline2D(vehicleID,...
-%           (DataFolder=folder), (MakeIfMissing=flag), (SaveIfMade=flag),...
+%           (DataFolder=folder), (FlagMakeIfMissing=flag), (FlagSaveIfMade=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -28,10 +28,10 @@ function vehicleOutline = fcn_CarMesh3D_loadOutline2D(vehicleID, options)
 %      DataFolder: the Data folder. Default [] uses the one next to the
 %      Functions folder.
 %
-%      MakeIfMissing: make the outlines from the finished mesh when there
+%      FlagMakeIfMissing: make the outlines from the finished mesh when there
 %      is no outline file. Default true.
 %
-%      SaveIfMade: save outlines made that way to the vehicle's folder.
+%      FlagSaveIfMade: save outlines made that way to the vehicle's folder.
 %      Default false.
 %
 %      FigNum: a figure to show the outlines, filled, in 2D. If empty or
@@ -86,8 +86,8 @@ arguments
 
     vehicleID
     options.DataFolder = []           % the Data folder; [] for the one next to Functions
-    options.MakeIfMissing = true      % make the outlines if there is no outline file
-    options.SaveIfMade = false        % save outlines made that way
+    options.FlagMakeIfMissing = true      % make the outlines if there is no outline file
+    options.FlagSaveIfMade = false        % save outlines made that way
     options.FigNum = []               % figure to show the outlines; -1 for fast mode
 end
 
@@ -143,7 +143,7 @@ if 0==flag_max_speed
         if ~(ischar(vehicleID) || isstring(vehicleID)) || isempty(char(vehicleID))
             error('vehicleID must be a vehicle ID, such as ''2013_Toyota_Prius_Four''');
         end
-        if ~isscalar(options.MakeIfMissing) || ~isscalar(options.SaveIfMade)
+        if ~isscalar(options.FlagMakeIfMissing) || ~isscalar(options.FlagSaveIfMade)
             error('MakeIfMissing and SaveIfMade must be true or false');
         end
     end
@@ -187,14 +187,14 @@ if vehicleFiles.HasOutline
                 'Run %s again to remake them.'], vehicleFiles.ID, vehicleFiles.ScriptFile);
         end
     end
-elseif options.MakeIfMissing && vehicleFiles.HasMesh
+elseif options.FlagMakeIfMissing && vehicleFiles.HasMesh
     loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
     vehicleOutline = fcn_CarMesh3D_makeOutline2D(loaded.vehicleMesh, FigNum=-1);
     % (warned after the outlines are made, so it is the last word, after
     % any warning of makeOutline2D's own)
     warning('CarMesh3D:outlineMade', ['%s has no outline file; the outlines were made from its finished mesh ' ...
         '(run its script to make and save them).'], vehicleFiles.ID);
-    if options.SaveIfMade
+    if options.FlagSaveIfMade
         save(vehicleFiles.OutlineFile, 'vehicleOutline');
     end
     vehicleOutline.Origin = 'made';

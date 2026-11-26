@@ -442,7 +442,7 @@ settings = struct('Value', @getValue, 'Set', @setValue, 'Reset', @resetSection, 
         field = field{1};
         for name = sectionNames.(field)
             if strcmp(name{1}, 'DemoVehicle')
-                fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);
+                fcn_CarMesh3D_demoVehicle(FlagReset=true, FigNum=-1);
                 value = fcn_CarMesh3D_demoVehicle(FigNum=-1);
             else
                 if ispref('CarMesh3D', name{1})

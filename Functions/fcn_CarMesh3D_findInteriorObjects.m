@@ -42,10 +42,10 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 % FORMAT:
 %
 %       [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh,...
-%           (Seats=flag), (SteeringWheel=flag), (Templates=templates),...
+%           (FlagSeats=flag), (FlagSteeringWheel=flag), (Templates=templates),...
 %           (DriveSide=side), (PointSpacing=meters), (SearchSpacing=meters),...
 %           (NumHypotheses=n), (NumRefine=n), (RandomSeed=seed),...
-%           (Verbose=flag), (FigNum=figNum))
+%           (FlagVerbose=flag), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -54,15 +54,15 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 %
 %      vehicleMesh: a CarMesh3D vehicle mesh (Vertices in meters: x
 %      forward, y to the LEFT, z up, ground at z = 0; Faces). Used if
-%      present: FacePartIndex and PartNames (glass, wheel and light faces
+%      present: LabelFacePart and LabelPartNames (glass, wheel and light faces
 %      are never part of a seat or the wheel), AxleX, VehicleSpec
 %      (OverallWidth, OverallHeight, Wheelbase).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Seats: true (default) to find the two front seats.
+%      FlagSeats: true (default) to find the two front seats.
 %
-%      SteeringWheel: true (default) to find the steering wheel.
+%      FlagSteeringWheel: true (default) to find the steering wheel.
 %
 %      Templates: a structure overriding any template value, such as
 %      Templates.Seat.Width = 0.48 or Templates.SteeringWheel.Diameter =
@@ -84,7 +84,7 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 %
 %      RandomSeed: so a run can be repeated exactly. Default 1.
 %
-%      Verbose: true to print progress. Default false.
+%      FlagVerbose: true to print progress. Default false.
 %
 %      FigNum: a figure to draw the mesh with the objects found and their
 %      templates in. If empty or omitted, no plot is made. If -1, input
@@ -103,7 +103,7 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 %               and backrest: Center, Axes, HalfSize, Corners), Center (of
 %               the faces found), Faces (face numbers of vehicleMesh), Side
 %               (+1 left, -1 right)
-%           SteeringWheel: Found, Score, Center, Normal (toward the
+%           FlagSteeringWheel: Found, Score, Center, Normal (toward the
 %               driver), Radius (of the rim's center line), OuterDiameter,
 %               TiltDeg (from vertical), YawDeg, Faces
 %           DriveSide: 'left' or 'right'; DriveSideSource: 'mesh',
@@ -113,9 +113,9 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 %
 %      vehicleMesh: the mesh given, with the objects stored in it (as a
 %      vehicle's build saves them):
-%           FaceInteriorObject: one number per face, 0 for none, else the
-%               object's place in InteriorObjectNames
-%           InteriorObjectNames: {'driver seat', 'passenger seat',
+%           LabelFaceInterior: one number per face, 0 for none, else the
+%               object's place in LabelInteriorNames
+%           LabelInteriorNames: {'driver seat', 'passenger seat',
 %               'steering wheel'}
 %           InteriorObjects: the result above without Info (each object's
 %               pose and faces), for the 2D outline
@@ -174,8 +174,8 @@ function [result, vehicleMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, 
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     vehicleMesh
-    options.Seats = true            % Find the two front seats
-    options.SteeringWheel = true    % Find the steering wheel
+    options.FlagSeats = true            % Find the two front seats
+    options.FlagSteeringWheel = true    % Find the steering wheel
     options.Templates = struct()    % Template values to override
     options.DriveSide = 'auto'      % 'auto', 'left' or 'right'
     options.PointSpacing = 0.012    % meters between sample points
@@ -183,7 +183,7 @@ arguments
     options.NumHypotheses = 3000    % random poses per search
     options.NumRefine = 4           % best poses polished with fminsearch
     options.RandomSeed = 1          % random seed, so a run repeats exactly
-    options.Verbose = false         % print progress
+    options.FlagVerbose = false         % print progress
     options.FigNum = []             % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -265,7 +265,7 @@ end
 timeStart = tic;
 oldRng = rng;                    % restore the caller's random state at the end
 rng(options.RandomSeed, 'twister');
-say = @(varargin) fcn_INTERNAL_say(options.Verbose, varargin{:});
+say = @(varargin) fcn_INTERNAL_say(options.FlagVerbose, varargin{:});
 
 V = double(vehicleMesh.Vertices);
 F = double(vehicleMesh.Faces);
@@ -281,9 +281,9 @@ say('%d sample points (spacing %.3f m), mesh area %.1f m^2', size(P,1), options.
 
 % Faces that can never be part of a seat or the steering wheel
 faceBlocked = false(size(F,1),1);
-if isfield(vehicleMesh,'FacePartIndex') && isfield(vehicleMesh,'PartNames')
-    blockedParts = find(ismember(lower(vehicleMesh.PartNames), {'glass','wheel','light'}));
-    faceBlocked = ismember(vehicleMesh.FacePartIndex, blockedParts);
+if isfield(vehicleMesh,'LabelFacePart') && isfield(vehicleMesh,'LabelPartNames')
+    blockedParts = find(ismember(lower(vehicleMesh.LabelPartNames), {'glass','wheel','light'}));
+    faceBlocked = ismember(vehicleMesh.LabelFacePart, blockedParts);
 end
 
 %% 3. The vehicle's convex hull: "outside the body" test and the outer skin
@@ -308,7 +308,7 @@ for k = 1:2
     tk = tic;
     seatSide{k} = fcn_INTERNAL_searchSeat(Pc, Bc, Nc, h2c, geo, T, hull, side, [], options);
     say('seat side %+d: score %.3f m^2 at [%.2f %.2f %.2f] (%.1f s)', side, seatSide{k}.Score, seatSide{k}.Origin, toc(tk));
-    if options.SteeringWheel
+    if options.FlagSteeringWheel
         tk = tic;
         wheelSide{k} = fcn_INTERNAL_searchWheel(P, pointBlocked, h2, T, seatSide{k}, options);
         say('wheel side %+d: score %.4f m^2, R=%.3f m (%.1f s)', side, wheelSide{k}.Score, wheelSide{k}.Radius, toc(tk));
@@ -323,7 +323,7 @@ switch lower(options.DriveSide)
         driverK = 2; sideSource = 'option';
     otherwise
         driverK = 1; sideSource = 'default';
-        if options.SteeringWheel
+        if options.FlagSteeringWheel
             wScores = [wheelSide{1}.Score, wheelSide{2}.Score];
             % trust the mesh only if one side's wheel is clearly better
             if max(wScores) >= T.SteeringWheel.FoundScore && max(wScores) >= 2*min(wScores)
@@ -339,7 +339,7 @@ driverSeat = seatSide{driverK};
 passSeat   = seatSide{passK};
 
 % Passenger: also try starting from the mirror image of the driver seat
-if options.Seats
+if options.FlagSeats
     mirrorStart = driverSeat.Params .* [1 -1 1 -1 -1 1 1 1];
     passMirror = fcn_INTERNAL_searchSeat(Pc, Bc, Nc, h2c, geo, T, hull, sidesToSearch(passK), mirrorStart, options);
     if passMirror.Score > passSeat.Score
@@ -358,13 +358,13 @@ end
 %% 6. Faces belonging to each object
 comp = fcn_INTERNAL_meshPieces(V, F, faceArea);
 result = struct();
-if options.Seats
+if options.FlagSeats
     driverSeat = fcn_INTERNAL_seatFaces(driverSeat, P, pointFace, F, V, faceArea, faceBlocked, comp, T);
     passSeat   = fcn_INTERNAL_seatFaces(passSeat,   P, pointFace, F, V, faceArea, faceBlocked, comp, T);
     result.DriverSeat    = fcn_INTERNAL_cleanSeat(driverSeat);
     result.PassengerSeat = fcn_INTERNAL_cleanSeat(passSeat);
 end
-if options.SteeringWheel
+if options.FlagSteeringWheel
     wheel = wheelSide{driverK};
     wheel = fcn_INTERNAL_wheelFaces(wheel, P, pointFace, F, V, faceArea, faceBlocked, comp, T);
     result.SteeringWheel = wheel;
@@ -376,7 +376,7 @@ result.Info.Templates = T;
 result.Info.NumPoints = size(P,1);
 result.Info.PointSpacing = options.PointSpacing;
 result.Info.SeatScoresLeftRight = [seatSide{1}.Score, seatSide{2}.Score];
-if options.SteeringWheel
+if options.FlagSteeringWheel
     result.Info.WheelScoresLeftRight = [wheelSide{1}.Score, wheelSide{2}.Score];
 end
 result.Info.Geometry = geo;
@@ -395,8 +395,8 @@ if nargout > 1
             faceObject(result.(objectFields{ith_object}).Faces) = ith_object;
         end
     end
-    vehicleMesh.FaceInteriorObject = faceObject;
-    vehicleMesh.InteriorObjectNames = {'driver seat', 'passenger seat', 'steering wheel'};
+    vehicleMesh.LabelFaceInterior = faceObject;
+    vehicleMesh.LabelInteriorNames = {'driver seat', 'passenger seat', 'steering wheel'};
     vehicleMesh.InteriorObjects = rmfield(result, 'Info');
 end
 

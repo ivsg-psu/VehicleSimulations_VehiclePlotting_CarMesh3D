@@ -10,7 +10,7 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 % FORMAT:
 %
 %       axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews,...
-%           (Captions=captions), (Dark=flag), (Legend=entries),...
+%           (Captions=captions), (FlagDark=flag), (Legend=entries),...
 %           (Rows=numRows), (RowLabels=labels), (FigNum=figNum))
 %
 % INPUTS:
@@ -25,7 +25,7 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 %      Captions: a caption under each picture (a cell array of text);
 %      default none.
 %
-%      Dark: true for a dark background (night, for lit lamps); default
+%      FlagDark: true for a dark background (night, for lit lamps); default
 %      false (white).
 %
 %      Legend: color swatches with names, in one line under the pictures:
@@ -90,7 +90,7 @@ arguments
     parent              % A uipanel, or [] for a figure of its own
     numViews            % How many pictures (1 to 4)
     options.Captions = {}   % A caption under each picture
-    options.Dark = false    % Dark background
+    options.FlagDark = false    % Dark background
     options.Legend = []     % Swatches under the pictures: struct array with Name, Color
     options.Rows = 1        % 1 or 2 rows of pictures
     options.RowLabels = {}  % A label above each row
@@ -128,7 +128,7 @@ end
 %% Main code
 background = [1 1 1];
 textColor = [0.15 0.15 0.15];
-if options.Dark
+if options.FlagDark
     background = [0.08 0.08 0.12];
     textColor = [0.9 0.9 0.9];
 end

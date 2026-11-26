@@ -72,7 +72,7 @@ function detailLevels = fcn_CarMesh3D_makeDetailLevels(vehicleMesh, options)
 % INPUTS:
 %
 %      vehicleMesh: a finished CarMesh3D mesh (labeled, fitted, and
-%      simplified: with FacePartIndex, FaceColors, FaceAlpha, and
+%      simplified: with LabelFacePart, FaceColors, FaceAlpha, and
 %      FaceNormals), for example from a vehicle's vehicleMesh_<ID>.mat.
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
@@ -152,7 +152,7 @@ function detailLevels = fcn_CarMesh3D_makeDetailLevels(vehicleMesh, options)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_makeDetailLevels
-%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   % * Measures the vehicle as it is shown: hidden faces (LabelFaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
 
 % TO-DO:
@@ -231,7 +231,7 @@ if 0==flag_max_speed
 
 
         % Check the vehicleMesh input
-        requiredFields = {'Vertices','Faces','FacePartIndex','FaceColors','FaceAlpha'};
+        requiredFields = {'Vertices','Faces','LabelFacePart','FaceColors','FaceAlpha'};
         if ~isstruct(vehicleMesh) || ~all(isfield(vehicleMesh, requiredFields))
             error('vehicleMesh must be a finished CarMesh3D mesh, with fields %s', strjoin(requiredFields, ', '));
         end
@@ -547,7 +547,7 @@ for ith_weight = 1:size(weights,1)
     samplePoints = weights(ith_weight,1)*corner1 + weights(ith_weight,2)*corner2 + weights(ith_weight,3)*corner3;
     votes(:,ith_weight) = fcn_INTERNAL_nearestSource(samplePoints, outerPoints, outerSource, outerKeys, gridLow, gridSize, voxelSize);
 end
-voteParts = reshape(vehicleMesh.FacePartIndex(votes), Nfaces, []);
+voteParts = reshape(vehicleMesh.LabelFacePart(votes), Nfaces, []);
 winningPart = mode(voteParts, 2);
 [~, firstWinner] = max(voteParts==winningPart, [], 2);
 chosenSource = votes(sub2ind(size(votes), (1:Nfaces)', firstWinner));
@@ -555,7 +555,7 @@ chosenSource = votes(sub2ind(size(votes), (1:Nfaces)', firstWinner));
 levelMesh = vehicleMesh;
 levelMesh.Vertices = newVertices;
 levelMesh.Faces = newFaces;
-for fieldName = {'FaceMaterialIndex','FaceGroupIndex','FaceLightType','FacePartIndex','FaceColors','FaceAlpha'}
+for fieldName = {'FaceMaterialIndex','FaceGroupIndex','LabelFaceLamp','LabelFacePart','FaceColors','FaceAlpha'}
     if isfield(vehicleMesh, fieldName{1}) && size(vehicleMesh.(fieldName{1}),1)==size(vehicleMesh.Faces,1)
         values = vehicleMesh.(fieldName{1});
         levelMesh.(fieldName{1}) = values(chosenSource,:);

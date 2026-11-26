@@ -75,8 +75,8 @@ checked = validation(~ismissing(validation.Pass), :);
 assert(all(checked.Pass), 'Not every dimension matches: %s', strjoin(cellstr(checked.Quantity(~checked.Pass)), ', '));
 assert(strcmp(vehicleMesh.Name, corollaSpec.Name) && contains(vehicleMesh.Source, 'Prius'));
 assert(strcmp(vehicleMesh.BodyStyleInfo.WidthReference, 'mirrors') && contains(vehicleMesh.BodyStyleInfo.WidthNote, 'estimated'));
-assert(all(ismember({'body','glass','wheel','light'}, vehicleMesh.PartNames)));
-bodyFaces = vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames, 'body'));
+assert(all(ismember({'body','glass','wheel','light'}, vehicleMesh.LabelPartNames)));
+bodyFaces = vehicleMesh.LabelFacePart==find(strcmp(vehicleMesh.LabelPartNames, 'body'));
 assert(all(abs(vehicleMesh.FaceColors(bodyFaces,:) - [0.70 0.10 0.10]) < 1e-12, 'all'));
 
 % Make sure plot opened up
@@ -194,7 +194,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 greenMesh = fcn_CarMesh3D_fillBodyStyleMesh('LiftBack', corollaSpec, BodyColor=[0.1 0.5 0.2]);
-bodyFaces = greenMesh.FacePartIndex==find(strcmp(greenMesh.PartNames, 'body'));
+bodyFaces = greenMesh.LabelFacePart==find(strcmp(greenMesh.LabelPartNames, 'body'));
 assert(all(abs(greenMesh.FaceColors(bodyFaces,:) - [0.1 0.5 0.2]) < 1e-12, 'all'));
 
 %% Fast Mode Tests

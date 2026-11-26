@@ -17,9 +17,9 @@ function result = fcn_CarMesh3D_guiDriver(figureHandle, command, varargin)
 % FORMAT:
 %
 %       state    = fcn_CarMesh3D_guiDriver(figureHandle, 'state')
-%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'set', stateIn, (Force=flag))
-%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'set', tag, value, (Force=flag))
-%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'press', tagOrText, (Force=flag))
+%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'set', stateIn, (FlagForce=flag))
+%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'set', tag, value, (FlagForce=flag))
+%       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'press', tagOrText, (FlagForce=flag))
 %       stateNow = fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, (Modifier=mods))
 %       problems = fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout')
 %       controls = fcn_CarMesh3D_guiDriver(figureHandle, 'controls')
@@ -37,7 +37,7 @@ function result = fcn_CarMesh3D_guiDriver(figureHandle, command, varargin)
 %               its Text if it has no UserData), or give one tag and value.
 %               The control's callback runs as a click's would. A control
 %               that is disabled or not on screen cannot be clicked: an
-%               error says so, unless Force=true.
+%               error says so, unless FlagForce=true.
 %           'press': press a button (uibutton or state button), named by
 %               its Tag or its Text; runs its callback.
 %           'key': a key press sent to the window (its WindowKeyPressFcn,
@@ -58,7 +58,7 @@ function result = fcn_CarMesh3D_guiDriver(figureHandle, command, varargin)
 %
 %     (OPTIONAL INPUTS, as Name=Value pairs after the others)
 %
-%      Force: true to set or press a control that is disabled or not on
+%      FlagForce: true to set or press a control that is disabled or not on
 %      screen (default false: an error, since a user could not).
 %
 %      Modifier: for 'key', a cell array of modifier keys, e.g.
@@ -145,18 +145,18 @@ if isempty(figureHandle) || ~isgraphics(figureHandle)
     error('CarMesh3D:badInput', 'figureHandle must be an open app window (uifigure) or a container in one.');
 end
 command = char(command);
-% (Name=Value options at the end: Force, Modifier)
-force = false;
+% (Name=Value options at the end: FlagForce, Modifier)
+flagForce = false;
 modifier = {};
 args = varargin;
 ith_arg = 1;
 positional = {};
 while ith_arg <= numel(args)
-    if (ischar(args{ith_arg}) || isstring(args{ith_arg})) && any(strcmpi(char(args{ith_arg}), {'Force','Modifier'})) && ith_arg < numel(args) ...
-            && ~(strcmp(command,'set') && isempty(positional))   % (a Tag named Force: not an option)
+    if (ischar(args{ith_arg}) || isstring(args{ith_arg})) && any(strcmpi(char(args{ith_arg}), {'FlagForce','Modifier'})) && ith_arg < numel(args) ...
+            && ~(strcmp(command,'set') && isempty(positional))   % (a Tag named FlagForce: not an option)
         switch lower(char(args{ith_arg}))
-            case 'force'
-                force = logical(args{ith_arg+1});
+            case 'flagforce'
+                flagForce = logical(args{ith_arg+1});
             case 'modifier'
                 modifier = cellstr(args{ith_arg+1});
         end
@@ -188,13 +188,13 @@ switch command
             stateIn = positional{1};
             tags = fieldnames(stateIn);
             for ith_tag = 1:numel(tags)
-                fcn_INTERNAL_setOne(figureHandle, tags{ith_tag}, stateIn.(tags{ith_tag}), force);
+                fcn_INTERNAL_setOne(figureHandle, tags{ith_tag}, stateIn.(tags{ith_tag}), flagForce);
             end
         else
             if numel(positional) < 2
                 error('CarMesh3D:badInput', 'set with a Tag needs a value too.');
             end
-            fcn_INTERNAL_setOne(figureHandle, char(positional{1}), positional{2}, force);
+            fcn_INTERNAL_setOne(figureHandle, char(positional{1}), positional{2}, flagForce);
         end
         drawnow;
         result = fcn_INTERNAL_state(figureHandle);
@@ -202,7 +202,7 @@ switch command
         if isempty(positional)
             error('CarMesh3D:badInput', 'press needs a button''s Tag or Text.');
         end
-        fcn_INTERNAL_press(figureHandle, char(positional{1}), force);
+        fcn_INTERNAL_press(figureHandle, char(positional{1}), flagForce);
         drawnow;
         result = fcn_INTERNAL_state(figureHandle);
     case 'key'
@@ -380,16 +380,16 @@ end
 end % Ends fcn_INTERNAL_prop
 
 %% fcn_INTERNAL_checkClickable
-function fcn_INTERNAL_checkClickable(control, tagOrText, force)
+function fcn_INTERNAL_checkClickable(control, tagOrText, flagForce)
 % A user cannot click a disabled control or one not on screen
-if force
+if flagForce
     return;
 end
 if ~fcn_INTERNAL_enabled(control)
-    error('CarMesh3D:guiDriver', 'The control ''%s'' is disabled: a user could not click it (use Force=true to anyway).', tagOrText);
+    error('CarMesh3D:guiDriver', 'The control ''%s'' is disabled: a user could not click it (use FlagForce=true to anyway).', tagOrText);
 end
 if ~fcn_INTERNAL_onScreen(control)
-    error('CarMesh3D:guiDriver', 'The control ''%s'' is not on screen (its panel is closed or hidden): a user could not click it (use Force=true to anyway).', tagOrText);
+    error('CarMesh3D:guiDriver', 'The control ''%s'' is not on screen (its panel is closed or hidden): a user could not click it (use FlagForce=true to anyway).', tagOrText);
 end
 end % Ends fcn_INTERNAL_checkClickable
 
@@ -409,10 +409,10 @@ end
 end % Ends fcn_INTERNAL_callback
 
 %% fcn_INTERNAL_setOne
-function fcn_INTERNAL_setOne(containerHandle, tag, value, force)
+function fcn_INTERNAL_setOne(containerHandle, tag, value, flagForce)
 % One control set as a click would
 control = fcn_INTERNAL_find(containerHandle, tag, false);
-fcn_INTERNAL_checkClickable(control, tag, force);
+fcn_INTERNAL_checkClickable(control, tag, flagForce);
 if isa(control, 'matlab.ui.container.ButtonGroup')
     radios = control.Children;
     radios = radios(arrayfun(@(r) isa(r, 'matlab.ui.control.RadioButton') || isa(r, 'matlab.ui.control.ToggleButton'), radios));
@@ -421,7 +421,7 @@ if isa(control, 'matlab.ui.container.ButtonGroup')
         error('CarMesh3D:guiDriver', 'The radio group ''%s'' has no button for that value.', tag);
     end
     radio = radios(find(match, 1));
-    if ~force && ~strcmp(char(radio.Enable), 'on')
+    if ~flagForce && ~strcmp(char(radio.Enable), 'on')
         error('CarMesh3D:guiDriver', 'That button of ''%s'' is disabled: a user could not click it.', tag);
     end
     oldRadio = control.SelectedObject;
@@ -444,10 +444,10 @@ end
 end % Ends fcn_INTERNAL_setOne
 
 %% fcn_INTERNAL_press
-function fcn_INTERNAL_press(containerHandle, tagOrText, force)
+function fcn_INTERNAL_press(containerHandle, tagOrText, flagForce)
 % A button pressed
 control = fcn_INTERNAL_find(containerHandle, tagOrText, true);
-fcn_INTERNAL_checkClickable(control, tagOrText, force);
+fcn_INTERNAL_checkClickable(control, tagOrText, flagForce);
 if isa(control, 'matlab.ui.control.StateButton')
     oldValue = control.Value;
     control.Value = ~oldValue;

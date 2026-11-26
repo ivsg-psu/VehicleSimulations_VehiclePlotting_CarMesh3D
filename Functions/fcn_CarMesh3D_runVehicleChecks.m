@@ -31,7 +31,7 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %                                behind and above (every second frame).
 %   check_10_groundContact.png   Body clearance over the whole motion
 %                                (fcn_CarMesh3D_checkGroundContact).
-%   With SaveFigs=true, each .png also has a .fig of the same name, to open
+%   With FlagSaveFigs=true, each .png also has a .fig of the same name, to open
 %   with openfig and zoom, pan, or rotate. check_03_labels.fig is one 3D view of the
 %   labels (fcn_CarMesh3D_plotLabels), not the four pictures.
 %   check_summary.txt            The list of files, the dimension check,
@@ -52,7 +52,7 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 % FORMAT:
 %
 %       checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh,...
-%           vehicleSpec, outputFolder, (Checks=names), (SaveGifs=flag), (SaveFigs=flag),...
+%           vehicleSpec, outputFolder, (Checks=names), (FlagSaveGifs=flag), (FlagSaveFigs=flag),...
 %           (VehicleName=name), (PanelSize=[w h]), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -70,13 +70,13 @@ function checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec,
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
 %      Checks: 'all' (default), or a cell array of check names to run:
-%      'inputs','dimensions','labels','lightStates','lights','body',
+%      'inputs','dimensions','labels','signals','lights','body',
 %      'steering','wheels','drive','groundContact'.
 %
-%      SaveGifs: true (default) to save the GIFs; false to only play the
+%      FlagSaveGifs: true (default) to save the GIFs; false to only play the
 %      animations (faster, for a first look).
 %
-%      SaveFigs: true to save a .fig beside each picture (to open with
+%      FlagSaveFigs: true to save a .fig beside each picture (to open with
 %      openfig and zoom or rotate); false (default) for the pictures only.
 %
 %      VehicleName: a name for the captions. Default is vehicleSpec.Name.
@@ -162,8 +162,8 @@ arguments
     vehicleSpec
     outputFolder
     options.Checks = 'all'          % 'all' or a cell array of check names
-    options.SaveGifs = true         % Save the GIFs?
-    options.SaveFigs = false        % Save a .fig beside each picture?
+    options.FlagSaveGifs = true         % Save the GIFs?
+    options.FlagSaveFigs = false        % Save a .fig beside each picture?
     options.VehicleName = ''        % Name for captions; '' for vehicleSpec.Name
     options.PanelSize = [480 300]   % [width height] of each view, in pixels
     options.FigNum = []             % Figure to draw in; [] for 900, -1 for fast mode
@@ -212,14 +212,14 @@ end
 %              |_|
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-allCheckNames = {'inputs','dimensions','labels','lightStates','lights','body','steering','wheels','drive','groundContact'};
+allCheckNames = {'inputs','dimensions','labels','signals','lights','body','steering','wheels','drive','groundContact'};
 if 0==flag_max_speed
     if flag_check_inputs
         % The number of inputs and the option names are checked by the
         % arguments block above
 
         % Check the vehicleMesh and vehicleSpec inputs
-        if ~isstruct(vehicleMesh) || ~isfield(vehicleMesh,'FacePartIndex') || ~isfield(vehicleMesh,'AxleX')
+        if ~isstruct(vehicleMesh) || ~isfield(vehicleMesh,'LabelFacePart') || ~isfield(vehicleMesh,'AxleX')
             error('vehicleMesh must be a finished CarMesh3D mesh (labeled and fitted)');
         end
         if ~isstruct(vehicleSpec) || ~isfield(vehicleSpec,'Wheelbase')
@@ -276,10 +276,10 @@ vehicleName = options.VehicleName;
 if isempty(vehicleName)
     vehicleName = vehicleSpec.Name;
 end
-settings = struct('PanelSize',options.PanelSize(:)', 'SaveGifs',logical(options.SaveGifs), ...
+settings = struct('PanelSize',options.PanelSize(:)', 'FlagSaveGifs',logical(options.FlagSaveGifs), ...
     'FigNum',figNum, 'VehicleName',vehicleName);
 % (whether a .fig is saved beside each picture: read by fcn_INTERNAL_saveFig)
-setappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs', logical(options.SaveFigs));
+setappdata(groot, 'CarMesh3D_runVehicleChecks_SaveFigs', logical(options.FlagSaveFigs));
 cleanupSaveFigs = onCleanup(@() fcn_INTERNAL_clearSaveFigs()); %#ok<NASGU>
 writtenFiles = {};
 validationTable = [];
@@ -325,8 +325,8 @@ end
 
 %%%%
 % Light states: each light alone, at night (3 x 3 pictures)
-if doCheck('lightStates')
-    writtenFiles{end+1} = fcn_INTERNAL_lightStatesPicture(vehicleMesh, testMotion, cameras, settings, ...
+if doCheck('signals')
+    writtenFiles{end+1} = fcn_INTERNAL_signalsPicture(vehicleMesh, testMotion, cameras, settings, ...
         fullfile(outputFolder,'check_04_lightStates.png'));
 end
 
@@ -348,7 +348,7 @@ for ith_animation = 1:size(animationList,1)
     gifFile = fullfile(outputFolder, animationList{ith_animation,4});
     fcn_INTERNAL_animate(vehicleMesh, testMotion, rows, cameras, animationList{ith_animation,2}, ...
         animationList{ith_animation,3}, settings, gifFile, strcmp(animationList{ith_animation,1},'steering'));
-    if settings.SaveGifs
+    if settings.FlagSaveGifs
         writtenFiles{end+1} = gifFile; %#ok<AGROW>
     end
 end
@@ -537,7 +537,7 @@ for ith_view = 1:Nviews
     set(panelHandle,'BackgroundColor',get(figureHandle,'Color'));   % Sky color (dark at night)
     figureHandle.CurrentAxes = axesList(ith_view);
     % (Options from a cell array, so the quoted 'Name',value form is used)
-    plotHandlesList{ith_view} = fcn_CarMesh3D_plotVehicle(vehicleMesh, 'Finish','glossy', 'LightEffects',flagNight, ...
+    plotHandlesList{ith_view} = fcn_CarMesh3D_plotVehicle(vehicleMesh, 'Finish','glossy', 'FlagLightEffects',flagNight, ...
         vehicleOptions{:}, 'FigNum',settings.FigNum);
     axis(axesList(ith_view),'off');
     axis(axesList(ith_view),[groundExtent -1 25]);
@@ -580,7 +580,7 @@ fcn_CarMesh3D_plotVehicle(vehicleMesh, 'Pose',testMotion.Pose(row,:), ...
     'WheelSpin',testMotion.WheelSpin(row,:), 'SteerAngle',testMotion.SteerAngle(row,:), ...
     'WheelLift',testMotion.WheelLift(row,:), 'BodyRoll',testMotion.BodyRoll(row), ...
     'BodyPitch',testMotion.BodyPitch(row), 'BodyHeave',testMotion.BodyHeave(row), ...
-    'LightStates',testMotion.LightStates(row), extraOptions{:}, 'PlotHandles',plotHandles, 'FigNum',-1);
+    'Signals',testMotion.Signals(row), extraOptions{:}, 'PlotHandles',plotHandles, 'FigNum',-1);
 end % Ends fcn_INTERNAL_moveVehicle
 
 %% fcn_INTERNAL_animate
@@ -627,7 +627,7 @@ for ith_frame = 1:length(rows)
     end
     set(captionHandle,'String',captionText);
     drawnow;
-    if settings.SaveGifs
+    if settings.FlagSaveGifs
         fcn_CarMesh3D_saveGifFrame(figureHandle, gifFile, ith_frame, ...
             DelayTime=median(diff(testMotion.Time)), FigNum=-1);
     end
@@ -690,8 +690,8 @@ fcn_CarMesh3D_plotLabels(vehicleMesh, Title=settings.VehicleName, FigNum=setting
 fcn_INTERNAL_saveFig(figureHandle, fileName);
 end % Ends fcn_INTERNAL_labelPicture
 
-%% fcn_INTERNAL_lightStatesPicture
-function fileName = fcn_INTERNAL_lightStatesPicture(vehicleMesh, testMotion, cameras, settings, fileName)
+%% fcn_INTERNAL_signalsPicture
+function fileName = fcn_INTERNAL_signalsPicture(vehicleMesh, testMotion, cameras, settings, fileName)
 % At night, each light alone: the middle frame of each step of the
 % lights segment, from the front (first four) or the rear (the rest)
 rows = fcn_INTERNAL_segmentRows(testMotion, {'lights'});
@@ -717,7 +717,7 @@ for ith_step = 1:length(stepNames)
 end
 fileName = fcn_INTERNAL_montage(pictures, 3, 3, sprintf('%s: each light alone, at night', settings.VehicleName), ...
     'Check that each picture shows only the light named in it. Signals blink, so one frame is shown with them on.', settings, fileName);
-end % Ends fcn_INTERNAL_lightStatesPicture
+end % Ends fcn_INTERNAL_signalsPicture
 
 %% fcn_INTERNAL_montage
 function fileName = fcn_INTERNAL_montage(pictures, Nrows, Ncolumns, titleText, footerText, settings, fileName)

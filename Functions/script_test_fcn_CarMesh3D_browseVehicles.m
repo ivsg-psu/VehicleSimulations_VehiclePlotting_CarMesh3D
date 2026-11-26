@@ -47,7 +47,7 @@ figNum = 10001;
 titleString = sprintf('DEMO case: The menu of finished vehicles (built, not opened)');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
-[vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(Interactive=false, FigNum=figNum);
+[vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(FlagInteractive=false, FigNum=figNum);
 
 % Check variable types
 assert(istable(vehicleTable) && isstruct(selections));
@@ -84,10 +84,10 @@ figNum = 20001;
 titleString = sprintf('TEST case: Sorted by score, best first');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
-vehicleTable = fcn_CarMesh3D_browseVehicles(SortBy='score', Interactive=false);
+vehicleTable = fcn_CarMesh3D_browseVehicles(SortBy='score', FlagInteractive=false);
 scores = vehicleTable.Score(~isnan(vehicleTable.Score));
 assert(issorted(scores,'descend'));
-nameTable = fcn_CarMesh3D_browseVehicles(SortBy='name', Interactive=false);
+nameTable = fcn_CarMesh3D_browseVehicles(SortBy='name', FlagInteractive=false);
 assert(issorted(nameTable.Name));
 
 %% TEST case: Choosing a vehicle shows it and marks it viewed
@@ -95,7 +95,7 @@ figNum = 20101;
 titleString = sprintf('TEST case: Choosing a vehicle shows it and marks it viewed');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
-[vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(ViewFigNum=figNum, Interactive=false);
+[vehicleTable, selections] = fcn_CarMesh3D_browseVehicles(ViewFigNum=figNum, FlagInteractive=false);
 priusLine = find(vehicleTable.ID=="2013_Toyota_Prius_Four");
 answers = cell(numel(selections),1);
 previousView = getenv('CARMESH3D_BROWSER_VIEW');
@@ -109,14 +109,14 @@ figNum = 20201;
 titleString = sprintf('TEST case: The view choice and the table commands run');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
-[~, selections] = fcn_CarMesh3D_browseVehicles(ViewFigNum=figNum, Interactive=false);
+[~, selections] = fcn_CarMesh3D_browseVehicles(ViewFigNum=figNum, FlagInteractive=false);
 tableCommands = selections(end-1).FunctionSubmission;
 fcn_INTERNAL_runMenuLine(tableCommands{1});                    % (prints the table)
 setenv('CARMESH3D_BROWSER_VIEW','materials');
 answers = fcn_INTERNAL_runMenuLineWithAnswers(selections(1).FunctionSubmission{1}, cell(numel(selections),1));
 assert(strcmp(answers{1},'viewed') && isgraphics(figure(figNum)));
-flag_exitMain = fcn_INTERNAL_runQuit(selections(end).FunctionSubmission);
-assert(flag_exitMain==1);
+flagExitMain = fcn_INTERNAL_runQuit(selections(end).FunctionSubmission);
+assert(flagExitMain==1);
 setenv('CARMESH3D_BROWSER_VIEW', previousView);
 
 %% TEST case: A Data folder path with backslashes reaches the commands intact
@@ -125,7 +125,7 @@ titleString = sprintf('TEST case: A Data folder path with backslashes reaches th
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
 dataFolder = fullfile(fileparts(fileparts(which('fcn_CarMesh3D_browseVehicles'))), 'Data');
-[~, selections] = fcn_CarMesh3D_browseVehicles(DataFolder=dataFolder, Interactive=false);
+[~, selections] = fcn_CarMesh3D_browseVehicles(DataFolder=dataFolder, FlagInteractive=false);
 commandAsRun = sprintf(selections(1).FunctionSubmission{1});
 assert(contains(commandAsRun, ['DataFolder=''' dataFolder '''']));
 
@@ -136,13 +136,13 @@ assert(contains(commandAsRun, ['DataFolder=''' dataFolder '''']));
 %% Basic example - NO FIGURE
 figNum = 80001;
 fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
-vehicleTable = fcn_CarMesh3D_browseVehicles(Interactive=false, FigNum=[]);
+vehicleTable = fcn_CarMesh3D_browseVehicles(FlagInteractive=false, FigNum=[]);
 assert(istable(vehicleTable));
 
 %% Basic fast mode - NO FIGURE, FAST MODE
 figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
-vehicleTable = fcn_CarMesh3D_browseVehicles(Interactive=false, FigNum=-1);
+vehicleTable = fcn_CarMesh3D_browseVehicles(FlagInteractive=false, FigNum=-1);
 assert(istable(vehicleTable));
 
 %% BUG cases
@@ -167,7 +167,7 @@ assert(istable(vehicleTable));
 
 %% FAIL case: An unknown sort order
 if 1==0
-    fcn_CarMesh3D_browseVehicles(SortBy='color', Interactive=false);
+    fcn_CarMesh3D_browseVehicles(SortBy='color', FlagInteractive=false);
 end
 
 %% Functions follow
@@ -196,8 +196,8 @@ eval(sprintf(commandToEval));
 end % Ends fcn_INTERNAL_runMenuLineWithAnswers
 
 %% fcn_INTERNAL_runQuit
-function flag_exitMain = fcn_INTERNAL_runQuit(commandToEval)
+function flagExitMain = fcn_INTERNAL_runQuit(commandToEval)
 % Runs the quit command, as the menu does
-flag_exitMain = 0;
+flagExitMain = 0;
 eval(sprintf(commandToEval));
 end % Ends fcn_INTERNAL_runQuit

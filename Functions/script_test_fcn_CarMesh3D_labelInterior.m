@@ -37,30 +37,30 @@ figure(figNum); clf;
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles('2009_Honda_Fit_Sport', FigNum=-1);
 loaded = load(vehicleFiles.MeshFile, 'vehicleMesh');
 fitMesh = loaded.vehicleMesh;
-if any(strcmp(fitMesh.PartNames,'interior'))
+if any(strcmp(fitMesh.LabelPartNames,'interior'))
     % (a mesh labeled already: its interior faces put back to trim first)
-    fitMesh.FacePartIndex(fitMesh.FacePartIndex==find(strcmp(fitMesh.PartNames,'interior'))) = find(strcmp(fitMesh.PartNames,'trim'));
+    fitMesh.LabelFacePart(fitMesh.LabelFacePart==find(strcmp(fitMesh.LabelPartNames,'interior'))) = find(strcmp(fitMesh.LabelPartNames,'trim'));
 end
 [labeledFit, interiorInfo] = fcn_CarMesh3D_labelInterior(fitMesh, FigNum=figNum);
 title(sprintf('%s: %d interior faces', titleString, interiorInfo.NumInterior), 'Interpreter','none');
 
 % Check variable values: some interior faces; the steering wheel (the
 % highest one-sided piece simplifyMesh kept) is mostly interior
-interiorPart = find(strcmp(labeledFit.PartNames,'interior'));
+interiorPart = find(strcmp(labeledFit.LabelPartNames,'interior'));
 assert(~isempty(interiorPart) && interiorInfo.NumInterior > 0);
-assert(nnz(labeledFit.FacePartIndex==interiorPart) == interiorInfo.NumInterior);
+assert(nnz(labeledFit.LabelFacePart==interiorPart) == interiorInfo.NumInterior);
 if isfield(fitMesh.SimplifyInfo,'OneSidedBoxes') && ~isempty(fitMesh.SimplifyInfo.OneSidedBoxes)
     boxes = fitMesh.SimplifyInfo.OneSidedBoxes;
     [~, highest] = max(boxes(:,6));
     wheelBox = boxes(highest,:);
     centers = (labeledFit.Vertices(labeledFit.Faces(:,1),:) + labeledFit.Vertices(labeledFit.Faces(:,2),:) + labeledFit.Vertices(labeledFit.Faces(:,3),:))/3;
     inBox = all(centers >= wheelBox([1 3 5]) & centers <= wheelBox([2 4 6]), 2) & labeledFit.FaceWheelIndex==0;
-    assert(mean(labeledFit.FacePartIndex(inBox)==interiorPart) > 0.5);
+    assert(mean(labeledFit.LabelFacePart(inBox)==interiorPart) > 0.5);
 end
 % (glass, lights, and wheels never change)
-glassPart = find(strcmp(fitMesh.PartNames,'glass'));
-assert(isequal(labeledFit.FacePartIndex(fitMesh.FacePartIndex==glassPart), fitMesh.FacePartIndex(fitMesh.FacePartIndex==glassPart)));
-assert(all(labeledFit.FacePartIndex(fitMesh.FaceWheelIndex>0) == fitMesh.FacePartIndex(fitMesh.FaceWheelIndex>0)));
+glassPart = find(strcmp(fitMesh.LabelPartNames,'glass'));
+assert(isequal(labeledFit.LabelFacePart(fitMesh.LabelFacePart==glassPart), fitMesh.LabelFacePart(fitMesh.LabelFacePart==glassPart)));
+assert(all(labeledFit.LabelFacePart(fitMesh.FaceWheelIndex>0) == fitMesh.LabelFacePart(fitMesh.FaceWheelIndex>0)));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -85,19 +85,19 @@ figure(figNum); close(figNum);
 
 [boxCar, faceRole] = fcn_INTERNAL_boxCar([]);
 labeled = fcn_CarMesh3D_labelInterior(boxCar, FigNum=[]);
-interiorPart = find(strcmp(labeled.PartNames,'interior'));
+interiorPart = find(strcmp(labeled.LabelPartNames,'interior'));
 
 % Check variable values
-assert(all(labeled.FacePartIndex(strcmp(faceRole,'seat')) == interiorPart));
-assert(~any(labeled.FacePartIndex(strcmp(faceRole,'engine')) == interiorPart));    % (sealed under the hood)
+assert(all(labeled.LabelFacePart(strcmp(faceRole,'seat')) == interiorPart));
+assert(~any(labeled.LabelFacePart(strcmp(faceRole,'engine')) == interiorPart));    % (sealed under the hood)
 % (the outer walls are seen from outside; the wall between the cabin and
 % the engine compartment, at x = 3 m, is a firewall: seen only through the
 % glass, so interior)
 shellCenters = (labeled.Vertices(labeled.Faces(:,1),:) + labeled.Vertices(labeled.Faces(:,2),:) + labeled.Vertices(labeled.Faces(:,3),:))/3;
 onFirewall = abs(shellCenters(:,1) - 3) < 1e-9;
-assert(~any(labeled.FacePartIndex(strcmp(faceRole,'shell') & ~onFirewall) == interiorPart));
-assert(any(labeled.FacePartIndex(strcmp(faceRole,'shell') & onFirewall) == interiorPart));
-assert(all(strcmp(labeled.PartNames(labeled.FacePartIndex(strcmp(faceRole,'glass'))), 'glass')));
+assert(~any(labeled.LabelFacePart(strcmp(faceRole,'shell') & ~onFirewall) == interiorPart));
+assert(any(labeled.LabelFacePart(strcmp(faceRole,'shell') & onFirewall) == interiorPart));
+assert(all(strcmp(labeled.LabelPartNames(labeled.LabelFacePart(strcmp(faceRole,'glass'))), 'glass')));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -112,14 +112,14 @@ figure(figNum); close(figNum);
 % (a 10 cm hole: smaller than GapSize, closed)
 [smallHole, faceRole] = fcn_INTERNAL_boxCar([1.70 1.80 -0.05 0.05]);
 labeled = fcn_CarMesh3D_labelInterior(smallHole, FigNum=-1);
-interiorPart = find(strcmp(labeled.PartNames,'interior'));
-assert(all(labeled.FacePartIndex(strcmp(faceRole,'seat')) == interiorPart));
+interiorPart = find(strcmp(labeled.LabelPartNames,'interior'));
+assert(all(labeled.LabelFacePart(strcmp(faceRole,'seat')) == interiorPart));
 % (a 50 cm hole under the seat: the outside comes in, so the seat is
 % seen from outside, not only through the glass)
 [largeHole, faceRole] = fcn_INTERNAL_boxCar([1.50 2.00 -0.25 0.25]);
 labeled = fcn_CarMesh3D_labelInterior(largeHole, FigNum=-1);
-interiorPart = find(strcmp(labeled.PartNames,'interior'));
-assert(~any(labeled.FacePartIndex(strcmp(faceRole,'seat')) == interiorPart));
+interiorPart = find(strcmp(labeled.LabelPartNames,'interior'));
+assert(~any(labeled.LabelFacePart(strcmp(faceRole,'seat')) == interiorPart));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -133,12 +133,12 @@ figure(figNum); close(figNum);
 
 [boxCar, faceRole] = fcn_INTERNAL_boxCar([]);
 labeled = fcn_CarMesh3D_labelInterior(boxCar, Parts={'body'}, FigNum=-1);     % (the seat is trim)
-assert(~any(labeled.FacePartIndex(strcmp(faceRole,'seat')) == find(strcmp(labeled.PartNames,'interior'))));
+assert(~any(labeled.LabelFacePart(strcmp(faceRole,'seat')) == find(strcmp(labeled.LabelPartNames,'interior'))));
 assert(labeled.InteriorInfo.NumFromPart.body == labeled.InteriorInfo.NumInterior);   % (only body faces: the firewall)
 labeledTwice = fcn_CarMesh3D_labelInterior(fcn_CarMesh3D_labelInterior(boxCar, FigNum=-1), FigNum=-1);
-assert(nnz(strcmp(labeledTwice.PartNames,'interior')) == 1);
+assert(nnz(strcmp(labeledTwice.LabelPartNames,'interior')) == 1);
 once = fcn_CarMesh3D_labelInterior(boxCar, FigNum=-1);
-assert(isequal(labeledTwice.FacePartIndex, once.FacePartIndex));
+assert(isequal(labeledTwice.LabelFacePart, once.LabelFacePart));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -162,7 +162,7 @@ fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 [boxCar, faceRole] = fcn_INTERNAL_boxCar([]);
 labeled = fcn_CarMesh3D_labelInterior(boxCar, FigNum=[]);
-assert(all(labeled.FacePartIndex(strcmp(faceRole,'seat')) == find(strcmp(labeled.PartNames,'interior'))));
+assert(all(labeled.LabelFacePart(strcmp(faceRole,'seat')) == find(strcmp(labeled.LabelPartNames,'interior'))));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
@@ -171,7 +171,7 @@ figNum = 80002;
 fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 labeled = fcn_CarMesh3D_labelInterior(boxCar, FigNum=-1);
-assert(all(labeled.FacePartIndex(strcmp(faceRole,'seat')) == find(strcmp(labeled.PartNames,'interior'))));
+assert(all(labeled.LabelFacePart(strcmp(faceRole,'seat')) == find(strcmp(labeled.LabelPartNames,'interior'))));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
@@ -253,8 +253,8 @@ vehicleMesh = struct();
 vehicleMesh.Name = 'box car';
 vehicleMesh.Vertices = vertices;
 vehicleMesh.Faces = faces;
-vehicleMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
-vehicleMesh.FacePartIndex = partOfFace;
+vehicleMesh.LabelPartNames = {'body';'glass';'wheel';'light';'trim'};
+vehicleMesh.LabelFacePart = partOfFace;
 vehicleMesh.FaceWheelIndex = zeros(numFaces,1);
 vehicleMesh.FaceColors = repmat([0.5 0.5 0.5], numFaces, 1);
 vehicleMesh.FaceAlpha = ones(numFaces,1);

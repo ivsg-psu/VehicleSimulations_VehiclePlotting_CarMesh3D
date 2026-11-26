@@ -300,7 +300,7 @@ end
 if flag_do_plots
     figure(figNum);
     clf;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     hold on;
     % Draw the frame axes: red = X forward, green = Y left, blue = Z up.
     % They start above the roof (so the vehicle cannot hide them), and the

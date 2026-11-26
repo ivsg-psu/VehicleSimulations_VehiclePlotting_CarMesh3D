@@ -29,7 +29,7 @@ cleanupOther = onCleanup(@() delete(otherFigure));
 assert(contains(titleBar.Modified, 'not found'));
 
 %% Every CarMesh3D window has the title bar, with its own function's name
-[~, viewer] = fcn_CarMesh3D_viewLabels(fcn_CarMesh3D_findVehicleFiles(fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1)).MeshFile, Visible=false, Wait=false);
+[~, viewer] = fcn_CarMesh3D_viewLabels(fcn_CarMesh3D_findVehicleFiles(fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1)).MeshFile, FlagVisible=false, FlagWait=false);
 labels = findall(viewer.Figure, 'Type', 'uilabel');
 assert(any(strcmp({labels.Text}, 'fcn_CarMesh3D_viewLabels')));
 assert(startsWith(viewer.Figure.Name, 'fcn_CarMesh3D_viewLabels'));

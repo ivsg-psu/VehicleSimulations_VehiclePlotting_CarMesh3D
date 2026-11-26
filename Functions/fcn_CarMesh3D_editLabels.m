@@ -24,15 +24,15 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    Reviewer (fcn_CarMesh3D_reviewVehicle), are given so
 % and say what they become with:
 %       Part:        'body', 'glass', 'wheel', 'light', 'trim', or
-%                    'interior' (added to PartNames if needed). ('delete',
+%                    'interior' (added to LabelPartNames if needed). ('delete',
 %                    from edits written before 2026_11_23, now hides the
 %                    faces, in the set 'hidden': see Hide)
 %       Hide:        a hidden set's name (such as 'hard top' or 'rear
 %                    wiper'), or true for the set 'hidden': the picked
 %                    faces are hidden, not deleted. They keep their part,
 %                    light type and colors, and stay in the mesh
-%                    (FaceHiddenSet: 0 for shown faces, else the set's
-%                    number in HiddenSetNames), so nothing downstream has
+%                    (LabelFaceHiddenSet: 0 for shown faces, else the set's
+%                    number in LabelHiddenSetNames), so nothing downstream has
 %                    a hole; fcn_CarMesh3D_plotVehicle does not draw them
 %                    unless its ShowHidden names the set (a hard top put
 %                    up in the rain), and the checks and outlines measure
@@ -47,19 +47,19 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    cell array, such as {'turnSignalLamp'}: a rear lamp that
 %                    is a tail light and flashes as a turn signal; a front
 %                    running light that is a turn signal too). They are
-%                    kept in FaceLightFunctions (one column per light
+%                    kept in LabelFaceAlsoLamps (one column per light
 %                    type); fcn_CarMesh3D_plotVehicle lights the face for
 %                    any of them. Faces that are not lights yet become
 %                    lights of the first type given
 %       AlsoParts:   other parts the picked faces also belong to (a cell
 %                    array, such as {'glass'}: a lamp's clear cover, which
 %                    is a light and also glass). They are kept in
-%                    FaceAlsoParts (one column per part); the face is
+%                    LabelFaceAlsoParts (one column per part); the face is
 %                    still drawn as its own part (light always wins), and
 %                    fcn_CarMesh3D_plotVehicle draws a light that is also
 %                    glass as glass while the light is off. 'light' is not
 %                    allowed here: give LightType, and the faces' other
-%                    parts as AlsoParts. On a mesh that has FaceCoverLamp
+%                    parts as AlsoParts. On a mesh that has LabelFaceCoverLamp
 %                    (lamp covers, from fcn_CarMesh3D_findLampCovers),
 %                    lights made also glass that lie over a lamp then
 %                    become that lamp's clear cover (clear glass, tinted
@@ -72,7 +72,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                       'BothSides',true, 'Material','color_notint', 'LightType','tailBrakeLamp')};
 %       vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
 %
-% INTERACTIVE EDITS. With Interactive=true, a window opens showing every
+% INTERACTIVE EDITS. With FlagInteractive=true, a window opens showing every
 % part in its own color. Click on the vehicle to select faces (a whole
 % connected piece, a single face, a whole material, or a whole group),
 % choose a label from the menu, and press "Apply label". Press "Done"
@@ -88,7 +88,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %
 %       [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh,...
 %           (Edits=edits),...
-%           (Interactive=flagInteractive),...
+%           (FlagInteractive=flagInteractive),...
 %           (GlassAlpha=alpha),...
 %           (FigNum=figNum))
 %
@@ -105,7 +105,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %      Edits: a cell array of edit structures (or a structure array), as
 %      described above. They are applied in order. Default is {}.
 %
-%      Interactive: true to open the click-to-select editor after the
+%      FlagInteractive: true to open the click-to-select editor after the
 %      scripted edits are applied. Default is false.
 %
 %      GlassAlpha: the transparency given to faces that are changed to
@@ -117,17 +117,17 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %
 % OUTPUTS:
 %
-%      vehicleMesh: the mesh with FacePartIndex, FaceLightType,
+%      vehicleMesh: the mesh with LabelFacePart, LabelFaceLamp,
 %      FaceWheelIndex, FaceColors, and FaceAlpha updated (and
-%      FaceLightFunctions, an Nfaces x numel(LightTypeNames) logical
+%      LabelFaceAlsoLamps, an Nfaces x numel(LabelLampNames) logical
 %      matrix, when an edit gives AlsoLightTypes: each light face's
-%      functions, its FaceLightType among them; and FaceAlsoParts, an
-%      Nfaces x numel(PartNames) logical matrix, when an edit gives
+%      functions, its LabelFaceLamp among them; and LabelFaceAlsoParts, an
+%      Nfaces x numel(LabelPartNames) logical matrix, when an edit gives
 %      AlsoParts or the mesh has it: the other parts of each face. A new
 %      Part or LightType clears the faces' other parts and functions).
-%      FaceCoverLamp (lamp covers), when the mesh has it, is kept one
+%      LabelFaceCoverLamp (lamp covers), when the mesh has it, is kept one
 %      row per face: a face given a new Part or LightType is no longer a
-%      lamp's cover (0). A mesh without FaceCoverLamp is left without it,
+%      lamp's cover (0). A mesh without LabelFaceCoverLamp is left without it,
 %      so fcn_CarMesh3D_plotVehicle still finds its covers when drawn.
 %
 %      appliedEdits: a structure array with one element per edit made
@@ -137,7 +137,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_findLampCovers (only after an AlsoParts edit adds
-%      glass, on a mesh with FaceCoverLamp)
+%      glass, on a mesh with LabelFaceCoverLamp)
 %
 % EXAMPLES:
 %
@@ -157,7 +157,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
 %   % * Faces relabeled to a part shown in texture colors (labelParts
-%   %   % TextureColorParts) keep their texture colors, unless the edit
+%   %   % LabelTextureColorParts) keep their texture colors, unless the edit
 %   %   % gives a color
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -178,29 +178,29 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
 %   % * Part 'interior' (fcn_CarMesh3D_labelInterior): allowed in edits and
-%   %   % in the editor; added to PartNames when a mesh does not have it;
+%   %   % in the editor; added to LabelPartNames when a mesh does not have it;
 %   %   % its faces keep their own colors. Parts are found by name in the
-%   %   % mesh's own PartNames, and colored by name
+%   %   % mesh's own LabelPartNames, and colored by name
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
 %   % * AlsoLightTypes: a light face can have several functions (a tail
-%   %   % light that is also a turn signal), kept in FaceLightFunctions;
+%   %   % light that is also a turn signal), kept in LabelFaceAlsoLamps;
 %   %   % fcn_CarMesh3D_plotVehicle lights it for any of them (Sean's
 %   %   % multi-function lights, 01:57)
 %   % * AlsoParts: a face can belong to more than one part, light always
 %   %   % winning (a lamp's clear cover: a light that is also glass), kept
-%   %   % in FaceAlsoParts (Sean's multi-part faces, 01:57; 23:04, B)
+%   %   % in LabelFaceAlsoParts (Sean's multi-part faces, 01:57; 23:04, B)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
 %   % * 'highBeamLamp' light type (Sean, 03:27); a mesh made before it gets it
-%   %   % added to its LightTypeNames (and a column in FaceLightFunctions)
+%   %   % added to its LabelLampNames (and a column in LabelFaceAlsoLamps)
 %   %   % when an edit needs it
 
 % 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
-%   % * Clear lamp covers (FaceCoverLamp, from fcn_CarMesh3D_findLampCovers;
+%   % * Clear lamp covers (LabelFaceCoverLamp, from fcn_CarMesh3D_findLampCovers;
 %   %   % Sean, 09:22, option A): kept one row per face (padded with zeros
 %   %   % when faces were added); a face given a new Part or LightType is
 %   %   % no longer a cover (also in the click editor, and undone with
@@ -250,7 +250,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 arguments
     vehicleMesh
     options.Edits = {}          % Cell array (or struct array) of edits
-    options.Interactive = false % Open the click-to-select editor?
+    options.FlagInteractive = false % Open the click-to-select editor?
     options.GlassAlpha = 0.35   % Transparency of faces changed to glass
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
@@ -298,8 +298,8 @@ end
 %              |_|
 % See: http://patorjk.com/software/taag/#p=display&f=Big&t=Inputs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
-lightTypeNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
+labelPartNames = {'body';'glass';'wheel';'light';'trim';'interior'};
+labelLampNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
 
 % Edits may be a struct array or a cell array; use a cell array inside
 editList = options.Edits;
@@ -313,7 +313,7 @@ if 0==flag_max_speed
         % arguments block above
 
         % Check the vehicleMesh input
-        requiredFields = {'Vertices','Faces','FacePartIndex','FaceColors','FaceAlpha'};
+        requiredFields = {'Vertices','Faces','LabelFacePart','FaceColors','FaceAlpha'};
         if ~isstruct(vehicleMesh)
             error('vehicleMesh must be a CarMesh3D mesh structure');
         end
@@ -350,18 +350,18 @@ if 0==flag_max_speed
                 if any(strcmp(alsoParts,'light'))
                     error('Edit %d: AlsoParts cannot be ''light'' (light always wins): give LightType, and the other parts as AlsoParts',ith_edit);
                 end
-                if ~all(ismember(alsoParts, setdiff(partNames, {'light'})))
-                    error('Edit %d has an unknown AlsoParts entry. Allowed: %s',ith_edit,strjoin(setdiff(partNames, {'light'}, 'stable')',', '));
+                if ~all(ismember(alsoParts, setdiff(labelPartNames, {'light'})))
+                    error('Edit %d has an unknown AlsoParts entry. Allowed: %s',ith_edit,strjoin(setdiff(labelPartNames, {'light'}, 'stable')',', '));
                 end
             end
-            if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lower(lightTypeNames)))
-                error('Edit %d has an unknown AlsoLightTypes entry. Allowed: %s',ith_edit,strjoin(lightTypeNames',', '));
+            if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lower(labelLampNames)))
+                error('Edit %d has an unknown AlsoLightTypes entry. Allowed: %s',ith_edit,strjoin(labelLampNames',', '));
             end
-            if fcn_INTERNAL_hasValue(thisEdit,'Part') && ~any(strcmpi(thisEdit.Part, [partNames; {'delete'}]))
-                error('Edit %d has an unknown Part: %s. Allowed: %s, delete',ith_edit,char(thisEdit.Part),strjoin(partNames',', '));
+            if fcn_INTERNAL_hasValue(thisEdit,'Part') && ~any(strcmpi(thisEdit.Part, [labelPartNames; {'delete'}]))
+                error('Edit %d has an unknown Part: %s. Allowed: %s, delete',ith_edit,char(thisEdit.Part),strjoin(labelPartNames',', '));
             end
-            if fcn_INTERNAL_hasValue(thisEdit,'LightType') && ~any(strcmpi(thisEdit.LightType, lightTypeNames))
-                error('Edit %d has an unknown LightType: %s. Allowed: %s',ith_edit,char(thisEdit.LightType),strjoin(lightTypeNames',', '));
+            if fcn_INTERNAL_hasValue(thisEdit,'LightType') && ~any(strcmpi(thisEdit.LightType, labelLampNames))
+                error('Edit %d has an unknown LightType: %s. Allowed: %s',ith_edit,char(thisEdit.LightType),strjoin(labelLampNames',', '));
             end
             if fcn_INTERNAL_hasValue(thisEdit,'Region') && (~isnumeric(thisEdit.Region) || numel(thisEdit.Region)~=6)
                 error('Edit %d: Region must be [xmin xmax ymin ymax zmin zmax]',ith_edit);
@@ -374,7 +374,7 @@ if 0==flag_max_speed
         end
 
         % Check the Interactive input
-        if ~(islogical(options.Interactive) || isnumeric(options.Interactive)) || ~isscalar(options.Interactive)
+        if ~(islogical(options.FlagInteractive) || isnumeric(options.FlagInteractive)) || ~isscalar(options.FlagInteractive)
             error('Interactive must be true or false');
         end
     end
@@ -403,35 +403,35 @@ end
 Nfaces = size(vehicleMesh.Faces,1);
 
 % Make sure the light and wheel fields exist
-if ~isfield(vehicleMesh,'LightTypeNames') || isempty(vehicleMesh.LightTypeNames)
-    vehicleMesh.LightTypeNames = lightTypeNames;
+if ~isfield(vehicleMesh,'LabelLampNames') || isempty(vehicleMesh.LabelLampNames)
+    vehicleMesh.LabelLampNames = labelLampNames;
 end
 % (a mesh made before a light type was added gets it at the end, so its
 % faces' type numbers stay as they are)
-missingTypes = setdiff(lightTypeNames, vehicleMesh.LightTypeNames, 'stable');
+missingTypes = setdiff(labelLampNames, vehicleMesh.LabelLampNames, 'stable');
 if ~isempty(missingTypes)
-    vehicleMesh.LightTypeNames = [reshape(cellstr(vehicleMesh.LightTypeNames), [], 1); missingTypes(:)];
-    if isfield(vehicleMesh,'FaceLightFunctions') && ~isempty(vehicleMesh.FaceLightFunctions)
-        vehicleMesh.FaceLightFunctions(:, end+1:numel(vehicleMesh.LightTypeNames)) = false;
+    vehicleMesh.LabelLampNames = [reshape(cellstr(vehicleMesh.LabelLampNames), [], 1); missingTypes(:)];
+    if isfield(vehicleMesh,'LabelFaceAlsoLamps') && ~isempty(vehicleMesh.LabelFaceAlsoLamps)
+        vehicleMesh.LabelFaceAlsoLamps(:, end+1:numel(vehicleMesh.LabelLampNames)) = false;
     end
 end
-if ~isfield(vehicleMesh,'FaceLightType') || isempty(vehicleMesh.FaceLightType)
-    vehicleMesh.FaceLightType = zeros(Nfaces,1);
+if ~isfield(vehicleMesh,'LabelFaceLamp') || isempty(vehicleMesh.LabelFaceLamp)
+    vehicleMesh.LabelFaceLamp = zeros(Nfaces,1);
 end
 if ~isfield(vehicleMesh,'FaceWheelIndex') || isempty(vehicleMesh.FaceWheelIndex)
     vehicleMesh.FaceWheelIndex = zeros(Nfaces,1);
 end
-% (lamp covers, FaceCoverLamp: kept one row per face, padded with zeros,
+% (lamp covers, LabelFaceCoverLamp: kept one row per face, padded with zeros,
 % "not a cover", if faces were added since. Its numbers are light types,
 % which stay as they are when a type is added at the end above. A mesh
 % without it is left without it: fcn_CarMesh3D_plotVehicle finds its
 % covers when it is drawn)
-if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) ~= Nfaces
-    oldCovers = double(vehicleMesh.FaceCoverLamp(:));
-    vehicleMesh.FaceCoverLamp = zeros(Nfaces,1);
-    vehicleMesh.FaceCoverLamp(1:min(Nfaces, numel(oldCovers))) = oldCovers(1:min(Nfaces, numel(oldCovers)));
+if isfield(vehicleMesh,'LabelFaceCoverLamp') && numel(vehicleMesh.LabelFaceCoverLamp) ~= Nfaces
+    oldCovers = double(vehicleMesh.LabelFaceCoverLamp(:));
+    vehicleMesh.LabelFaceCoverLamp = zeros(Nfaces,1);
+    vehicleMesh.LabelFaceCoverLamp(1:min(Nfaces, numel(oldCovers))) = oldCovers(1:min(Nfaces, numel(oldCovers)));
 end
-flag_find_covers = false;   % (set when an edit makes lights also glass: they may be lamp covers)
+flagFindCovers = false;   % (set when an edit makes lights also glass: they may be lamp covers)
 
 appliedEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 
@@ -474,7 +474,7 @@ for ith_edit = 1:length(editList)
             % (recorded as 'light+glass': the part, then its other parts)
             newPart = [char(newPart) '+' strjoin(alsoParts, '+')];
             if any(strcmp(alsoParts, 'glass')) && ~isempty(selectedFaces)
-                flag_find_covers = true;
+                flagFindCovers = true;
             end
         end
     end
@@ -488,20 +488,20 @@ for ith_edit = 1:length(editList)
 end
 
 % Interactive edits
-if options.Interactive
+if options.FlagInteractive
     [vehicleMesh, interactiveEdits] = fcn_INTERNAL_interactiveEditor(vehicleMesh, options.GlassAlpha);
     appliedEdits = [appliedEdits, interactiveEdits];
 end
 
 % Lamp covers: lights made also glass by an edit, lying over a lamp,
 % become that lamp's clear cover, as in fcn_CarMesh3D_labelParts (only on
-% a mesh that has FaceCoverLamp; one without it has its covers found when
+% a mesh that has LabelFaceCoverLamp; one without it has its covers found when
 % it is drawn)
-if flag_find_covers && isfield(vehicleMesh,'FaceCoverLamp')
+if flagFindCovers && isfield(vehicleMesh,'LabelFaceCoverLamp')
     vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, FigNum=-1);
 end
 
-if flag_do_debug || (options.Interactive && 0==flag_max_speed)
+if flag_do_debug || (options.FlagInteractive && 0==flag_max_speed)
     fcn_INTERNAL_printSummary(vehicleMesh, appliedEdits);
 end
 
@@ -545,27 +545,27 @@ end % Ends main function
 
 %% fcn_INTERNAL_hasValue
 function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_addLightFunctions(vehicleMesh, selectedFaces, alsoTypes, newPart, newLightType, glassAlpha)
-% Gives the selected faces more light functions (FaceLightFunctions: one
+% Gives the selected faces more light functions (LabelFaceAlsoLamps: one
 % column per light type, each light face's own type among them). Faces
 % that are not lights yet become lights of the first type given.
 Nfaces = size(vehicleMesh.Faces,1);
-lightTypeNames = vehicleMesh.LightTypeNames;
-if ~isfield(vehicleMesh,'FaceLightFunctions') || size(vehicleMesh.FaceLightFunctions,1) ~= Nfaces ...
-        || size(vehicleMesh.FaceLightFunctions,2) ~= numel(lightTypeNames)
-    functions = false(Nfaces, numel(lightTypeNames));
-    flagTyped = vehicleMesh.FaceLightType(:) > 0;
-    functions(sub2ind(size(functions), find(flagTyped), vehicleMesh.FaceLightType(flagTyped))) = true;
-    vehicleMesh.FaceLightFunctions = functions;
+labelLampNames = vehicleMesh.LabelLampNames;
+if ~isfield(vehicleMesh,'LabelFaceAlsoLamps') || size(vehicleMesh.LabelFaceAlsoLamps,1) ~= Nfaces ...
+        || size(vehicleMesh.LabelFaceAlsoLamps,2) ~= numel(labelLampNames)
+    functions = false(Nfaces, numel(labelLampNames));
+    flagTyped = vehicleMesh.LabelFaceLamp(:) > 0;
+    functions(sub2ind(size(functions), find(flagTyped), vehicleMesh.LabelFaceLamp(flagTyped))) = true;
+    vehicleMesh.LabelFaceAlsoLamps = functions;
 end
 if isempty(selectedFaces)
     return;
 end
-flagNotLight = vehicleMesh.FaceLightType(selectedFaces) == 0;
+flagNotLight = vehicleMesh.LabelFaceLamp(selectedFaces) == 0;
 if any(flagNotLight)
     [vehicleMesh, ~, ~] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces(flagNotLight), 'light', alsoTypes{1}, [], glassAlpha);
 end
-typeColumns = find(ismember(lightTypeNames, alsoTypes));
-vehicleMesh.FaceLightFunctions(selectedFaces, typeColumns) = true;
+typeColumns = find(ismember(labelLampNames, alsoTypes));
+vehicleMesh.LabelFaceAlsoLamps(selectedFaces, typeColumns) = true;
 if isempty(newPart)
     newPart = 'light';
 end
@@ -577,26 +577,26 @@ end
 end % Ends fcn_INTERNAL_addLightFunctions
 
 function vehicleMesh = fcn_INTERNAL_hideFaces(vehicleMesh, selectedFaces, setName)
-% Hides faces in a named set (FaceHiddenSet: the set's number in
-% HiddenSetNames), or shows them again (setName ''). The faces stay in
+% Hides faces in a named set (LabelFaceHiddenSet: the set's number in
+% LabelHiddenSetNames), or shows them again (setName ''). The faces stay in
 % the mesh, with their labels.
 Nfaces = size(vehicleMesh.Faces,1);
-if ~isfield(vehicleMesh,'FaceHiddenSet') || numel(vehicleMesh.FaceHiddenSet) ~= Nfaces
-    vehicleMesh.FaceHiddenSet = zeros(Nfaces,1);
+if ~isfield(vehicleMesh,'LabelFaceHiddenSet') || numel(vehicleMesh.LabelFaceHiddenSet) ~= Nfaces
+    vehicleMesh.LabelFaceHiddenSet = zeros(Nfaces,1);
 end
-if ~isfield(vehicleMesh,'HiddenSetNames')
-    vehicleMesh.HiddenSetNames = cell(0,1);
+if ~isfield(vehicleMesh,'LabelHiddenSetNames')
+    vehicleMesh.LabelHiddenSetNames = cell(0,1);
 end
 if isempty(setName)
-    vehicleMesh.FaceHiddenSet(selectedFaces) = 0;
+    vehicleMesh.LabelFaceHiddenSet(selectedFaces) = 0;
     return;
 end
-setIndex = find(strcmp(cellstr(vehicleMesh.HiddenSetNames), setName), 1);
+setIndex = find(strcmp(cellstr(vehicleMesh.LabelHiddenSetNames), setName), 1);
 if isempty(setIndex)
-    vehicleMesh.HiddenSetNames{end+1,1} = setName;
-    setIndex = numel(vehicleMesh.HiddenSetNames);
+    vehicleMesh.LabelHiddenSetNames{end+1,1} = setName;
+    setIndex = numel(vehicleMesh.LabelHiddenSetNames);
 end
-vehicleMesh.FaceHiddenSet(selectedFaces) = setIndex;
+vehicleMesh.LabelFaceHiddenSet(selectedFaces) = setIndex;
 end % Ends fcn_INTERNAL_hideFaces
 
 function flag = fcn_INTERNAL_hasValue(thisStruct, fieldName)
@@ -668,8 +668,8 @@ if fcn_INTERNAL_hasValue(thisEdit,'Group')
 end
 
 if fcn_INTERNAL_hasValue(thisEdit,'CurrentPart')
-    partIndex = find(strcmpi(thisEdit.CurrentPart, vehicleMesh.PartNames));
-    flagSelected = flagSelected & vehicleMesh.FacePartIndex(:)==partIndex;
+    partIndex = find(strcmpi(thisEdit.CurrentPart, vehicleMesh.LabelPartNames));
+    flagSelected = flagSelected & vehicleMesh.LabelFacePart(:)==partIndex;
 end
 
 if fcn_INTERNAL_hasValue(thisEdit,'Points')
@@ -700,30 +700,30 @@ end % Ends fcn_INTERNAL_selectFaces
 %% fcn_INTERNAL_addAlsoParts
 function vehicleMesh = fcn_INTERNAL_addAlsoParts(vehicleMesh, selectedFaces, alsoParts)
 % Marks the selected faces as also belonging to other parts
-% (FaceAlsoParts: one column per part in PartNames). A face's own part
+% (LabelFaceAlsoParts: one column per part in LabelPartNames). A face's own part
 % is not marked again
 for ith_part = 1:numel(alsoParts)
-    if ~any(strcmp(alsoParts{ith_part}, vehicleMesh.PartNames))
-        vehicleMesh.PartNames{end+1} = alsoParts{ith_part};
+    if ~any(strcmp(alsoParts{ith_part}, vehicleMesh.LabelPartNames))
+        vehicleMesh.LabelPartNames{end+1} = alsoParts{ith_part};
     end
 end
 vehicleMesh = fcn_INTERNAL_sizeAlsoParts(vehicleMesh);
-partColumns = find(ismember(vehicleMesh.PartNames, alsoParts));
+partColumns = find(ismember(vehicleMesh.LabelPartNames, alsoParts));
 for ith_column = partColumns(:)'
-    theseFaces = selectedFaces(vehicleMesh.FacePartIndex(selectedFaces) ~= ith_column);
-    vehicleMesh.FaceAlsoParts(theseFaces, ith_column) = true;
+    theseFaces = selectedFaces(vehicleMesh.LabelFacePart(selectedFaces) ~= ith_column);
+    vehicleMesh.LabelFaceAlsoParts(theseFaces, ith_column) = true;
 end
 end % Ends fcn_INTERNAL_addAlsoParts
 
 %% fcn_INTERNAL_sizeAlsoParts
 function vehicleMesh = fcn_INTERNAL_sizeAlsoParts(vehicleMesh)
-% FaceAlsoParts, made (all false) or widened to one column per part
+% LabelFaceAlsoParts, made (all false) or widened to one column per part
 Nfaces = size(vehicleMesh.Faces,1);
-Nparts = numel(vehicleMesh.PartNames);
-if ~isfield(vehicleMesh,'FaceAlsoParts') || size(vehicleMesh.FaceAlsoParts,1) ~= Nfaces
-    vehicleMesh.FaceAlsoParts = false(Nfaces, Nparts);
-elseif size(vehicleMesh.FaceAlsoParts,2) < Nparts
-    vehicleMesh.FaceAlsoParts(:, end+1:Nparts) = false;
+Nparts = numel(vehicleMesh.LabelPartNames);
+if ~isfield(vehicleMesh,'LabelFaceAlsoParts') || size(vehicleMesh.LabelFaceAlsoParts,1) ~= Nfaces
+    vehicleMesh.LabelFaceAlsoParts = false(Nfaces, Nparts);
+elseif size(vehicleMesh.LabelFaceAlsoParts,2) < Nparts
+    vehicleMesh.LabelFaceAlsoParts(:, end+1:Nparts) = false;
 end
 end % Ends fcn_INTERNAL_sizeAlsoParts
 
@@ -731,8 +731,8 @@ end % Ends fcn_INTERNAL_sizeAlsoParts
 function [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_applyLabel(vehicleMesh, selectedFaces, newPart, newLightType, newColor, glassAlpha)
 % Gives the selected faces a new part (and light type), with matching
 % default colors and transparency
-partNames = {'body';'glass';'wheel';'light';'trim';'interior'};
-lightTypeNames = vehicleMesh.LightTypeNames;
+labelPartNames = {'body';'glass';'wheel';'light';'trim';'interior'};
+labelLampNames = vehicleMesh.LabelLampNames;
 defaultPartColors = [0.60 0.60 0.65; 0.15 0.20 0.25; 0.10 0.10 0.10; 0.95 0.90 0.80; 0.20 0.20 0.20; 0.35 0.33 0.32];
 lampTypes = fcn_CarMesh3D_lampTypes();
 defaultLightColors = cell2struct({lampTypes.FaceColor}', {lampTypes.Name}', 1);
@@ -745,58 +745,58 @@ newLightType = char(fcn_INTERNAL_lampKey(char(newLightType)));   % (the lamp key
 if isempty(selectedFaces)
     return;
 end
-% (the part's index in this mesh's own PartNames: 'interior' is added
+% (the part's index in this mesh's own LabelPartNames: 'interior' is added
 % when a mesh does not have it yet)
-partIndex = find(strcmp(newPart, vehicleMesh.PartNames), 1);
+partIndex = find(strcmp(newPart, vehicleMesh.LabelPartNames), 1);
 if isempty(partIndex)
-    vehicleMesh.PartNames{end+1} = newPart;
-    partIndex = numel(vehicleMesh.PartNames);
+    vehicleMesh.LabelPartNames{end+1} = newPart;
+    partIndex = numel(vehicleMesh.LabelPartNames);
 end
 % (each face's label before the edit, and this part's usual color on this
 % vehicle: the most common color of its faces outside the edit; Q88 (A))
-oldPartIndex = vehicleMesh.FacePartIndex(selectedFaces);
+oldPartIndex = vehicleMesh.LabelFacePart(selectedFaces);
 oldPartIndex = oldPartIndex(:);
 oldLightType = zeros(numel(selectedFaces),1);
-if isfield(vehicleMesh,'FaceLightType') && numel(vehicleMesh.FaceLightType) == size(vehicleMesh.Faces,1)
-    oldLightType = double(vehicleMesh.FaceLightType(selectedFaces));
+if isfield(vehicleMesh,'LabelFaceLamp') && numel(vehicleMesh.LabelFaceLamp) == size(vehicleMesh.Faces,1)
+    oldLightType = double(vehicleMesh.LabelFaceLamp(selectedFaces));
     oldLightType = oldLightType(:);
 end
 otherFaces = true(size(vehicleMesh.Faces,1),1);
 otherFaces(selectedFaces) = false;
-otherFaces = otherFaces & vehicleMesh.FacePartIndex(:) == partIndex;
+otherFaces = otherFaces & vehicleMesh.LabelFacePart(:) == partIndex;
 usualColor = [];
 if any(otherFaces) && isfield(vehicleMesh,'FaceColors') && size(vehicleMesh.FaceColors,1) == size(vehicleMesh.Faces,1)
     [colorRows, ~, colorOf] = unique(round(vehicleMesh.FaceColors(otherFaces,:)*100)/100, 'rows');
     usualColor = colorRows(mode(colorOf),:);
 end
-vehicleMesh.FacePartIndex(selectedFaces) = partIndex;
+vehicleMesh.LabelFacePart(selectedFaces) = partIndex;
 
 % (a new label replaces the faces' other parts)
-if isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1) == size(vehicleMesh.Faces,1)
-    vehicleMesh.FaceAlsoParts(selectedFaces,:) = false;
+if isfield(vehicleMesh,'LabelFaceAlsoParts') && size(vehicleMesh.LabelFaceAlsoParts,1) == size(vehicleMesh.Faces,1)
+    vehicleMesh.LabelFaceAlsoParts(selectedFaces,:) = false;
 end
 % (and a face given a new label is no longer a lamp's clear cover)
-if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) == size(vehicleMesh.Faces,1)
-    vehicleMesh.FaceCoverLamp(selectedFaces) = 0;
+if isfield(vehicleMesh,'LabelFaceCoverLamp') && numel(vehicleMesh.LabelFaceCoverLamp) == size(vehicleMesh.Faces,1)
+    vehicleMesh.LabelFaceCoverLamp(selectedFaces) = 0;
 end
 
 % Light type (a new label replaces the faces' light functions)
-if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
-    vehicleMesh.FaceLightFunctions(selectedFaces,:) = false;
+if isfield(vehicleMesh,'LabelFaceAlsoLamps') && size(vehicleMesh.LabelFaceAlsoLamps,1) == size(vehicleMesh.Faces,1)
+    vehicleMesh.LabelFaceAlsoLamps(selectedFaces,:) = false;
 end
 if strcmp(newPart,'light') && ~isempty(newLightType)
-    lightIndex = find(strcmp(newLightType, lightTypeNames));
-    vehicleMesh.FaceLightType(selectedFaces) = lightIndex;
-    if isfield(vehicleMesh,'FaceLightFunctions') && size(vehicleMesh.FaceLightFunctions,1) == size(vehicleMesh.Faces,1)
-        vehicleMesh.FaceLightFunctions(selectedFaces, lightIndex) = true;
+    lightIndex = find(strcmp(newLightType, labelLampNames));
+    vehicleMesh.LabelFaceLamp(selectedFaces) = lightIndex;
+    if isfield(vehicleMesh,'LabelFaceAlsoLamps') && size(vehicleMesh.LabelFaceAlsoLamps,1) == size(vehicleMesh.Faces,1)
+        vehicleMesh.LabelFaceAlsoLamps(selectedFaces, lightIndex) = true;
     end
     defaultColor = [0.90 0.90 0.85];
     if isfield(defaultLightColors, newLightType)
         defaultColor = defaultLightColors.(newLightType);
     end
 else
-    vehicleMesh.FaceLightType(selectedFaces) = 0;
-    defaultColor = defaultPartColors(strcmp(newPart, partNames),:);
+    vehicleMesh.LabelFaceLamp(selectedFaces) = 0;
+    defaultColor = defaultPartColors(strcmp(newPart, labelPartNames),:);
     if ~isempty(usualColor)
         defaultColor = usualColor;   % (this vehicle's own color for the part: Q88 (A))
     end
@@ -805,7 +805,7 @@ end
 % Wheel corner
 if strcmp(newPart,'wheel')
     faceCenters = fcn_INTERNAL_faceCenters(vehicleMesh);
-    allWheelFaces = find(vehicleMesh.FacePartIndex==3);
+    allWheelFaces = find(vehicleMesh.LabelFacePart==3);
     xSplit = (min(faceCenters(allWheelFaces,1)) + max(faceCenters(allWheelFaces,1)))/2;
     theseCenters = faceCenters(selectedFaces,:);
     cornerIndex = 1 + (theseCenters(:,2)<=0) + 2*(theseCenters(:,1)<=xSplit); % 1 FL, 2 FR, 3 RL, 4 RR
@@ -827,15 +827,15 @@ if flagNoColorGiven && strcmp(newPart,'interior')
     vehicleMesh.FaceColors(selectedFaces,:) = originalColors;
 end
 % (parts shown in texture colors, set by fcn_CarMesh3D_labelParts
-% TextureColorParts, keep them, unless the edit gave a color)
-if flagNoColorGiven && isfield(vehicleMesh,'TextureColorParts') && any(strcmpi(newPart, vehicleMesh.TextureColorParts)) ...
+% LabelTextureColorParts, keep them, unless the edit gave a color)
+if flagNoColorGiven && isfield(vehicleMesh,'LabelTextureColorParts') && any(strcmpi(newPart, vehicleMesh.LabelTextureColorParts)) ...
         && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==size(vehicleMesh.Faces,1)
     vehicleMesh.FaceColors(selectedFaces,:) = vehicleMesh.FaceTextureColors(selectedFaces,:);
 end
 % (a face whose label is the same as before keeps its color, unless the
 % edit gave a color: painting body over body changes nothing; Q88 (A))
 if flagNoColorGiven
-    newLightIndex = double(vehicleMesh.FaceLightType(selectedFaces));
+    newLightIndex = double(vehicleMesh.LabelFaceLamp(selectedFaces));
     flagUnchanged = oldPartIndex == partIndex & oldLightType == newLightIndex(:);
     vehicleMesh.FaceColors(selectedFaces(flagUnchanged),:) = originalColors(flagUnchanged,:);
 end
@@ -848,11 +848,11 @@ end % Ends fcn_INTERNAL_applyLabel
 
 %% fcn_INTERNAL_coverValues
 function coverValues = fcn_INTERNAL_coverValues(vehicleMesh, theseFaces)
-% The faces' FaceCoverLamp values (lamp covers), or [] if the mesh does
+% The faces' LabelFaceCoverLamp values (lamp covers), or [] if the mesh does
 % not have them, kept so the click editor can undo a label
 coverValues = [];
-if isfield(vehicleMesh,'FaceCoverLamp') && numel(vehicleMesh.FaceCoverLamp) == size(vehicleMesh.Faces,1)
-    coverValues = vehicleMesh.FaceCoverLamp(theseFaces);
+if isfield(vehicleMesh,'LabelFaceCoverLamp') && numel(vehicleMesh.LabelFaceCoverLamp) == size(vehicleMesh.Faces,1)
+    coverValues = vehicleMesh.LabelFaceCoverLamp(theseFaces);
 end
 end % Ends fcn_INTERNAL_coverValues
 
@@ -861,11 +861,11 @@ function [displayColors, legendNames, legendColors] = fcn_INTERNAL_labelColors(v
 % False colors that show each part and light type clearly
 partColors = [0.80 0.80 0.80; 0.45 0.70 1.00; 0.15 0.15 0.15; 1.00 1.00 0.60; 0.80 0.45 0.15; 0.85 0.65 0.40];
 lightColors = [1.00 1.00 0.20; 1.00 0.55 0.00; 0.70 1.00 0.70; 0.90 0.05 0.05; 0.60 0.20 1.00; 0.10 0.85 0.85];
-lightColors = lightColors(1:min(end, numel(vehicleMesh.LightTypeNames)),:);
-lightColors(end+1:numel(vehicleMesh.LightTypeNames),:) = 0.5;   % (any other light type: gray, unless listed)
+lightColors = lightColors(1:min(end, numel(vehicleMesh.LabelLampNames)),:);
+lightColors(end+1:numel(vehicleMesh.LabelLampNames),:) = 0.5;   % (any other light type: gray, unless listed)
 lampTypes = fcn_CarMesh3D_lampTypes();
-for ith_type = 7:numel(vehicleMesh.LightTypeNames)   % (the newer types: their label colors)
-    thisType = lampTypes(strcmp({lampTypes.Name}, vehicleMesh.LightTypeNames{ith_type}));
+for ith_type = 7:numel(vehicleMesh.LabelLampNames)   % (the newer types: their label colors)
+    thisType = lampTypes(strcmp({lampTypes.Name}, vehicleMesh.LabelLampNames{ith_type}));
     if ~isempty(thisType)
         lightColors(ith_type,:) = thisType.LabelColor;
     end
@@ -874,18 +874,18 @@ Nfaces = size(vehicleMesh.Faces,1);
 % (by part name, so a mesh whose parts are in another order, or that has
 % 'interior', is colored right)
 standardNames = {'body';'glass';'wheel';'light';'trim';'interior'};
-displayColors = repmat([0.5 0.5 0.5], numel(vehicleMesh.FacePartIndex), 1);
-for ith_part = 1:numel(vehicleMesh.PartNames)
-    standardIndex = find(strcmp(vehicleMesh.PartNames{ith_part}, standardNames), 1);
+displayColors = repmat([0.5 0.5 0.5], numel(vehicleMesh.LabelFacePart), 1);
+for ith_part = 1:numel(vehicleMesh.LabelPartNames)
+    standardIndex = find(strcmp(vehicleMesh.LabelPartNames{ith_part}, standardNames), 1);
     if ~isempty(standardIndex)
-        flagPart = vehicleMesh.FacePartIndex(:)==ith_part;
+        flagPart = vehicleMesh.LabelFacePart(:)==ith_part;
         displayColors(flagPart,:) = repmat(partColors(standardIndex,:), nnz(flagPart), 1);
     end
 end
-faceLightType = vehicleMesh.FaceLightType(:);
-flagTyped = faceLightType>0;
-displayColors(flagTyped,:) = lightColors(faceLightType(flagTyped),:);
-legendNames = [{'body';'glass';'wheel';'light (no type)';'trim';'interior'}; strcat({'light: '}, vehicleMesh.LightTypeNames(:))];
+labelFaceLamp = vehicleMesh.LabelFaceLamp(:);
+flagTyped = labelFaceLamp>0;
+displayColors(flagTyped,:) = lightColors(labelFaceLamp(flagTyped),:);
+legendNames = [{'body';'glass';'wheel';'light (no type)';'trim';'interior'}; strcat({'light: '}, vehicleMesh.LabelLampNames(:))];
 legendColors = [partColors; lightColors];
 if Nfaces==0
     displayColors = zeros(0,3);
@@ -1134,8 +1134,8 @@ end
         end
         % Remember the old values, for undo
         undoStack{end+1} = struct('Faces',theseFaces, ...
-            'Part',vehicleMesh.FacePartIndex(theseFaces), ...
-            'LightType',vehicleMesh.FaceLightType(theseFaces), ...
+            'Part',vehicleMesh.LabelFacePart(theseFaces), ...
+            'LightType',vehicleMesh.LabelFaceLamp(theseFaces), ...
             'Wheel',vehicleMesh.FaceWheelIndex(theseFaces), ...
             'Colors',vehicleMesh.FaceColors(theseFaces,:), ...
             'Alpha',vehicleMesh.FaceAlpha(theseFaces), ...
@@ -1155,13 +1155,13 @@ end
         end
         lastChange = undoStack{end};
         undoStack(end) = [];
-        vehicleMesh.FacePartIndex(lastChange.Faces) = lastChange.Part;
-        vehicleMesh.FaceLightType(lastChange.Faces) = lastChange.LightType;
+        vehicleMesh.LabelFacePart(lastChange.Faces) = lastChange.Part;
+        vehicleMesh.LabelFaceLamp(lastChange.Faces) = lastChange.LightType;
         vehicleMesh.FaceWheelIndex(lastChange.Faces) = lastChange.Wheel;
         vehicleMesh.FaceColors(lastChange.Faces,:) = lastChange.Colors;
         vehicleMesh.FaceAlpha(lastChange.Faces) = lastChange.Alpha;
         if ~isempty(lastChange.Cover)
-            vehicleMesh.FaceCoverLamp(lastChange.Faces) = lastChange.Cover;
+            vehicleMesh.LabelFaceCoverLamp(lastChange.Faces) = lastChange.Cover;
         end
         interactiveEdits(end) = [];
         refresh();

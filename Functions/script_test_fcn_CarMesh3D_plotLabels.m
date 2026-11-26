@@ -26,11 +26,11 @@ testMesh = struct();
 testMesh.Name = 'test box';
 testMesh.Vertices = [0 -1 0; 4 -1 0; 4 1 0; 0 1 0; 0 -1 1; 4 -1 1; 4 1 1; 0 1 1];
 testMesh.Faces = [1 2 3; 1 3 4; 5 7 6; 5 8 7; 1 6 2; 1 5 6; 2 7 3; 2 6 7; 3 8 4; 3 7 8; 4 5 1; 4 8 5];
-testMesh.PartNames = {'body','glass','wheel','light','trim'};
-testMesh.FacePartIndex = [1 1 2 2 1 1 4 4 1 1 4 4]';
+testMesh.LabelPartNames = {'body','glass','wheel','light','trim'};
+testMesh.LabelFacePart = [1 1 2 2 1 1 4 4 1 1 4 4]';
 testMesh.FaceWheelIndex = zeros(12,1);
-testMesh.LightTypeNames = {'headlamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp'};
-testMesh.FaceLightType = [0 0 0 0 0 0 1 1 0 0 4 4]';
+testMesh.LabelLampNames = {'headlamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp'};
+testMesh.LabelFaceLamp = [0 0 0 0 0 0 1 1 0 0 4 4]';
 testMesh.FaceColors = repmat([0.5 0.5 0.5],12,1);
 testMesh.FaceAlpha = ones(12,1);
 
@@ -50,7 +50,7 @@ assert(isequal({legendEntries.Name}, {'body', 'glass', 'headlamp', 'tail/brake l
 assert(isequal([legendEntries.Faces], [6 2 2 2]));
 assert(isequal(legendEntries(3).Color, [1.00 0.90 0.10]));
 untypedMesh = testMesh;
-untypedMesh.FaceLightType(7:8) = 0;   % (a lamp with no type)
+untypedMesh.LabelFaceLamp(7:8) = 0;   % (a lamp with no type)
 [~, legendEntries] = fcn_CarMesh3D_plotLabels(untypedMesh, FigNum=-1);
 assert(any(strcmp({legendEntries.Name}, 'lamp, no type')));
 

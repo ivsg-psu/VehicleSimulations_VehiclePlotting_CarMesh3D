@@ -171,11 +171,11 @@ polygonMesh = vehicleMesh;
 keep = ~wheelFaces;
 polygonMesh.Faces = [vehicleMesh.Faces(keep,:); hexFaces + size(vehicleMesh.Vertices,1)];
 polygonMesh.Vertices = [vehicleMesh.Vertices; hexVertices];
-for fieldName = {'FacePartIndex','FaceWheelIndex','FaceLightType'}
+for fieldName = {'LabelFacePart','FaceWheelIndex','LabelFaceLamp'}
     if isfield(polygonMesh, fieldName{1})
         values = vehicleMesh.(fieldName{1})(keep,:);
         newValue = values(1,:)*0;
-        if strcmp(fieldName{1},'FacePartIndex'), newValue = find(strcmp(vehicleMesh.PartNames,'wheel')); end
+        if strcmp(fieldName{1},'LabelFacePart'), newValue = find(strcmp(vehicleMesh.LabelPartNames,'wheel')); end
         if strcmp(fieldName{1},'FaceWheelIndex'), newValue = 1; end
         polygonMesh.(fieldName{1}) = [values; repmat(newValue, size(hexFaces,1), 1)];
     end

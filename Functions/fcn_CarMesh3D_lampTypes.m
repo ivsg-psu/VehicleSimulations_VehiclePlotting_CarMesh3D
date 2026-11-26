@@ -1,12 +1,12 @@
 function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %% fcn_CarMesh3D_lampTypes
 % The list of lamp types a CarMesh3D mesh can have, in one place: each
-% type's name (as stored in a mesh's LightTypeNames), its name for people,
+% type's name (as stored in a mesh's LabelLampNames), its name for people,
 % its colors, and what switches it on. Every function that needs to know
 % the lamp types reads them from here, so a new type is added once.
 %
-% The order matters: a mesh stores its light types by number (FaceLightType
-% is an index into LightTypeNames), and older meshes have the first five
+% The order matters: a mesh stores its light types by number (LabelFaceLamp
+% is an index into LabelLampNames), and older meshes have the first five
 % or six types in this order. New types are only ever added at the end.
 %
 % FORMAT:
@@ -24,7 +24,7 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %
 %      lampTypes: a structure array, one element per lamp type, in the
 %      fixed order, with fields:
-%           Name: the type's name in a mesh's LightTypeNames, such as
+%           Name: the type's name in a mesh's LabelLampNames, such as
 %               'headlamp' or 'fogLamp'
 %           Label: its name for people: what the part IS, never what
 %               switches it (rule P6), such as 'Fog lamp'
@@ -37,8 +37,8 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %               marker lamps, warning lamps: these come in amber, red or
 %               white)
 %           SwitchedBy: the light state (of fcn_CarMesh3D_plotVehicle's
-%               LightStates) that lights it, in words
-%           SwitchedByStates: the same, as the LightStates field names
+%               Signals) that lights it, in words
+%           SwitchedByStates: the same, as the Signals field names
 %               that light it (any one of them on lights it), for the
 %               types that fcn_CarMesh3D_plotVehicle switches from this
 %               list: fog, reflector, licenseplate, marker and warning.
@@ -46,9 +46,9 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %               the tail lamps' brake.) How a lamp is switched differs
 %               from vehicle to vehicle (fog lamps are switched in 3 to 6
 %               ways among makers: Sean, 23:23), so a vehicle can give its
-%               own: a mesh field LampSwitching, a structure with a field
+%               own: a mesh field SignalLampSwitching, a structure with a field
 %               per lamp type, such as
-%                   vehicleMesh.LampSwitching.fog = {'FogLights','HighBeam'};
+%                   vehicleMesh.SignalLampSwitching.fog = {'Fog','HighBeam'};
 %               replaces this default for that vehicle
 %           Sources: a cell array of the key sources for the type's
 %               switching (what turns it on), each as text with a link;
@@ -82,13 +82,13 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %   % * First write of the code: the six lamp types the meshes already
 %   %   % have (headlight, turn signal, running, tail, backup, high beam),
 %   %   % and five new ones (Sean, task 8; Q24 (A), Q25 (A), 23:19): fog
-%   %   % lamps (switched by their own FogLights state), reflectors (glow
+%   %   % lamps (switched by their own Fog state), reflectors (glow
 %   %   % by the outside light, Reflectors, 0 to 1), the license plate
 %   %   % lamp (lit with the tail lamps), marker lamps (lit with the
 %   %   % running lights) and warning lamps (flashing with the hazards)
 %   % * Sources: the key source for each type's switching, as a link
 %   %   % (Sean, 23:24); FMVSS No. 108 for the US
-%   % * SwitchedByStates, and a vehicle's own LampSwitching: how a lamp is
+%   % * SwitchedByStates, and a vehicle's own SignalLampSwitching: how a lamp is
 %   %   % switched differs by maker (Sean, 23:23), so it is easy to edit
 %
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
@@ -112,7 +112,7 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 % - In fcn_CarMesh3D_lampTypes
 %   % * (Someday, Sean 23:23) A simple window that shows a novice each
 %   %   % lamp of a vehicle and lets them pick what switches it, filling
-%   %   % the vehicle's LampSwitching quickly
+%   %   % the vehicle's SignalLampSwitching quickly
 %   % * The first six types' rules (beams, brake) could move here too
 
 % Declare the inputs. This block only names the inputs and sets the
@@ -138,13 +138,13 @@ end
 
 %                Name           Label                        FaceColor           LabelColor          LitColor            SwitchedBy                                  NameRule                                           RuleOrder
 lampTable = {...
-    'headlamp',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'Headlights (''low'' or ''high'') or LowBeam', 'head|front',                                      11;
+    'headlamp',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'LowBeam (or HighBeam)',                      'head|front',                                      11;
     'turnSignalLamp',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
     'runningLamp',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
-    'tailBrakeLamp',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail (''on'', or ''brake'' for bright)',   'tail|brake|stop|rear',                            10;
+    'tailBrakeLamp',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail, or Brake for bright',                 'tail|brake|stop|rear',                            10;
     'backupLamp',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
-    'highBeamLamp',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'Headlights (''high'') or HighBeam',        'high.?beam|hi.?beam|main.?beam',                  1;
-    'fogLamp',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'FogLights',                                'fog',                                                 2;
+    'highBeamLamp',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'HighBeam',                                 'high.?beam|hi.?beam|main.?beam',                  1;
+    'fogLamp',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'Fog',                                'fog',                                                 2;
     'reflector',   'Reflector (no lamp)',          [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          3;
     'licensePlateLamp','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
     'markerLamp',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
@@ -153,11 +153,11 @@ lampTable = {...
 lampTypes = cell2struct(lampTable, {'Name','Label','FaceColor','LabelColor','LitColor','SwitchedBy','NameRule','RuleOrder'}, 2);
 lampTypes = lampTypes(:);
 
-% The LightStates that light each type switched from this list (any one
+% The Signals that light each type switched from this list (any one
 % on lights it). EDIT HERE to change a default for every vehicle; give a
-% vehicle its own with the mesh field LampSwitching (see above)
+% vehicle its own with the mesh field SignalLampSwitching (see above)
 switchedByStates = struct( ...
-    'fogLamp',          {{'FogLights'}}, ...
+    'fogLamp',          {{'Fog'}}, ...
     'reflector',    {{'Reflectors'}}, ...
     'licensePlateLamp', {{'Tail'}}, ...
     'markerLamp',       {{'Running'}}, ...

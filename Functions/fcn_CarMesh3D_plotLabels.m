@@ -23,8 +23,8 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 %
 % INPUTS:
 %
-%      vehicleMesh: a labeled CarMesh3D mesh (PartNames, FacePartIndex;
-%      FaceLightType and LightTypeNames if it has lights).
+%      vehicleMesh: a labeled CarMesh3D mesh (LabelPartNames, LabelFacePart;
+%      LabelFaceLamp and LabelLampNames if it has lights).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -85,7 +85,7 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_plotLabels
-%   % * A light that is also glass (FaceAlsoParts, a lamp's clear cover)
+%   % * A light that is also glass (LabelFaceAlsoParts, a lamp's clear cover)
 %   %   % is drawn see-through, like the glass
 %   % * The body's label color is near-white ([0.97 0.97 0.97], was
 %   %   % [0.80 0.80 0.80]): the labels stand out against it (Sean, 00:05)
@@ -175,8 +175,8 @@ if 0==flag_max_speed
         % The number of inputs and the option names are checked by the
         % arguments block above
 
-        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','PartNames','FacePartIndex'})))
-            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex)');
+        if ~(isstruct(vehicleMesh) && all(isfield(vehicleMesh, {'Vertices','Faces','LabelPartNames','LabelFacePart'})))
+            error('vehicleMesh must be a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart)');
         end
         if ~(ischar(options.Title) || isstring(options.Title))
             error('Title must be text');
@@ -231,17 +231,17 @@ end
 Nfaces = size(vehicleMesh.Faces,1);
 labelMesh = vehicleMesh;
 faceColors = zeros(Nfaces,3);
-for ith_part = 1:length(vehicleMesh.PartNames)
-    thisName = vehicleMesh.PartNames{ith_part};
+for ith_part = 1:length(vehicleMesh.LabelPartNames)
+    thisName = vehicleMesh.LabelPartNames{ith_part};
     if isfield(partColors, thisName)
-        flagPart = vehicleMesh.FacePartIndex==ith_part;
+        flagPart = vehicleMesh.LabelFacePart==ith_part;
         faceColors(flagPart,:) = repmat(partColors.(thisName), sum(flagPart), 1);
     end
 end
-if isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames')
-    for ith_type = 1:length(vehicleMesh.LightTypeNames)
-        thisName = vehicleMesh.LightTypeNames{ith_type};
-        flagType = vehicleMesh.FaceLightType==ith_type;
+if isfield(vehicleMesh,'LabelFaceLamp') && isfield(vehicleMesh,'LabelLampNames')
+    for ith_type = 1:length(vehicleMesh.LabelLampNames)
+        thisName = vehicleMesh.LabelLampNames{ith_type};
+        flagType = vehicleMesh.LabelFaceLamp==ith_type;
         if isfield(lightColors, thisName)
             faceColors(flagType,:) = repmat(lightColors.(thisName), sum(flagType), 1);
         end
@@ -270,10 +270,10 @@ legendEntries = struct('Name', {}, 'Color', {}, 'Faces', {});
 if ~flagByMaterial
     flagLampColor = false(Nfaces,1);
     typeEntries = legendEntries;
-    if isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames')
-        for ith_type = 1:length(vehicleMesh.LightTypeNames)
-            thisName = vehicleMesh.LightTypeNames{ith_type};
-            flagType = vehicleMesh.FaceLightType(:)==ith_type;
+    if isfield(vehicleMesh,'LabelFaceLamp') && isfield(vehicleMesh,'LabelLampNames')
+        for ith_type = 1:length(vehicleMesh.LabelLampNames)
+            thisName = vehicleMesh.LabelLampNames{ith_type};
+            flagType = vehicleMesh.LabelFaceLamp(:)==ith_type;
             if isfield(lightColors, thisName) && any(flagType)
                 flagLampColor = flagLampColor | flagType;
                 readable = fcn_INTERNAL_readableName(thisName);
@@ -285,9 +285,9 @@ if ~flagByMaterial
             end
         end
     end
-    for ith_part = 1:length(vehicleMesh.PartNames)
-        thisName = vehicleMesh.PartNames{ith_part};
-        numFaces = sum(vehicleMesh.FacePartIndex(:)==ith_part & ~flagLampColor);
+    for ith_part = 1:length(vehicleMesh.LabelPartNames)
+        thisName = vehicleMesh.LabelPartNames{ith_part};
+        numFaces = sum(vehicleMesh.LabelFacePart(:)==ith_part & ~flagLampColor);
         if isfield(partColors, thisName) && numFaces > 0
             if strcmp(thisName, 'light')
                 readable = 'lamp, no type';
@@ -299,13 +299,13 @@ if ~flagByMaterial
     end
     legendEntries = [legendEntries, typeEntries];
 end
-glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
-labelMesh.FaceAlpha(vehicleMesh.FacePartIndex==glassIndex) = 0.6;
+glassIndex = find(strcmp(vehicleMesh.LabelPartNames,'glass'));
+labelMesh.FaceAlpha(vehicleMesh.LabelFacePart==glassIndex) = 0.6;
 % (a light that is also glass, a lamp's clear cover, is see-through too,
 % so the lenses under it show)
-if ~isempty(glassIndex) && isfield(vehicleMesh,'FaceAlsoParts') && size(vehicleMesh.FaceAlsoParts,1)==Nfaces ...
-        && glassIndex <= size(vehicleMesh.FaceAlsoParts,2)
-    labelMesh.FaceAlpha(vehicleMesh.FaceAlsoParts(:,glassIndex)) = 0.6;
+if ~isempty(glassIndex) && isfield(vehicleMesh,'LabelFaceAlsoParts') && size(vehicleMesh.LabelFaceAlsoParts,1)==Nfaces ...
+        && glassIndex <= size(vehicleMesh.LabelFaceAlsoParts,2)
+    labelMesh.FaceAlpha(vehicleMesh.LabelFaceAlsoParts(:,glassIndex)) = 0.6;
 end
 
 %% Plot the results (for debugging)?

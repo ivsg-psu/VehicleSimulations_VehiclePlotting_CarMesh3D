@@ -13,7 +13,7 @@ function report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, options)
 %
 %       report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, ...
 %           (Steps=numSteps), (Seed=seed), (Replay=steps), (Name=name),
-%           (LogFolder=folder), (StopOnFailure=flag), (FigNum=figNum))
+%           (LogFolder=folder), (FlagStopOnFailure=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -48,7 +48,7 @@ function report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, options)
 %      LogFolder: where a failing sequence is saved, as
 %      <Name>_failure_seed<Seed>.mat and .txt (default: tempdir).
 %
-%      StopOnFailure: true (default) to stop at the first failure; false
+%      FlagStopOnFailure: true (default) to stop at the first failure; false
 %      to note it and keep going.
 %
 %      FigNum: if given (and not -1), each step is printed. If -1, nothing
@@ -71,7 +71,7 @@ function report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, options)
 % EXAMPLES:
 %
 %       actions = struct('Name', {'night on','night off'}, ...
-%           'Do', {@() viewer.SetNightView(true), @() viewer.SetNightView(false)});
+%           'Do', {@() viewer.SetFlagNight(true), @() viewer.SetFlagNight(false)});
 %       invariants = struct('Name', {'readout'}, 'Check', {@() checkReadout()});
 %       report = fcn_CarMesh3D_guiRandomWalk(actions, invariants, Steps=200, Seed=3);
 %       % Replay a failure:
@@ -107,7 +107,7 @@ arguments
     options.Replay = {}            % Action names to do in order (replay)
     options.Name = 'guiWalk'       % Name used in saved files
     options.LogFolder = ''         % Where failures are saved ('' for tempdir)
-    options.StopOnFailure = true   % Stop at the first failure
+    options.FlagStopOnFailure = true   % Stop at the first failure
     options.FigNum = []            % Print each step if given; -1 for fast mode
 end
 
@@ -232,7 +232,7 @@ for ith_step = 1:numSteps
             end
         end
     end
-    if failedNow && options.StopOnFailure
+    if failedNow && options.FlagStopOnFailure
         break;
     end
 end

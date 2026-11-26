@@ -34,16 +34,16 @@ assert(~ispref('CarMesh3D', 'Initials'), 'Not asking saves nothing');
 %% TEST case: asked once, then remembered
 figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: asked, then remembered\n', figNum);
-user = fcn_CarMesh3D_userInfo(Ask=true, Answer={' ab ', 'Ann Bee'});
+user = fcn_CarMesh3D_userInfo(FlagAsk=true, Answer={' ab ', 'Ann Bee'});
 assert(strcmp(user.Initials, 'AB') && strcmp(user.Name, 'Ann Bee') && strcmp(user.Source, 'asked'));
-user = fcn_CarMesh3D_userInfo(Ask=true, Answer={'ZZ', 'Not used'});
+user = fcn_CarMesh3D_userInfo(FlagAsk=true, Answer={'ZZ', 'Not used'});
 assert(strcmp(user.Initials, 'AB') && strcmp(user.Source, 'preference'), 'Asked only once');
 
 %% TEST case: an empty answer (dialog closed): the default, nothing saved
 figNum = 20002;
 fprintf(1,'Figure %.0f: TEST case: an empty answer\n', figNum);
 fcn_INTERNAL_clearPrefs(prefNames);
-user = fcn_CarMesh3D_userInfo(Ask=true, Answer={'', ''});
+user = fcn_CarMesh3D_userInfo(FlagAsk=true, Answer={'', ''});
 assert(strcmp(user.Source, 'default') && ~ispref('CarMesh3D', 'Initials'));
 
 %% TEST case: Set

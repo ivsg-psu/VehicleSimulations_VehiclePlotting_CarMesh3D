@@ -47,7 +47,7 @@
 
 %% Set up the workspace
 close all;
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the 2009 Fit)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle: the 2009 Fit)
 guiTestID = fcn_CarMesh3D_demoVehicle(Which='guiTest', FigNum=-1);       % (the GUI test vehicle: every feature)
 % (every vehicle used is a temporary copy: nothing is saved in a real
 % vehicle's folder; the copies are taken away at the end)
@@ -107,7 +107,7 @@ fprintf(1,'DEMO case: the painter for the demo vehicle (a copy), in its own wind
 if isfile(editsFile)
     delete(editsFile);   % (start from no edits: the copy's file)
 end
-[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, Visible=false);
+[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, FlagVisible=false);
 assert(isgraphics(painter.Figure) && isgraphics(painter.Axes));
 assert(isempty(labelEdits));                              % (no edits yet)
 assert(size(editedMesh.Faces,1) == size(painter.Patch.Faces,1));
@@ -129,9 +129,9 @@ assert(strcmp(painter.EditsFile, editsFile));
 fprintf(1,'TEST case: paint, Apply, Undo by steps, Save, Revert\n');
 baseMesh = editedMesh;
 centers = (baseMesh.Vertices(baseMesh.Faces(:,1),:) + baseMesh.Vertices(baseMesh.Faces(:,2),:) + baseMesh.Vertices(baseMesh.Faces(:,3),:))/3;
-bodyFaces = find(baseMesh.FacePartIndex == find(strcmp(baseMesh.PartNames,'body')));
+bodyFaces = find(baseMesh.LabelFacePart == find(strcmp(baseMesh.LabelPartNames,'body')));
 picks = bodyFaces([10 200 400 600]);
-painter.SetMirror(false);
+painter.SetFlagMirror(false);
 % (four separate selections, each saved: as backup lights)
 for ith_pick = 1:4
     painter.Paint('backupLamp', centers(picks(ith_pick),:), false);
@@ -150,24 +150,24 @@ loaded = load(editsFile, 'labelEditsAfterSimplify');
 assert(size(loaded.labelEditsAfterSimplify{1}.Points,1) == 2);
 % (the edited mesh: the two faces are backup lights)
 editedMesh = painter.EditedMesh();
-backupType = find(strcmp(editedMesh.LightTypeNames, 'backupLamp'));
-assert(all(editedMesh.FaceLightType(picks(1:2)) == backupType));
+backupType = find(strcmp(editedMesh.LabelLampNames, 'backupLamp'));
+assert(all(editedMesh.LabelFaceLamp(picks(1:2)) == backupType));
 % (Revert to start: no edits, not saved; Revert to save: back to two)
 painter.RevertToStart();
 assert(isempty(painter.Edits()) && ~painter.Status().Saved);
 painter.RevertToSaved();
 assert(numel(painter.Edits()) == 1 && painter.Status().Saved);
-painter.SetMirror(true);
+painter.SetFlagMirror(true);
 
 %% TEST case: Saved paint becomes the working mesh (painted trim looks like the rest of the trim)
 fprintf(1,'TEST case: saved paint becomes the working mesh\n');
-painter.SetMirror(false);
+painter.SetFlagMirror(false);
 trimPick = bodyFaces(300);
 painter.SetTool('trim');
 painter.Paint('trim', centers(trimPick,:), false);   % (Paint saves)
 workingMesh = painter.WorkingMesh();
-trimPart = find(strcmp(workingMesh.PartNames, 'trim'));
-assert(workingMesh.FacePartIndex(trimPick) == trimPart);          % (it is trim in the working mesh)
+trimPart = find(strcmp(workingMesh.LabelPartNames, 'trim'));
+assert(workingMesh.LabelFacePart(trimPick) == trimPart);          % (it is trim in the working mesh)
 % (its color is the one the labels view gives it as trim, not the paint
 % color, and it is not drawn as an overlay any more)
 expected = fcn_CarMesh3D_plotLabels(painter.EditedMesh(), FigNum=-1);
@@ -186,8 +186,8 @@ assert(contains(finePrint.Text, 'Last change: label edits saved') && contains(fi
 painter.Undo();
 assert(painter.Status().Pending == 0 && ~painter.Status().Saved);
 painter.Save();
-assert(painter.WorkingMesh().FacePartIndex(trimPick) ~= trimPart);
-painter.SetMirror(true);
+assert(painter.WorkingMesh().LabelFacePart(trimPick) ~= trimPart);
+painter.SetFlagMirror(true);
 
 %% TEST case: Timestamped copies: Save as version, and at each save with the box ticked
 fprintf(1,'TEST case: timestamped copies\n');
@@ -225,7 +225,7 @@ pause(1.1);
 copyA = painter.SaveVersion();
 paintA = painter.Layers().Paint;
 pause(1.1);   % (the save below keeps its own timestamped copy: in the same second it would replace copyA; a flaky failure, 2026-11-24)
-painter.SetMirror(false);
+painter.SetFlagMirror(false);
 painter.Paint('backupLamp', centers(picks(3),:), false);   % (one more face, saved)
 pause(1.1);
 copyB = painter.SaveVersion();
@@ -243,7 +243,7 @@ painter.RevertToCopy(copyA);
 painter.Save();
 loaded = load(editsFile, 'labelEditsAfterSimplify');
 assert(isequal(painter.Layers().Saved, paintA) && ~isempty(loaded.labelEditsAfterSimplify), 'Saving makes the older copy stick');
-painter.SetMirror(true);
+painter.SetFlagMirror(true);
 
 %% TEST case: Hidden faces stay in the edited mesh, in a named set, out of view; unhide shows them again
 fprintf(1,'TEST case: hiding, and unhiding\n');
@@ -254,10 +254,10 @@ hideField.Value = 'rear wiper';
 painter.Paint('hide', centers(hideFaces,:), false);   % (Paint saves)
 meshAfter = painter.EditedMesh();
 assert(size(meshAfter.Faces,1) == size(baseMesh.Faces,1));                       % (nothing deleted)
-assert(any(strcmp(meshAfter.HiddenSetNames, 'rear wiper')));
-setIndex = find(strcmp(meshAfter.HiddenSetNames, 'rear wiper'));
-assert(all(meshAfter.FaceHiddenSet(hideFaces) == setIndex));
-assert(isequal(meshAfter.FacePartIndex(hideFaces), baseMesh.FacePartIndex(hideFaces)));   % (labels kept)
+assert(any(strcmp(meshAfter.LabelHiddenSetNames, 'rear wiper')));
+setIndex = find(strcmp(meshAfter.LabelHiddenSetNames, 'rear wiper'));
+assert(all(meshAfter.LabelFaceHiddenSet(hideFaces) == setIndex));
+assert(isequal(meshAfter.LabelFacePart(hideFaces), baseMesh.LabelFacePart(hideFaces)));   % (labels kept)
 assert(painter.Status().Hidden >= numel(hideFaces));
 assert(painter.Status().Applied > statusBefore.Applied);
 alphaNow = painter.Patch.FaceVertexAlphaData;
@@ -267,13 +267,13 @@ assert(any(cellfun(@(e) isfield(e,'Hide') && strcmp(e.Hide,'rear wiper'), loaded
 % (unhide: shown again)
 painter.Paint('unhide', centers(hideFaces,:), false);
 meshAfter = painter.EditedMesh();
-assert(all(meshAfter.FaceHiddenSet(hideFaces) == 0));
+assert(all(meshAfter.LabelFaceHiddenSet(hideFaces) == 0));
 hideField.Value = 'hidden';
 
 %% TEST case: Show boxes hide a label's faces (they cannot be painted)
 fprintf(1,'TEST case: Show boxes hide a label''s faces\n');
 painter.SetHidden({'part_glass'});
-glassFaces = baseMesh.FacePartIndex == find(strcmp(baseMesh.PartNames,'glass'));
+glassFaces = baseMesh.LabelFacePart == find(strcmp(baseMesh.LabelPartNames,'glass'));
 alphaShown = painter.Patch.FaceVertexAlphaData;
 assert(all(alphaShown(glassFaces) == 0));
 painter.SetHidden({});
@@ -317,10 +317,10 @@ assert(isstruct(lampEditor) && height(lampEditor.Table()) == numel(lampEditor.Un
 assert(~isempty(findall(painter.Figure, 'Tag', 'lampTable')), 'Its table drawn');
 lampEditor.SetSignal('TurnLeft');
 assert(~isempty(findall(painter.Axes, 'Tag', 'lampOutline')), 'The edited signal''s lamps outlined on the painter''s model');
-painter.Viewer.SetNightView(false);
+painter.Viewer.SetFlagNight(false);
 % (Labels To Display: Colored? No draws a label plain gray)
-glassIndex = find(strcmp(baseMesh.PartNames, 'glass'));
-glassFaces = find(baseMesh.FacePartIndex == glassIndex);
+glassIndex = find(strcmp(baseMesh.LabelPartNames, 'glass'));
+glassFaces = find(baseMesh.LabelFacePart == glassIndex);
 coloredGroup = findall(painter.Figure, 'Tag', 'colored_part_glass');
 noButton = findobj(coloredGroup.Children, 'flat', 'UserData', false);
 coloredGroup.SelectedObject = noButton;
@@ -336,7 +336,7 @@ assert(isempty(painter.Viewer.Uncolored()));
 tailGroup = findall(painter.Figure, 'Tag', 'lamp_Tail');
 onButton = findobj(tailGroup.Children, 'flat', 'UserData', 'on');
 tailGroup.SelectionChangedFcn(tailGroup, struct('NewValue', onButton));
-assert(strcmp(painter.Viewer.NightLights().Tail, 'on'));
+assert(painter.Viewer.NightLights().Tail && ~painter.Viewer.NightLights().Brake);
 painter.Viewer.SetNightLamp('All', false);
 assert(strcmp(tailGroup.SelectedObject.UserData, 'off'));
 % (the viewer's sun/moon button, pressed: the painter's Nighttime view?
@@ -347,15 +347,15 @@ painterMenuButton = findall(painter.Figure, 'Type', 'uibutton', 'Tag', 'painterM
 assert(dayNightButton.Parent == painterMenuButton.Parent && ...
     dayNightButton.Layout.Column == numel(dayNightButton.Parent.ColumnWidth), ...
     'The sun/moon button at the top right, in the bar with the Menu (T86)');
-nightBefore = painter.Viewer.NightView();
+nightBefore = painter.Viewer.FlagNight();
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(painter.Viewer.NightView() ~= nightBefore, 'One click switches day and night');
+assert(painter.Viewer.FlagNight() ~= nightBefore, 'One click switches day and night');
 nightRow = findall(painter.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallNight');
 if isscalar(nightRow)
-    assert(isequal(nightRow.SelectedObject.UserData, painter.Viewer.NightView()), 'Nighttime view? follows the button');
+    assert(isequal(nightRow.SelectedObject.UserData, painter.Viewer.FlagNight()), 'Nighttime view? follows the button');
 end
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
-assert(painter.Viewer.NightView() == nightBefore, 'Another click switches back');
+assert(painter.Viewer.FlagNight() == nightBefore, 'Another click switches back');
 % (Modify Labels: the tool picked shows as its radio button)
 painter.SetTool('trim');
 paintGroup = findall(painter.Figure, 'Tag', 'paintAs');
@@ -367,22 +367,22 @@ painter.OpenPanels({'Modify Labels'});
 %% TEST case: The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, photos)
 fprintf(1,'TEST case: the GUI test vehicle\n');
 guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest1'), FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
-[~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, Visible=false);
+[~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, FlagVisible=false);
 assert(all(ismember({'headlamp','highBeamLamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp'}, testPainter.Viewer.LampTypes())));
 for panelName = {'Labels To Display', 'Lamps To Display'}
     thisPanel = findall(testPainter.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
     assert(isempty(findall(thisPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'A gray (no faces) name in %s', panelName{1});
 end
 testMesh = testPainter.EditedMesh();
-assert(all(ismember({'hidden','hard top'}, testMesh.HiddenSetNames)));
-flagHiddenFaces = testMesh.FaceHiddenSet(:) > 0;
+assert(all(ismember({'hidden','hard top'}, testMesh.LabelHiddenSetNames)));
+flagHiddenFaces = testMesh.LabelFaceHiddenSet(:) > 0;
 assert(all(testPainter.Patch.FaceVertexAlphaData(flagHiddenFaces) == 0));      % (hidden: out of view)
-testPainter.SetShowHidden(true);
+testPainter.SetFlagShowHidden(true);
 assert(all(testPainter.Patch.FaceVertexAlphaData(flagHiddenFaces) > 0));       % (shown, to unhide)
-testPainter.SetShowHidden(false);
-interiorIndex = find(strcmp(testMesh.PartNames, 'interior'));
-assert(any(testMesh.FacePartIndex == interiorIndex));
-assert(any(sum(testMesh.FaceLightFunctions, 2) > 1));                           % (a lamp with two functions)
+testPainter.SetFlagShowHidden(false);
+interiorIndex = find(strcmp(testMesh.LabelPartNames, 'interior'));
+assert(any(testMesh.LabelFacePart == interiorIndex));
+assert(any(sum(testMesh.LabelFaceAlsoLamps, 2) > 1));                           % (a lamp with two functions)
 testPainter.SetPhotoAngle(95);
 assert(testPainter.PhotoAngle() == 90);                                         % (its own photos, every 30 degrees)
 testPainter.Close();
@@ -409,15 +409,15 @@ assert(isequal(embedded.Figure, hostFigure));
 assert(isempty(embedded.EditsFile));                      % (a mesh given: no edits file)
 embedded.Paint('tailBrakeLamp', centers(bodyFaces(50),:), false);
 assert(paintCount >= 1 && ~isempty(changedMesh));
-tailType = find(strcmp(changedMesh.LightTypeNames, 'tailBrakeLamp'));
-assert(changedMesh.FaceLightType(bodyFaces(50)) == tailType);
+tailType = find(strcmp(changedMesh.LabelLampNames, 'tailBrakeLamp'));
+assert(changedMesh.LabelFaceLamp(bodyFaces(50)) == tailType);
 embedded.Stop();
 delete(hostFigure);
 
 %% TEST case: Script-driven: every control of the painter's own has a Tag; the hooks drive the window
 fprintf(1,'TEST case: Tags, and the window driven by script\n');
 guiFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest2'), FigNum=-1);
-[~, ~, gp] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, Visible=false);
+[~, ~, gp] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, FlagVisible=false);
 state = gp.State();
 missingTags = setdiff(painterTags, state.Tags);
 assert(isempty(missingTags), 'Controls missing their Tags: %s', strjoin(missingTags, ', '));
@@ -485,9 +485,9 @@ for ith_radio = 1:numel(radios)
 end
 for flagOn = [false true false true]
     gp.SetState('mirror', flagOn);
-    assert(gp.Mirror() == flagOn);
+    assert(gp.FlagMirror() == flagOn);
     gp.SetState('showHidden', flagOn);
-    assert(gp.ShowHidden() == flagOn);
+    assert(gp.FlagShowHidden() == flagOn);
     fcn_INTERNAL_checkRules(gp);
 end
 gp.SetState('showHidden', false);
@@ -504,7 +504,7 @@ gp.OpenPanels({'Modify Labels'});
 
 %% TEST case: Mouse (the window's own handlers): clicks, a click elsewhere fast, double-clicks
 fprintf(1,'TEST case: mouse clicks and double-clicks\n');
-gp.SetMirror(false);
+gp.SetFlagMirror(false);
 gp.SetTool('body');
 testMesh = gp.WorkingMesh();
 seen = fcn_INTERNAL_seenFaces(gp, testMesh);
@@ -636,9 +636,9 @@ assert(gp.Layers().Applied(seen(4)) == "body" && gp.Status().UndoSteps == undoNo
 gp.SetTool('body');
 fcn_INTERNAL_checkRules(gp);
 gp.RevertToStart();
-glassIndex = find(strcmp(testMesh.PartNames, 'glass'));
+glassIndex = find(strcmp(testMesh.LabelPartNames, 'glass'));
 gp.SetTool('glass');
-glassSeen = fcn_INTERNAL_seenFaces(gp, testMesh, find(testMesh.FacePartIndex == glassIndex));
+glassSeen = fcn_INTERNAL_seenFaces(gp, testMesh, find(testMesh.LabelFacePart == glassIndex));
 assert(~isempty(glassSeen), 'Glass in view');
 gp.DoubleClickAt(glassSeen(1), {'control'});
 glassPiece = find(pieceIndex == pieceIndex(glassSeen(1)));
@@ -687,11 +687,11 @@ for seed = [1 2 3]
     % (save, then a new painter on the saved file: the same edited mesh)
     gp.Save();
     meshSaved = gp.EditedMesh();
-    [reloadedMesh, ~, reloaded] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, Visible=false);
-    assert(isequal(reloadedMesh.FacePartIndex, meshSaved.FacePartIndex) && isequal(reloadedMesh.FaceLightType, meshSaved.FaceLightType), ...
+    [reloadedMesh, ~, reloaded] = fcn_CarMesh3D_paintLabels(guiFiles.Folder, FlagVisible=false);
+    assert(isequal(reloadedMesh.LabelFacePart, meshSaved.LabelFacePart) && isequal(reloadedMesh.LabelFaceLamp, meshSaved.LabelFaceLamp), ...
         'Walk %d: the saved edits give the same mesh when loaded again', seed);
-    if isfield(meshSaved, 'FaceHiddenSet')
-        assert(isequal(reloadedMesh.FaceHiddenSet > 0, meshSaved.FaceHiddenSet > 0), 'Walk %d: the same hidden faces', seed);
+    if isfield(meshSaved, 'LabelFaceHiddenSet')
+        assert(isequal(reloadedMesh.LabelFaceHiddenSet > 0, meshSaved.LabelFaceHiddenSet > 0), 'Walk %d: the same hidden faces', seed);
     end
     reloaded.Close();
 end
@@ -743,17 +743,17 @@ keptEditsFile = fullfile(keptFiles.Folder, sprintf('labelEdits_%s.mat', keptFile
 before = load(keptEditsFile, 'labelEditsAfterSimplify');
 flagScripted = cellfun(@(e) any(ismember(fieldnames(e), {'Material', 'Color', 'AlsoLightTypes', 'AlsoParts', 'Region', 'FaceIndices'})), ...
     before.labelEditsAfterSimplify);
-[meshBefore, ~, kp] = fcn_CarMesh3D_paintLabels(keptFiles.Folder, Visible=false);
-kp.SetMirror(false);
-bodyIndex = find(strcmp(meshBefore.PartNames, 'body'));
-bodyFace = find(meshBefore.FacePartIndex == bodyIndex, 1);
+[meshBefore, ~, kp] = fcn_CarMesh3D_paintLabels(keptFiles.Folder, FlagVisible=false);
+kp.SetFlagMirror(false);
+bodyIndex = find(strcmp(meshBefore.LabelPartNames, 'body'));
+bodyFace = find(meshBefore.LabelFacePart == bodyIndex, 1);
 kp.Paint('trim', fcn_INTERNAL_centers(meshBefore, bodyFace), false);   % (Paint saves)
 after = load(keptEditsFile, 'labelEditsAfterSimplify');
 keptAfter = after.labelEditsAfterSimplify(1:nnz(flagScripted));
 assert(isequaln(keptAfter, before.labelEditsAfterSimplify(flagScripted)), 'The scripted fixes are saved again exactly, first');
 meshAfter = kp.EditedMesh();
 others = setdiff(1:size(meshBefore.Faces,1), bodyFace);
-assert(isequal(meshAfter.FaceLightType(others), meshBefore.FaceLightType(others)) && isequal(meshAfter.FacePartIndex(others), meshBefore.FacePartIndex(others)), ...
+assert(isequal(meshAfter.LabelFaceLamp(others), meshBefore.LabelFaceLamp(others)) && isequal(meshAfter.LabelFacePart(others), meshBefore.LabelFacePart(others)), ...
     'Only the painted face changed');
 if isfield(meshBefore, 'FaceColors')
     assert(isequal(meshAfter.FaceColors(others,:), meshBefore.FaceColors(others,:)), 'The fixes'' colors are kept');
@@ -824,9 +824,9 @@ end % Ends fcn_INTERNAL_seenFaces
 function pieceIndex = fcn_INTERNAL_pieceOf(vehicleMesh)
 % Each face's piece, as the painter's double-click finds it: faces with
 % the same label that share a corner
-labelCode = double(vehicleMesh.FacePartIndex(:));
-flagLight = vehicleMesh.FaceLightType(:) > 0;
-labelCode(flagLight) = 100 + double(vehicleMesh.FaceLightType(flagLight));
+labelCode = double(vehicleMesh.LabelFacePart(:));
+flagLight = vehicleMesh.LabelFaceLamp(:) > 0;
+labelCode(flagLight) = 100 + double(vehicleMesh.LabelFaceLamp(flagLight));
 numFaces = size(vehicleMesh.Faces,1);
 faceList = repmat((1:numFaces)', 3, 1);
 vertexList = vehicleMesh.Faces(:);

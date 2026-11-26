@@ -27,7 +27,7 @@ figNum = 20001;
 fprintf(1,'Figure %.0f: TEST case: sizes and looks\n', figNum);
 for ith_icon = 1:numel(iconNames)
     active = fcn_CarMesh3D_icons(iconNames{ith_icon});
-    greyed = fcn_CarMesh3D_icons(iconNames{ith_icon}, Enabled=false);
+    greyed = fcn_CarMesh3D_icons(iconNames{ith_icon}, FlagEnabled=false);
     assert(size(active, 1) == 24 && size(active, 3) == 3 && isequal(size(active), size(greyed)), iconNames{ith_icon});
     assert(all(active(:) >= 0 & active(:) <= 1), 'Colors from 0 to 1');
     assert(max(abs(greyed(:, :, 1) - greyed(:, :, 2)), [], 'all') < 1e-12, 'Greyed: no color');

@@ -44,7 +44,7 @@ close all
 
 % (temporary demo copies: the tests write answers, reports and change
 % log rows, and must never change a vehicle itself)
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
 demoFolder = tempname;
 vehicleFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID, DemoFolder=demoFolder, FigNum=-1);
 vehicleInput = vehicleFiles.Folder;
@@ -68,7 +68,7 @@ testAssessments = {@fcn_CarMesh3D_assess_zzDraws, @fcn_CarMesh3D_assess_zzFails,
 
 %% Basic case: the window, its pages and its record
 fprintf(1, 'Basic case: the V&V GUI with test assessments\n');
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 hooks = figureHandle.UserData;
 
@@ -104,7 +104,7 @@ assert(contains(findall(figureHandle, 'Tag', 'vvVehicle').Text, 'Vehicle 1 of 1'
 previousVehicleButton = findall(figureHandle, 'Tag', 'vvPreviousVehicle');
 nextVehicleButton = findall(figureHandle, 'Tag', 'vvNextVehicle');
 assert(strcmp(previousVehicleButton.Enable, 'off') && strcmp(nextVehicleButton.Enable, 'off'));
-assert(isequal(nextVehicleButton.Icon, fcn_CarMesh3D_icons('vehicleNext', Enabled=false, Height=26)));
+assert(isequal(nextVehicleButton.Icon, fcn_CarMesh3D_icons('vehicleNext', FlagEnabled=false, Height=26)));
 assert(isempty(previousVehicleButton.Text) && isempty(nextVehicleButton.Text));   % (pictures only: "Next" means questions)
 assert(strcmp(findall(figureHandle, 'Tag', 'vvPrevious').Enable, 'off') && strcmp(findall(figureHandle, 'Tag', 'vvNext').Enable, 'on'));
 
@@ -253,7 +253,7 @@ delete(figureHandle);
 
 %% Earlier answers are kept; a change to the data makes them stale
 fprintf(1, 'Earlier answers kept, and stale ones\n');
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 hooks = figureHandle.UserData;
 assert(answers.Answer(4) == "Equal");   % (kept)
@@ -261,7 +261,7 @@ assert(answers.Status(5) == "skipped");   % (known from its fingerprint call, be
 assert(strcmp(hooks.Current().Key, 'fails'));   % (the first with no current answer)
 delete(figureHandle);
 setappdata(groot, 'zzVVTestVersion', 2);   % (the data the test pictures are drawn from changes)
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 hooks = figureHandle.UserData;
 assert(strcmp(hooks.Current().Key, 'drawsA'));   % (stale: counts as unanswered)
@@ -275,7 +275,7 @@ delete(figureHandle);
 %% An assessment turned off in Shared GUI settings
 fprintf(1, 'An assessment turned off\n');
 setpref('CarMesh3D', 'ReviewChecksOff', {'zzSlow'});
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 hooks = figureHandle.UserData;
 assert(answers.Status(4) == "turned off");
@@ -285,14 +285,14 @@ saved = load(reviewFile);
 assert(saved.reviewTable.Status(4) == "skipped");
 delete(figureHandle);
 setpref('CarMesh3D', 'ReviewChecksOff', {});
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 assert(answers.Status(4) == "answered" && answers.Answer(4) == "Equal");   % (on again: its earlier answer is back)
 delete(figureHandle);
 
 %% Shared GUI settings in the window's ☰ Menu: the Review settings
 fprintf(1, 'Shared GUI settings\n');
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 hooks = figureHandle.UserData;
 assert(any(strcmp(hooks.Menu.Names(), 'Shared GUI settings')) && any(strcmp(hooks.Menu.Names(), 'Questions')));
@@ -316,7 +316,7 @@ reviewTable = table("orientation", "orientation", "Does the red arrow point to t
     "SBB", "2026-11-24 10:00", 'VariableNames', {'Check', 'Item', 'Question', 'Status', 'Severity', 'Cause', ...
     'Comment', 'Reviewer', 'Time'});
 save(reviewFile, 'reviewTable');
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 assert(all(answers.Status(1:4) == ""));   % (a fresh start)
 saved = load(reviewFile);
@@ -329,7 +329,7 @@ delete(figureHandle);
 %% A batch: the caller's vehicles, in order
 fprintf(1, 'A batch\n');
 secondFiles = fcn_CarMesh3D_makeDemoCopy('2026_CarMesh3D_Generic_Sedan', DemoFolder=fullfile(demoFolder, 'second'), FigNum=-1);
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle([], Vehicles={vehicleInput, secondFiles.Folder}, Visible=false, ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle([], Vehicles={vehicleInput, secondFiles.Folder}, FlagVisible=false, ...
     Reviewer='ZZT', Assessments=testAssessments);
 hooks = figureHandle.UserData;
 assert(hooks.Current().VehicleIndex == 1);
@@ -379,13 +379,13 @@ delete(figureHandle);
 %% answers and write the report
 fprintf(1, 'Close and Exit\n');
 delete(reportFile);
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 close(figureHandle);
 assert(~isvalid(figureHandle));
 assert(isfile(reportFile));
 delete(reportFile);
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments);
 assert(isempty(findall(figureHandle, 'Tag', 'vvClose')), 'No Close button in the top bar (Q62 (A))');
 exitItem = findall(figureHandle, 'Tag', 'vvExit');
@@ -397,7 +397,7 @@ assert(isfile(reportFile));
 %% A score with the answer, and examples (the Normals assessment; Sean, 04:41; Q90 (A), Q91 (A))
 fprintf(1, 'A score, and examples to compare with\n');
 examplesFolder = fullfile(demoFolder, 'zzExamples');   % (never the repo's examples)
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments={@fcn_CarMesh3D_assess_zzDraws, @fcn_CarMesh3D_assess_normals}, ExamplesFolder=examplesFolder);
 hooks = figureHandle.UserData;
 hooks.Show('drawsA');
@@ -439,24 +439,24 @@ assert(contains(fileread(reportFile), 'Accept (3)'), 'The report shows the score
 
 %% Start= (Q70 (A)), and one shown window per vehicle (Q71 (A))
 fprintf(1, 'Start=, and one window per vehicle\n');
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments, Start='slow');
 current = figureHandle.UserData.Current();
 assert(strcmp(current.Key, 'slow'), 'Opened at the question Start names');
 delete(figureHandle);
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments, Start='summary');
 assert(strcmp(findall(figureHandle, 'Tag', 'vvQuestion').Text, 'Approve this mesh?'), 'Start=''summary''');
 delete(figureHandle);
 lastwarn('');
-[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments, Start='noSuchQuestion');
 [~, warningID] = lastwarn;
 assert(strcmp(warningID, 'CarMesh3D:unknownStart'));
 delete(figureHandle);
 % (shown windows, briefly: the second call brings the first to the front)
-[~, firstWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=true, Reviewer='ZZT', Assessments=testAssessments);
-[~, secondWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=true, Reviewer='ZZT', ...
+[~, firstWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=true, Reviewer='ZZT', Assessments=testAssessments);
+[~, secondWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=true, Reviewer='ZZT', ...
     Assessments=testAssessments, Start='fails');
 assert(isequal(firstWindow, secondWindow) && numel(findall(groot, 'Tag', 'vvWindow', 'Visible', 'on')) == 1, 'One window per vehicle');
 current = firstWindow.UserData.Current();
@@ -465,7 +465,7 @@ delete(firstWindow);
 
 %% Fast mode
 fprintf(1, 'Fast mode\n');
-[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+[answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, FlagVisible=false, Reviewer='ZZT', ...
     Assessments=testAssessments, FigNum=-1);
 assert(istable(answers));
 delete(figureHandle);
@@ -473,13 +473,13 @@ delete(figureHandle);
 %% Testing errors
 fprintf(1, 'Testing errors\n');
 try
-    fcn_CarMesh3D_reviewVehicle([], Visible=false, Reviewer='ZZT');
+    fcn_CarMesh3D_reviewVehicle([], FlagVisible=false, Reviewer='ZZT');
     error('should have failed');
 catch inputError
     assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'));
 end
 try
-    fcn_CarMesh3D_reviewVehicle([], Vehicles=5, Visible=false, Reviewer='ZZT');
+    fcn_CarMesh3D_reviewVehicle([], Vehicles=5, FlagVisible=false, Reviewer='ZZT');
     error('should have failed');
 catch inputError
     assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'));

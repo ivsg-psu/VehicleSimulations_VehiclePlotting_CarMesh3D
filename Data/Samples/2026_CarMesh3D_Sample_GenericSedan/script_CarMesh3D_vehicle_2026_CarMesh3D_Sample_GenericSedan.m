@@ -23,7 +23,7 @@
 %   4. Run it. Look at every picture and animation in the "checks"
 %      subfolder. Fix the settings (most often the label edits) and run
 %      it again until every check looks right.
-%   5. Set flag_addThisVehicleToReferenceList = 1 and run it once more,
+%   5. Set flagAddThisVehicleToReferenceList = 1 and run it once more,
 %      to add the vehicle (and its animation) to the reference list in
 %      Data\referenceVehicles.csv and in the README.
 %
@@ -85,7 +85,7 @@ importForwardAxis = '+x';
 % pairs a regular expression on the model's group or material names with a
 % part: 'body', 'glass', 'wheel', 'light', or 'trim'.
 partRules = {}                   % for example {'Wheel','wheel'; 'Glass','glass'};
-useMaterialColors = false;   % false: one color per part (below)
+flagUseMaterialColors = false;   % false: one color per part (below)
 bodyColor = [0.05 0.20 0.60];   % The standard blue for every vehicle: it shows mislabeled trim and glass clearly
 glassColor = [0.25 0.25 0.28];
 trimColor = [0.05 0.05 0.05];
@@ -98,7 +98,7 @@ widthReference = 'all';
 
 % Label fixes AFTER fitting (fcn_CarMesh3D_editLabels): regions are in
 % meters, with the origin on the ground below the rear axle, X forward,
-% Y left, Z up. Find them with flag_useInteractiveLabelEditor = 1.
+% Y left, Z up. Find them with flagUseInteractiveLabelEditor = 1.
 % Label fixes that must be made BEFORE fitting (for example, tires that
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
@@ -110,10 +110,10 @@ labelEditsAfterFit = {};
 targetFaces = 8000;
 
 % What to run
-flag_useInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
-flag_runChecks = 1;                       % 1: run the standard checks (images and GIFs in checks\)
-flag_saveGifs = 0;                        % 1: save the check GIFs (0 is faster, for a first look)
-flag_addThisVehicleToReferenceList = 0;   % 1: add to Data\referenceVehicles.csv and the README
+flagUseInteractiveLabelEditor = 0;       % 1: click to fix labels (prints region edits to paste above)
+flagRunChecks = 1;                       % 1: run the standard checks (images and GIFs in checks\)
+flagSaveGifs = 0;                        % 1: save the check GIFs (0 is faster, for a first look)
+flagAddThisVehicleToReferenceList = 0;   % 1: add to Data\referenceVehicles.csv and the README
 
 %% Set up the workspace
 thisFolder = fileparts(mfilename('fullpath'));
@@ -137,8 +137,8 @@ fprintf(1,'\n===== %s =====\n', vehicleFiles.Name);
 vehicleSpec = fcn_CarMesh3D_loadVehicleSpec(vehicleFiles.ParametersFile, BodyColor=bodyColor);
 
 %% Steps 2 to 4 from a body style (no model of this vehicle)
-flag_fromBodyStyle = isempty(modelFile);
-if flag_fromBodyStyle
+flagFromBodyStyle = isempty(modelFile);
+if flagFromBodyStyle
     if isempty(bodyStyle)
         error('Give a modelFile, or set modelFile = '''' and give a bodyStyle (see Data\bodyStyles.csv)');
     end
@@ -148,7 +148,7 @@ if flag_fromBodyStyle
 end
 
 %% Step 2: Import the model and turn it to X forward, Y left, Z up
-if ~flag_fromBodyStyle
+if ~flagFromBodyStyle
     licenseFile = fullfile(vehicleFiles.ModelFolder,'LICENSE.txt');
     modelLicense = 'unknown';
     if isfile(licenseFile)
@@ -163,8 +163,8 @@ if ~flag_fromBodyStyle
 end
 
 %% Step 3: Labels
-if ~flag_fromBodyStyle
-    vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, PartRules=partRules, UseMaterialColors=useMaterialColors, ...
+if ~flagFromBodyStyle
+    vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, PartRules=partRules, FlagUseMaterialColors=flagUseMaterialColors, ...
         PartColors={'body',bodyColor; 'glass',glassColor; 'trim',trimColor}, GlassAlpha=glassAlpha);
     editsBeforeFit = fcn_INTERNAL_editsBeforeFit(vehicleMesh);
     if ~isempty(editsBeforeFit)
@@ -173,14 +173,14 @@ if ~flag_fromBodyStyle
 end
 
 %% Step 4: Fit to the specification
-if ~flag_fromBodyStyle
+if ~flagFromBodyStyle
     vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, WidthReference=widthReference);
 end
 if ~isempty(labelEditsAfterFit)
     vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=labelEditsAfterFit);
 end
-if flag_useInteractiveLabelEditor
-    vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Interactive=true, GlassAlpha=glassAlpha); %#ok<UNRCH>
+if flagUseInteractiveLabelEditor
+    vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, FlagInteractive=true, GlassAlpha=glassAlpha); %#ok<UNRCH>
 end
 
 %% Step 5: Simplify
@@ -215,18 +215,18 @@ fprintf(1,'Saved %s: %d points\n', vehicleFiles.OutlineFile, vehicleOutline.Poin
 fcn_INTERNAL_savePicture(3, fullfile(vehicleFiles.ChecksFolder,'check_12_outline2D.png'));
 
 %% Step 7: The standard checks
-if flag_runChecks
+if flagRunChecks
     checkResults = fcn_CarMesh3D_runVehicleChecks(vehicleMesh, vehicleSpec, vehicleFiles.ChecksFolder, ...
-        SaveGifs=logical(flag_saveGifs), VehicleName=vehicleFiles.Name);
+        FlagSaveGifs=logical(flagSaveGifs), VehicleName=vehicleFiles.Name);
     fprintf(1,'Checks written to %s\n', vehicleFiles.ChecksFolder);
     disp(checkResults.ValidationTable);
 end
 
 %% Step 8: Add to the reference vehicle list
-if flag_addThisVehicleToReferenceList
+if flagAddThisVehicleToReferenceList
     referenceGif = fullfile(vehicleFiles.ChecksFolder,'check_09_drive.gif');
     if ~isfile(referenceGif)
-        error('Run the checks with flag_saveGifs = 1 first: %s is needed', referenceGif);
+        error('Run the checks with flagSaveGifs = 1 first: %s is needed', referenceGif);
     end
     fcn_CarMesh3D_addReferenceVehicle(vehicleID, vehicleMesh, referenceGif);
     fprintf(1,'Added %s to the reference vehicle list\n', vehicleID);

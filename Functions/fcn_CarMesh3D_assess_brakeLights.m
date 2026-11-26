@@ -114,7 +114,7 @@ vehicle = fcn_CarMesh3D_reviewInput(vehicleInput, FigNum=-1);
 mesh = vehicle.Mesh;
 result = described;
 result.Skip = '';
-result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'FaceLightType'), ...
+result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'LabelFaceLamp'), ...
     fcn_INTERNAL_field(mesh, 'FaceColors'));
 numLamps = fcn_INTERNAL_countLamps(mesh, {'tailBrakeLamp'});   % (the tail lamps are the brake lamps, lit bright)
 result.Note = sprintf('%s: %d tail and brake lamp faces', vehicle.Name, numLamps);
@@ -126,9 +126,9 @@ if strcmpi(options.Mode, 'fingerprint')
 end
 
 % The pictures: the rear at night, off, tail lamps, braking
-states = {'off', 'on', 'brake'};
+states = struct('Tail', {false, true, true}, 'Brake', {false, false, true});   % (off, tail lamps on, braking)
 captions = {'Lamps off', 'Tail lamps on', 'Braking'};
-axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, Dark=true, ...
+axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, FlagDark=true, ...
     RowLabels={'Far view', 'Close-up of left tail light'}, FigNum=options.FigNum);
 % (the far views on a dark ground that reaches groundBehind meters behind
 % the vehicle, with plotVehicle's light pools on it, as the headlights'
@@ -141,7 +141,7 @@ meshHigh = max(mesh.Vertices, [], 1);
 groundX = [meshLow(1) - groundBehind, meshHigh(1) + 0.5];
 for ith_view = 1:3
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=axesHandles(ith_view), ...
-        LightStates=struct('Tail', states{ith_view}), LightEffects=true, FigNum=-1);
+        Signals=states(ith_view), FlagLightEffects=true, FigNum=-1);
     patch(axesHandles(ith_view), 'XData', groundX([1 2 2 1]), 'YData', groundSide*[-1 -1 1 1], ...
         'ZData', (meshLow(3) - 0.003)*[1 1 1 1], 'FaceColor', [0.16 0.16 0.19], 'EdgeColor', 'none', ...
         'FaceLighting', 'none', 'HitTest', 'off', 'Tag', 'assessGround');
@@ -154,7 +154,7 @@ for ith_view = 1:3
     axesHandles(ith_view).Title.Visible = 'on';
     % (below it: the same lamps, close up on the left tail light)
     closeAxes = axesHandles(3 + ith_view);
-    fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, LightStates=struct('Tail', states{ith_view}), FigNum=-1);
+    fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, Signals=states(ith_view), FigNum=-1);
     axis(closeAxes, 'equal', 'off');
     fcn_INTERNAL_closeUp(closeAxes, mesh, {'tailBrakeLamp'}, false, -135, 12);   % (the rear, from the left)
     title(closeAxes, captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
@@ -178,11 +178,11 @@ end % Ends fcn_INTERNAL_field
 function count = fcn_INTERNAL_countLamps(mesh, typeNames)
 % How many faces are lamps of these types
 count = 0;
-if ~isfield(mesh, 'FaceLightType') || ~isfield(mesh, 'LightTypeNames')
+if ~isfield(mesh, 'LabelFaceLamp') || ~isfield(mesh, 'LabelLampNames')
     return;
 end
-typeIndex = find(ismember(cellstr(mesh.LightTypeNames), typeNames));
-count = sum(ismember(mesh.FaceLightType, typeIndex));
+typeIndex = find(ismember(cellstr(mesh.LabelLampNames), typeNames));
+count = sum(ismember(mesh.LabelFaceLamp, typeIndex));
 end % Ends fcn_INTERNAL_countLamps
 
 %% fcn_INTERNAL_closeUp
@@ -194,8 +194,8 @@ function fcn_INTERNAL_closeUp(axesHandle, mesh, typeNames, flagFront, azimuth, e
 % neighbors); the whole vehicle when it has none
 view(axesHandle, azimuth, elevation);
 flagFaces = false(size(mesh.Faces, 1), 1);
-if isfield(mesh, 'FaceLightType') && isfield(mesh, 'LightTypeNames')
-    flagFaces = ismember(mesh.FaceLightType, find(ismember(cellstr(mesh.LightTypeNames), typeNames)));
+if isfield(mesh, 'LabelFaceLamp') && isfield(mesh, 'LabelLampNames')
+    flagFaces = ismember(mesh.LabelFaceLamp, find(ismember(cellstr(mesh.LabelLampNames), typeNames)));
 end
 centers = (mesh.Vertices(mesh.Faces(:,1),:) + mesh.Vertices(mesh.Faces(:,2),:) + mesh.Vertices(mesh.Faces(:,3),:))/3;
 middleX = (min(mesh.Vertices(:,1)) + max(mesh.Vertices(:,1)))/2;

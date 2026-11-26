@@ -13,7 +13,7 @@
 
 %% Set up the workspace
 close all;
-testVehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+testVehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 
 %% The list of examples
 examples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=testVehicleID);
@@ -26,7 +26,7 @@ end
 
 %% Each example's echo: the demo copy's commands, then the vehicle's
 for ith_example = 1:numel(examples)
-    [~, echoText] = fcn_CarMesh3D_runDemoExample(examples(ith_example).Name, VehicleID=testVehicleID, Run=false);
+    [~, echoText] = fcn_CarMesh3D_runDemoExample(examples(ith_example).Name, VehicleID=testVehicleID, FlagRun=false);
     assert(contains(echoText, 'DEMO COPY') && contains(echoText, 'ACTUAL vehicle'));
     demoPart = extractBefore(echoText, 'ACTUAL vehicle');
     for ith_line = 1:numel(examples(ith_example).DemoCommands)
@@ -44,7 +44,7 @@ for ith_example = 1:numel(examples)
 end
 
 %% The last example's commands, again
-[~, echoText] = fcn_CarMesh3D_runDemoExample('reviewer', VehicleID=testVehicleID, Run=false);
+[~, echoText] = fcn_CarMesh3D_runDemoExample('reviewer', VehicleID=testVehicleID, FlagRun=false);
 [~, lastText] = fcn_CarMesh3D_runDemoExample('last');
 assert(strcmp(echoText, lastText));
 
@@ -62,12 +62,12 @@ assert(strcmpi(demoFiles.Folder, fullfile(tempdir, 'CarMesh3D_demo', testVehicle
 assert(evalin('base', 'isstruct(history) && isfield(history, ''FinePrint'')'));
 
 %% Fast mode: nothing printed
-printed = evalc('fcn_CarMesh3D_runDemoExample(''viewer'', VehicleID=testVehicleID, Run=false, FigNum=-1);');
+printed = evalc('fcn_CarMesh3D_runDemoExample(''viewer'', VehicleID=testVehicleID, FlagRun=false, FigNum=-1);');
 assert(isempty(strtrim(printed)));
 
 %% Printed in color with DebugTools (headings with % and \ printed as is)
 if exist('fcn_DebugTools_cprintf', 'file') == 2
-    printed = evalc('fcn_CarMesh3D_runDemoExample(''reviewer'', VehicleID=testVehicleID, Run=false);');
+    printed = evalc('fcn_CarMesh3D_runDemoExample(''reviewer'', VehicleID=testVehicleID, FlagRun=false);');
     assert(contains(printed, 'Commands used here') && contains(printed, 'ACTUAL vehicle'));
     assert(contains(printed, 'fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);'));
 end

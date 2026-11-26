@@ -64,7 +64,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); clf;
 
 warningState = warning('off','CarMesh3D:detailLevelsMade');
-detailLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, SaveIfMade=true, FigNum=figNum);
+detailLevels = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, FlagSaveIfMade=true, FigNum=figNum);
 warning(warningState);
 
 % Check variable types
@@ -154,7 +154,7 @@ assert(isequal([remadeLevels.Levels.Faces], [madeLevels.Levels.Faces]), 'The sam
 figNum = 20004;
 fprintf(1,'Figure %.0f: TEST case: OrientFaces\n', figNum);
 warningState = warning('off','CarMesh3D:oldDetailLevels');
-asSaved = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, OrientFaces=false);
+asSaved = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, FlagOrientFaces=false);
 turned = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData);
 warning(warningState);
 assert(all(asSaved.FacesTurned == 0) && numel(turned.FacesTurned) == numel(turned.Levels));
@@ -215,5 +215,5 @@ end
 %% FAIL case: No levels file, and not allowed to make them
 if 1==0
     delete(testFiles.LevelsFile);
-    fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, MakeIfMissing=false);
+    fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, FlagMakeIfMissing=false);
 end

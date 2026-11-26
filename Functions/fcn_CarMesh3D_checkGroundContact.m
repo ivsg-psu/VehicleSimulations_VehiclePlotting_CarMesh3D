@@ -101,7 +101,7 @@ function [flagContact, clearance, lowestPoint] = fcn_CarMesh3D_checkGroundContac
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_checkGroundContact
-%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   % * Measures the vehicle as it is shown: hidden faces (LabelFaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
 
 % TO-DO:

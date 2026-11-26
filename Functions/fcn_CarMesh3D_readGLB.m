@@ -57,7 +57,7 @@ function vehicleMesh = fcn_CarMesh3D_readGLB(fileName, options)
 %               ones; 1 - transmissionFactor (at least 0.1) for
 %               KHR_materials_transmission glass)
 %      and one more:
-%           SeeThroughReliable (true/false): false when more than 60% of
+%           FlagSeeThroughReliable (true/false): false when more than 60% of
 %               the surface is marked see-through (an exporter error seen
 %               in some downloads); then every face is set opaque and a
 %               CarMesh3D:unreliableSeeThrough warning is given
@@ -477,7 +477,7 @@ vehicleMesh.GroupNames = groupNames;
 vehicleMesh.FaceGroupIndex = faceGroup;
 vehicleMesh.FaceTextureColors = min(max(faceColors,0),1);
 vehicleMesh.FaceTextureAlpha = min(max(faceAlpha,0),1);
-vehicleMesh.SeeThroughReliable = flagSeeThroughReliable;
+vehicleMesh.FlagSeeThroughReliable = flagSeeThroughReliable;
 
 %% Plot the results (for debugging)?
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

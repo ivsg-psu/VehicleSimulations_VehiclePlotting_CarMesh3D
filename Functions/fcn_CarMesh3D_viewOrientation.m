@@ -13,7 +13,7 @@ function viewer = fcn_CarMesh3D_viewOrientation(vehicleInput, options)
 % FORMAT:
 %
 %       viewer = fcn_CarMesh3D_viewOrientation(vehicleInput,...
-%           (Parent=container), (OnHint=function), (Visible=flag),...
+%           (Parent=container), (OnHint=function), (FlagVisible=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -29,7 +29,7 @@ function viewer = fcn_CarMesh3D_viewOrientation(vehicleInput, options)
 %      OnHint: a function called with a hint (HTML text) to show; [] to
 %      show it in its own window's hint line (or not at all, in a parent).
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      FigNum: not used (a window); [] or -1 (fast mode: no input checks).
 %
@@ -89,7 +89,7 @@ arguments
     vehicleInput
     options.Parent = []         % Panel or grid to build into; [] for a window of its own
     options.OnHint = []         % Called with hint text
-    options.Visible = true      % Build the window hidden (tests)
+    options.FlagVisible = true      % Build the window hidden (tests)
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
 
@@ -189,7 +189,7 @@ figureHandle = [];
 hintLabel = [];
 if flagOwnWindow
     visibleText = 'on';
-    if ~options.Visible
+    if ~options.FlagVisible
         visibleText = 'off';
     end
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_viewOrientation: %s', vehicleName), 'Position', [100 100 1100 760], ...

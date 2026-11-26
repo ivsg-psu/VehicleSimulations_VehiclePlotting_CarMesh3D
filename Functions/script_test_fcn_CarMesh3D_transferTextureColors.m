@@ -42,7 +42,7 @@ sgtitle(titleString, 'Interpreter','none');
 assert(isstruct(coloredMesh));
 assert(isequal(size(coloredMesh.FaceTextureColors),[2 3]));
 assert(isequal(size(coloredMesh.FaceTextureAlpha),[2 1]));
-assert(islogical(coloredMesh.SeeThroughReliable));
+assert(islogical(coloredMesh.FlagSeeThroughReliable));
 
 % Check variable values: the lower-left triangle's center (x < 0.5) lies
 % on the red half, the upper-right one's (x > 0.5) on the blue half
@@ -61,7 +61,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 % (a two-sided panel: green facing up, yellow facing down, 1 mm apart; a
 % face facing down takes yellow, though green is as near)
 textureMesh = struct('Vertices',[0 0 0; 1 0 0; 0 1 0; 0 0 -0.001; 0 1 -0.001; 1 0 -0.001], ...
-    'Faces',[1 2 3; 4 5 6], 'FaceTextureColors',[0 1 0; 1 1 0], 'FaceTextureAlpha',[1; 1], 'SeeThroughReliable',true);
+    'Faces',[1 2 3; 4 5 6], 'FaceTextureColors',[0 1 0; 1 1 0], 'FaceTextureAlpha',[1; 1], 'FlagSeeThroughReliable',true);
 downMesh = struct('Vertices',[0 0 -0.0005; 0 1 -0.0005; 1 0 -0.0005], 'Faces',[1 2 3]);
 coloredMesh = fcn_CarMesh3D_transferTextureColors(downMesh, textureMesh, FigNum=[]);
 assert(isequal(coloredMesh.FaceTextureColors, [1 1 0]));
@@ -193,5 +193,5 @@ colors(centers(:,1) < 0.5,:) = repmat([1 0 0], sum(centers(:,1) < 0.5), 1);
 normals = cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), vertices(faces(:,3),:) - vertices(faces(:,1),:), 2);
 faces(normals(:,3) < 0,:) = faces(normals(:,3) < 0,[1 3 2]);
 textureMesh = struct('Vertices',vertices, 'Faces',faces, 'FaceTextureColors',colors, ...
-    'FaceTextureAlpha',ones(size(faces,1),1), 'SeeThroughReliable',true);
+    'FaceTextureAlpha',ones(size(faces,1),1), 'FlagSeeThroughReliable',true);
 end % Ends fcn_INTERNAL_fineSquare

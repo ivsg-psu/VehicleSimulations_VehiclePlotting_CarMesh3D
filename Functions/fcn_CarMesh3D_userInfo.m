@@ -5,21 +5,21 @@ function user = fcn_CarMesh3D_userInfo(options)
 % shared by every GUI (Shared GUI settings, You). The V&V GUI records them
 % with every answer; the painter writes the initials in its change log.
 %
-% With Ask=true and no initials saved yet, it asks once (a small dialog)
+% With FlagAsk=true and no initials saved yet, it asks once (a small dialog)
 % and saves the answer, so a student opening the V&V GUI for the first
 % time is asked who they are (Sean, 2026-11-25 01:53: "We'll need a small
 % helper function to get the user information, or even just a textbox").
 %
 % FORMAT:
 %
-%       user = fcn_CarMesh3D_userInfo((Ask=flag), (Set={initials, name}),
+%       user = fcn_CarMesh3D_userInfo((FlagAsk=flag), (Set={initials, name}),
 %           (Answer={initials, name}), (FigNum=figNum))
 %
 % INPUTS:
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Ask: true to ask (a dialog) when no initials are saved; false
+%      FlagAsk: true to ask (a dialog) when no initials are saved; false
 %      (default) to return the default instead, without asking.
 %
 %      Set: {initials, name} to save (name may be ''); default {} (nothing
@@ -45,7 +45,7 @@ function user = fcn_CarMesh3D_userInfo(options)
 %
 % EXAMPLES:
 %
-%       user = fcn_CarMesh3D_userInfo(Ask=true);
+%       user = fcn_CarMesh3D_userInfo(FlagAsk=true);
 %
 %       See the script: script_test_fcn_CarMesh3D_userInfo.m for a full
 %       test suite.
@@ -66,7 +66,7 @@ function user = fcn_CarMesh3D_userInfo(options)
 % (none)
 
 arguments
-    options.Ask = false     % Ask when no initials are saved
+    options.FlagAsk = false     % Ask when no initials are saved
     options.Set = {}        % {initials, name} to save
     options.Answer = {}     % {initials, name} in place of the dialog (tests)
     options.FigNum = []     % Not used; -1 for fast mode
@@ -113,7 +113,7 @@ if ispref('CarMesh3D', 'Initials') && ~isempty(strtrim(char(getpref('CarMesh3D',
     return;
 end
 
-if options.Ask
+if options.FlagAsk
     answer = options.Answer;
     if isempty(answer)
         answer = inputdlg({'Your initials (saved with your answers):', 'Your name (optional):'}, ...

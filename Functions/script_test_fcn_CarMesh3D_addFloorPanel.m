@@ -32,12 +32,12 @@ Nfaces = size(vehicleMesh.Faces,1);
 
 %% Basic call, with a plot
 figNum = 10001;
-panelMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, OnlyWhereOpen=false, FigNum=figNum);
+panelMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, FlagOnlyWhereOpen=false, FigNum=figNum);
 assert(isfield(panelMesh,'FloorPanel'));
 Npanel = numel(panelMesh.FloorPanel.Faces);
 assert(Npanel > 0);
 assert(size(panelMesh.Faces,1) == Nfaces + Npanel);
-assert(size(panelMesh.FacePartIndex,1) == Nfaces + Npanel);
+assert(size(panelMesh.LabelFacePart,1) == Nfaces + Npanel);
 assert(size(panelMesh.FaceColors,1) == Nfaces + Npanel);
 % (at the spec's ground clearance, its edges risen at most MaxRise,
 % facing down, labeled trim)
@@ -46,7 +46,7 @@ panelHeights = panelMesh.Vertices(panelCorners,3);
 assert(abs(min(panelHeights) - vehicleMesh.VehicleSpec.GroundClearance) < 1e-9);
 assert(max(panelHeights) <= vehicleMesh.VehicleSpec.GroundClearance + 0.30 + 1e-9);
 assert(all(panelMesh.FaceNormals(panelMesh.FloorPanel.Faces,3) < 0));
-assert(all(strcmp(panelMesh.PartNames(panelMesh.FacePartIndex(panelMesh.FloorPanel.Faces)),'trim')));
+assert(all(strcmp(panelMesh.LabelPartNames(panelMesh.LabelFacePart(panelMesh.FloorPanel.Faces)),'trim')));
 assert(all(panelMesh.FaceWheelIndex(panelMesh.FloorPanel.Faces) == 0));
 % (the wheel footprints are cut out: no panel over a wheel's center)
 for ith_wheel = 1:4
@@ -62,7 +62,7 @@ assert(all(normals(:,3) < 0));
 assert(ishandle(figNum));
 
 %% A given height, flat (no blend), fast mode
-panelMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, Height=0.25, BlendWidth=0, OnlyWhereOpen=false, FigNum=-1);
+panelMesh = fcn_CarMesh3D_addFloorPanel(vehicleMesh, Height=0.25, BlendWidth=0, FlagOnlyWhereOpen=false, FigNum=-1);
 panelCorners = unique(panelMesh.Faces(panelMesh.FloorPanel.Faces,:));
 assert(all(abs(panelMesh.Vertices(panelCorners,3) - 0.25) < 1e-9));
 
@@ -73,7 +73,7 @@ assert(closedPrius.FloorPanel.OpenFraction < 0.05);
 %% Only where open: with its underside taken off, it gets a panel where it is open
 openPrius = fcn_INTERNAL_withoutUnderside(vehicleMesh, 0.4);
 openMesh = fcn_CarMesh3D_addFloorPanel(openPrius, FigNum=-1);
-fullMesh = fcn_CarMesh3D_addFloorPanel(openPrius, OnlyWhereOpen=false, FigNum=-1);
+fullMesh = fcn_CarMesh3D_addFloorPanel(openPrius, FlagOnlyWhereOpen=false, FigNum=-1);
 assert(openMesh.FloorPanel.OpenFraction > 0.3 && openMesh.FloorPanel.OpenFraction <= 1);
 assert(~isempty(openMesh.FloorPanel.Faces));
 assert(area(openMesh.FloorPanel.Polygon) <= area(fullMesh.FloorPanel.Polygon) + 1e-6);
@@ -160,7 +160,7 @@ for fieldName = reshape(fieldnames(vehicleMesh),1,[])
 end
 vehicleMesh.Vertices = [vehicleMesh.Vertices; newVertices];
 vehicleMesh.Faces = [vehicleMesh.Faces; newFaces];
-vehicleMesh.FacePartIndex(end-1:end) = find(strcmp(vehicleMesh.PartNames,'body'),1);
+vehicleMesh.LabelFacePart(end-1:end) = find(strcmp(vehicleMesh.LabelPartNames,'body'),1);
 vehicleMesh.FaceWheelIndex(end-1:end) = 0;
 if isfield(vehicleMesh,'FaceAlpha')
     vehicleMesh.FaceAlpha(end-1:end) = 1;

@@ -32,7 +32,7 @@ function overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, op
 %       overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh,...
 %           (WheelCentersPixels=[colRear rowRear; colFront rowFront]),...
 %           (PlaneY=y), (ImageAlpha=alpha), (VehicleAlpha=alpha),...
-%           (ShowVehicle=flag), (SetView=flag), (FigNum=figNum))
+%           (FlagShowVehicle=flag), (FlagSetView=flag), (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
 %      inputs, in any order. Any option not given takes its default.
@@ -66,11 +66,11 @@ function overlayHandles = fcn_CarMesh3D_plotSideImage(sideImage, vehicleMesh, op
 %      VehicleAlpha: how solid the vehicle is drawn, from 0 to 1. Default
 %      0.4, so the picture shows through.
 %
-%      ShowVehicle: true (default) to also draw the vehicle with
+%      FlagShowVehicle: true (default) to also draw the vehicle with
 %      fcn_CarMesh3D_plotVehicle; false to draw only the picture (for
 %      example, into an axes where the vehicle is already drawn).
 %
-%      SetView: true (default) to look from the vehicle's right side
+%      FlagSetView: true (default) to look from the vehicle's right side
 %      (-Y), with no perspective (orthographic), so the outlines can be
 %      compared exactly. Rotate the view to see the other side.
 %
@@ -141,8 +141,8 @@ arguments
     options.PlaneY = 0               % Y of the picture plane [m]; 0 is the centerline
     options.ImageAlpha = 1           % 0 clear to 1 solid
     options.VehicleAlpha = 0.4       % 0 clear to 1 solid
-    options.ShowVehicle = true       % Also draw the vehicle?
-    options.SetView = true           % Look from the right side, orthographic?
+    options.FlagShowVehicle = true       % Also draw the vehicle?
+    options.FlagSetView = true           % Look from the right side, orthographic?
     options.FigNum = []              % Figure to draw into; [] for current figure, -1 for fast mode
 end
 
@@ -339,7 +339,7 @@ hold(axesHandle,'on');
 %%%%
 % The vehicle, drawn partly see-through
 vehicleHandles = [];
-if options.ShowVehicle
+if options.FlagShowVehicle
     vehicleHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, FigNum=-1);
     for ith_patch = 1:length(vehicleHandles.Patches)
         thisPatch = vehicleHandles.Patches{ith_patch};
@@ -362,7 +362,7 @@ imageSurface = surface(axesHandle, ...
 
 %%%%
 % Look from the right side (-Y), without perspective
-if options.SetView
+if options.FlagSetView
     view(axesHandle,0,0);
     camproj(axesHandle,'orthographic');
     axis(axesHandle,'equal');

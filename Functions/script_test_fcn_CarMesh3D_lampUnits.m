@@ -90,7 +90,7 @@ assert(strcmp(units(1).Kind, 'headlamp') && strcmp(units(1).KindLabel, 'headlamp
 for ith_unit = 1:numel(units)
     assert(all(faceUnit(units(ith_unit).Faces) == ith_unit));
 end
-assert(all(faceUnit(testMesh.FaceLightType == 0 & testMesh.FaceCoverLamp == 0) == 0), 'Faces not lamps or covers: no unit');
+assert(all(faceUnit(testMesh.LabelFaceLamp == 0 & testMesh.LabelFaceCoverLamp == 0) == 0), 'Faces not lamps or covers: no unit');
 
 %% TEST case: a scrap of a few faces next to a lamp joins it; a lamp far away is its own unit
 figNum = 20002;
@@ -111,8 +111,8 @@ titleString = sprintf('TEST case: covers');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 headlampIndex = find(strcmp({units.Name}, 'front-left headlamp'));
 markerIndex = find(strcmp({units.Name}, 'front-left marker lamp'));
-coverOverHeadlamp = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'headlamp')));
-coverOverHighBeam = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'highBeamLamp')));
+coverOverHeadlamp = find(testMesh.LabelFaceCoverLamp == find(strcmp(lampTypeNames, 'headlamp')));
+coverOverHighBeam = find(testMesh.LabelFaceCoverLamp == find(strcmp(lampTypeNames, 'highBeamLamp')));
 assert(all(ismember(coverOverHeadlamp, units(headlampIndex).CoverFaces)), 'A headlamp cover belongs to the headlamp');
 assert(all(ismember(coverOverHighBeam, [units(headlampIndex).CoverFaces; units(markerIndex).CoverFaces])), ...
     'A high-beam cover (no high-beam unit) belongs to the nearest unit');
@@ -124,8 +124,8 @@ figNum = 20004;
 titleString = sprintf('TEST case: no lamps');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 noLamps = testMesh;
-noLamps.FaceLightType(:) = 0;
-noLamps.FaceCoverLamp(:) = 0;
+noLamps.LabelFaceLamp(:) = 0;
+noLamps.LabelFaceCoverLamp(:) = 0;
 [noUnits, noFaceUnit] = fcn_CarMesh3D_lampUnits(noLamps);
 assert(isempty(noUnits) && all(noFaceUnit == 0));
 
@@ -195,7 +195,7 @@ fprintf(1,'The Fit, %.0f calls: normal %.3f s, fast %.3f s\n', Niterations, slow
 figNum = 90001;
 fprintf(1,'Figure %.0f: BUG case: lamp type names in a row\n', figNum);
 rowNames = testMesh;
-rowNames.LightTypeNames = reshape(cellstr(rowNames.LightTypeNames), 1, []);
+rowNames.LabelLampNames = reshape(cellstr(rowNames.LabelLampNames), 1, []);
 rowUnits = fcn_CarMesh3D_lampUnits(rowNames, FigNum=-1);
 columnUnits = fcn_CarMesh3D_lampUnits(testMesh, FigNum=-1);
 assert(isequal({rowUnits.Name}, {columnUnits.Name}) && isequal({rowUnits.Kind}, {columnUnits.Kind}));
@@ -265,6 +265,6 @@ for ith_square = 1:size(squares,1)
     faceType = [faceType; typeIndex; typeIndex]; %#ok<AGROW>
     faceCover = [faceCover; coverIndex; coverIndex]; %#ok<AGROW>
 end
-testMesh = struct('Vertices', vertices, 'Faces', faces, 'FaceLightType', faceType, ...
-    'LightTypeNames', {lampTypeNames}, 'FaceCoverLamp', faceCover);
+testMesh = struct('Vertices', vertices, 'Faces', faces, 'LabelFaceLamp', faceType, ...
+    'LabelLampNames', {lampTypeNames}, 'LabelFaceCoverLamp', faceCover);
 end % Ends fcn_INTERNAL_lampMesh

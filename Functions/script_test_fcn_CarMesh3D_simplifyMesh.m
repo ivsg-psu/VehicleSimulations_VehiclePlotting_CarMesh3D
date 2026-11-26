@@ -20,7 +20,7 @@
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_simplifyMesh
-%   % * Test: other per-face fields (FaceAlsoParts, FaceLightFunctions)
+%   % * Test: other per-face fields (LabelFaceAlsoParts, LabelFaceAlsoLamps)
 %   %   % are kept through the reduction
 
 % TO-DO:
@@ -68,7 +68,7 @@ assert(isstruct(vehicleMesh.SimplifyInfo));
 % Check variable sizes
 Nfaces = size(vehicleMesh.Faces,1);
 assert(isequal(size(vehicleMesh.FaceNormals),[Nfaces 3]));
-assert(isequal(size(vehicleMesh.FacePartIndex),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.LabelFacePart),[Nfaces 1]));
 assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
 
 % Check variable values
@@ -76,8 +76,8 @@ assert(vehicleMesh.SimplifyInfo.FinalFaces <= vehicleMesh.SimplifyInfo.OriginalF
 % Duplicate body vertices (the body sides and end caps) are merged. (The
 % total vertex count can still grow, because each color group keeps its
 % own copy of shared vertices, which keeps color edges sharp.)
-originalBodyVertices = numel(unique(fittedMesh.Faces(fittedMesh.FacePartIndex==1,:)));
-finalBodyVertices = numel(unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:)));
+originalBodyVertices = numel(unique(fittedMesh.Faces(fittedMesh.LabelFacePart==1,:)));
+finalBodyVertices = numel(unique(vehicleMesh.Faces(vehicleMesh.LabelFacePart==1,:)));
 assert(finalBodyVertices < originalBodyVertices);
 assert(max(abs(vecnorm(vehicleMesh.FaceNormals,2,2) - 1))<1e-9);
 fcn_INTERNAL_checkOutward(vehicleMesh);
@@ -99,8 +99,8 @@ sgtitle(titleString, 'Interpreter','none');
 fprintf(1,'\tFaces: %d -> %d\n', vehicleMesh.SimplifyInfo.OriginalFaces, vehicleMesh.SimplifyInfo.FinalFaces);
 assert(vehicleMesh.SimplifyInfo.FinalFaces < 0.6*vehicleMesh.SimplifyInfo.OriginalFaces);
 % All five kinds of labels and all four wheels survive
-assert(any(vehicleMesh.FacePartIndex==1));
-assert(any(vehicleMesh.FacePartIndex==2));
+assert(any(vehicleMesh.LabelFacePart==1));
+assert(any(vehicleMesh.LabelFacePart==2));
 for ith_wheel = 1:4
     assert(any(vehicleMesh.FaceWheelIndex==ith_wheel));
 end
@@ -176,30 +176,30 @@ assert(vehicleMesh.SimplifyInfo.FinalFaces >= 0.95*vehicleMesh.SimplifyInfo.Orig
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Other per-face fields (FaceAlsoParts, FaceLightFunctions) are kept
+%% TEST case: Other per-face fields (LabelFaceAlsoParts, LabelFaceAlsoLamps) are kept
 figNum = 20005;
-titleString = sprintf('TEST case: Other per-face fields (FaceAlsoParts, FaceLightFunctions) are kept');
+titleString = sprintf('TEST case: Other per-face fields (LabelFaceAlsoParts, LabelFaceAlsoLamps) are kept');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 fittedMesh = fcn_INTERNAL_fittedSample(32);
 Nfaces = size(fittedMesh.Faces,1);
-glassFaces = find(fittedMesh.FacePartIndex==2);
+glassFaces = find(fittedMesh.LabelFacePart==2);
 markedFaces = glassFaces(1:2:end);             % (half the glass marked: groups must not mix)
-fittedMesh.FaceAlsoParts = false(Nfaces, numel(fittedMesh.PartNames));
-fittedMesh.FaceAlsoParts(markedFaces, 5) = true;
-fittedMesh.FaceLightFunctions = false(Nfaces, numel(fittedMesh.LightTypeNames));
-fittedMesh.FaceLightFunctions(markedFaces, [2 4]) = true;
+fittedMesh.LabelFaceAlsoParts = false(Nfaces, numel(fittedMesh.LabelPartNames));
+fittedMesh.LabelFaceAlsoParts(markedFaces, 5) = true;
+fittedMesh.LabelFaceAlsoLamps = false(Nfaces, numel(fittedMesh.LabelLampNames));
+fittedMesh.LabelFaceAlsoLamps(markedFaces, [2 4]) = true;
 vehicleMesh = fcn_CarMesh3D_simplifyMesh(fittedMesh, TargetFaces=round(0.6*Nfaces));
 newFaces = size(vehicleMesh.Faces,1);
-assert(isequal(size(vehicleMesh.FaceAlsoParts), [newFaces numel(fittedMesh.PartNames)]));
-assert(isequal(size(vehicleMesh.FaceLightFunctions), [newFaces numel(fittedMesh.LightTypeNames)]));
-assert(islogical(vehicleMesh.FaceAlsoParts));
+assert(isequal(size(vehicleMesh.LabelFaceAlsoParts), [newFaces numel(fittedMesh.LabelPartNames)]));
+assert(isequal(size(vehicleMesh.LabelFaceAlsoLamps), [newFaces numel(fittedMesh.LabelLampNames)]));
+assert(islogical(vehicleMesh.LabelFaceAlsoParts));
 % marked faces are still glass, and both fields stay together
-assert(any(vehicleMesh.FaceAlsoParts(:,5)));
-assert(all(vehicleMesh.FacePartIndex(vehicleMesh.FaceAlsoParts(:,5))==2));
-assert(isequal(vehicleMesh.FaceAlsoParts(:,5), vehicleMesh.FaceLightFunctions(:,2)));
-assert(~any(vehicleMesh.FaceAlsoParts(vehicleMesh.FacePartIndex~=2,5)));
+assert(any(vehicleMesh.LabelFaceAlsoParts(:,5)));
+assert(all(vehicleMesh.LabelFacePart(vehicleMesh.LabelFaceAlsoParts(:,5))==2));
+assert(isequal(vehicleMesh.LabelFaceAlsoParts(:,5), vehicleMesh.LabelFaceAlsoLamps(:,2)));
+assert(~any(vehicleMesh.LabelFaceAlsoParts(vehicleMesh.LabelFacePart~=2,5)));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -226,15 +226,15 @@ testMesh.Name = 'panel, post, and floor';
 testMesh.Vertices = [panelVertices; postVertices; floorVertices];
 testMesh.Faces = [panelFaces; postFaces + 4; floorFaces + 12];
 Ntest = size(testMesh.Faces,1);
-testMesh.FacePartIndex = ones(Ntest,1);
+testMesh.LabelFacePart = ones(Ntest,1);
 testMesh.FaceWheelIndex = zeros(Ntest,1);
 testMesh.FaceColors = repmat([0.05 0.2 0.6], Ntest, 1);
 testMesh.FaceAlpha = ones(Ntest,1);
 testMesh.FaceMaterialIndex = ones(Ntest,1);
 testMesh.FaceGroupIndex = ones(Ntest,1);
-testMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
+testMesh.LabelPartNames = {'body';'glass';'wheel';'light';'trim'};
 
-withoutCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6, VisibilityCheck=false);
+withoutCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6, FlagVisibilityCheck=false);
 withCheck = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e6);
 
 % Check variable values: the panel faces (normals along z) point up with
@@ -283,16 +283,16 @@ for ith_box = 1:size(boxLimits,1)
     testMesh.Vertices = [testMesh.Vertices; boxVertices];
 end
 Ntest = size(testMesh.Faces,1);
-testMesh.FacePartIndex = ones(Ntest,1);
+testMesh.LabelFacePart = ones(Ntest,1);
 testMesh.FaceWheelIndex = zeros(Ntest,1);
 testMesh.FaceColors = repmat([0.05 0.2 0.6], Ntest, 1);
 testMesh.FaceAlpha = ones(Ntest,1);
 testMesh.FaceMaterialIndex = ones(Ntest,1);
 testMesh.FaceGroupIndex = ones(Ntest,1);
-testMesh.PartNames = {'body';'glass';'wheel';'light';'trim'};
+testMesh.LabelPartNames = {'body';'glass';'wheel';'light';'trim'};
 
-withKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, Symmetric=true, VisibilityCheck=false);
-withoutKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, Symmetric=true, KeepOneSided=false, VisibilityCheck=false);
+withKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, FlagSymmetric=true, FlagVisibilityCheck=false);
+withoutKeep = fcn_CarMesh3D_simplifyMesh(testMesh, TargetFaces=1e4, FlagSymmetric=true, FlagKeepOneSided=false, FlagVisibilityCheck=false);
 
 % Check variable values: the steering wheel and fuel door are one-sided
 % (two pieces, 24 faces), the mirrors are not
@@ -465,12 +465,12 @@ end
 
 %% FAIL case: VisibilityCheck is not true or false
 if 1==0
-    fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_fittedSample(16), VisibilityCheck='yes');
+    fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_fittedSample(16), FlagVisibilityCheck='yes');
 end
 
 %% FAIL case: KeepOneSided is not true or false
 if 1==0
-    vehicleMesh = fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_preparedSample(24), Symmetric=true, KeepOneSided='yes');
+    vehicleMesh = fcn_CarMesh3D_simplifyMesh(fcn_INTERNAL_preparedSample(24), FlagSymmetric=true, FlagKeepOneSided='yes');
 end
 
 %% Functions follow
@@ -526,14 +526,14 @@ function fcn_INTERNAL_checkOutward(vehicleMesh)
 % center
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
-assert(fcn_INTERNAL_signedVolume(vertices, faces(vehicleMesh.FacePartIndex==1,:)) > 0);
+assert(fcn_INTERNAL_signedVolume(vertices, faces(vehicleMesh.LabelFacePart==1,:)) > 0);
 for ith_wheel = 1:4
     assert(fcn_INTERNAL_signedVolume(vertices, faces(vehicleMesh.FaceWheelIndex==ith_wheel,:)) > 0);
 end
 vehicleCenter = (min(vertices,[],1) + max(vertices,[],1))/2;
-glassFaces = faces(vehicleMesh.FacePartIndex==2,:);
+glassFaces = faces(vehicleMesh.LabelFacePart==2,:);
 glassCenters = (vertices(glassFaces(:,1),:) + vertices(glassFaces(:,2),:) + vertices(glassFaces(:,3),:))/3;
-glassNormals = vehicleMesh.FaceNormals(vehicleMesh.FacePartIndex==2,:);
+glassNormals = vehicleMesh.FaceNormals(vehicleMesh.LabelFacePart==2,:);
 assert(all(sum(glassNormals.*(glassCenters - vehicleCenter),2) > 0));
 end % Ends fcn_INTERNAL_checkOutward
 

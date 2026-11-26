@@ -40,12 +40,12 @@
 close all;
 % (the repo's demo vehicle, now the 2009 Honda Fit; a few checks below use
 % facts of the Fit, and say so if the repo's choice changes)
-demoID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+demoID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
 fitMessage = sprintf(['This check uses facts of the 2009 Honda Fit (a Honda, listed before the 2014 Honda CR-V and ' ...
     'the Prius by make; "fit" in its name), but the repo''s demo vehicle is now %s: update the check'], demoID);
 
 %% Basic case: every finished vehicle, with its pictures and details
-[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 assert(isempty(selectedNames), 'Nothing is selected at the start');
 vehicles = browser.Vehicles;
 assert(numel(vehicles) > 10);
@@ -185,7 +185,7 @@ browser.Close();
 assert(~isvalid(browser.Figure));
 
 %% Nothing selected: a fresh copy of the default test vehicle
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Selected={demoID});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Selected={demoID});
 browser.Deselect({demoID});
 copyButton = findall(browser.Figure, 'Type', 'uibutton', 'Text', 'Copy names');
 assert(strcmp(copyButton.Enable, 'off'), 'Copy names is grayed out while nothing is selected');
@@ -199,19 +199,19 @@ assert(strcmp(copyFiles.ID, fcn_CarMesh3D_demoVehicle(FigNum=-1)) && copyFiles.H
     'The default is a copy of the demo vehicle (the user''s own choice, if any)');
 
 %% Options given at the start: the order, in words or the older Descending
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, SortBy='length', Order='Shortest first', GroupBy='none');
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='length', Order='Shortest first', GroupBy='none');
 assert(strcmp(browser.SortOrder(), 'Shortest first'));
 lengths = arrayfun(@(id) vehicles(strcmp({vehicles.ID}, id{1})).Length, browser.Order());
 assert(all(diff(lengths) >= -1e-9), 'Shortest first');
 browser.Close();
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, SortBy='name', Descending=true);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='name', Descending=true);
 assert(strcmp(browser.SortOrder(), 'Z to A'), 'Old calls: Descending=true still works, and SortBy=''name'' sorts by make');
 browser.Close();
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, SortBy='year');
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='year');
 assert(strcmp(browser.SortOrder(), 'Newest first'), 'With no order given, the sort''s own default');
 browser.Close();
 
-[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, SortBy='score', Descending=true, ...
+[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='score', Descending=true, ...
     GroupBy='make', Selected={demoID});
 assert(isequal(selectedNames, {demoID}));
 browser.Close();
@@ -219,7 +219,7 @@ browser.Close();
 %% Only the vehicles given: every operation works on them alone
 assert(strcmp(demoID, '2009_Honda_Fit_Sport'), fitMessage);
 someIDs = {'2013_Toyota_Prius_Four', demoID, '2014_Honda_CRV_EXL'};
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles=someIDs, GroupBy='none', SortBy='name');
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles=someIDs, GroupBy='none', SortBy='name');
 assert(isequal(sort(browser.Order()), sort(someIDs)));
 assert(isequal(browser.Order(), {demoID, '2014_Honda_CRV_EXL', '2013_Toyota_Prius_Four'}), ...
     'By make (the old SortBy=''name''), ties by name');
@@ -232,14 +232,14 @@ assert(any(contains(labelTexts, 'the 3 vehicles given')));
 browser.Close();
 % (names not in the library: a warning, and left out)
 lastwarn('');
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={demoID, '1900_No_Such_Car'});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={demoID, '1900_No_Such_Car'});
 [~, warningID] = lastwarn();
 assert(strcmp(warningID, 'CarMesh3D:notInLibrary'));
 assert(isequal(browser.Order(), {demoID}));
 browser.Close();
 
 %% A vehicle's next step: the browser returns it and opens no tool (the tree rule; C2S 13 (A))
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={demoID});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={demoID});
 figuresBefore = numel(findall(groot, 'Type', 'figure'));
 [viewStep, folderUsed] = browser.Open(demoID, 'view');
 assert(strcmp(viewStep.Tool, 'view') && strcmp(folderUsed, browser.Vehicles(1).Folder) && strcmp(viewStep.Folder, folderUsed));
@@ -261,7 +261,7 @@ end
 browser.Close();
 
 %% The table and the preview (Sean, Q23 (A) and C2S 9 to 12 (A), 23:06)
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, GroupBy='class', SortBy='make');
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, GroupBy='class', SortBy='make');
 vehicleTable = browser.Table;
 assert(isa(vehicleTable, 'matlab.ui.control.Table'), 'The vehicles are in a table');
 assert(isempty(findall(browser.Figure, 'Type', 'uiimage')) || numel(findall(browser.Figure, 'Type', 'uiimage')) == 2, ...
@@ -348,7 +348,7 @@ assert(numel(findall(groot, 'Type', 'figure', '-regexp', 'Name', 'viewLabels')) 
 
 %% A data folder given is named in the subtitle (rule B10)
 dataFolder = fullfile(fileparts(fileparts(which('fcn_CarMesh3D_browseVehicles'))), 'Data');   % (the library's own Data folder)
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={demoID}, DataFolder=dataFolder);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={demoID}, DataFolder=dataFolder);
 labels = findall(browser.Figure, 'Type', 'uilabel');
 labelTexts = cellfun(@(t) strjoin(cellstr(t), ' '), {labels.Text}, 'UniformOutput', false);
 assert(any(contains(labelTexts, 'Data folder:')), 'The data folder is named in the subtitle');
@@ -361,7 +361,7 @@ assert(isempty(timerfindall), 'No timers are left running');
 % many to check by hand). For each: the groups keep their own order, the
 % vehicles within each group follow the order chosen, and the headers in
 % the list are the groups, in the same order, each above its vehicles
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 vehicles = browser.Vehicles;
 vehicleTable = browser.Table;
 groupKeyList = {'class','make','year','review','exemplar','license','none'};
@@ -437,7 +437,7 @@ browser.Close();
 %% Hooks and Tags: every control a user clicks or reads has a unique Tag (Q39)
 fig_num = 30001;
 fprintf(1, 'Figure %d: hooks and Tags\n', fig_num);
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 vehicles = browser.Vehicles;
 browser.SetSize(1400, 900);
 fcn_INTERNAL_waitForLayout(browser, [1400 900]);
@@ -514,7 +514,7 @@ browser.Close();
 % vehicle and its row is the one highlighted; ticks, buttons and texts agree
 fig_num = 30002;
 fprintf(1, 'Figure %d: every Group x Sort x Order x Filter\n', fig_num);
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 vehicles = browser.Vehicles;
 browser.Select({demoID, '2013_Toyota_Prius_Four'});
 filterSets = {{}, {'2014'}, {'honda'}, {'coupe'}, {'2014', 'honda'}};
@@ -551,7 +551,7 @@ browser.Close();
 fig_num = 30003;
 fprintf(1, 'Figure %d: random walks\n', fig_num);
 for seed = 1:3
-    [~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+    [~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
     vehicles = browser.Vehicles;
     figuresBefore = numel(findall(groot, 'Type', 'figure'));
     [actions, invariants] = fcn_INTERNAL_walkActions(browser, vehicles, figuresBefore);
@@ -571,7 +571,7 @@ someIDs = {'2013_Toyota_Prius_Four', demoID, '2014_Honda_CRV_EXL'};
 buttonTags = {'view', 'editLabels', 'review'};
 toolNames = {'view', 'edit', 'review'};
 for ith_button = 1:numel(buttonTags)
-    [~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles=someIDs);
+    [~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles=someIDs);
     figuresBefore = numel(findall(groot, 'Type', 'figure'));
     browser.SelectRow('2014_Honda_CRV_EXL');
     browser.Press(buttonTags{ith_button});
@@ -587,7 +587,7 @@ for ith_button = 1:numel(buttonTags)
     assert(numel(findall(groot, 'Type', 'figure')) == figuresBefore - 1, '%s opened another window (the tree rule)', buttonTags{ith_button});
 end
 % (Done: closes, returns the selection, opens nothing; quickly)
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles=someIDs);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles=someIDs);
 figuresBefore = numel(findall(groot, 'Type', 'figure'));
 browser.TickRow(demoID, true);
 closeTimer = tic;
@@ -599,7 +599,7 @@ assert(isempty(step.Tool), 'Done asks for no tool');
 assert(numel(findall(groot, 'Type', 'figure')) == figuresBefore - 1, 'Done opened another window');
 assert(closeTime < 1, 'Done took %.2f s to close the window', closeTime);
 % (closing with the window's X, through its CloseRequestFcn)
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles=someIDs, Selected={'2014_Honda_CRV_EXL'});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles=someIDs, Selected={'2014_Honda_CRV_EXL'});
 closeTimer = tic;
 close(browser.Figure);
 closeTime = toc(closeTimer);
@@ -611,7 +611,7 @@ fprintf(1, '    closing took %.2f s\n', closeTime);
 fig_num = 30005;
 fprintf(1, 'Figure %d: an empty list\n', fig_num);
 warningState = warning('off', 'CarMesh3D:notInLibrary');
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false, Vehicles={'1900_No_Such_Car'});
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Vehicles={'1900_No_Such_Car'});
 warning(warningState);
 state = browser.State();
 assert(isempty(browser.Order()) && isempty(state.Browser.Previewed) && isempty(state.Browser.SelectedRow));
@@ -625,7 +625,7 @@ browser.Close();
 % (a hidden window is laid out once it is resized: SetSize)
 fig_num = 30006;
 fprintf(1, 'Figure %d: layout at several sizes\n', fig_num);
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 windowSizes = [1400 900; 800 500; 640 400; 1600 1000; 1024 700];
 for ith_size = 1:size(windowSizes, 1)
     browser.SetSize(windowSizes(ith_size, 1), windowSizes(ith_size, 2));
@@ -671,13 +671,13 @@ assert(isempty(timerfindall), 'No timers are left running');
 
 %% Errors
 try
-    fcn_CarMesh3D_browseLibrary(SortBy='color', Visible=false);
+    fcn_CarMesh3D_browseLibrary(SortBy='color', FlagVisible=false);
     error('should have failed');
 catch ME
     assert(strcmp(ME.identifier, 'CarMesh3D:badInput'), ME.message);
 end
 try
-    fcn_CarMesh3D_browseLibrary(SortBy='year', Order='A to Z', Visible=false);
+    fcn_CarMesh3D_browseLibrary(SortBy='year', Order='A to Z', FlagVisible=false);
     error('should have failed');
 catch ME
     assert(strcmp(ME.identifier, 'CarMesh3D:badInput') && contains(ME.message, 'Newest first'), ME.message);
@@ -1035,12 +1035,12 @@ if flagHadPreference
     savedPreference = getpref('CarMesh3D', 'DemoVehicle');
 end
 restorePreference = onCleanup(@() fcn_INTERNAL_restoreDemoPreference(flagHadPreference, savedPreference));
-fcn_CarMesh3D_demoVehicle(Reset=true, FigNum=-1);   % (start from the repo's choice)
-repoDemoID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);
+fcn_CarMesh3D_demoVehicle(FlagReset=true, FigNum=-1);   % (start from the repo's choice)
+repoDemoID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);
 
 % (a usable vehicle that is not the repo's demo, and one that cannot be the
 % demo vehicle: the test's own copy of the rule, script + mesh + photos)
-[~, browser] = fcn_CarMesh3D_browseLibrary(Visible=false);
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
 vehicles = browser.Vehicles;
 usableID = '';
 unusableID = '';

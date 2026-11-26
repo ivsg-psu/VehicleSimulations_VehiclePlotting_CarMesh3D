@@ -47,7 +47,7 @@ A **unit** is one connected piece of faces with one lamp label. The 2009 Fit's f
 
 - **Found automatically** each time the mesh or its labels change: faces of one lamp label that share edges form one unit (the connected-piece rule already used to label the Fit's front lamps, 2026-11-23).
 - **Named from position (layer 1) and kind (layer 2):** front or rear (from x against the vehicle's middle), left or right (from y; center when it crosses the middle, such as a high brake lamp), then the kind: "front-left headlamp", "rear-center tail/brake lamp". Two units with one name get a number: "front-left marker lamp 2".
-- **Cover glass:** a lens over a unit belongs to it (the mesh's `FaceCoverLamp` already records which lamp each cover sits over), and lights with it.
+- **Cover glass:** a lens over a unit belongs to it (the mesh's `LabelFaceCoverLamp` already records which lamp each cover sits over), and lights with it.
 - **What "lamp" means here:** the whole part that lights, not the physical (small) bulb or filament inside it. Most filaments are enclosed within reflectors and lenses, and this entire space lights when the bulb is activated; for labeling, this entire space is the lamp. Most downloads do not model bulbs at all, only the colored section of a lamp assembly (section 7); the colored section is therefore the lamp, in most downloads. However, some downloads share one name across lamps, for example "headlights" for both sides. A name that spans more than one lamp (a right and a left headlamp) does not describe one lamp: the right bulb may be burned out while the left headlamp still lights. This is why three things are kept apart: bulbs and filaments (the light sources, not modeled in this work), lamps (the area one light source lights: what is labeled), and functions (what signals light a lamp: high beams, for example). Everyday wording mixes all three; this toolset uses "lamp" in the "area lit by one light source" meaning only.
 
 ## 4. The L2F matrix (layer 3)
@@ -70,7 +70,7 @@ In the lamp-to-function matrix (L2F), rows are labeled lamps (right-front fog li
 *The fog rows show one lamp reused by three signals at two brightnesses (Sean, T78): the fog lamp is the same lit area, in the same place, whichever signal lights it. (The 2009 Fit's own fog lamps answer the fog signal only; the example is not the Fit.)*
 
 - **A unit's brightness** is the largest of its active cells (tail 0.4 and brake 1 together: 1).
-- **The signals are plotVehicle's light states** (LowBeam, HighBeam, Running, Parking (new), TurnLeft, TurnRight, Tail, Brake, Backup, FogLights; and Reflectors, the outside light reaching the reflectors).
+- **The signals are plotVehicle's light states** (LowBeam, HighBeam, Running, Parking (new), TurnLeft, TurnRight, Tail, Brake, Backup, Fog; and Reflectors, the outside light reaching the reflectors).
 - **Hazards is not a column** (Q80 (A)): it is the two turn signals switched together, and the window has a Hazards button above the matrix to switch them so. Hazards flashing is the turn signals switched on and off over time, which is not part of the matrix (next rule).
 - **Time is not part of the mesh** (Sean, 2026-11-26 01:35; README and rule P6). The matrix says what lights, and how bright, *when* a signal is on. When a signal comes on, goes off, flashes, or follows a sequence is a choice of whatever drives the signals (AnimateCar3D, or a user's own loop), never part of the vehicle's files. Example: hazard lights flashing on and off change neither the lamps' position (layer 1), their labels (layer 2), nor which signal lights them and how bright (layer 3); only the signal changes, in time.
 - **Defaults** come from the kind and the side, so most vehicles need no edits:
@@ -96,7 +96,7 @@ In the lamp-to-function matrix (L2F), rows are labeled lamps (right-front fog li
 - **With the vehicle** (rule G40): `lampFunctions_<ID>.csv` in the vehicle's folder, **every unit and every cell** (Q79 (A)), the columns of section 4 plus a **Default** column (yes, or edited) and a **Source** column; a rebuild that changes the units keeps the edited rows and remakes the default ones (rule: tables of facts carry their sources). CSV, so it is readable, shows changes clearly in git, and a student can edit it by hand (Q79).
 - **Read in one place:** `fcn_CarMesh3D_plotVehicle` lights the lamps from the matrix. The viewer, the painter and the V&V GUI all draw lamps through it, in place of their own copies of the lamp rules today. Those copies are where the painter lit the fog lamps with the high beams (Sean's Fit review, 00:36); one reader fixes that kind of mismatch for good.
 - **AnimateCar3D** gets the matrix through `plotVehicle`, with nothing new to do, and can change it at run time for faults: `LampFaults={'rear-left tail/brake lamp'}` makes that unit answer no signal. The library keeps each vehicle as designed; a fault belongs to the scene, not the vehicle.
-- **Retired** once the matrix is in: the per-face function table `FaceLightFunctions` and the per-vehicle `LampSwitching`, which each held part of layer 3 inside the mesh. A one-time migration turns them into each vehicle's matrix.
+- **Retired** once the matrix is in: the per-face function table `LabelFaceAlsoLamps` and the per-vehicle `SignalLampSwitching`, which each held part of layer 3 inside the mesh. A one-time migration turns them into each vehicle's matrix.
 
 ## 6. The window (`fcn_CarMesh3D_editLampFunctions`)
 
@@ -139,7 +139,7 @@ So the downloads already say what and where (layers 1 and 2), not what switches 
 
 1. DONE (01:35): Sean's review (T78 (B), with edits); Q79 (A), Q80 (A), Q78 (A): the saved lamp keys are renamed to lamp names (what each lamp is) with this work, by one migration.
 2. DONE (2026-11-26 03:27): `fcn_CarMesh3D_lampUnits`: units from a mesh, with their names and covers; tested on the Fit and the GUI test vehicle.
-3. DONE (2026-11-26 04:54): The matrix: defaults (section 4), read and write `lampFunctions_<ID>.csv`, and the migration from `FaceLightFunctions` and `LampSwitching`.
+3. DONE (2026-11-26 04:54): The matrix: defaults (section 4), read and write `lampFunctions_<ID>.csv`, and the migration from `LabelFaceAlsoLamps` and `SignalLampSwitching`.
 4. DONE (2026-11-26 05:30; `fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`): `plotVehicle` lights lamps from the matrix; the viewer and painter draw lamps through it (their own lamp rules removed). The Fit's fog-with-high-beams bug as a test.
 5. BUILT, for Sean's look (2026-11-26 06:05; `fcn_CarMesh3D_editLampFunctions`, T79 to T82): the window (section 6, as chosen 2026-11-26 04:35), on its own (with a viewer beside it) and as the painter's Lamp Functions panel. Not yet: "Add a lamp kind".
 6. The Fit: its matrix (DONE: DRL from the headlamps, dimmed, with Honda as the source); Sean re-checks the Headlights question in the V&V GUI.

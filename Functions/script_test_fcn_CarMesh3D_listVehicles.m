@@ -115,7 +115,7 @@ assert(statusOf("2021_Test_SedanB_Base")=="out of date");
 assert(statusOf("2022_Test_SedanC_Base")=="no stamp" && isnan(vehicleTable.Score(vehicleTable.ID=="2022_Test_SedanC_Base")));
 assert(statusOf("2023_Test_SedanD_Base")=="exemplar changed" && vehicleTable.FromBodyStyle(vehicleTable.ID=="2023_Test_SedanD_Base"));
 assert(all(vehicleTable.MeshVersion(vehicleTable.ID=="2020_Test_SedanA_Base")==currentMeshVersion));
-allTable = fcn_CarMesh3D_listVehicles(DataFolder=testData, IncludeUnfinished=true);
+allTable = fcn_CarMesh3D_listVehicles(DataFolder=testData, FlagIncludeUnfinished=true);
 assert(height(allTable)==5 && allTable.Status(allTable.ID=="2024_Test_SedanE_Base")=="no mesh");
 rmdir(testData, 's');
 

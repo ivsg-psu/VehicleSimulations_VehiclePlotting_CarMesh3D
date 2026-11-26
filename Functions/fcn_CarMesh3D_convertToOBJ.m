@@ -39,7 +39,7 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %       objFile = fcn_CarMesh3D_convertToOBJ(inputFile,...
 %           (OutputFile=outputFileName),...
 %           (BlenderPath=blenderExecutable),...
-%           (Overwrite=flagOverwrite),...
+%           (FlagOverwrite=flagOverwrite),...
 %           (TargetFaces=numFaces), (WheelPattern=regexp),...
 %           (WheelFaces=numFaces), (RemovePattern=regexp),...
 %           (FigNum=figNum))
@@ -66,7 +66,7 @@ function objFile = fcn_CarMesh3D_convertToOBJ(inputFile, options)
 %      Mac, /Applications/Blender.app/Contents/MacOS/Blender; and finally
 %      'blender' on the system path.
 %
-%      Overwrite: false (default) to reuse an existing output file that
+%      FlagOverwrite: false (default) to reuse an existing output file that
 %      is newer than the input file (and, when reducing, was made with the
 %      same reduction settings), which skips the slow conversion; true to
 %      always convert again.
@@ -153,7 +153,7 @@ arguments
     inputFile
     options.OutputFile = ''    % Output .obj; '' for <input>_converted.obj
     options.BlenderPath = ''   % Blender program; '' to search for it
-    options.Overwrite = false  % Convert again even if output is up to date?
+    options.FlagOverwrite = false  % Convert again even if output is up to date?
     options.TargetFaces = []   % Reduce to about this many faces in Blender; [] for none
     options.WheelPattern = ''  % Regular expression for wheel objects (keep WheelFaces each)
     options.WheelFaces = 2000  % Fewest faces per wheel when reducing
@@ -253,7 +253,7 @@ if 0==flag_max_speed
         end
 
         % Check the Overwrite input
-        if ~(islogical(options.Overwrite) || isnumeric(options.Overwrite)) || ~isscalar(options.Overwrite)
+        if ~(islogical(options.FlagOverwrite) || isnumeric(options.FlagOverwrite)) || ~isscalar(options.FlagOverwrite)
             error('Overwrite must be true or false');
         end
     end
@@ -283,8 +283,8 @@ end
 % Full paths (Blender runs in its own working folder)
 inputFile = fcn_INTERNAL_fullPath(char(inputFile));
 [inputFolder, inputBaseName, inputExtension] = fileparts(inputFile);
-flag_reduce = ~isempty(options.TargetFaces);
-if isempty(options.OutputFile) && flag_reduce
+flagReduce = ~isempty(options.TargetFaces);
+if isempty(options.OutputFile) && flagReduce
     objFile = fullfile(inputFolder, sprintf('%s_reduced%d.obj', inputBaseName, round(options.TargetFaces)));
 elseif isempty(options.OutputFile)
     objFile = fullfile(inputFolder, [inputBaseName '_converted.obj']);
@@ -293,25 +293,25 @@ else
 end
 
 % Reuse an up-to-date output file, unless told to overwrite
-flag_convert = true;
-if ~options.Overwrite && exist(objFile,'file')
+flagConvert = true;
+if ~options.FlagOverwrite && exist(objFile,'file')
     inputInfo = dir(inputFile);
     outputInfo = dir(objFile);
     if outputInfo.datenum >= inputInfo.datenum
-        flag_convert = false;
+        flagConvert = false;
     end
     % (a reduced file is reused only if made with the same settings)
-    if flag_reduce && (~isfile([objFile '.settings.txt']) || ~strcmp(strtrim(fileread([objFile '.settings.txt'])), fcn_INTERNAL_settingsText(options)))
-        flag_convert = true;
+    if flagReduce && (~isfile([objFile '.settings.txt']) || ~strcmp(strtrim(fileread([objFile '.settings.txt'])), fcn_INTERNAL_settingsText(options)))
+        flagConvert = true;
     end
-    if ~flag_convert
+    if ~flagConvert
         if flag_do_debug
             fprintf(1,'Reusing existing converted file: %s\n',objFile);
         end
     end
 end
 
-if flag_convert
+if flagConvert
     blenderPath = fcn_INTERNAL_findBlender(char(options.BlenderPath));
 
     % Write the Blender Python script to a temporary file
@@ -321,7 +321,7 @@ if flag_convert
         error('Unable to write the temporary Blender script: %s',scriptFile);
     end
     scriptLines = fcn_INTERNAL_blenderScriptLines;
-    if flag_reduce
+    if flagReduce
         reduceArguments = sprintf(' "%d" "%s" "%d" "%s"', round(options.TargetFaces), ...
             fcn_INTERNAL_quoteArgument(options.WheelPattern), round(options.WheelFaces), fcn_INTERNAL_quoteArgument(options.RemovePattern));
     else
@@ -353,7 +353,7 @@ if flag_convert
         error('Blender could not convert %s.\nCommand:\n  %s\nLast lines of Blender output:\n  %s',...
             inputFile, commandString, strjoin(outputLines(end-numLinesToShow+1:end),'\n  '));
     end
-    if flag_reduce
+    if flagReduce
         reportLines = splitlines(commandOutput);
         reportLines = reportLines(startsWith(reportLines,'CARMESH3D_REDUCE'));
         fprintf(1,'%s\n', reportLines{:});
@@ -382,7 +382,7 @@ if flag_do_plots
     vehicleMesh = fcn_CarMesh3D_importMesh(objFile, FigNum=-1);
     figure(figNum);
     clf;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     title(sprintf('Converted: %s%s (%d faces, Blender axes: Z up)',inputBaseName,inputExtension,size(vehicleMesh.Faces,1)),'Interpreter','none');
     xlabel('X (Blender)'); ylabel('Y (Blender)'); zlabel('Z (Blender, up)');
 end

@@ -16,12 +16,12 @@
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_labelParts
 %   % * Test: a lamp's clear cover is a light that is also glass
-%   %   % (FaceAlsoParts)
+%   %   % (LabelFaceAlsoParts)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_labelParts
 %   % * Test: a clear cover lying over a lamp is clear glass, recorded as
-%   %   % a cover of that lamp (FaceCoverLamp, fcn_CarMesh3D_findLampCovers);
+%   %   % a cover of that lamp (LabelFaceCoverLamp, fcn_CarMesh3D_findLampCovers);
 %   %   % LampCoverDistance; with LampCovers off, no covers
 
 % TO-DO:
@@ -64,33 +64,33 @@ vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
 % Check variable types
-assert(iscell(vehicleMesh.PartNames));
+assert(iscell(vehicleMesh.LabelPartNames));
 
 % Check variable sizes
 Nfaces = size(vehicleMesh.Faces,1);
-assert(isequal(size(vehicleMesh.FacePartIndex),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.LabelFacePart),[Nfaces 1]));
 assert(isequal(size(vehicleMesh.FaceWheelIndex),[Nfaces 1]));
 assert(isequal(size(vehicleMesh.FaceColors),[Nfaces 3]));
 assert(isequal(size(vehicleMesh.FaceAlpha),[Nfaces 1]));
-assert(isequal(size(vehicleMesh.FaceCoverLamp),[Nfaces 1]));
+assert(isequal(size(vehicleMesh.LabelFaceCoverLamp),[Nfaces 1]));
 
 % Check variable values. The sample has 8 glass faces (windshield 2, rear
 % window 2, side windows 4), 8 light faces, and 4 wheels of 8*16 faces.
-assert(8==sum(vehicleMesh.FacePartIndex==2));
-assert(512==sum(vehicleMesh.FacePartIndex==3));
-assert(8==sum(vehicleMesh.FacePartIndex==4));
-assert(0==sum(vehicleMesh.FacePartIndex==5));
+assert(8==sum(vehicleMesh.LabelFacePart==2));
+assert(512==sum(vehicleMesh.LabelFacePart==3));
+assert(8==sum(vehicleMesh.LabelFacePart==4));
+assert(0==sum(vehicleMesh.LabelFacePart==5));
 for ith_wheel = 1:4
     assert(128==sum(vehicleMesh.FaceWheelIndex==ith_wheel));
 end
-assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.35)<1e-12));
-assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
+assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.LabelFacePart==2) - 0.35)<1e-12));
+assert(all(vehicleMesh.FaceAlpha(vehicleMesh.LabelFacePart~=2)==1));
 % Light types from names: 4 headlight faces and 4 tail light faces
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlamp'))));
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tailBrakeLamp'))));
-assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
+assert(4==sum(vehicleMesh.LabelFaceLamp==find(strcmp(vehicleMesh.LabelLampNames,'headlamp'))));
+assert(4==sum(vehicleMesh.LabelFaceLamp==find(strcmp(vehicleMesh.LabelLampNames,'tailBrakeLamp'))));
+assert(all(vehicleMesh.LabelFaceLamp(vehicleMesh.LabelFacePart~=4)==0));
 % The sample has no glass over its lamps: no lamp covers
-assert(all(vehicleMesh.FaceCoverLamp==0));
+assert(all(vehicleMesh.LabelFaceCoverLamp==0));
 
 % Wheel 1 is front-left: positive X and positive Y
 fcn_INTERNAL_checkWheelCorner(vehicleMesh, 1, [ 1  1]);
@@ -129,9 +129,9 @@ sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.1], GlassAlpha=0.6, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
-bodyColors = vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:);
+bodyColors = vehicleMesh.FaceColors(vehicleMesh.LabelFacePart==1,:);
 assert(all(all(abs(bodyColors - [0.9 0.9 0.1])<1e-12)));
-assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.6)<1e-12));
+assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.LabelFacePart==2) - 0.6)<1e-12));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -144,8 +144,8 @@ figure(figNum); close(figNum);
 
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, PartRules={'CarPaint','trim'});
-assert(0==sum(vehicleMesh.FacePartIndex==1)); % No body faces left
-assert(sum(vehicleMesh.FacePartIndex==5)>0);
+assert(0==sum(vehicleMesh.LabelFacePart==1)); % No body faces left
+assert(sum(vehicleMesh.LabelFacePart==5)>0);
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -163,7 +163,7 @@ vehicleMesh = fcn_CarMesh3D_labelParts(messyMesh);
 [warningMessage,~] = lastwarn;
 assert(contains(warningMessage,'normalizeMesh'));
 assert(all(vehicleMesh.FaceWheelIndex==0));
-assert(512==sum(vehicleMesh.FacePartIndex==3)); % Parts are still labeled
+assert(512==sum(vehicleMesh.LabelFacePart==3)); % Parts are still labeled
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -178,9 +178,9 @@ figure(figNum); close(figNum);
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 sampleMesh.MaterialNames{1} = 'Door_trim'; % Rename the paint material
 vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh);
-assert(0==sum(vehicleMesh.FacePartIndex==1));
-assert(sum(vehicleMesh.FacePartIndex==5)>0); % Became trim, not wheel
-assert(512==sum(vehicleMesh.FacePartIndex==3));
+assert(0==sum(vehicleMesh.LabelFacePart==1));
+assert(sum(vehicleMesh.LabelFacePart==5)>0); % Became trim, not wheel
+assert(512==sum(vehicleMesh.LabelFacePart==3));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -198,9 +198,9 @@ vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, BodyColor=[0.9 0.9 0.9], ...
 sgtitle(titleString, 'Interpreter','none');
 
 % PartColors wins over BodyColor
-assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==1,:) - [0.05 0.2 0.6])<1e-12)));
-assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==2,:) - [0.35 0.35 0.38])<1e-12)));
-assert(all(all(vehicleMesh.FaceColors(vehicleMesh.FacePartIndex==3,:)==0)));
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.LabelFacePart==1,:) - [0.05 0.2 0.6])<1e-12)));
+assert(all(all(abs(vehicleMesh.FaceColors(vehicleMesh.LabelFacePart==2,:) - [0.35 0.35 0.38])<1e-12)));
+assert(all(all(vehicleMesh.FaceColors(vehicleMesh.LabelFacePart==3,:)==0)));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -215,21 +215,21 @@ figure(figNum); clf;
 % the lamp faces and some body faces see-through)
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 plainLabels = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
-lampFaces = find(plainLabels.FacePartIndex==4);
-bodyFaces = find(plainLabels.FacePartIndex==1);
+lampFaces = find(plainLabels.LabelFacePart==4);
+bodyFaces = find(plainLabels.LabelFacePart==1);
 assert(~isempty(lampFaces) && numel(bodyFaces) >= 10);
 sampleMesh.FaceTextureAlpha = ones(size(sampleMesh.Faces,1),1);
 sampleMesh.FaceTextureAlpha(lampFaces(1:2:end)) = 0.4;
 sampleMesh.FaceTextureAlpha(bodyFaces(1:10)) = 0.4;
-sampleMesh.SeeThroughReliable = true;
-vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, SeeThroughGlass=true, FigNum=figNum);
+sampleMesh.FlagSeeThroughReliable = true;
+vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FlagSeeThroughGlass=true, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
 
-assert(all(vehicleMesh.FacePartIndex(bodyFaces(1:10))==2));                  % (see-through body: glass)
-assert(all(vehicleMesh.FacePartIndex(lampFaces)==4));                         % (see-through lamps: still lights)
+assert(all(vehicleMesh.LabelFacePart(bodyFaces(1:10))==2));                  % (see-through body: glass)
+assert(all(vehicleMesh.LabelFacePart(lampFaces)==4));                         % (see-through lamps: still lights)
 % (and with SeeThroughGlass off, nothing changes)
-offMesh = fcn_CarMesh3D_labelParts(sampleMesh, SeeThroughGlass=false, FigNum=-1);
-assert(isequal(offMesh.FacePartIndex, plainLabels.FacePartIndex));
+offMesh = fcn_CarMesh3D_labelParts(sampleMesh, FlagSeeThroughGlass=false, FigNum=-1);
+assert(isequal(offMesh.LabelFacePart, plainLabels.LabelFacePart));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -244,7 +244,7 @@ figure(figNum); clf;
 % headlight lens: a copy of the lens faces, in a glass material)
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 plainLabels = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
-lensFaces = find(plainLabels.FacePartIndex==4 & plainLabels.FaceLightType==1);
+lensFaces = find(plainLabels.LabelFacePart==4 & plainLabels.LabelFaceLamp==1);
 assert(~isempty(lensFaces));
 coverMesh = sampleMesh;
 lensCorners = sampleMesh.Faces(lensFaces,:);
@@ -265,30 +265,30 @@ coverFaces = (size(sampleMesh.Faces,1)+1 : size(coverMesh.Faces,1))';
 
 vehicleMesh = fcn_CarMesh3D_labelParts(coverMesh, FigNum=figNum);
 sgtitle(titleString, 'Interpreter','none');
-assert(isequal(size(vehicleMesh.FaceAlsoParts), [size(coverMesh.Faces,1) numel(vehicleMesh.PartNames)]));
-assert(isequal(size(vehicleMesh.FaceCoverLamp), [size(coverMesh.Faces,1) 1]));
+assert(isequal(size(vehicleMesh.LabelFaceAlsoParts), [size(coverMesh.Faces,1) numel(vehicleMesh.LabelPartNames)]));
+assert(isequal(size(vehicleMesh.LabelFaceCoverLamp), [size(coverMesh.Faces,1) 1]));
 % (the cover lies 3 mm over the headlight lenses: it is clear glass, 15%
 % opaque and untinted, recorded as a cover of the headlight; no longer a
 % lamp, so it is not lit itself; fcn_CarMesh3D_findLampCovers, Sean's
 % option A)
-assert(all(vehicleMesh.FacePartIndex(coverFaces)==2));           % (glass)
-assert(all(vehicleMesh.FaceCoverLamp(coverFaces)==1));           % (covering the headlight)
-assert(all(vehicleMesh.FaceLightType(coverFaces)==0));           % (not a lamp)
+assert(all(vehicleMesh.LabelFacePart(coverFaces)==2));           % (glass)
+assert(all(vehicleMesh.LabelFaceCoverLamp(coverFaces)==1));           % (covering the headlight)
+assert(all(vehicleMesh.LabelFaceLamp(coverFaces)==0));           % (not a lamp)
 assert(all(abs(vehicleMesh.FaceAlpha(coverFaces) - 0.15) < 1e-12));
 assert(all(all(abs(vehicleMesh.FaceColors(coverFaces,:) - 0.90) < 1e-12)));
-assert(~any(vehicleMesh.FaceAlsoParts, 'all'));                  % (glass only)
-assert(all(vehicleMesh.FacePartIndex(lensFaces)==4) && all(vehicleMesh.FaceCoverLamp(lensFaces)==0));   % (the lenses are lights)
-assert(nnz(vehicleMesh.FaceCoverLamp) == numel(coverFaces));
+assert(~any(vehicleMesh.LabelFaceAlsoParts, 'all'));                  % (glass only)
+assert(all(vehicleMesh.LabelFacePart(lensFaces)==4) && all(vehicleMesh.LabelFaceCoverLamp(lensFaces)==0));   % (the lenses are lights)
+assert(nnz(vehicleMesh.LabelFaceCoverLamp) == numel(coverFaces));
 % (looking for lamps less than 3 mm behind the glass, the cover is not
 % found: it stays a light that is also glass, as before)
 nearMesh = fcn_CarMesh3D_labelParts(coverMesh, LampCoverDistance=0.001, FigNum=-1);
-assert(all(nearMesh.FacePartIndex(coverFaces)==4) && all(nearMesh.FaceAlsoParts(coverFaces,2)));
-assert(all(nearMesh.FaceLightType(coverFaces)==1) && all(nearMesh.FaceCoverLamp==0));
+assert(all(nearMesh.LabelFacePart(coverFaces)==4) && all(nearMesh.LabelFaceAlsoParts(coverFaces,2)));
+assert(all(nearMesh.LabelFaceLamp(coverFaces)==1) && all(nearMesh.LabelFaceCoverLamp==0));
 % (with LampCovers off, the cover is plain glass, and no face is a cover)
-offMesh = fcn_CarMesh3D_labelParts(coverMesh, LampCovers=false, FigNum=-1);
-assert(all(offMesh.FacePartIndex(coverFaces)==2));
-assert(~any(offMesh.FaceAlsoParts, 'all'));
-assert(isequal(offMesh.FaceCoverLamp, zeros(size(coverMesh.Faces,1),1)));
+offMesh = fcn_CarMesh3D_labelParts(coverMesh, FlagFindLampCovers=false, FigNum=-1);
+assert(all(offMesh.LabelFacePart(coverFaces)==2));
+assert(~any(offMesh.LabelFaceAlsoParts, 'all'));
+assert(isequal(offMesh.LabelFaceCoverLamp, zeros(size(coverMesh.Faces,1),1)));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -303,7 +303,7 @@ figure(figNum); close(figNum);
 % apart, each 10 triangles, in the headlight lenses' material)
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 plainLabels = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
-lensFaces = find(plainLabels.FacePartIndex==4 & plainLabels.FaceLightType==1);
+lensFaces = find(plainLabels.LabelFacePart==4 & plainLabels.LabelFaceLamp==1);
 frontX = max(sampleMesh.Vertices(sampleMesh.Faces(lensFaces,:),1));
 lampMesh = sampleMesh;
 newFaces = zeros(0,3);
@@ -330,13 +330,13 @@ lampFaces = (size(sampleMesh.Faces,1)+1 : size(lampMesh.Faces,1))';
 newCenters = (lampMesh.Vertices(newFaces(:,1),:) + lampMesh.Vertices(newFaces(:,2),:) + lampMesh.Vertices(newFaces(:,3),:))/3;
 
 vehicleMesh = fcn_CarMesh3D_labelParts(lampMesh, FigNum=-1);
-highType = find(strcmp(vehicleMesh.LightTypeNames, 'highBeamLamp'));
+highType = find(strcmp(vehicleMesh.LabelLampNames, 'highBeamLamp'));
 assert(~isempty(highType));
-flagHigh = vehicleMesh.FaceLightType(lampFaces)==highType;
+flagHigh = vehicleMesh.LabelFaceLamp(lampFaces)==highType;
 assert(all(flagHigh == (abs(newCenters(:,2)) < 0.42)), 'The inner lamps are the high beams');
 % (with AutoHighBeams off, no high beams)
-offMesh = fcn_CarMesh3D_labelParts(lampMesh, AutoHighBeams=false, FigNum=-1);
-assert(~any(offMesh.FaceLightType==highType));
+offMesh = fcn_CarMesh3D_labelParts(lampMesh, FlagAutoHighBeams=false, FigNum=-1);
+assert(~any(offMesh.LabelFaceLamp==highType));
 % (named high beams win: no split)
 namedMesh = lampMesh;
 namedMesh.MaterialNames{end+1} = 'HighBeamLight';
@@ -344,7 +344,7 @@ namedMesh.FaceMaterialIndex(lampFaces(1:10)) = numel(namedMesh.MaterialNames);
 if isfield(namedMesh,'MaterialColors'), namedMesh.MaterialColors(end+1,:) = [1 1 1]; end
 if isfield(namedMesh,'MaterialAlpha'), namedMesh.MaterialAlpha(end+1,:) = 1; end
 namedLabels = fcn_CarMesh3D_labelParts(namedMesh, FigNum=-1);
-assert(isequal(find(namedLabels.FaceLightType==highType), lampFaces(1:10)));
+assert(isequal(find(namedLabels.LabelFaceLamp==highType), lampFaces(1:10)));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -375,7 +375,7 @@ figure(figNum); close(figNum);
 
 sampleMesh = fcn_CarMesh3D_fillSampleMesh(FigNum=-1);
 vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=[]);
-assert(isfield(vehicleMesh,'FacePartIndex'));
+assert(isfield(vehicleMesh,'LabelFacePart'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -387,7 +387,7 @@ fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_CarMesh3D_labelParts(sampleMesh, FigNum=-1);
-assert(isfield(vehicleMesh,'FacePartIndex'));
+assert(isfield(vehicleMesh,'LabelFacePart'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

@@ -22,8 +22,8 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 % FORMAT:
 %
 %       [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput,...
-%           (Always=flagAlways), (OrientFaces=flagOrient),...
-%           (LampFunctions=flagLamps),...
+%           (FlagAlways=flagAlways), (FlagOrientFaces=flagOrient),...
+%           (FlagLampFunctions=flagLamps),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -33,18 +33,18 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Always: true to apply the saved fixes to the stage-1 mesh even when
+%      FlagAlways: true to apply the saved fixes to the stage-1 mesh even when
 %      the mesh file is newer (for checking that the two agree). Default
 %      false.
 %
-%      OrientFaces: true (default) to turn each face to point the same way
+%      FlagOrientFaces: true (default) to turn each face to point the same way
 %      as its neighbors (fcn_CarMesh3D_orientFaces), so faces pointing the
 %      wrong way do not show as bright or dark slivers; false for the faces
 %      as saved. Only the faces' direction changes, so saved label edits
 %      (matched by face position) are not affected (Q87 (A), Sean
 %      2026_11_26 03:16).
 %
-%      LampFunctions: true (default) to add the vehicle's lamp-to-function
+%      FlagLampFunctions: true (default) to add the vehicle's lamp-to-function
 %      matrix to the mesh, as the field LampFunctions (a table, from
 %      fcn_CarMesh3D_lampFunctions: the vehicle's file
 %      lampFunctions_<ID>.csv, else the defaults), so whatever draws the
@@ -70,7 +70,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %               when there is none)
 %           EditsFile, MeshFile: the files used
 %           NumFacesTurned: the faces fcn_CarMesh3D_orientFaces turned (0
-%               with OrientFaces=false)
+%               with FlagOrientFaces=false)
 %
 % DEPENDENCIES:
 %
@@ -119,9 +119,9 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     vehicleInput
-    options.Always = false      % Apply the fixes to the stage-1 mesh even when the mesh file is newer
-    options.OrientFaces = true  % Turn faces to agree with their neighbors (fcn_CarMesh3D_orientFaces)
-    options.LampFunctions = true % Add the vehicle's lamp-to-function matrix (field LampFunctions)
+    options.FlagAlways = false      % Apply the fixes to the stage-1 mesh even when the mesh file is newer
+    options.FlagOrientFaces = true  % Turn faces to agree with their neighbors (fcn_CarMesh3D_orientFaces)
+    options.FlagLampFunctions = true % Add the vehicle's lamp-to-function matrix (field LampFunctions)
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -176,11 +176,11 @@ if 0==flag_max_speed
             error('vehicleInput must be a vehicle ID or folder (text)');
         end
         % Check the Always input
-        if ~(islogical(options.Always) || isnumeric(options.Always)) || ~isscalar(options.Always)
+        if ~(islogical(options.FlagAlways) || isnumeric(options.FlagAlways)) || ~isscalar(options.FlagAlways)
             error('Always must be true or false');
         end
         % Check the OrientFaces input
-        if ~(islogical(options.OrientFaces) || isnumeric(options.OrientFaces)) || ~isscalar(options.OrientFaces)
+        if ~(islogical(options.FlagOrientFaces) || isnumeric(options.FlagOrientFaces)) || ~isscalar(options.FlagOrientFaces)
             error('OrientFaces must be true or false');
         end
     end
@@ -232,7 +232,7 @@ if ~isempty(edits) && isfile(vehicleFiles.MeshFile)
 end
 
 vehicleMesh = [];
-if ~isempty(edits) && (flagEditsNewer || options.Always)
+if ~isempty(edits) && (flagEditsNewer || options.FlagAlways)
     if isfile(stage1File)
         stage1 = load(stage1File, 'cacheOutputs');
         if isfield(stage1, 'cacheOutputs') && isfield(stage1.cacheOutputs, 'vehicleMesh')
@@ -259,14 +259,14 @@ end
 
 % Faces turned to point the same way as their neighbors (a few
 % hundredths of a second)
-if options.OrientFaces
+if options.FlagOrientFaces
     [vehicleMesh, orientInfo] = fcn_CarMesh3D_orientFaces(vehicleMesh, FigNum=-1);
     info.NumFacesTurned = orientInfo.NumFlipped;
 end
 
 % The vehicle's lamp-to-function matrix, on the mesh (its file, else the
 % defaults; a few hundredths of a second)
-if options.LampFunctions && isfield(vehicleMesh, 'FaceLightType') && isfield(vehicleMesh, 'LightTypeNames')
+if options.FlagLampFunctions && isfield(vehicleMesh, 'LabelFaceLamp') && isfield(vehicleMesh, 'LabelLampNames')
     vehicleMesh.LampFunctions = fcn_CarMesh3D_lampFunctions(vehicleFiles.Folder, Mesh=vehicleMesh, FigNum=-1);
 end
 

@@ -111,7 +111,7 @@ function validationTable = fcn_CarMesh3D_validateMesh(vehicleMesh, vehicleSpec, 
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_validateMesh
-%   % * Measures the vehicle as it is shown: hidden faces (FaceHiddenSet)
+%   % * Measures the vehicle as it is shown: hidden faces (LabelFaceHiddenSet)
 %   %   % are left out (fcn_CarMesh3D_visibleMesh; Sean, 04:17)
 
 % TO-DO:
@@ -259,8 +259,8 @@ xRearAxle  = mean(wheelCenters(3:4,1),'omitnan');
 
 % Body ground clearance
 groundClearance = NaN;
-if isfield(vehicleMesh,'FacePartIndex') && ~isempty(vehicleMesh.FacePartIndex)
-    bodyFaces = vehicleMesh.FacePartIndex==1;
+if isfield(vehicleMesh,'LabelFacePart') && ~isempty(vehicleMesh.LabelFacePart)
+    bodyFaces = vehicleMesh.LabelFacePart==1;
     if any(bodyFaces)
         groundClearance = min(vertices(unique(faces(bodyFaces,:)),3));
     end
@@ -275,8 +275,8 @@ measuredWidth = maxValues(2) - minValues(2);
 measuredWidthWithMirrors = NaN;
 switch widthReference
     case 'body'
-        if isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
-            bodyY = vertices(unique(faces(vehicleMesh.FacePartIndex==1,:)),2);
+        if isfield(vehicleMesh,'LabelFacePart') && any(vehicleMesh.LabelFacePart==1)
+            bodyY = vertices(unique(faces(vehicleMesh.LabelFacePart==1,:)),2);
             measuredWidth = max(bodyY) - min(bodyY);
         end
     case 'mirrors'

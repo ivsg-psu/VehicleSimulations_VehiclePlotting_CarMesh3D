@@ -15,7 +15,7 @@ function toolOutput = fcn_CarMesh3D_openTool(nextStep, options)
 % FORMAT:
 %
 %       toolOutput = fcn_CarMesh3D_openTool(nextStep,...
-%           (Visible=flag), (FigNum=figNum))
+%           (FlagVisible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -25,7 +25,7 @@ function toolOutput = fcn_CarMesh3D_openTool(nextStep, options)
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Visible: false to open the tool hidden (for tests). Default true.
+%      FlagVisible: false to open the tool hidden (for tests). Default true.
 %
 %      FigNum: not used (the tools make their own windows). If set to -1,
 %      input checking is skipped (fast mode).
@@ -71,7 +71,7 @@ function toolOutput = fcn_CarMesh3D_openTool(nextStep, options)
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
     nextStep
-    options.Visible = true      % false to open the tool hidden (tests)
+    options.FlagVisible = true      % false to open the tool hidden (tests)
     options.FigNum = []         % Not used; -1 for fast mode
 end
 
@@ -148,18 +148,18 @@ if isempty(nextStep.Tool)
     return;   % (no button was pressed: nothing to open)
 end
 files = fcn_CarMesh3D_findVehicleFiles(nextStep.Folder, FigNum=-1);
-flagVisible = logical(options.Visible);
+flagVisible = logical(options.FlagVisible);
 switch nextStep.Tool
     case 'view'
         outlineArguments = {};
         if files.HasOutline
             outlineArguments = {'Outline', files.OutlineFile};
         end
-        [~, toolOutput] = fcn_CarMesh3D_viewLabels(files.MeshFile, outlineArguments{:}, Wait=false, Visible=flagVisible);
+        [~, toolOutput] = fcn_CarMesh3D_viewLabels(files.MeshFile, outlineArguments{:}, FlagWait=false, FlagVisible=flagVisible);
     case 'edit'
-        [~, ~, toolOutput] = fcn_CarMesh3D_paintLabels(files.Folder, Visible=flagVisible);
+        [~, ~, toolOutput] = fcn_CarMesh3D_paintLabels(files.Folder, FlagVisible=flagVisible);
     case 'review'
-        [~, toolOutput] = fcn_CarMesh3D_reviewVehicle(files.Folder, Visible=flagVisible);
+        [~, toolOutput] = fcn_CarMesh3D_reviewVehicle(files.Folder, FlagVisible=flagVisible);
 end
 
 %% Any debugging?

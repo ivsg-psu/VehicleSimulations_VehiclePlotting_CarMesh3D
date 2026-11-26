@@ -108,8 +108,8 @@ vehicle = fcn_CarMesh3D_reviewInput(vehicleInput, FigNum=-1);
 mesh = vehicle.Mesh;
 result = described;
 result.Skip = '';
-result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'FacePartIndex'), ...
-    fcn_INTERNAL_field(mesh, 'FaceLightType'));
+result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'LabelFacePart'), ...
+    fcn_INTERNAL_field(mesh, 'LabelFaceLamp'));
 result.Note = sprintf('%s: %d faces', vehicle.Name, size(mesh.Faces, 1));
 if strcmpi(options.Mode, 'fingerprint')
     return;

@@ -396,9 +396,9 @@ Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S
 - 2026-11-23 10:48 (Sean): mockup approved ("a great start"); build the window.
 - 2026-11-23 11:05 (Claude, the build):
   - `fcn_CarMesh3D_paintLabels` rebuilt to this file: the menu and five panels, the top bar (Undo, Save, Exit; Exit asks to save), radio pairs throughout (no check boxes left in the panels), Colored?/Shown? per label (All with the mixed state), Status? per lamp, Paint as in three groups with "none (rotate only)", Settings with revert asking first, Ctrl+Z and Ctrl+S, the open panel remembered (preference `CarMesh3D`/`PainterPanel`).
-  - `fcn_CarMesh3D_viewLabels` got hooks for it (labels drawn plain gray, boundaries, single lamps, label kinds, lamp types, copy view call, a lamp-change callback) and the photo options under the photo (`PhotoOptions=true`: folder with Browse, Turn model with photo, Photo size Small 220 / Medium 300 / Large 420 pixels, with an unseen fourth button when the corner is dragged to another size). The viewer on its own is unchanged until its own design file.
+  - `fcn_CarMesh3D_viewLabels` got hooks for it (labels drawn plain gray, boundaries, single lamps, label kinds, lamp types, copy view call, a lamp-change callback) and the photo options under the photo (`FlagPhotoOptions=true`: folder with Browse, Turn model with photo, Photo size Small 220 / Medium 300 / Large 420 pixels, with an unseen fourth button when the corner is dragged to another size). The viewer on its own is unchanged until its own design file.
   - Differences from the text above: "Vehicle colors" is shown as "Vehicle" (the longer text did not fit the 320-pixel panel); mesh boundaries are drawn on every shown face; inside the Model Reviewer the panels start closed (its display area is narrow, and the model had no room with a panel open), and Exit is not shown there.
-  - New painter hooks for scripts and tests: `OpenPanel`, `Panel`, `SetMirror`, `Mirror`, `SetVersions`, `Versions`, `SetShowHidden`, `ShowHidden`.
+  - New painter hooks for scripts and tests: `OpenPanel`, `Panel`, `SetFlagMirror`, `FlagMirror`, `SetVersions`, `Versions`, `SetFlagShowHidden`, `FlagShowHidden`.
 - 2026-11-23 13:12 to 15:23 (questions closed; each with its thread):
   - Sean's answers of 15:23, as he wrote them:
 
@@ -440,13 +440,13 @@ Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S
   > 
   > *Updated 2026-11-23 15:55. This section says what to look at in the window as built now, and what Claude could and could not test. P2 will change the layout (section 9), so look mostly at behavior.*
   > 
-  > **How to open it.** Use the GUI test vehicle (made up, with every feature) or the Fit. Painting either one saves only when you press Save, into that vehicle's own `labelEdits_<ID>.mat`, which nothing else running today touches; thread B does not change label edits. To get the outputs back when the window closes, pass `Wait=true`:
+  > **How to open it.** Use the GUI test vehicle (made up, with every feature) or the Fit. Painting either one saves only when you press Save, into that vehicle's own `labelEdits_<ID>.mat`, which nothing else running today touches; thread B does not change label edits. To get the outputs back when the window closes, pass `FlagWait=true`:
   > ```matlab
   > % The GUI test vehicle (every lamp type, covers, interior objects, two hidden sets, its own photos)
-  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2026_CarMesh3D_Sample_GUITestVehicle', Wait=true);
+  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2026_CarMesh3D_Sample_GUITestVehicle', FlagWait=true);
   > 
   > % The 2009 Fit (a real download)
-  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', Wait=true);
+  > [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', FlagWait=true);
   > ```
   > After the window closes: `editedMesh` is the mesh with every saved and applied edit; `labelEdits` is the list of edits (a cell array of structures, as the vehicle's script applies them); `painter` is the window's handle structure (its functions no longer work once it is closed). Saved edits stay in the vehicle's `labelEdits_<ID>.mat`, so nothing is lost if MATLAB closes. To undo a test painting on a real vehicle: Settings, Revert to start, then Save.
   > 
@@ -510,7 +510,7 @@ Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S
     * This worked as expected (Sean, 04:09)
 
   - Your bug under T29: "the settings panel does not have a scroll bar if made too small. It needs one." The grid's rows were fixed heights, the last (the edits file's path, wrapped) only 60 pixels, so a long path was cut off instead of scrolled; its row now fits the text, and the row left by Show ground? is gone. T30 checks it.
-  - Show ground? moved from Settings to Overall Display, and the photo options there too (`PhotoOptions=false`), both from the viewer's T3 and T8; the ground in 1 m squares; the camera readout (the viewer's `OnView`). Tests: paintLabels and the shared panels pass (hidden).
+  - Show ground? moved from Settings to Overall Display, and the photo options there too (`FlagPhotoOptions=false`), both from the viewer's T3 and T8; the ground in 1 m squares; the camera readout (the viewer's `OnView`). Tests: paintLabels and the shared panels pass (hidden).
 
   **Review round of 02:55, with Sean's results as written (renumbered):**
 

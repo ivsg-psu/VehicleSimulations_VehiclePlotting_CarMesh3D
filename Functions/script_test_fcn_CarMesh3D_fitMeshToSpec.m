@@ -211,7 +211,7 @@ figure(figNum); close(figNum);
 % antenna on the right A-pillar)
 vehicleSpec = fcn_INTERNAL_compactSpec;
 spikedMesh = fcn_INTERNAL_preparedSample(16);
-bodyVertexIndices = unique(spikedMesh.Faces(spikedMesh.FacePartIndex==1,:));
+bodyVertexIndices = unique(spikedMesh.Faces(spikedMesh.LabelFacePart==1,:));
 rightBody = bodyVertexIndices(spikedMesh.Vertices(bodyVertexIndices,2) < -0.2);
 [~,highest] = max(spikedMesh.Vertices(rightBody,3));
 roofTop = max(spikedMesh.Vertices(:,3));
@@ -223,7 +223,7 @@ assert(abs(max(plainMesh.Vertices(:,3)) - vehicleSpec.OverallHeight) < 1e-9);
 
 % Symmetric: the left half's roof is at the overall height (the spike
 % stands above it, and the mirroring later removes it)
-symmetricMesh = fcn_CarMesh3D_fitMeshToSpec(spikedMesh, vehicleSpec, Symmetric=true, FigNum=figNum);
+symmetricMesh = fcn_CarMesh3D_fitMeshToSpec(spikedMesh, vehicleSpec, FlagSymmetric=true, FigNum=figNum);
 leftHalf = symmetricMesh.Vertices(:,2) >= 0;
 assert(abs(max(symmetricMesh.Vertices(leftHalf,3)) - vehicleSpec.OverallHeight) < 1e-9);
 assert(max(symmetricMesh.Vertices(:,3)) > vehicleSpec.OverallHeight);
@@ -236,23 +236,23 @@ bumpedMesh = fcn_INTERNAL_preparedSample(16);
 % measures vertices)
 sourceCenterY = (min(bumpedMesh.Vertices(:,2)) + max(bumpedMesh.Vertices(:,2)))/2;
 bumpedMesh.Vertices(end+1,:) = [max(bumpedMesh.Vertices(:,1)) + 0.05, sourceCenterY - 0.05, mean(bumpedMesh.Vertices(:,3))];
-bumpedFit = fcn_CarMesh3D_fitMeshToSpec(bumpedMesh, vehicleSpec, Symmetric=true);
+bumpedFit = fcn_CarMesh3D_fitMeshToSpec(bumpedMesh, vehicleSpec, FlagSymmetric=true);
 assert(abs(max(bumpedFit.Vertices(:,1)) - min(bumpedFit.Vertices(:,1)) - vehicleSpec.OverallLength) < 1e-9);
 
 % A low body point on the right (an exhaust tip, say) does not set the
 % ground clearance of the half that is kept
 loweredMesh = fcn_INTERNAL_preparedSample(16);
-bodyVertexIndices = unique(loweredMesh.Faces(loweredMesh.FacePartIndex==1,:));
+bodyVertexIndices = unique(loweredMesh.Faces(loweredMesh.LabelFacePart==1,:));
 rightBody = bodyVertexIndices(loweredMesh.Vertices(bodyVertexIndices,2) < -0.3);
 [~,lowest] = min(loweredMesh.Vertices(rightBody,3));
 loweredMesh.Vertices(rightBody(lowest),3) = loweredMesh.Vertices(rightBody(lowest),3) - 0.05;
-loweredFit = fcn_CarMesh3D_fitMeshToSpec(loweredMesh, vehicleSpec, Symmetric=true);
+loweredFit = fcn_CarMesh3D_fitMeshToSpec(loweredMesh, vehicleSpec, FlagSymmetric=true);
 keptBody = bodyVertexIndices(loweredFit.Vertices(bodyVertexIndices,2) >= -0.15);
 assert(abs(min(loweredFit.Vertices(keptBody,3)) - vehicleSpec.GroundClearance) < 1e-9);
 
 % Without a spike, Symmetric changes nothing (the sample is symmetric)
 cleanMesh = fcn_INTERNAL_preparedSample(16);
-assert(max(max(abs(fcn_CarMesh3D_fitMeshToSpec(cleanMesh, vehicleSpec, Symmetric=true).Vertices - ...
+assert(max(max(abs(fcn_CarMesh3D_fitMeshToSpec(cleanMesh, vehicleSpec, FlagSymmetric=true).Vertices - ...
     fcn_CarMesh3D_fitMeshToSpec(cleanMesh, vehicleSpec).Vertices))) < 1e-9);
 
 % Check that the figure is open

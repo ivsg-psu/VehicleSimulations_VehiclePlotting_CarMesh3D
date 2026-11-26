@@ -84,9 +84,11 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %     right angles with fcn_CarMesh3D_calcAckermannSteering.
 %   Lights: indicator becomes blinking TurnLeft / TurnRight (on for half
 %     of BlinkPeriod, starting on when switched on); brakeLight 1 or 2
-%     becomes Tail='brake'; reverseLight 1 becomes Backup; the tail
-%     lights are 'on' when the headlights or running lights are on. A
-%     missing light column means that light is off.
+%     becomes Brake=true (and Tail=true); headlights 1 becomes
+%     LowBeam=true, 2 LowBeam=true and HighBeam=true; reverseLight 1
+%     becomes Backup; Tail is true when the headlights, running lights
+%     or brake lights are on. A missing light column means that light is
+%     off. (The CSV column names stay as they are.)
 %
 % FORMAT:
 %
@@ -148,8 +150,8 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %           SteerSource: which column the steering came from
 %           WheelSpin (K x 4), WheelLift (K x 4): in CarMesh3D's
 %               [FL FR RL RR] order, ready for fcn_CarMesh3D_plotVehicle
-%           LightStates (K x 1 structure array): ready for
-%               fcn_CarMesh3D_plotVehicle's LightStates
+%           Signals (K x 1 structure array): ready for
+%               fcn_CarMesh3D_plotVehicle's Signals
 %           Data: every column read, by its usual name, in SI units
 %           ColumnsUsed, ColumnsIgnored: the column names as written in
 %               the file
@@ -158,7 +160,7 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %           Pose=motion.Pose(k,:), WheelSpin=motion.WheelSpin(k,:),
 %           SteerAngle=motion.SteerAngle(k,:), WheelLift=motion.WheelLift(k,:),
 %           BodyRoll=motion.BodyRoll(k), BodyPitch=motion.BodyPitch(k),
-%           BodyHeave=motion.BodyHeave(k), LightStates=motion.LightStates(k)
+%           BodyHeave=motion.BodyHeave(k), Signals=motion.Signals(k)
 %
 % DEPENDENCIES:
 %
@@ -464,7 +466,7 @@ runningCodes = round(getColumn('runningLights',0));
 % Brake and reverse lights are inputs, never worked out from the motion
 brakeCodes = round(getColumn('brakeLight',0));
 reverseCodes = round(getColumn('reverseLight',0));
-lightStates = fcn_INTERNAL_lightStates(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, options.BlinkPeriod);
+signals = fcn_INTERNAL_signals(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, options.BlinkPeriod);
 
 %%%%
 % Output
@@ -480,7 +482,7 @@ motion.SteerAngle = steerValues;
 motion.SteerSource = steerSource;
 motion.WheelSpin = wheelSpin;
 motion.WheelLift = wheelLift;
-motion.LightStates = lightStates;
+motion.Signals = signals;
 motion.Data = data;
 motion.ColumnsUsed = columnsUsed;
 motion.ColumnsIgnored = columnsIgnored;
@@ -677,14 +679,13 @@ else
 end
 end % Ends fcn_INTERNAL_getColumn
 
-%% fcn_INTERNAL_lightStates
-function lightStates = fcn_INTERNAL_lightStates(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, blinkPeriod)
-% Converts the light columns into one LightStates structure per row.
+%% fcn_INTERNAL_signals
+function signals = fcn_INTERNAL_signals(timeValues, headlightCodes, indicatorCodes, brakeCodes, reverseCodes, runningCodes, blinkPeriod)
+% Converts the light columns into one Signals structure per row.
 % Turn signals blink, starting "on" whenever the indicator changes.
-headlightNames = {'off','low','high'};
 Nrows = length(timeValues);
-lightStates = repmat(struct('Headlights','off','TurnLeft',false,'TurnRight',false, ...
-    'Running',false,'Tail','off','Backup',false), Nrows, 1);
+signals = repmat(struct('LowBeam',false,'HighBeam',false,'TurnLeft',false,'TurnRight',false, ...
+    'Running',false,'Tail',false,'Brake',false,'Backup',false), Nrows, 1);
 switchTime = timeValues(1);
 for ith_row = 1:Nrows
     if ith_row>1 && indicatorCodes(ith_row)~=indicatorCodes(ith_row-1)
@@ -692,15 +693,13 @@ for ith_row = 1:Nrows
     end
     blinkOn = mod(timeValues(ith_row) - switchTime, blinkPeriod) < blinkPeriod/2;
     headlightCode = min(max(headlightCodes(ith_row),0),2);
-    lightStates(ith_row).Headlights = headlightNames{headlightCode+1};
-    lightStates(ith_row).TurnLeft = blinkOn && any(indicatorCodes(ith_row)==[1 3]);
-    lightStates(ith_row).TurnRight = blinkOn && any(indicatorCodes(ith_row)==[2 3]);
-    lightStates(ith_row).Running = runningCodes(ith_row) > 0;
-    if brakeCodes(ith_row) > 0
-        lightStates(ith_row).Tail = 'brake';
-    elseif headlightCode > 0 || runningCodes(ith_row) > 0
-        lightStates(ith_row).Tail = 'on';
-    end
-    lightStates(ith_row).Backup = reverseCodes(ith_row) > 0;
+    signals(ith_row).LowBeam = headlightCode >= 1;   % (headlights code 0 off, 1 low, 2 high: high lights both beams)
+    signals(ith_row).HighBeam = headlightCode == 2;
+    signals(ith_row).TurnLeft = blinkOn && any(indicatorCodes(ith_row)==[1 3]);
+    signals(ith_row).TurnRight = blinkOn && any(indicatorCodes(ith_row)==[2 3]);
+    signals(ith_row).Running = runningCodes(ith_row) > 0;
+    signals(ith_row).Brake = brakeCodes(ith_row) > 0;
+    signals(ith_row).Tail = signals(ith_row).Brake || headlightCode > 0 || runningCodes(ith_row) > 0;
+    signals(ith_row).Backup = reverseCodes(ith_row) > 0;
 end
-end % Ends fcn_INTERNAL_lightStates
+end % Ends fcn_INTERNAL_signals

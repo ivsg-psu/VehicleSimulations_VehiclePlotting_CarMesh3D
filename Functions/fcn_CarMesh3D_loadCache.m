@@ -11,7 +11,7 @@ function [cacheOutputs, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile,
 % FORMAT:
 %
 %       [cacheOutputs, flagReused, reason] = fcn_CarMesh3D_loadCache(...
-%           cacheFile, cacheInputs, (Enabled=flag), (FigNum=figNum))
+%           cacheFile, cacheInputs, (FlagEnabled=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -22,7 +22,7 @@ function [cacheOutputs, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile,
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      Enabled: false to never reuse (the step is always done; the
+%      FlagEnabled: false to never reuse (the step is always done; the
 %      reason is 'cache not used'). Default true.
 %
 %      FigNum: if given (not -1), the decision is printed. If set to -1,
@@ -80,7 +80,7 @@ function [cacheOutputs, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile,
 arguments
     cacheFile                    % The cache file (.mat)
     cacheInputs                  % Everything the step depends on (a structure)
-    options.Enabled = true       % false to never reuse
+    options.FlagEnabled = true       % false to never reuse
     options.FigNum = []          % Print the decision if given; -1 for fast mode
 end
 
@@ -137,7 +137,7 @@ if 0==flag_max_speed
         if ~isstruct(cacheInputs)
             error('cacheInputs must be a structure');
         end
-        if ~(islogical(options.Enabled) || isnumeric(options.Enabled)) || ~isscalar(options.Enabled)
+        if ~(islogical(options.FlagEnabled) || isnumeric(options.FlagEnabled)) || ~isscalar(options.FlagEnabled)
             error('Enabled must be true or false');
         end
     end
@@ -165,7 +165,7 @@ end
 cacheOutputs = [];
 flagReused = false;
 cacheFile = char(cacheFile);
-if ~logical(options.Enabled)
+if ~logical(options.FlagEnabled)
     reason = 'cache not used';
 elseif ~isfile(cacheFile)
     reason = 'no cache file';

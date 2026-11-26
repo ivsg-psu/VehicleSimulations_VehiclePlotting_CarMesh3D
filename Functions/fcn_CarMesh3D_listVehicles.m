@@ -13,13 +13,13 @@ function vehicleTable = fcn_CarMesh3D_listVehicles(options)
 % FORMAT:
 %
 %       vehicleTable = fcn_CarMesh3D_listVehicles(...
-%           (IncludeUnfinished=flag), (DataFolder=folder), (FigNum=figNum))
+%           (FlagIncludeUnfinished=flag), (DataFolder=folder), (FigNum=figNum))
 %
 % INPUTS:
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
-%      IncludeUnfinished: true to list vehicles without a saved mesh too
+%      FlagIncludeUnfinished: true to list vehicles without a saved mesh too
 %      (Status 'no mesh'). Default false.
 %
 %      DataFolder: the Data folder. Default [] uses the one next to the
@@ -86,7 +86,7 @@ function vehicleTable = fcn_CarMesh3D_listVehicles(options)
 % gated section below, which can be skipped with FigNum=-1 or with
 % the MATLABFLAG_CARMESH3D_FLAG_CHECK_INPUTS environment variable.
 arguments
-    options.IncludeUnfinished = false   % List vehicles without a mesh too?
+    options.FlagIncludeUnfinished = false   % List vehicles without a mesh too?
     options.DataFolder = []             % The Data folder; [] for the one next to Functions
     options.FigNum = []                 % Print the table if given; -1 for fast mode
 end
@@ -138,7 +138,7 @@ if 0==flag_max_speed
     if flag_check_inputs
         % The number of inputs and the option names are checked by the
         % arguments block above
-        if ~(islogical(options.IncludeUnfinished) || isnumeric(options.IncludeUnfinished)) || ~isscalar(options.IncludeUnfinished)
+        if ~(islogical(options.FlagIncludeUnfinished) || isnumeric(options.FlagIncludeUnfinished)) || ~isscalar(options.FlagIncludeUnfinished)
             error('IncludeUnfinished must be true or false');
         end
         if ~isempty(options.DataFolder) && ~isfolder(options.DataFolder)
@@ -168,7 +168,7 @@ end
 %
 [~, ~, currentMeshVersion] = fcn_CarMesh3D_version(FigNum=-1);
 allVehicles = fcn_CarMesh3D_findVehicleFiles('', DataFolder=options.DataFolder, FigNum=-1);
-if ~logical(options.IncludeUnfinished)
+if ~logical(options.FlagIncludeUnfinished)
     allVehicles = allVehicles([allVehicles.HasMesh]);
 end
 bodyStyles = fcn_CarMesh3D_loadBodyStyles(DataFolder=options.DataFolder, FigNum=-1);

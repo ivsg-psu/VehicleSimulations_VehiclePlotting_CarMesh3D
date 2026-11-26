@@ -18,7 +18,7 @@
 %% Set up the workspace
 close all;
 
-vehicleID = fcn_CarMesh3D_demoVehicle(UsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
+vehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);   % (the repo's demo vehicle)
 assert(strcmp(vehicleID, '2009_Honda_Fit_Sport'), ['These tests check facts of the 2009 Fit (its seat and wheel pieces, ' ...
     'its wheel''s size): if the demo vehicle is changed, give them that vehicle''s facts']);
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
@@ -64,10 +64,10 @@ corners = [driverSeat.Boxes.Cushion.Corners; driverSeat.Boxes.Back.Corners; pass
 assert(all(abs(corners(:,2)) < halfWidth) && all(corners(:,3) > 0) && all(corners(:,3) < max(vertices(:,3))) ...
     && all(corners(:,1) > min(vertices(:,1))) && all(corners(:,1) < max(vertices(:,1))), 'No seat template sticks out of the body');
 % (no glass, wheel or light face taken)
-blockedParts = find(ismember(lower(vehicleMesh.PartNames), {'glass','wheel','light'}));
+blockedParts = find(ismember(lower(vehicleMesh.LabelPartNames), {'glass','wheel','light'}));
 allFaces = [driverSeat.Faces(:); passengerSeat.Faces(:); wheel.Faces(:)];
 assert(~isempty(driverSeat.Faces) && ~isempty(passengerSeat.Faces) && ~isempty(wheel.Faces), 'Faces found for each object');
-assert(~any(ismember(vehicleMesh.FacePartIndex(allFaces), blockedParts)), 'No glass, wheel or light face taken');
+assert(~any(ismember(vehicleMesh.LabelFacePart(allFaces), blockedParts)), 'No glass, wheel or light face taken');
 
 %% TEST case: against the download's own seat and wheel pieces
 fig_num = 20002;
@@ -91,9 +91,9 @@ end
 fig_num = 20004;
 fprintf(1,'Figure %d: TEST case: the objects stored in the mesh\n', fig_num);
 [~, storedMesh] = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=templates, FigNum=-1);
-assert(isequal(storedMesh.InteriorObjectNames, {'driver seat', 'passenger seat', 'steering wheel'}));
-assert(numel(storedMesh.FaceInteriorObject) == size(vehicleMesh.Faces,1));
-assert(isequal(find(storedMesh.FaceInteriorObject == 3), sort(wheel.Faces(:))), 'The wheel''s faces stored as object 3');
+assert(isequal(storedMesh.LabelInteriorNames, {'driver seat', 'passenger seat', 'steering wheel'}));
+assert(numel(storedMesh.LabelFaceInterior) == size(vehicleMesh.Faces,1));
+assert(isequal(find(storedMesh.LabelFaceInterior == 3), sort(wheel.Faces(:))), 'The wheel''s faces stored as object 3');
 assert(isequal(storedMesh.InteriorObjects.SteeringWheel.Center, wheel.Center) && ~isfield(storedMesh.InteriorObjects, 'Info'));
 assert(isequal(storedMesh.Vertices, vehicleMesh.Vertices) && isequal(storedMesh.Faces, vehicleMesh.Faces), 'The mesh itself unchanged');
 % (the 2D outline draws exactly these objects)
@@ -103,7 +103,7 @@ assert(isequal({outline.Interior.Name}, {'driver seat', 'passenger seat', 'steer
 %% TEST case: the same answer every time (a fixed random seed)
 fig_num = 20003;
 fprintf(1,'Figure %d: TEST case: repeatable, and the drive side can be given\n', fig_num);
-wheelOnly = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=templates, Seats=true, DriveSide='left', FigNum=-1);
+wheelOnly = fcn_CarMesh3D_findInteriorObjects(vehicleMesh, Templates=templates, FlagSeats=true, DriveSide='left', FigNum=-1);
 assert(strcmp(wheelOnly.DriveSideSource, 'option') && isequal(wheelOnly.SteeringWheel.Faces, wheel.Faces), 'The same wheel, the drive side given');
 
 %% FAST mode cases

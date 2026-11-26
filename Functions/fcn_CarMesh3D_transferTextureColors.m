@@ -21,7 +21,7 @@ function vehicleMesh = fcn_CarMesh3D_transferTextureColors(vehicleMesh, textureM
 %      the Blender-reduced OBJ).
 %
 %      textureMesh: the download read by fcn_CarMesh3D_readGLB (it has the
-%      fields FaceTextureColors, FaceTextureAlpha, SeeThroughReliable).
+%      fields FaceTextureColors, FaceTextureAlpha, FlagSeeThroughReliable).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -36,7 +36,7 @@ function vehicleMesh = fcn_CarMesh3D_transferTextureColors(vehicleMesh, textureM
 % OUTPUTS:
 %
 %      vehicleMesh: the same structure with FaceTextureColors (M x 3),
-%      FaceTextureAlpha (M x 1), and SeeThroughReliable added.
+%      FaceTextureAlpha (M x 1), and FlagSeeThroughReliable added.
 %
 % DEPENDENCIES:
 %
@@ -178,10 +178,10 @@ faceAlpha(flagFar) = 1;
 
 vehicleMesh.FaceTextureColors = faceColors;
 vehicleMesh.FaceTextureAlpha = faceAlpha;
-if isfield(textureMesh,'SeeThroughReliable')
-    vehicleMesh.SeeThroughReliable = textureMesh.SeeThroughReliable;
+if isfield(textureMesh,'FlagSeeThroughReliable')
+    vehicleMesh.FlagSeeThroughReliable = textureMesh.FlagSeeThroughReliable;
 else
-    vehicleMesh.SeeThroughReliable = true;
+    vehicleMesh.FlagSeeThroughReliable = true;
 end
 
 %% Plot the results (for debugging)?

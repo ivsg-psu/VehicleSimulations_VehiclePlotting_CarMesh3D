@@ -98,10 +98,10 @@ assert(~flagReused && contains(reason, 'MeshVersion'));
 
 %% TEST case: Enabled=false never reuses; an unreadable file is done again
 figNum = 20002;
-titleString = sprintf('TEST case: Enabled=false never reuses; an unreadable file is done again');
+titleString = sprintf('TEST case: FlagEnabled=false never reuses; an unreadable file is done again');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 
-[~, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile, cacheInputs, Enabled=false);
+[~, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile, cacheInputs, FlagEnabled=false);
 assert(~flagReused && strcmp(reason, 'cache not used'));
 fid = fopen(cacheFile, 'w'); fprintf(fid, 'not a mat file'); fclose(fid);
 [~, flagReused, reason] = fcn_CarMesh3D_loadCache(cacheFile, cacheInputs);

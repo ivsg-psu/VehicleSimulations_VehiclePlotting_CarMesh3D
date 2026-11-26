@@ -27,7 +27,7 @@ end
 
 %% DEMO case: the window on its own, with its viewer
 fprintf(1, 'DEMO case: the window, with its viewer\n');
-[startMatrix, editor] = fcn_CarMesh3D_editLampFunctions(copyFiles.Folder, Who='ZZT', Visible=false);
+[startMatrix, editor] = fcn_CarMesh3D_editLampFunctions(copyFiles.Folder, Who='ZZT', FlagVisible=false);
 assert(istable(startMatrix) && height(startMatrix) == numel(editor.Units()));
 assert(isgraphics(editor.Figure) && isstruct(editor.Viewer));
 assert(strcmp(editor.Signal(), 'LowBeam') && strcmp(editor.Mode(), 'table'));
@@ -64,7 +64,7 @@ zzCells = findall(zzTable, 'Tag', 'lampCell');
 zzPos = vertcat(zzCells.Position);
 zzScale = zzTable.InnerPosition(4)/diff(zzTable.YLim);   % (pixels per data unit)
 assert(min(zzPos(:,4))*zzScale >= 15, 'Each cell is at least 15 px tall on screen');
-assert(editor.Viewer.NightView(), 'The view is at night while the matrix is edited');
+assert(editor.Viewer.FlagNight(), 'The view is at night while the matrix is edited');
 outline = findall(editor.Figure, 'Tag', 'lampOutline');
 units = editor.Units();
 lowBeamUnits = find(startMatrix.LowBeam > 0);
@@ -106,7 +106,7 @@ assert(any(contains(editor.Checks(), 'both ends')), 'Brakes lit at the front: a 
 editor.ClickCell(targetUnit, 'Brake', true);
 assert(editor.Table().Brake(targetUnit) == 0, 'And off');
 if ~isempty(fogRow)
-    editor.SetSignal('FogLights');
+    editor.SetSignal('Fog');
 end
 
 %% TEST case: the tuner, and the filters
@@ -147,7 +147,7 @@ assert(~isvalid(editor.Figure));
 %% TEST case: a mesh given as a variable: nothing to save
 fprintf(1, 'TEST case: a mesh variable\n');
 meshOnly = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FigNum=-1);
-[~, editor] = fcn_CarMesh3D_editLampFunctions(meshOnly, Visible=false);
+[~, editor] = fcn_CarMesh3D_editLampFunctions(meshOnly, FlagVisible=false);
 assert(strcmp(findall(editor.Figure, 'Tag', 'lampSave').Enable, 'off'));
 editor.Close();
 

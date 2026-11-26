@@ -33,7 +33,7 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %           (FitMethod=methodString),...
 %           (Origin=originString),...
 %           (WidthReference=widthString),...
-%           (Symmetric=flag),...
+%           (FlagSymmetric=flag),...
 %           (FigNum=figNum))
 %
 %      Optional inputs are given as Name=Value pairs after the required
@@ -72,9 +72,9 @@ function vehicleMesh = fcn_CarMesh3D_fitMeshToSpec(vehicleMesh, vehicleSpec, opt
 %               the body mesh and the spec gives the width with mirrors.
 %      fcn_CarMesh3D_validateMesh measures the width the same way.
 %
-%      Symmetric: true when the mesh will later be made symmetric by
+%      FlagSymmetric: true when the mesh will later be made symmetric by
 %      reducing its left half and mirroring it (fcn_CarMesh3D_simplifyMesh
-%      Symmetric=true). The length and height are then measured on the
+%      FlagSymmetric=true). The length and height are then measured on the
 %      left half only (Y at or above 0.15 m right of the center, the
 %      region the mirroring keeps),
 %      so a one-sided part that the mirroring removes (a mast antenna on
@@ -165,7 +165,7 @@ arguments
     options.FitMethod = 'auto'    % 'auto', 'wheels', or 'box'
     options.Origin = 'rearAxle'   % 'rearAxle' or 'center'
     options.WidthReference = 'all' % 'all', 'body', or 'mirrors'
-    options.Symmetric = false     % true: length and height from the left half (the half kept when mirroring)
+    options.FlagSymmetric = false     % true: length and height from the left half (the half kept when mirroring)
     options.FigNum = []           % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -256,7 +256,7 @@ if 0==flag_max_speed
         end
 
         % Check the Symmetric input
-        if ~(islogical(options.Symmetric) || isnumeric(options.Symmetric)) || ~isscalar(options.Symmetric)
+        if ~(islogical(options.FlagSymmetric) || isnumeric(options.FlagSymmetric)) || ~isscalar(options.FlagSymmetric)
             error('Symmetric must be true or false');
         end
     end
@@ -316,7 +316,7 @@ centerY = (minValues(2)+maxValues(2))/2;
 % (a mesh to be mirrored: length and height from the half that is kept,
 % so a one-sided part removed by the mirroring does not set the scale)
 keptHalf = true(Nvertices,1);
-if logical(options.Symmetric)
+if logical(options.FlagSymmetric)
     % (the region fcn_CarMesh3D_simplifyMesh keeps and mirrors: Y at or
     % above 0.15 m right of the center, in this mesh's units before
     % scaling; the 1999 F-150's bumper trim, just right of the center, was
@@ -334,7 +334,7 @@ if logical(options.Symmetric)
 end
 % (the height to the roof, leaving out an antenna or other thin part
 % sticking up: published heights exclude antennas)
-if logical(options.Symmetric) && any(keptHalf)
+if logical(options.FlagSymmetric) && any(keptHalf)
     maxValues(3) = fcn_INTERNAL_roofTop(originalVertices(keptHalf,:));
 else
     maxValues(3) = fcn_INTERNAL_roofTop(originalVertices);
@@ -346,8 +346,8 @@ boxScale = [L W H]./extents;
 % Width from the body only (leaving out mirrors), if asked
 widthReference = lower(char(options.WidthReference));
 if strcmp(widthReference,'body')
-    if isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
-        bodyVertexIndices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
+    if isfield(vehicleMesh,'LabelFacePart') && any(vehicleMesh.LabelFacePart==1)
+        bodyVertexIndices = unique(vehicleMesh.Faces(vehicleMesh.LabelFacePart==1,:));
         bodyMinY = min(originalVertices(bodyVertexIndices,2));
         bodyMaxY = max(originalVertices(bodyVertexIndices,2));
         centerY = (bodyMinY + bodyMaxY)/2;
@@ -435,9 +435,9 @@ if strcmp(fitMethod,'wheels')
 
     % Piecewise stretch of the body along Z, so the lowest body point sits
     % at the ground clearance and the roof stays at the overall height
-    if ~isempty(GC) && isfield(vehicleMesh,'FacePartIndex') && any(vehicleMesh.FacePartIndex==1)
-        bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.FacePartIndex==1,:));
-        if logical(options.Symmetric)
+    if ~isempty(GC) && isfield(vehicleMesh,'LabelFacePart') && any(vehicleMesh.LabelFacePart==1)
+        bodyVertices = unique(vehicleMesh.Faces(vehicleMesh.LabelFacePart==1,:));
+        if logical(options.FlagSymmetric)
             % (only the body the mirroring keeps, Y >= -0.15 m: a low part
             % on the right, such as the 2025 Camry's, is mirrored away and
             % left the clearance 3.7% high)
@@ -573,7 +573,7 @@ if flag_do_plots
 
     % 3D view
     nexttile;
-    fcn_CarMesh3D_plotVehicle(vehicleMesh, ShowEdges=true, FigNum=figNum);
+    fcn_CarMesh3D_plotVehicle(vehicleMesh, FlagShowEdges=true, FigNum=figNum);
     title('3D view');
 
     sgtitle(sprintf('Fitted to spec: %s',vehicleMesh.Name),'Interpreter','none');

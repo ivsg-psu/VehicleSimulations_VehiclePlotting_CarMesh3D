@@ -62,7 +62,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %
 %       [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleInput,...
 %           (Parent=container), (EditsFile=file), (PhotoFolder=folder),...
-%           (Wait=flag), (Visible=flag), (OnPaint=function),...
+%           (FlagWait=flag), (FlagVisible=flag), (OnPaint=function),...
 %           (OnChange=function), (OnHint=function), (FigNum=figNum))
 %
 % INPUTS:
@@ -86,10 +86,10 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %      PhotoFolder: a folder of ViewInDegrees_<angle> photos. Default: the
 %      vehicle's photos folder (with an ID), else none.
 %
-%      Wait: true to wait until the window is closed, and return the edited
+%      FlagWait: true to wait until the window is closed, and return the edited
 %      mesh then (its own window only). Default false: return at once.
 %
-%      Visible: false to build the window hidden (for tests). Default true.
+%      FlagVisible: false to build the window hidden (for tests). Default true.
 %
 %      OnPaint: a function called with no inputs after each click or
 %      stroke that paints (the reviewer marks its Labels item rejected).
@@ -131,7 +131,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % OUTPUTS:
 %
 %      editedMesh: the mesh with the applied edits (from the edits file,
-%      when the painter returns at once; or as left, with Wait=true).
+%      when the painter returns at once; or as left, with FlagWait=true).
 %
 %      labelEdits: the applied edits, as fcn_CarMesh3D_editLabels edits
 %      (one per label, faces by their centers).
@@ -200,7 +200,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % EXAMPLES:
 %
 %       % Paint the Fit's labels; wait for the window to close
-%       [editedMesh, labelEdits] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', Wait=true);
+%       [editedMesh, labelEdits] = fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport', FlagWait=true);
 %       fcn_CarMesh3D_plotVehicle(editedMesh, FigNum=1);
 %
 %       See the script: script_test_fcn_CarMesh3D_paintLabels.m for a full
@@ -245,7 +245,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_paintLabels
-%   % * Multi-part faces (FaceAlsoParts): a face is in each label it
+%   % * Multi-part faces (LabelFaceAlsoParts): a face is in each label it
 %   %   % belongs to (a lamp's clear cover: its light's label and glass)
 %   % * The photo's corner handle (fcn_CarMesh3D_viewLabels GripDown)
 %   %   % works here too
@@ -279,7 +279,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * Picking faces with the mouse tests the line under the mouse against
 %   %   % each triangle (Sean, 16:12: clicks and strokes often found nothing:
 %   %   % faces were picked by their centers, which missed large faces)
-%   % * A save carries each face's lamp cover (FaceCoverLamp, from
+%   % * A save carries each face's lamp cover (LabelFaceCoverLamp, from
 %   %   % fcn_CarMesh3D_findLampCovers), more parts and lamp functions into
 %   %   % the working mesh, not only its part, lamp type and colors
 %
@@ -423,12 +423,12 @@ arguments
     options.Parent = []         % Panel or grid to build into; [] for a window of its own
     options.EditsFile = []      % Where the edits are saved; [] for the default
     options.PhotoFolder = []    % Folder of ViewInDegrees_<angle> photos; [] for the default
-    options.Wait = false        % Wait until the window is closed
+    options.FlagWait = false        % Wait until the window is closed
     options.Versions = []       % Keep a timestamped copy at each save; [] for Shared GUI settings' choice (default true)
     options.VersionFolder = []  % Where timestamped copies go; [] for the remembered folder, else the default
     options.Who = ''            % Who is painting (for the change log); '' for your initials in Shared GUI settings
     options.Menu = []           % A host window's ☰ Menu (fcn_CarMesh3D_makePanelMenu); [] for a menu of its own
-    options.Visible = true      % Build the window hidden (tests)
+    options.FlagVisible = true      % Build the window hidden (tests)
     options.OnPaint = []        % Called after each click or stroke that paints
     options.OnChange = []       % Called with the edited mesh when the applied edits change
     options.OnHint = []         % Called with hint text; [] for the painter's own hint line
@@ -481,8 +481,8 @@ end
 if 0==flag_max_speed
     if flag_check_inputs
         if ~(ischar(vehicleInput) || isstring(vehicleInput) || ...
-                (isstruct(vehicleInput) && all(isfield(vehicleInput, {'Vertices','Faces','PartNames','FacePartIndex'}))))
-            error('vehicleInput must be a vehicle ID or a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex)');
+                (isstruct(vehicleInput) && all(isfield(vehicleInput, {'Vertices','Faces','LabelPartNames','LabelFacePart'}))))
+            error('vehicleInput must be a vehicle ID or a labeled CarMesh3D mesh (Vertices, Faces, LabelPartNames, LabelFacePart)');
         end
         for callbackName = {'OnPaint','OnChange','OnHint'}
             if ~isempty(options.(callbackName{1})) && ~isa(options.(callbackName{1}), 'function_handle')
@@ -572,11 +572,11 @@ end
 if ~isfield(baseMesh, 'FaceAlpha') || isempty(baseMesh.FaceAlpha)
     baseMesh.FaceAlpha = ones(size(baseMesh.Faces,1),1);
 end
-if ~isfield(baseMesh, 'FaceLightType') || isempty(baseMesh.FaceLightType)
-    baseMesh.FaceLightType = zeros(size(baseMesh.Faces,1),1);
+if ~isfield(baseMesh, 'LabelFaceLamp') || isempty(baseMesh.LabelFaceLamp)
+    baseMesh.LabelFaceLamp = zeros(size(baseMesh.Faces,1),1);
 end
-if ~isfield(baseMesh, 'LightTypeNames')
-    baseMesh.LightTypeNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
+if ~isfield(baseMesh, 'LabelLampNames')
+    baseMesh.LabelLampNames = {fcn_CarMesh3D_lampTypes().Name}';   % (one list for every function)
 end
 % (two meshes with the same faces: BaseMesh, before any edits, which the
 % edits are made from and written for; and Mesh, the working mesh, the
@@ -669,7 +669,7 @@ lampEditor = [];        % (the lamp-functions window in its panel: made when fir
 lampEditorKey = [];     % (the lamp labels it was made for)
 if flagOwnWindow
     visibleText = 'on';
-    if ~options.Visible
+    if ~options.FlagVisible
         visibleText = 'off';
     end
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_paintLabels: %s', vehicleName), 'Position', [60 60 1500 900], ...
@@ -784,9 +784,9 @@ if ischar(vehicleInput) || isstring(vehicleInput)
         meshHistory = false;
     end
 end
-[~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, ShowTools=false, ...
+[~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, FlagShowTools=false, ...
     PhotoFolder=photoFolder, Outline=outline, OnHint=@setHint, ColorFilter=@paintedColors, ...
-    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, QuickBar=topGrid, FigNum=-1);
+    HiddenFaces=@hiddenFaces, History=meshHistory, FlagPhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, QuickBar=topGrid, FigNum=-1);
 % (the photo options are in Overall Display now: Sean's viewLabels T8, 2026-11-24)
 labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
@@ -812,7 +812,7 @@ displayPanels = fcn_CarMesh3D_makeDisplayPanels(labelViewer, ...
     Overall=panelHandles(strcmp(panelNames, 'Overall Display')), Labels=panelHandles(strcmp(panelNames, 'Labels To Display')), ...
     Lamps=panelHandles(strcmp(panelNames, 'Lamps To Display')), Band=blueBand, ...
     LabelColor=@(name) fcn_INTERNAL_paintColor(data, name), OnChange=@showPaint, ...
-    ShowHidden=@showHiddenOn, SetShowHidden=@setShowHidden, FigNum=-1);
+    FlagShowHidden=@getFlagShowHidden, SetFlagShowHidden=@setFlagShowHidden, FigNum=-1);
 buildModifyPanel();
 if flagOwnMenu
     % (Shared GUI settings: the painter uses You, View, Demo vehicle and
@@ -866,8 +866,8 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'SetTool', @setTool, 'Paint', @testPaint, 'SetPhotoAngle', labelViewer.SetPhotoAngle, 'PhotoAngle', labelViewer.PhotoAngle, 'Viewer', labelViewer, ...
     'StrokeStart', @strokeStart, 'MouseMove', @mouseMove, 'MouseUp', @mouseUp, 'Click', @click, ...
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'OpenNames', @getOpenNames, 'OpenPanels', @openPanels, ...
-    'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
-    'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
+    'SetFlagMirror', @setFlagMirror, 'FlagMirror', @getFlagMirror, ...
+    'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetFlagShowHidden', @setFlagShowHidden, 'FlagShowHidden', @getFlagShowHidden, ...
     'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter, 'LampEditor', @getLampEditor, ...
     'BrushMeters', @getBrushMeters);
 flagBuilding = false;
@@ -879,7 +879,7 @@ if flagOwnWindow && isvalid(figureHandle)
     end
 end
 
-if flagOwnWindow && options.Wait && options.Visible && isvalid(figureHandle)
+if flagOwnWindow && options.FlagWait && options.FlagVisible && isvalid(figureHandle)
     uiwait(figureHandle);
     if ~isvalid(figureHandle)
         return;   % (closePainter set the outputs as the window closed)
@@ -991,7 +991,7 @@ end
                 (strlength(appliedTarget(changed)) == 0 & flagBase(changed));
             flagHidden = flagHidden | flagLabel(:);
         end
-        if ~showHiddenOn()
+        if ~getFlagShowHidden()
             flagHidden = flagHidden | startsWith(appliedTarget, "hide:") | ...
                 (fcn_INTERNAL_meshHidden(data.BaseMesh) & strlength(appliedTarget) == 0);
         end
@@ -1000,16 +1000,16 @@ end
     function flagGlass = currentlyGlass()
         % Faces that are glass now: labeled glass and not painted as
         % something else, or painted glass
-        glassIndex = find(strcmp(data.Mesh.PartNames, 'glass'), 1);
+        glassIndex = find(strcmp(data.Mesh.LabelPartNames, 'glass'), 1);
         flagGlass = false(numFaces,1);
         if ~isempty(glassIndex)
-            flagGlass = data.Mesh.FacePartIndex(:) == glassIndex;
+            flagGlass = data.Mesh.LabelFacePart(:) == glassIndex;
         end
         changed = paintTarget ~= workingTarget;
-        baseGlass = find(strcmp(data.BaseMesh.PartNames, 'glass'), 1);
+        baseGlass = find(strcmp(data.BaseMesh.LabelPartNames, 'glass'), 1);
         flagBaseGlass = false(numFaces,1);
         if ~isempty(baseGlass)
-            flagBaseGlass = data.BaseMesh.FacePartIndex(:) == baseGlass;
+            flagBaseGlass = data.BaseMesh.LabelFacePart(:) == baseGlass;
         end
         flagGlass(changed) = paintTarget(changed) == "glass" | (strlength(paintTarget(changed)) == 0 & flagBaseGlass(changed));
     end
@@ -1046,7 +1046,7 @@ end
         % in its panel, driving the painter's view; made again when the
         % lamp labels have changed since (the lamp units come from them)
         meshNow = getWorkingMesh();
-        keyNow = meshNow.FaceLightType(:);
+        keyNow = meshNow.LabelFaceLamp(:);
         if ~isempty(lampEditor) && isequal(keyNow, lampEditorKey)
             return;
         end
@@ -1211,7 +1211,7 @@ end
         rowGrid = uigridlayout(outer, [1 2], 'ColumnWidth', {150, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', yellowBand);
         uilabel(rowGrid, 'Text', 'Show hidden faces', ...
             'Tooltip', 'Show the hidden faces (magenta), to unhide them; they cannot be painted while out of view');
-        showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setShowHidden(value), 'showHidden');
+        showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setFlagShowHidden(value), 'showHidden');
         rowGrid = uigridlayout(outer, [1 2], 'ColumnWidth', {60, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', yellowBand);
         uilabel(rowGrid, 'Text', 'Brush', ...
             'Tooltip', 'How wide a Ctrl+drag selects, on the screen at any zoom: Fine (5 pixels around the mouse), Medium (14), Large (36). A Ctrl+click always selects one face.');
@@ -1257,7 +1257,7 @@ end
         end
     end
 
-    function setShowHidden(flagOn)
+    function setFlagShowHidden(flagOn)
         if isnan(flagOn)
             return;
         end
@@ -1266,7 +1266,7 @@ end
         markLabels();
     end
 
-    function flagOn = showHiddenOn()
+    function flagOn = getFlagShowHidden()
         flagOn = ~isempty(showHiddenGroup) && isvalid(showHiddenGroup) && isequal(showHiddenGroup.SelectedObject.UserData, true);
     end
 
@@ -1290,11 +1290,11 @@ end
         end
     end
 
-    function flagOn = mirrorOn()
+    function flagOn = getFlagMirror()
         flagOn = isempty(mirrorGroup) || ~isvalid(mirrorGroup) || isequal(mirrorGroup.SelectedObject.UserData, true);
     end
 
-    function setMirror(flagOn)
+    function setFlagMirror(flagOn)
         fcn_INTERNAL_selectRadio(mirrorGroup, logical(flagOn));
     end
 
@@ -1408,7 +1408,7 @@ end
         if isempty(faces)
             return;
         end
-        if mirrorOn()
+        if getFlagMirror()
             if isempty(mirrorFace)
                 mirrorFace = fcn_INTERNAL_mirrorFaces(data.Mesh);
             end
@@ -1803,20 +1803,20 @@ end
             flagMatch = distance < 1e-6;
             baseIndex = baseIndex(flagMatch);
             workingMesh = data.BaseMesh;
-            workingMesh.PartNames = editedNow.PartNames;
-            [~, partMap] = ismember(data.BaseMesh.PartNames, editedNow.PartNames);
-            flagPart = workingMesh.FacePartIndex > 0;
-            workingMesh.FacePartIndex(flagPart) = partMap(workingMesh.FacePartIndex(flagPart));
-            workingMesh.LightTypeNames = editedNow.LightTypeNames;
-            [~, lightMap] = ismember(data.BaseMesh.LightTypeNames, editedNow.LightTypeNames);
-            flagLight = workingMesh.FaceLightType > 0;
-            workingMesh.FaceLightType(flagLight) = lightMap(workingMesh.FaceLightType(flagLight));
-            workingMesh.FacePartIndex(baseIndex) = editedNow.FacePartIndex(flagMatch);
-            workingMesh.FaceLightType(baseIndex) = editedNow.FaceLightType(flagMatch);
+            workingMesh.LabelPartNames = editedNow.LabelPartNames;
+            [~, partMap] = ismember(data.BaseMesh.LabelPartNames, editedNow.LabelPartNames);
+            flagPart = workingMesh.LabelFacePart > 0;
+            workingMesh.LabelFacePart(flagPart) = partMap(workingMesh.LabelFacePart(flagPart));
+            workingMesh.LabelLampNames = editedNow.LabelLampNames;
+            [~, lightMap] = ismember(data.BaseMesh.LabelLampNames, editedNow.LabelLampNames);
+            flagLight = workingMesh.LabelFaceLamp > 0;
+            workingMesh.LabelFaceLamp(flagLight) = lightMap(workingMesh.LabelFaceLamp(flagLight));
+            workingMesh.LabelFacePart(baseIndex) = editedNow.LabelFacePart(flagMatch);
+            workingMesh.LabelFaceLamp(baseIndex) = editedNow.LabelFaceLamp(flagMatch);
             % (the other per-face label fields too: colors, see-through, a
-            % lamp's cover (FaceCoverLamp), more parts or lamp functions;
+            % lamp's cover (LabelFaceCoverLamp), more parts or lamp functions;
             % a field the edits made, or made wider, is made to match)
-            for fieldName = {'FaceColors', 'FaceAlpha', 'FaceCoverLamp', 'FaceAlsoParts', 'FaceLightFunctions'}
+            for fieldName = {'FaceColors', 'FaceAlpha', 'LabelFaceCoverLamp', 'LabelFaceAlsoParts', 'LabelFaceAlsoLamps'}
                 name = fieldName{1};
                 if ~isfield(editedNow, name) || size(editedNow.(name),1) ~= size(editedNow.Faces,1)
                     continue;
@@ -2362,7 +2362,7 @@ end
                 saveEdits();
             end
         end
-        if options.Wait
+        if options.FlagWait
             % (the outputs are read when uiwait returns: keep the state,
             % and the figure, until then)
             editedMesh = getEditedMesh();
@@ -2470,7 +2470,7 @@ if any(strcmp(name, {'body', 'glass', 'trim', 'interior', 'wheel'}))
     flagFaces = fcn_INTERNAL_labelFaces(data.Mesh, ['part_' name]);
 else
     flagFaces = false(size(data.Mesh.Faces,1),1);
-    if isfield(data.Mesh, 'LightTypeNames') && any(strcmp(data.Mesh.LightTypeNames, name))
+    if isfield(data.Mesh, 'LabelLampNames') && any(strcmp(data.Mesh.LabelLampNames, name))
         flagFaces = fcn_INTERNAL_labelFaces(data.Mesh, ['light_' name]);
     end
 end
@@ -2485,29 +2485,29 @@ function flagFaces = fcn_INTERNAL_labelFaces(vehicleMesh, labelKey)
 % The faces with this label
 flagFaces = false(size(vehicleMesh.Faces,1),1);
 if startsWith(labelKey, 'part_')
-    partIndex = find(strcmp(vehicleMesh.PartNames, labelKey(6:end)), 1);
+    partIndex = find(strcmp(vehicleMesh.LabelPartNames, labelKey(6:end)), 1);
     if isempty(partIndex)
         return;   % (a part the mesh does not have, such as interior since Q37: no faces)
     end
-    flagFaces = vehicleMesh.FacePartIndex(:)==partIndex;
+    flagFaces = vehicleMesh.LabelFacePart(:)==partIndex;
     % (and the faces that also belong to it: a lamp's clear cover is a
     % light that is also glass)
-    if ~isempty(partIndex) && isfield(vehicleMesh,'FaceAlsoParts') ...
-            && size(vehicleMesh.FaceAlsoParts,1)==numel(flagFaces) && partIndex <= size(vehicleMesh.FaceAlsoParts,2)
-        flagFaces = flagFaces(:) | vehicleMesh.FaceAlsoParts(:,partIndex);
+    if ~isempty(partIndex) && isfield(vehicleMesh,'LabelFaceAlsoParts') ...
+            && size(vehicleMesh.LabelFaceAlsoParts,1)==numel(flagFaces) && partIndex <= size(vehicleMesh.LabelFaceAlsoParts,2)
+        flagFaces = flagFaces(:) | vehicleMesh.LabelFaceAlsoParts(:,partIndex);
     end
 elseif strcmp(labelKey, 'light_none')
-    lightPart = find(strcmp(vehicleMesh.PartNames, 'light'), 1);
+    lightPart = find(strcmp(vehicleMesh.LabelPartNames, 'light'), 1);
     if isempty(lightPart)
         return;
     end
-    flagFaces = vehicleMesh.FacePartIndex(:)==lightPart & vehicleMesh.FaceLightType(:)==0;
+    flagFaces = vehicleMesh.LabelFacePart(:)==lightPart & vehicleMesh.LabelFaceLamp(:)==0;
 elseif startsWith(labelKey, 'light_')
-    typeIndex = find(strcmp(vehicleMesh.LightTypeNames, labelKey(7:end)), 1);
+    typeIndex = find(strcmp(vehicleMesh.LabelLampNames, labelKey(7:end)), 1);
     if isempty(typeIndex)
         return;
     end
-    flagFaces = vehicleMesh.FaceLightType(:)==typeIndex;
+    flagFaces = vehicleMesh.LabelFaceLamp(:)==typeIndex;
 end
 end % Ends fcn_INTERNAL_labelFaces
 
@@ -2625,10 +2625,10 @@ end % Ends fcn_INTERNAL_editTarget
 
 %% fcn_INTERNAL_meshHidden
 function flagHidden = fcn_INTERNAL_meshHidden(vehicleMesh)
-% The faces hidden in the mesh itself (FaceHiddenSet)
+% The faces hidden in the mesh itself (LabelFaceHiddenSet)
 flagHidden = false(size(vehicleMesh.Faces,1),1);
-if isfield(vehicleMesh,'FaceHiddenSet') && numel(vehicleMesh.FaceHiddenSet)==numel(flagHidden)
-    flagHidden = vehicleMesh.FaceHiddenSet(:) > 0;
+if isfield(vehicleMesh,'LabelFaceHiddenSet') && numel(vehicleMesh.LabelFaceHiddenSet)==numel(flagHidden)
+    flagHidden = vehicleMesh.LabelFaceHiddenSet(:) > 0;
 end
 end % Ends fcn_INTERNAL_meshHidden
 
@@ -2690,10 +2690,10 @@ end % Ends fcn_INTERNAL_meshPieces
 %% fcn_INTERNAL_labelCode
 function code = fcn_INTERNAL_labelCode(vehicleMesh)
 % One number per face for its label: part index, or 100 + light type
-code = double(vehicleMesh.FacePartIndex(:));
-if isfield(vehicleMesh, 'FaceLightType')
-    flagLight = vehicleMesh.FaceLightType(:) > 0;
-    code(flagLight) = 100 + double(vehicleMesh.FaceLightType(flagLight));
+code = double(vehicleMesh.LabelFacePart(:));
+if isfield(vehicleMesh, 'LabelFaceLamp')
+    flagLight = vehicleMesh.LabelFaceLamp(:) > 0;
+    code(flagLight) = 100 + double(vehicleMesh.LabelFaceLamp(flagLight));
 end
 end % Ends fcn_INTERNAL_labelCode
 

@@ -24,8 +24,8 @@ close all;
 boxMesh = struct();
 boxMesh.Vertices = [0 -1 0.2; 4 -1 0.2; 4 1 0.2; 0 1 0.2; 0 -1 1.4; 4 -1 1.4; 4 1 1.4; 0 1 1.4];
 boxMesh.Faces = [1 3 2; 1 4 3; 5 6 7; 5 7 8; 1 2 6; 1 6 5; 2 3 7; 2 7 6; 3 4 8; 3 8 7; 4 1 5; 4 5 8];
-boxMesh.PartNames = {'body','glass','wheel','light','trim'};
-boxMesh.FacePartIndex = [1 1 2 2 1 1 1 1 1 1 1 1]';
+boxMesh.LabelPartNames = {'body','glass','wheel','light','trim'};
+boxMesh.LabelFacePart = [1 1 2 2 1 1 1 1 1 1 1 1]';
 boxMesh.FaceWheelIndex = zeros(12,1);
 boxMesh.FaceColors = repmat([0.5 0.5 0.5],12,1);
 boxMesh.FaceAlpha = ones(12,1);
@@ -38,10 +38,10 @@ assert(report.Totals.SeeThroughPercent==0);   % (a closed box: no gaps)
 
 %% Missing ends, a relabeled top, a flipped side
 changedMesh = boxMesh;
-changedMesh.FacePartIndex(3:4) = 5;                        % (top: glass to trim)
+changedMesh.LabelFacePart(3:4) = 5;                        % (top: glass to trim)
 changedMesh.Faces(9:10,:) = changedMesh.Faces(9:10,[1 3 2]);   % (left side inside out)
 keep = true(12,1); keep([7:8 11:12]) = false;             % (front and rear sides missing: see-through)
-for fieldName = {'Faces','FacePartIndex','FaceWheelIndex','FaceColors','FaceAlpha'}
+for fieldName = {'Faces','LabelFacePart','FaceWheelIndex','FaceColors','FaceAlpha'}
     changedMesh.(fieldName{1}) = changedMesh.(fieldName{1})(keep,:);
 end
 figNum = 10001;

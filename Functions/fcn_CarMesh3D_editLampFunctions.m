@@ -33,7 +33,7 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %
 %       [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,...
 %           (Mesh=vehicleMesh), (Viewer=viewer), (Parent=container),...
-%           (Who=initials), (Visible=flag), (OnChange=function), (FigNum=figNum))
+%           (Who=initials), (FlagVisible=flag), (OnChange=function), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -55,7 +55,7 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %      Who: initials for the source of edited rows. Default: yours
 %      (fcn_CarMesh3D_userInfo, not asked).
 %
-%      Visible: false to build a window of its own hidden (tests).
+%      FlagVisible: false to build a window of its own hidden (tests).
 %
 %      OnChange: f(lampFunctions), called after each change.
 %
@@ -123,7 +123,7 @@ arguments
     options.Viewer = []         % The viewer's hooks (fcn_CarMesh3D_viewLabels)
     options.Parent = []         % The panel to build into; [] for a window of its own
     options.Who = ''            % Initials for edited rows' sources
-    options.Visible = true      % false: a window of its own built hidden (tests)
+    options.FlagVisible = true      % false: a window of its own built hidden (tests)
     options.OnChange = []       % f(lampFunctions) after each change
     options.FigNum = []         % Not used; -1 for fast mode
 end
@@ -160,9 +160,9 @@ else
     end
     [lampFunctions, units] = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, FigNum=-1);
 end
-signals = fcn_CarMesh3D_lampSignals();
-signalNames = {signals.Name};
-signalLabels = {signals.Label};
+signalKinds = fcn_CarMesh3D_lampSignals();
+signalNames = {signalKinds.Name};
+signalLabels = {signalKinds.Label};
 unitNames = {units.Name};
 numUnits = numel(units);
 groupOf = cell(1, numUnits);   % (Front, Side or Rear, from the position)
@@ -178,7 +178,7 @@ end
 who = char(options.Who);
 if isempty(who)
     try
-        user = fcn_CarMesh3D_userInfo(Ask=false, FigNum=-1);
+        user = fcn_CarMesh3D_userInfo(FlagAsk=false, FigNum=-1);
         who = user.Initials;
     catch
         who = '';
@@ -216,8 +216,8 @@ if isempty(options.Parent)
     columnPanel = uipanel(rootGrid, 'BorderType', 'none');
     if isempty(viewer)
         viewPanel = uipanel(rootGrid, 'BorderType', 'none');
-        [~, viewer] = fcn_CarMesh3D_viewLabels(vehicleMesh, Parent=viewPanel, ShowTools=false, ...
-            CheckStale=false, Visible=options.Visible, Wait=false, QuickBar=topBar);
+        [~, viewer] = fcn_CarMesh3D_viewLabels(vehicleMesh, Parent=viewPanel, FlagShowTools=false, ...
+            FlagCheckStale=false, FlagVisible=options.FlagVisible, FlagWait=false, QuickBar=topBar);
     end
 else
     columnPanel = options.Parent;
@@ -303,7 +303,7 @@ editor = struct('Table', @getTable, 'SetSignal', @setSignal, 'Signal', @getSigna
 refreshAll(true);
 if ~isempty(figureHandle)
     figureHandle.UserData = editor;
-    if options.Visible
+    if options.FlagVisible
         figureHandle.Visible = 'on';
     end
 end
@@ -733,7 +733,7 @@ end
         for name = [{editSignal}, alsoOn]
             lit.(name{1}) = 1;
         end
-        viewer.SetNightView(true);
+        viewer.SetFlagNight(true);
         viewer.SetLampSignals(lit);
         litUnits = find(matrixNow.(editSignal) > 0);
         if markedUnit > 0
@@ -748,7 +748,7 @@ end
         if isempty(folder)
             return;
         end
-        matrixNow = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, Table=matrixNow, Save=true, FigNum=-1);
+        matrixNow = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, Table=matrixNow, FlagSave=true, FigNum=-1);
         savedMatrix = matrixNow;
         flagChanged = false;
         refreshAll(false);

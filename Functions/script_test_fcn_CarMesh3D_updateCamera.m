@@ -132,10 +132,10 @@ cameraSettings = fcn_CarMesh3D_fillCameraSettings(Mode='chase', Position=[-8 0 3
 [hillPosition, hillTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 12 0 0 0], AxesHandle=axesHandle);
 assert(max(abs(hillPosition - levelPosition - [0 0 12])) < 1e-9 && max(abs(hillTarget - levelTarget - [0 0 12])) < 1e-9);
 % (the old behavior: z = 0)
-oldPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 12 0 0 0], FollowHeight=false, AxesHandle=axesHandle);
+oldPosition = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 12 0 0 0], FlagFollowHeight=false, AxesHandle=axesHandle);
 assert(max(abs(oldPosition - levelPosition)) < 1e-9);
 % (pitched nose up by 0.1 rad: the target rises, the camera drops, the up vector tilts back)
-[pitchPosition, pitchTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0 0 -0.1 0], FollowPitch=true, AxesHandle=axesHandle);
+[pitchPosition, pitchTarget] = fcn_CarMesh3D_updateCamera(cameraSettings, [0 0 0 0 -0.1 0], FlagFollowPitch=true, AxesHandle=axesHandle);
 assert(pitchTarget(3) > levelTarget(3) && pitchPosition(3) < levelPosition(3));
 upVector = get(axesHandle, 'CameraUpVector');
 assert(upVector(1) < 0 && abs(norm(upVector) - 1) < 1e-9);

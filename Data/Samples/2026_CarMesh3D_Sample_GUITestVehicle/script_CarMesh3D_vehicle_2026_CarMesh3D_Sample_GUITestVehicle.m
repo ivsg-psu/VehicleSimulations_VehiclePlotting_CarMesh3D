@@ -76,10 +76,10 @@ standardParts = {'body';'glass';'wheel';'light';'trim';'interior'};
 % (every lamp type, from the one list: fcn_CarMesh3D_lampTypes; 11 since task 8)
 lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
 standardLamps = reshape({lampTypes.Name}, [], 1);
-assert(isequal(vehicleMesh.PartNames(:), standardParts(1:numel(vehicleMesh.PartNames))), 'Sample part order changed');
-assert(isequal(vehicleMesh.LightTypeNames(:), standardLamps(1:numel(vehicleMesh.LightTypeNames))), 'Sample lamp order changed');
-vehicleMesh.PartNames = standardParts;
-vehicleMesh.LightTypeNames = standardLamps;
+assert(isequal(vehicleMesh.LabelPartNames(:), standardParts(1:numel(vehicleMesh.LabelPartNames))), 'Sample part order changed');
+assert(isequal(vehicleMesh.LabelLampNames(:), standardLamps(1:numel(vehicleMesh.LabelLampNames))), 'Sample lamp order changed');
+vehicleMesh.LabelPartNames = standardParts;
+vehicleMesh.LabelLampNames = standardLamps;
 vehicleMesh.Name = 'GUI test vehicle (made up, for testing the label tools)';
 vehicleMesh.Source = sprintf('Made by %s from %s', mfilename, sampleID);
 vehicleMesh.License = 'CC0 1.0: made by a CarMesh3D script; no downloaded model';
@@ -158,16 +158,16 @@ vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=-1);
 
 %% Check that every feature is there (the point of this vehicle)
 for ith_type = 1:numel(standardLamps)
-    assert(any(vehicleMesh.FaceLightType == ith_type), 'No %s faces', standardLamps{ith_type});
+    assert(any(vehicleMesh.LabelFaceLamp == ith_type), 'No %s faces', standardLamps{ith_type});
 end
 for ith_part = 1:numel(standardParts)
-    assert(any(vehicleMesh.FacePartIndex == ith_part | any(vehicleMesh.FaceAlsoParts(:,ith_part),2)), 'No %s faces', standardParts{ith_part});
+    assert(any(vehicleMesh.LabelFacePart == ith_part | any(vehicleMesh.LabelFaceAlsoParts(:,ith_part),2)), 'No %s faces', standardParts{ith_part});
 end
-assert(all(ismember({'hidden','hard top'}, vehicleMesh.HiddenSetNames)), 'Hidden sets missing');
-assert(isfield(vehicleMesh,'FaceLightFunctions') && any(sum(vehicleMesh.FaceLightFunctions,2) > 1), 'No lamp with two functions');
+assert(all(ismember({'hidden','hard top'}, vehicleMesh.LabelHiddenSetNames)), 'Hidden sets missing');
+assert(isfield(vehicleMesh,'LabelFaceAlsoLamps') && any(sum(vehicleMesh.LabelFaceAlsoLamps,2) > 1), 'No lamp with two functions');
 fprintf(1,'%s: %d faces; lamps per type: %s; hidden sets: %s\n', vehicleID, size(vehicleMesh.Faces,1), ...
-    mat2str(accumarray(vehicleMesh.FaceLightType(vehicleMesh.FaceLightType>0), 1, [numel(standardLamps) 1])'), ...
-    strjoin(vehicleMesh.HiddenSetNames, ', '));
+    mat2str(accumarray(vehicleMesh.LabelFaceLamp(vehicleMesh.LabelFaceLamp>0), 1, [numel(standardLamps) 1])'), ...
+    strjoin(vehicleMesh.LabelHiddenSetNames, ', '));
 
 %% Save the mesh, its outline, and the license
 vehicleSpec = vehicleMesh.VehicleSpec;
@@ -245,7 +245,7 @@ names = fieldnames(vehicleMesh);
 for ith_name = 1:numel(names)
     name = names{ith_name};
     value = vehicleMesh.(name);
-    if ~startsWith(name, 'Face') || size(value,1) ~= numFaces
+    if ~startsWith(name, {'Face','LabelFace'}) || size(value,1) ~= numFaces
         continue;
     end
     if strcmp(name, 'Faces')
@@ -291,17 +291,17 @@ numOld = size(vehicleMesh.Faces,1);
 numNew = size(newFaces,1);
 vehicleMesh.Vertices = [vehicleMesh.Vertices; corners];
 vehicleMesh.Faces = [vehicleMesh.Faces; newFaces];
-bodyIndex = find(strcmp(vehicleMesh.PartNames, 'body'));
-bodyColor = vehicleMesh.FaceColors(find(vehicleMesh.FacePartIndex == bodyIndex, 1), :);
+bodyIndex = find(strcmp(vehicleMesh.LabelPartNames, 'body'));
+bodyColor = vehicleMesh.FaceColors(find(vehicleMesh.LabelFacePart == bodyIndex, 1), :);
 names = fieldnames(vehicleMesh);
 for ith_name = 1:numel(names)
     name = names{ith_name};
     value = vehicleMesh.(name);
-    if ~startsWith(name, 'Face') || strcmp(name, 'Faces') || size(value,1) ~= numOld
+    if ~startsWith(name, {'Face','LabelFace'}) || strcmp(name, 'Faces') || size(value,1) ~= numOld
         continue;
     end
     switch name
-        case 'FacePartIndex'
+        case 'LabelFacePart'
             extra = repmat(bodyIndex, numNew, 1);
         case 'FaceColors'
             extra = repmat(bodyColor, numNew, 1);

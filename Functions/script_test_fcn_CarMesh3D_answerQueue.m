@@ -58,7 +58,7 @@ fcn_INTERNAL_writeItems(queueFolder, items);
 
 %% Basic case: the window and its items
 fprintf(1, 'Basic case: the answer queue\n');
-[answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
+[answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
 hooks = figureHandle.UserData;
 assert(istable(answers) && height(answers) == 0);
 assert(isa(figureHandle, 'matlab.ui.Figure') && strcmp(figureHandle.HandleVisibility, 'off'));
@@ -73,7 +73,7 @@ prefNow = [];
 if ispref('CarMesh3D', 'AnswerQueueFolder')
     prefNow = getpref('CarMesh3D', 'AnswerQueueFolder');
 end
-assert(isequal(prefNow, folderBefore), 'Remember=false: the shared folder preference is never changed by a test');
+assert(isequal(prefNow, folderBefore), 'FlagRemember=false: the shared folder preference is never changed by a test');
 
 % (the answers: lettered, recommended marked, and Later; no BUG for a question)
 answerA = findall(figureHandle, 'Tag', 'aqAnswer_A');
@@ -224,7 +224,7 @@ assert(startsWith(itemList.Items{3}, char(10007)));
 %% Reopened: the answers are read back
 fprintf(1, 'Reopened\n');
 delete(figureHandle);
-[answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
+[answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
 hooks = figureHandle.UserData;
 assert(height(answers) == 3);
 assert(isequal(cellstr(answers.Choice)', {'A', 'C', 'BUG'}));
@@ -242,7 +242,7 @@ delete(figureHandle);
 %% A new item: the window opens there
 items(2).ID = 'Q92';   % (Q92 has no answer)
 fcn_INTERNAL_writeItems(queueFolder, items);
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
 assert(strcmp(figureHandle.UserData.Current().ID, 'Q92'), 'The first item not answered');
 delete(figureHandle);
 
@@ -250,7 +250,7 @@ delete(figureHandle);
 fprintf(1, 'The answers across the full width, wrapped\n');
 items(1).Options(1).Text = repmat('a long answer that has to wrap onto more lines ', 1, 8);
 fcn_INTERNAL_writeItems(queueFolder, items);
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false, Watch=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, Watch=false);
 figureHandle.UserData.Show(items(1).ID);
 drawnow;
 answerGroup = findall(figureHandle, 'Tag', 'aqAnswers');
@@ -271,7 +271,7 @@ delete(figureHandle);
 
 %% Watch: new items load while the window stays open (Sean, 23:17)
 fprintf(1, 'Watch\n');
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false, Watch=true);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, Watch=true);
 assert(~isempty(timerfindall('Tag', 'answerQueueWatch')), 'Watching');
 figureHandle.UserData.Show('T90');
 commentArea = findall(figureHandle, 'Tag', 'aqComment');
@@ -294,13 +294,13 @@ assert(isempty(timerfindall('Tag', 'answerQueueWatch')), 'The watch stops with t
 fcn_INTERNAL_writeItems(queueFolder, items);
 
 %% Exit: the menu's last line
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
 figureHandle.UserData.Menu.Exit();
 assert(~isvalid(figureHandle));
 
 %% FAST mode cases
 fprintf(1, 'FAST mode\n');
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false, FigNum=-1);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false, FigNum=-1);
 assert(isvalid(figureHandle));
 delete(figureHandle);
 
@@ -308,8 +308,8 @@ delete(figureHandle);
 % (T73, Sean 17:03: Run in one queue window closed another, the person's
 % own, while the queue's test ran from it)
 fprintf(1, 'BUG case: Run keeps every queue window open\n');
-[~, personalWindow] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
-[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false);
+[~, personalWindow] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', FlagClipboard=false, FlagVisible=false, FlagRemember=false);
 otherFigure = figure('Visible', 'off');
 figureHandle.UserData.Show('T90');
 runButton = findall(figureHandle, 'Tag', 'aqRun');
@@ -325,13 +325,13 @@ delete(personalWindow);
 
 %% Fail conditions
 try
-    fcn_CarMesh3D_answerQueue(fullfile(queueFolder, 'noSuchFolder'), Visible=false, Remember=false);
+    fcn_CarMesh3D_answerQueue(fullfile(queueFolder, 'noSuchFolder'), FlagVisible=false, FlagRemember=false);
     error('test:noError', 'A folder that does not exist was taken');
 catch caughtError
     assert(strcmp(caughtError.identifier, 'CarMesh3D:badInput'), caughtError.message);
 end
 try
-    fcn_CarMesh3D_answerQueue(testFolder, Visible=false, Remember=false);
+    fcn_CarMesh3D_answerQueue(testFolder, FlagVisible=false, FlagRemember=false);
     error('test:noError', 'A folder with no openItems.json was taken');
 catch caughtError
     assert(contains(caughtError.message, 'no openItems.json'), caughtError.message);
