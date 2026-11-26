@@ -131,15 +131,15 @@ end
 grow = @(box) box + [-0.005 0.005 -0.005 0.005 -0.005 0.005];   % (a hair larger, so face centers on the edges count)
 boxOf = @(name) grow(pieces{strcmp(pieces(:,1), name), 2});
 edits = {
-    struct('Name','high beams', 'Region',boxOf('high beam'), 'BothSides',true, 'LightType','highbeam', 'Color',[0.88 0.94 1.00])
-    struct('Name','front turn signals', 'Region',boxOf('front turn'), 'BothSides',true, 'LightType','turnsignal', 'Color',[1.00 0.60 0.10])
-    struct('Name','running lights', 'Region',boxOf('running strip'), 'LightType','running', 'Color',[1.00 1.00 0.90])
-    struct('Name','headlight covers', 'Region',boxOf('headlight cover'), 'BothSides',true, 'LightType','headlight', ...
+    struct('Name','high beams', 'Region',boxOf('high beam'), 'BothSides',true, 'LightType','highBeamLamp', 'Color',[0.88 0.94 1.00])
+    struct('Name','front turn signals', 'Region',boxOf('front turn'), 'BothSides',true, 'LightType','turnSignalLamp', 'Color',[1.00 0.60 0.10])
+    struct('Name','running lights', 'Region',boxOf('running strip'), 'LightType','runningLamp', 'Color',[1.00 1.00 0.90])
+    struct('Name','headlight covers', 'Region',boxOf('headlight cover'), 'BothSides',true, 'LightType','headlamp', ...
         'AlsoParts',{{'glass'}}, 'Color',[0.85 0.90 0.95])
-    struct('Name','rear turn signals', 'Region',boxOf('rear turn'), 'BothSides',true, 'LightType','turnsignal', 'Color',[1.00 0.60 0.10])
-    struct('Name','backup lights', 'Region',boxOf('backup'), 'BothSides',true, 'LightType','backup', 'Color',[0.95 0.95 0.95])
+    struct('Name','rear turn signals', 'Region',boxOf('rear turn'), 'BothSides',true, 'LightType','turnSignalLamp', 'Color',[1.00 0.60 0.10])
+    struct('Name','backup lights', 'Region',boxOf('backup'), 'BothSides',true, 'LightType','backupLamp', 'Color',[0.95 0.95 0.95])
     struct('Name','tail lights that are also turn signals', 'Region',[-1.06 -1.00 0.45 0.70 0.55 0.85], 'BothSides',true, ...
-        'LightType','tail', 'AlsoLightTypes',{{'turnsignal'}})
+        'LightType','tailBrakeLamp', 'AlsoLightTypes',{{'turnSignalLamp'}})
     struct('Name','bumpers', 'Region',boxOf('front bumper'), 'Part','trim', 'Color',[0.15 0.15 0.15])
     struct('Name','rear bumper', 'Region',boxOf('rear bumper'), 'Part','trim', 'Color',[0.15 0.15 0.15])
     struct('Name','mirrors', 'Region',boxOf('mirror'), 'BothSides',true, 'Part','trim', 'Color',[0.15 0.15 0.15])
@@ -149,11 +149,11 @@ edits = {
     struct('Name','muffler (hidden)', 'Region',boxOf('muffler'), 'Part','trim', 'Color',[0.40 0.40 0.40])
     struct('Name','muffler hidden', 'Region',boxOf('muffler'), 'Hide',true)
     struct('Name','hard top (hidden)', 'Region',boxOf('roof panel'), 'Hide','hard top')
-    struct('Name','fog lamps', 'Region',boxOf('fog lamp'), 'BothSides',true, 'LightType','fog', 'Color',[0.95 0.95 0.85])
-    struct('Name','side markers', 'Region',boxOf('side marker'), 'BothSides',true, 'LightType','marker', 'Color',[0.85 0.45 0.05])
+    struct('Name','fog lamps', 'Region',boxOf('fog lamp'), 'BothSides',true, 'LightType','fogLamp', 'Color',[0.95 0.95 0.85])
+    struct('Name','side markers', 'Region',boxOf('side marker'), 'BothSides',true, 'LightType','markerLamp', 'Color',[0.85 0.45 0.05])
     struct('Name','rear reflectors', 'Region',boxOf('rear reflector'), 'BothSides',true, 'LightType','reflector', 'Color',[0.62 0.06 0.05])
-    struct('Name','license plate lamp', 'Region',boxOf('plate lamp'), 'LightType','licenseplate', 'Color',[0.95 0.95 0.90])
-    struct('Name','roof beacon (warning lamp)', 'Region',boxOf('roof beacon'), 'LightType','warning', 'Color',[1.00 0.55 0.00])};
+    struct('Name','license plate lamp', 'Region',boxOf('plate lamp'), 'LightType','licensePlateLamp', 'Color',[0.95 0.95 0.90])
+    struct('Name','roof beacon (warning lamp)', 'Region',boxOf('roof beacon'), 'LightType','warningLamp', 'Color',[1.00 0.55 0.00])};
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=-1);
 
 %% Check that every feature is there (the point of this vehicle)

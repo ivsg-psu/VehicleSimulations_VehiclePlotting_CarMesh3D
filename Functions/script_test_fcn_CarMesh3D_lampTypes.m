@@ -20,22 +20,23 @@ close all;
 %% The list: eleven types, the first six in the order older meshes use
 lampTypes = fcn_CarMesh3D_lampTypes();
 names = {lampTypes.Name};
-assert(isequal(names(1:6), {'headlight','turnsignal','running','tail','backup','highbeam'}), ...
+assert(isequal(names(1:6), {'headlamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp','highBeamLamp'}), ...
     'The first six types keep their order (older meshes store types by number)');
-assert(isequal(names(7:11), {'fog','reflector','licenseplate','marker','warning'}), 'The five newer types');
+assert(isequal(names(7:11), {'fogLamp','reflector','licensePlateLamp','markerLamp','warningLamp'}), 'The five newer types');
 for thisType = lampTypes'
     assert(~isempty(thisType.Label) && isequal(size(thisType.FaceColor), [1 3]) && isequal(size(thisType.LabelColor), [1 3]), ...
         'Each type has a label and colors: %s', thisType.Name);
-    assert(~isempty(regexp(thisType.Name, thisType.NameRule, 'once')) || strcmp(thisType.Name, 'headlight') ...
-        || strcmp(thisType.Name, 'licenseplate'), 'Each name rule matches its own name: %s', thisType.Name);
+    % (ignoring case, as fcn_CarMesh3D_labelParts applies the rules; the
+    % keys are camelCase since Q92 (A))
+    assert(~isempty(regexpi(thisType.Name, thisType.NameRule, 'once')), 'Each name rule matches its own name: %s', thisType.Name);
 end
 assert(numel(unique([lampTypes.RuleOrder])) == numel(lampTypes), 'Each name rule has its own place in the order');
 assert(isfield(lampTypes, 'Sources') && all(cellfun(@iscell, {lampTypes.Sources})), 'Each type has a Sources list (Sean, 23:24)');
-assert(contains(lampTypes(strcmp(names,'licenseplate')).Sources{1}, 'https://'), 'Sources are links');
+assert(contains(lampTypes(strcmp(names,'licensePlateLamp')).Sources{1}, 'https://'), 'Sources are links');
 labelColors = vertcat(lampTypes.LabelColor);
 assert(size(unique(labelColors, 'rows'), 1) == numel(lampTypes), 'Each type has its own label color');
-switching = struct('fog', {{'FogLights'}}, 'reflector', {{'Reflectors'}}, 'licenseplate', {{'Tail'}}, ...
-    'marker', {{'Running'}}, 'warning', {{'Hazards'}});
+switching = struct('fogLamp', {{'FogLights'}}, 'reflector', {{'Reflectors'}}, 'licensePlateLamp', {{'Tail'}}, ...
+    'markerLamp', {{'Running'}}, 'warningLamp', {{'Hazards'}});
 for typeName = fieldnames(switching)'
     assert(isequal(lampTypes(strcmp(names, typeName{1})).SwitchedByStates, switching.(typeName{1})), ...
         'The default switching of %s (Sean, Q24 (A), Q25 (A))', typeName{1});
@@ -47,9 +48,9 @@ end
 testFiles = fcn_CarMesh3D_findVehicleFiles('2026_CarMesh3D_Sample_GUITestVehicle');
 loaded = load(testFiles.MeshFile, 'vehicleMesh');
 vehicleMesh = loaded.vehicleMesh;
-lightFaces = find(vehicleMesh.FaceLightType == find(strcmp(vehicleMesh.LightTypeNames, 'turnsignal'), 1));
+lightFaces = find(vehicleMesh.FaceLightType == find(strcmp(vehicleMesh.LightTypeNames, 'turnSignalLamp'), 1));
 assert(numel(lightFaces) >= 5, 'The test vehicle has turn-signal faces to label');
-newTypes = {'fog','reflector','licenseplate','marker','warning'};
+newTypes = {'fogLamp','reflector','licensePlateLamp','markerLamp','warningLamp'};
 edits = cell(1, numel(newTypes));
 for ith_type = 1:numel(newTypes)
     edits{ith_type} = struct('FaceIndices', lightFaces(ith_type), 'LightType', newTypes{ith_type});
@@ -71,10 +72,10 @@ end
 % matrix's defaults say: the marker lamps light with the running lights
 % and the tail lights; a warning lamp (beacon) answers no signal by
 % default, it is switched by the user's own loop)
-checks = {struct('FogLights', true), {'fog'};
+checks = {struct('FogLights', true), {'fogLamp'};
           struct('Reflectors', 1), {'reflector'};
-          struct('Tail', 'on'), {'licenseplate','marker'};
-          struct('Running', true), {'marker'};
+          struct('Tail', 'on'), {'licensePlateLamp','markerLamp'};
+          struct('Running', true), {'markerLamp'};
           struct('Hazards', true), {}};
 for ith_check = 1:size(checks,1)
     fcn_CarMesh3D_plotVehicle(labeledMesh, PlotHandles=plotHandles, LightStates=checks{ith_check,1});
@@ -88,7 +89,7 @@ for ith_check = 1:size(checks,1)
 end
 % (Hazards also lights both turn signals)
 fcn_CarMesh3D_plotVehicle(labeledMesh, PlotHandles=plotHandles, LightStates=struct('Hazards', true));
-for turnName = {'turnLeft','turnRight'}
+for turnName = {'turnSignalLampLeft','turnSignalLampRight'}
     if ~isempty(plotHandles.LightPatches.(turnName{1}))
         assert(strcmp(plotHandles.LightPatches.(turnName{1})(1).FaceLighting, 'none'), 'Hazards lights %s', turnName{1});
     end
@@ -109,20 +110,20 @@ assert(hueOff == hueFull, 'The reflector keeps its own hue');
 
 %% A vehicle's own switching replaces the default (Sean, 23:23)
 ownMesh = labeledMesh;
-ownMesh.LampSwitching = struct('fog', {{'HighBeam'}});
+ownMesh.LampSwitching = struct('fogLamp', {{'HighBeam'}});
 plotHandles2 = fcn_CarMesh3D_plotVehicle(ownMesh, FigNum=20001);
 fcn_CarMesh3D_plotVehicle(ownMesh, PlotHandles=plotHandles2, LightStates=struct('FogLights', true));
-assert(strcmp(plotHandles2.LightPatches.fog(1).FaceLighting, 'gouraud') || ~strcmp(plotHandles2.LightPatches.fog(1).FaceLighting, 'none'), ...
+assert(strcmp(plotHandles2.LightPatches.fogLamp(1).FaceLighting, 'gouraud') || ~strcmp(plotHandles2.LightPatches.fogLamp(1).FaceLighting, 'none'), ...
     'This vehicle''s fog lamps do not follow FogLights');
 fcn_CarMesh3D_plotVehicle(ownMesh, PlotHandles=plotHandles2, LightStates=struct('Headlights', 'high'));
-assert(strcmp(plotHandles2.LightPatches.fog(1).FaceLighting, 'none'), 'This vehicle''s fog lamps light with the high beams');
+assert(strcmp(plotHandles2.LightPatches.fogLamp(1).FaceLighting, 'none'), 'This vehicle''s fog lamps light with the high beams');
 close(20001);
 
 %% Name rules: a light named for a newer type gets it (labelParts)
-assert(~isempty(regexpi('Fog_Lamp_L', lampTypes(strcmp(names,'fog')).NameRule, 'once')));
+assert(~isempty(regexpi('Fog_Lamp_L', lampTypes(strcmp(names,'fogLamp')).NameRule, 'once')));
 assert(~isempty(regexpi('rear_reflector', lampTypes(strcmp(names,'reflector')).NameRule, 'once')));
-assert(~isempty(regexpi('LicensePlateLight', lampTypes(strcmp(names,'licenseplate')).NameRule, 'once')));
-assert(~isempty(regexpi('side_marker', lampTypes(strcmp(names,'marker')).NameRule, 'once')));
+assert(~isempty(regexpi('LicensePlateLight', lampTypes(strcmp(names,'licensePlateLamp')).NameRule, 'once')));
+assert(~isempty(regexpi('side_marker', lampTypes(strcmp(names,'markerLamp')).NameRule, 'once')));
 
 %% Fast mode
 lampTypesFast = fcn_CarMesh3D_lampTypes(FigNum=-1);

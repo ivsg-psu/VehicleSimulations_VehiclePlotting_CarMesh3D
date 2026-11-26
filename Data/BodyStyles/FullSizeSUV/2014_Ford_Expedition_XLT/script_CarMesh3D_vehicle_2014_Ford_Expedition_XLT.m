@@ -242,10 +242,10 @@ widthReference = 'all';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlamps (in the trim materials: by region)', 'Region',[3.70 4.05 0.45 1.00 0.85 1.20], 'BothSides',true, 'CurrentPart','trim', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','tail lamps (in the trim materials: by region)', 'Region',[-1.25 -0.95 0.65 1.02 0.95 1.60], 'BothSides',true, 'CurrentPart','trim', 'LightType','tail');
+labelEditsAfterFit{end+1} = struct('Name','headlamps (in the trim materials: by region)', 'Region',[3.70 4.05 0.45 1.00 0.85 1.20], 'BothSides',true, 'CurrentPart','trim', 'LightType','headlamp');
+labelEditsAfterFit{end+1} = struct('Name','tail lamps (in the trim materials: by region)', 'Region',[-1.25 -0.95 0.65 1.02 0.95 1.60], 'BothSides',true, 'CurrentPart','trim', 'LightType','tailBrakeLamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh ([] keeps every face)
 targetFaces = 24000;

@@ -116,11 +116,11 @@ centers = (fitMesh.Vertices(fitMesh.Faces(:,1),:) + fitMesh.Vertices(fitMesh.Fac
 bodyFaces = find(fitMesh.FacePartIndex == find(strcmp(fitMesh.PartNames,'body')));
 [~, order] = sort(centers(bodyFaces,1));
 rearFaces = bodyFaces(order(1:20));
-edit = struct('Name', 'test: painted tail', 'Points', round(centers(rearFaces,:),5), 'PointTolerance', 0.005, 'LightType', 'tail');
+edit = struct('Name', 'test: painted tail', 'Points', round(centers(rearFaces,:),5), 'PointTolerance', 0.005, 'LightType', 'tailBrakeLamp');
 paintedMesh = fcn_CarMesh3D_editLabels(fitMesh, Edits={edit}, FigNum=-1);
 before = fcn_CarMesh3D_animateChecks(fitMesh, 'lights', TestMotion=testMotion, Visible=false);
 after = fcn_CarMesh3D_animateChecks(paintedMesh, 'lights', TestMotion=testMotion, Visible=false);
-countTail = @(handles) sum(arrayfun(@(p) size(p.Faces,1), handles.LightPatches.tail));
+countTail = @(handles) sum(arrayfun(@(p) size(p.Faces,1), handles.LightPatches.tailBrakeLamp));
 assert(countTail(after.Handles{1}) >= countTail(before.Handles{1}) + 20);
 before.Close();
 after.Close();

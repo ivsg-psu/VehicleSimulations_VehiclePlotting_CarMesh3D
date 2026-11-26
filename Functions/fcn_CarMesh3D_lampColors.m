@@ -172,18 +172,18 @@ function [color, flagOwnColors] = fcn_INTERNAL_kindColor(kind, strongestSignal, 
 flagOwnColors = false;
 dimming = 0.45 + 0.55*level;   % (a dimmed lamp: its color, darker; full at 1)
 switch kind
-    case 'headlight'
+    case 'headlamp'
         if strcmp(strongestSignal, 'HighBeam')
             color = [1.00 1.00 1.00];
         else
             color = [1.00 0.96 0.78];
         end
         color = color*dimming;
-    case 'highbeam'
+    case 'highBeamLamp'
         color = [1.00 1.00 1.00]*dimming;
-    case 'turnsignal'
+    case 'turnSignalLamp'
         color = [1.00 0.55 0.00]*dimming;
-    case 'tail'
+    case 'tailBrakeLamp'
         if startsWith(strongestSignal, 'Turn')
             color = [1.00 0.12 0.08];   % (a red turn signal, as on many US cars)
         else
@@ -191,13 +191,13 @@ switch kind
             mix = min(1, max(0, (level - 0.4)/0.6));
             color = (1 - mix)*[0.70 0.04 0.04] + mix*[1.00 0.12 0.08];
         end
-    case 'backup'
+    case 'backupLamp'
         color = [1.00 1.00 1.00]*dimming;
-    case 'running'
+    case 'runningLamp'
         color = [1.00 0.98 0.90]*dimming;
-    case 'fog'
+    case 'fogLamp'
         color = [1.00 0.97 0.85]*dimming;
-    case 'licenseplate'
+    case 'licensePlateLamp'
         color = [1.00 1.00 0.95]*dimming;
     otherwise   % (reflector, marker, warning, and kinds the list lacks)
         color = [1 1 1];

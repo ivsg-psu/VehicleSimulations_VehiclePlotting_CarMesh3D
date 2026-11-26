@@ -234,9 +234,9 @@ if flag_do_plots
     for ith_light = 1:numel(vehicleOutline.Lights)
         thisLight = vehicleOutline.Lights(ith_light);
         lightColor = [0.85 0.80 0.55];
-        if any(strcmp(thisLight.Type, {'tail'}))
+        if any(strcmp(thisLight.Type, {'tailBrakeLamp'}))
             lightColor = [0.80 0.05 0.05];
-        elseif strcmp(thisLight.Type, 'turnsignal')
+        elseif strcmp(thisLight.Type, 'turnSignalLamp')
             lightColor = [0.95 0.55 0.05];
         end
         fill(thisLight.Polygon(:,1), thisLight.Polygon(:,2), lightColor, 'EdgeColor','none');

@@ -134,7 +134,7 @@ picks = bodyFaces([10 200 400 600]);
 painter.SetMirror(false);
 % (four separate selections, each saved: as backup lights)
 for ith_pick = 1:4
-    painter.Paint('backup', centers(picks(ith_pick),:), false);
+    painter.Paint('backupLamp', centers(picks(ith_pick),:), false);
 end
 statusNow = painter.Status();
 assert(statusNow.Applied == 4 && statusNow.Pending == 0 && statusNow.Saved && statusNow.UndoSteps == 4);
@@ -150,7 +150,7 @@ loaded = load(editsFile, 'labelEditsAfterSimplify');
 assert(size(loaded.labelEditsAfterSimplify{1}.Points,1) == 2);
 % (the edited mesh: the two faces are backup lights)
 editedMesh = painter.EditedMesh();
-backupType = find(strcmp(editedMesh.LightTypeNames, 'backup'));
+backupType = find(strcmp(editedMesh.LightTypeNames, 'backupLamp'));
 assert(all(editedMesh.FaceLightType(picks(1:2)) == backupType));
 % (Revert to start: no edits, not saved; Revert to save: back to two)
 painter.RevertToStart();
@@ -226,7 +226,7 @@ copyA = painter.SaveVersion();
 paintA = painter.Layers().Paint;
 pause(1.1);   % (the save below keeps its own timestamped copy: in the same second it would replace copyA; a flaky failure, 2026-11-24)
 painter.SetMirror(false);
-painter.Paint('backup', centers(picks(3),:), false);   % (one more face, saved)
+painter.Paint('backupLamp', centers(picks(3),:), false);   % (one more face, saved)
 pause(1.1);
 copyB = painter.SaveVersion();
 paintB = painter.Layers().Paint;
@@ -368,7 +368,7 @@ painter.OpenPanels({'Modify Labels'});
 fprintf(1,'TEST case: the GUI test vehicle\n');
 guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest1'), FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
 [~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, Visible=false);
-assert(all(ismember({'headlight','highbeam','turnsignal','running','tail','backup'}, testPainter.Viewer.LampTypes())));
+assert(all(ismember({'headlamp','highBeamLamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp'}, testPainter.Viewer.LampTypes())));
 for panelName = {'Labels To Display', 'Lamps To Display'}
     thisPanel = findall(testPainter.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
     assert(isempty(findall(thisPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'A gray (no faces) name in %s', panelName{1});
@@ -407,9 +407,9 @@ changedMesh = [];
     OnPaint=@() evalin('base', 'paintCount = paintCount + 1;'), OnChange=@(meshNow) assignin('base', 'changedMesh', meshNow));
 assert(isequal(embedded.Figure, hostFigure));
 assert(isempty(embedded.EditsFile));                      % (a mesh given: no edits file)
-embedded.Paint('tail', centers(bodyFaces(50),:), false);
+embedded.Paint('tailBrakeLamp', centers(bodyFaces(50),:), false);
 assert(paintCount >= 1 && ~isempty(changedMesh));
-tailType = find(strcmp(changedMesh.LightTypeNames, 'tail'));
+tailType = find(strcmp(changedMesh.LightTypeNames, 'tailBrakeLamp'));
 assert(changedMesh.FaceLightType(bodyFaces(50)) == tailType);
 embedded.Stop();
 delete(hostFigure);
@@ -947,7 +947,7 @@ list(end+1,:) = {'Esc', @() painter.Key('escape'), []};
 list(end+1,:) = {'Revert to save button', @() painter.Press('painterRevert'), []};
 list(end+1,:) = {'Revert to start', @() painter.RevertToStart(), []};
 list(end+1,:) = {'a click, then Undo', @() fcn_INTERNAL_undoCheck(painter, seen), []};
-for tool = {'body', 'glass', 'trim', 'wheel', 'tail', 'headlight', 'hide', 'unhide'}
+for tool = {'body', 'glass', 'trim', 'wheel', 'tailBrakeLamp', 'headlamp', 'hide', 'unhide'}
     list(end+1,:) = {['paint as ' tool{1}], @() painter.SetState('paintAs', tool{1}), modifyOpen};
 end
 list(end+1,:) = {'paint as none', @() painter.SetState('paintAs', 'none (rotate only)'), modifyOpen};

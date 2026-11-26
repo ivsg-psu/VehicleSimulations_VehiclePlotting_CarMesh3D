@@ -189,13 +189,13 @@ widthReference = 'mirrors';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlight housings and lenses', 'Region',[2.9 3.45 0.45 0.82 0.55 0.82], 'BothSides',true, 'Material','color_notint|glass_ex', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','front turn signals', 'Region',[3.3 3.5 0.65 0.8 0.25 0.47], 'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
-labelEditsAfterFit{end+1} = struct('Name','tail lights (upper part)', 'Region',[-0.8 -0.45 0.55 0.8 0.95 1.12], 'BothSides',true, 'Material','color_notint', 'LightType','tail');
-labelEditsAfterFit{end+1} = struct('Name','rear turn signals (middle)', 'Region',[-0.8 -0.45 0.55 0.8 0.82 0.95], 'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
-labelEditsAfterFit{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.8 -0.45 0.55 0.8 0.65 0.82], 'BothSides',true, 'Material','color_notint', 'LightType','backup');
+labelEditsAfterFit{end+1} = struct('Name','headlight housings and lenses', 'Region',[2.9 3.45 0.45 0.82 0.55 0.82], 'BothSides',true, 'Material','color_notint|glass_ex', 'LightType','headlamp');
+labelEditsAfterFit{end+1} = struct('Name','front turn signals', 'Region',[3.3 3.5 0.65 0.8 0.25 0.47], 'BothSides',true, 'Material','color_notint', 'LightType','turnSignalLamp');
+labelEditsAfterFit{end+1} = struct('Name','tail lights (upper part)', 'Region',[-0.8 -0.45 0.55 0.8 0.95 1.12], 'BothSides',true, 'Material','color_notint', 'LightType','tailBrakeLamp');
+labelEditsAfterFit{end+1} = struct('Name','rear turn signals (middle)', 'Region',[-0.8 -0.45 0.55 0.8 0.82 0.95], 'BothSides',true, 'Material','color_notint', 'LightType','turnSignalLamp');
+labelEditsAfterFit{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.8 -0.45 0.55 0.8 0.65 0.82], 'BothSides',true, 'Material','color_notint', 'LightType','backupLamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh: [] (usual) keeps every face of the
 % download, as it is; a number reduces the mesh to about that many faces

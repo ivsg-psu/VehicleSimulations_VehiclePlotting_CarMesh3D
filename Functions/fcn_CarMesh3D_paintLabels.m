@@ -138,7 +138,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %
 %      painter: a structure of the painter's handles and functions:
 %           Figure, Axes, Patch (the model), EditsFile
-%           ShowLabel(key): one label colored ('part_body', 'light_tail',
+%           ShowLabel(key): one label colored ('part_body', 'light_tailBrakeLamp',
 %               ...; as fcn_CarMesh3D_reviewVehicle's label keys), the rest
 %               gray, or 'all' for every label in its color
 %           SetHidden(keys): hide the faces of these labels (a cell array
@@ -252,7 +252,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_paintLabels
-%   % * Paint as "high beam" (the 'highbeam' light type; Sean, 03:27);
+%   % * Paint as "high beam" (the 'highBeamLamp' light type; Sean, 03:27);
 %   %   % the headlight button is named "low beam"
 
 % 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu
@@ -397,7 +397,8 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % (fcn_CarMesh3D_editLampFunctions), made when first opened, driving
 %   %   % the painter's view (the lamp-functions plan, item 5)
 %   % * Sean's T86 (BUG): the sun/moon button at the top right of the top
-%   %   % bar, beside the Menu's row (the viewer's DayNightParent); the brush
+%   %   % bar, beside the Menu's row, with Mesh and Grid buttons (the
+%   %   % viewer's QuickBar; Sean 10:41); the brush
 %   %   % a radius in screen pixels (Fine 5, Medium 14, Large 36), turned
 %   %   % into meters where the mouse meets the vehicle, so it is the same
 %   %   % cone from the eye at any zoom; a stroke's points no further apart
@@ -689,7 +690,7 @@ menuWidth = 90;
 if ~flagOwnMenu
     menuWidth = 0;
 end
-topGrid = uigridlayout(mainGrid, [1 6], 'ColumnWidth', {menuWidth, 80, 80, 120, '1x', 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);   % (the last: the viewer's sun/moon button, T86)
+topGrid = uigridlayout(mainGrid, [1 8], 'ColumnWidth', {menuWidth, 80, 80, 120, '1x', 70, 70, 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);   % (the last three: the viewer's Mesh, Grid and sun/moon buttons, T86 and Sean 10:41)
 menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'painterMenu', ...
     'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
 if ~flagOwnMenu
@@ -785,7 +786,7 @@ if ischar(vehicleInput) || isstring(vehicleInput)
 end
 [~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, ShowTools=false, ...
     PhotoFolder=photoFolder, Outline=outline, OnHint=@setHint, ColorFilter=@paintedColors, ...
-    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, DayNightParent=topGrid, FigNum=-1);
+    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, QuickBar=topGrid, FigNum=-1);
 % (the photo options are in Overall Display now: Sean's viewLabels T8, 2026-11-24)
 labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
@@ -1163,8 +1164,8 @@ end
         % how to paint
         panelHandle = panelHandles(strcmp(panelNames, 'Modify Labels'));
         groups = {'Main labeling:', {'body', 'glass', 'trim', 'interior', 'wheel', 'original'}; ...
-            'Bulb labeling:', {'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
-                'fog', 'reflector', 'licenseplate', 'marker', 'warning'}; ...   % (the last five: Sean, task 8)
+            'Bulb labeling:', {'headlamp', 'highBeamLamp', 'tailBrakeLamp', 'runningLamp', 'turnSignalLamp', 'backupLamp', ...
+                'fogLamp', 'reflector', 'licensePlateLamp', 'markerLamp', 'warningLamp'}; ...   % (the last five: Sean, task 8)
             'Visibility labeling:', {'hide', 'unhide', ''}};
         rowHeight = 24;
         numRows = 1 + sum(cellfun(@(names) numel(names) + 1, groups(:,2)));
@@ -2424,16 +2425,22 @@ end % Ends fcn_INTERNAL_geometry
 function names = fcn_INTERNAL_paintNames()
 % The labels faces can be painted as (parts, light types), and hide and
 % unhide (never delete: Sean, 04:07)
-names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlight', 'highbeam', 'tail', 'running', 'turnsignal', 'backup', ...
-    'fog', 'reflector', 'licenseplate', 'marker', 'warning', 'hide', 'unhide', 'original'};
+names = {'body', 'glass', 'trim', 'interior', 'wheel', 'headlamp', 'highBeamLamp', 'tailBrakeLamp', 'runningLamp', 'turnSignalLamp', 'backupLamp', ...
+    'fogLamp', 'reflector', 'licensePlateLamp', 'markerLamp', 'warningLamp', 'hide', 'unhide', 'original'};
 % ('original': back to the label as downloaded, Q44 (A), 2026-11-24)
 end % Ends fcn_INTERNAL_paintNames
 
 %% fcn_INTERNAL_paintText
 function textOut = fcn_INTERNAL_paintText(name)
-% A paint label's button text: the headlight is the low beam
-textOut = strrep(strrep(strrep(strrep(name, 'turnsignal', 'turn signal'), 'highbeam', 'high beam'), 'headlight', 'low beam'), ...
-    'licenseplate', 'license plate');
+% A paint label's button text: a lamp by its name for people, from
+% fcn_CarMesh3D_lampTypes ('headlamp', 'tail/brake lamp', ...; rule P6),
+% without what is in brackets; the keys are camelCase since Q92 (A)
+textOut = char(name);
+lampTypes = fcn_CarMesh3D_lampTypes();
+match = find(strcmp({lampTypes.Name}, textOut), 1);
+if ~isempty(match)
+    textOut = lower(strtrim(regexprep(lampTypes(match).Label, '\s*\([^)]*\)', '')));
+end
 end % Ends fcn_INTERNAL_paintText
 
 %% fcn_INTERNAL_paintColor
@@ -2441,8 +2448,8 @@ function [color, alpha] = fcn_INTERNAL_paintColor(data, name)
 % The color a label is shown in: the color most of the mesh's faces with
 % that label have (in the labels view), else a standard one
 defaults = struct('body', [0.75 0.75 0.78], 'glass', [0.55 0.75 0.95], 'trim', [0.18 0.18 0.18], 'interior', [0.85 0.65 0.40], ...
-    'wheel', [0.08 0.08 0.08], 'headlight', [1 1 0.75], 'highbeam', [0.80 0.90 1.00], 'tail', [0.85 0.05 0.05], 'running', [1 0.6 0.2], ...
-    'turnsignal', [1 0.55 0], 'backup', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30], 'original', [0.60 0.60 0.60]);
+    'wheel', [0.08 0.08 0.08], 'headlamp', [1 1 0.75], 'highBeamLamp', [0.80 0.90 1.00], 'tailBrakeLamp', [0.85 0.05 0.05], 'runningLamp', [1 0.6 0.2], ...
+    'turnSignalLamp', [1 0.55 0], 'backupLamp', [0.95 0.95 0.95], 'hide', [1 0 1], 'unhide', [0.20 0.75 0.30], 'original', [0.60 0.60 0.60]);
 for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types: their label colors; Sean, task 8)
     if ~isfield(defaults, thisType.Name)
         defaults.(thisType.Name) = thisType.LabelColor;

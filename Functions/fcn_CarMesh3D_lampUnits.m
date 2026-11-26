@@ -59,7 +59,7 @@ function [units, faceUnit] = fcn_CarMesh3D_lampUnits(vehicleMesh, options)
 %      units: a structure array, one element per unit, ordered front to
 %      rear, left to right, then by kind (fcn_CarMesh3D_lampTypes' order):
 %           Name: "front-left headlamp" (unique)
-%           Kind: the lamp kind's key ('headlight', 'marker', ...)
+%           Kind: the lamp kind's key ('headlamp', 'markerLamp', ...)
 %           KindLabel: its name in words ('headlamp', 'marker lamp', ...)
 %           Position: 'front-left', 'front-center', 'rear-right', ...
 %           Faces: the unit's lamp faces (indices into vehicleMesh.Faces)

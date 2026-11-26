@@ -329,10 +329,10 @@ examples(end).Description = ['A view is shared by sending its settings: the view
     'here only the label and the photo angle (180: from behind) are given.'];
 examples(end).DemoCommands = [copyLines; {
     '% The view sent: the tail lights alone, seen from behind'
-    'sharedView = struct(''Label'', ''light_tail'', ''PhotoAngle'', 180);'
+    'sharedView = struct(''Label'', ''light_tailBrakeLamp'', ''PhotoAngle'', 180);'
     'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
 examples(end).VehicleCommands = [vehicleLines; {
-    'sharedView = struct(''Label'', ''light_tail'', ''PhotoAngle'', 180);'
+    'sharedView = struct(''Label'', ''light_tailBrakeLamp'', ''PhotoAngle'', 180);'
     'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
 examples(end).SavesChanges = false;
 

@@ -267,6 +267,11 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %   % * New columns: Reviewer (initials, right of the Review score;
 %   %   % SBB when a review has no name) and Author (the download's
 %   %   % author, to spot good authors quickly)
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * The outline's lamp colors match the new camelCase lamp keys (Q92
+%   %   % (A)) ignoring case (drafted with Claude)
+
 
 % TO-DO:
 %
@@ -1481,10 +1486,10 @@ if isfield(vehicleOutline, 'Windows')
     end
 end
 if isfield(vehicleOutline, 'Lights')
-    lightColors = struct('headlight', [1 0.85 0.1], 'tail', [0.85 0 0], 'turn', [1 0.55 0], ...
-        'running', [0 0.8 0.8], 'backup', [0.2 0.75 0.2]);
+    lightColors = struct('headlamp', [1 0.85 0.1], 'tailBrakeLamp', [0.85 0 0], 'turn', [1 0.55 0], ...
+        'runningLamp', [0 0.8 0.8], 'backupLamp', [0.2 0.75 0.2]);
     for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types: Sean, task 8)
-        if ~isfield(lightColors, thisType.Name) && ~any(strcmp(thisType.Name, {'turnsignal','highbeam'}))
+        if ~isfield(lightColors, thisType.Name) && ~any(strcmp(thisType.Name, {'turnSignalLamp','highBeamLamp'}))
             lightColors.(thisType.Name) = thisType.LabelColor;
         end
     end
@@ -1493,7 +1498,7 @@ if isfield(vehicleOutline, 'Lights')
         thisColor = [0.85 0 0.85];
         names = fieldnames(lightColors);
         for ith_name = 1:numel(names)
-            if contains(lower(lightType), names{ith_name})
+            if contains(lower(lightType), lower(names{ith_name}))   % (the lamp keys are camelCase: Q92 (A))
                 thisColor = lightColors.(names{ith_name});
             end
         end

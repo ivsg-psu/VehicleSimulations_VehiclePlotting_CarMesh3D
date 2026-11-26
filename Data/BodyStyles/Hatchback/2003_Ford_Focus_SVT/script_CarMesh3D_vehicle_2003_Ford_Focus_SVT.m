@@ -243,7 +243,7 @@ widthReference = 'mirrors';
 % this script.
 labelEditsAfterFit = {};
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh: [] (usual) keeps every face of the
 % download, as it is; a number reduces the mesh to about that many faces

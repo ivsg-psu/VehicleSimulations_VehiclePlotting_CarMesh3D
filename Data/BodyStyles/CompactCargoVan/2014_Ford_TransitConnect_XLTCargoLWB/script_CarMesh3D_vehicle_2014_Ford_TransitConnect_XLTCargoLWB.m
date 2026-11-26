@@ -150,13 +150,13 @@ labelEditsAfterFit = {};
 % mesh. The split of each rear lamp (upper tail, middle turn signal, lower
 % backup) is an approximation of the real lamp.
 labelEditsAfterFit{end+1} = struct('Name','front turn signals (rear corner of each headlamp)', 'Region',[3.10 3.45 0.60 0.85 0.70 1.10], ...
-    'BothSides',true, 'CurrentPart','light', 'LightType','turnsignal');
+    'BothSides',true, 'CurrentPart','light', 'LightType','turnSignalLamp');
 labelEditsAfterFit{end+1} = struct('Name','tail lights (upper part of each rear lamp)', 'Region',[-0.75 -0.50 0.68 0.86 1.17 1.50], ...
-    'BothSides',true, 'CurrentPart','light', 'LightType','tail');
+    'BothSides',true, 'CurrentPart','light', 'LightType','tailBrakeLamp');
 labelEditsAfterFit{end+1} = struct('Name','rear turn signals (middle part)', 'Region',[-0.75 -0.50 0.68 0.86 1.00 1.17], ...
-    'BothSides',true, 'CurrentPart','light', 'LightType','turnsignal');
+    'BothSides',true, 'CurrentPart','light', 'LightType','turnSignalLamp');
 labelEditsAfterFit{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.75 -0.50 0.68 0.86 0.80 1.00], ...
-    'BothSides',true, 'CurrentPart','light', 'LightType','backup');
+    'BothSides',true, 'CurrentPart','light', 'LightType','backupLamp');
 
 % Face budget for the finished mesh ([] keeps every face)
 targetFaces = 36000;   % (Blender reduction; was 15000 in MATLAB before 2026_11_21. 24000 left a sawtooth along the windshield top)

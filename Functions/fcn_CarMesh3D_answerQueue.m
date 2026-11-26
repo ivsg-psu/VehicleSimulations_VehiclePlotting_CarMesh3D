@@ -135,6 +135,17 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % (Sean, 23:40)
 %   % * Remember=: tests never change the folder preference (BUG, 23:44:
 %   %   % Sean's window opened a test's temporary folder)
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_answerQueue
+%   % * Paste picture (Q93 (A), Sean 10:45): the picture on the clipboard
+%   %   % (Win+Shift+S) saved as pictures\<ID>_<time>.png in the queue
+%   %   % folder, named in the answer (its new field Pictures) and in Done's
+%   %   % text, so Claude opens it directly; the last one shown small, with
+%   %   % a count and Remove (moved to pictures\removed, never deleted). New
+%   %   % hooks PastePicture (a picture may be given, for the tests),
+%   %   % RemovePicture, Pictures; Answers has a Pictures column
+%   %   % (drafted with Claude)
+
 
 % TO-DO:
 %
@@ -228,7 +239,7 @@ menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
 itemList = uilistbox(bodyGrid, 'Items', {}, 'Tag', 'aqItemList', 'FontSize', 13, ...
     'ValueChangedFcn', @(source,~) showItem(source.Value), ...
     'Tooltip', [char(10003) ' answered   ' char(10007) ' BUG   ? open   ?? unsure   ' char(8230) ' later']);
-pageGrid = uigridlayout(bodyGrid, [6 1], 'RowHeight', {34, '1x', 150, 32, 70, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 5, ...
+pageGrid = uigridlayout(bodyGrid, [6 1], 'RowHeight', {34, '1x', 150, 32, 100, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 5, ...
     'BackgroundColor', [1 1 1]);
 headingLabel = uilabel(pageGrid, 'Text', '', 'FontSize', 20, 'FontWeight', 'bold', 'FontColor', [1 1 1], ...
     'BackgroundColor', [0.15 0.25 0.45], 'Tag', 'aqHeading');
@@ -243,12 +254,34 @@ runButton = uibutton(runGrid, 'Text', 'Run the commands', 'Tag', 'aqRun', 'Butto
 codeTestsButton = uibutton(runGrid, 'Text', 'Run the code tests', 'Tag', 'aqRunCodeTests', ...
     'ButtonPushedFcn', @(~,~) doRunCodeTests(), 'Tooltip', 'Runs the test scripts this item names, and says PASS or FAIL');
 runStatus = uilabel(runGrid, 'Text', '', 'Tag', 'aqRunStatus');
-answerGrid = uigridlayout(pageGrid, [1 2], 'ColumnWidth', {'2x', '1x'}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
+answerGrid = uigridlayout(pageGrid, [1 3], 'ColumnWidth', {'2x', '1x', 150}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 answerGroup = uibuttongroup(answerGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'aqAnswers', ...
     'SelectionChangedFcn', @(~,event) onPicked(event), 'AutoResizeChildren', 'off', 'Scrollable', 'on', ...
     'SizeChangedFcn', @(~,~) placeAnswers());
 commentArea = uitextarea(answerGrid, 'Placeholder', 'Comment (optional)', 'Tag', 'aqComment', ...
     'ValueChangedFcn', @(~,~) onComment());
+% (pictures with an answer: snip with Win+Shift+S, then Paste picture; each
+% is saved in the queue folder's pictures folder and named in the answer,
+% so Claude opens it directly; Q93 (A), Sean 2026-11-26 10:45)
+pictureGrid = uigridlayout(answerGrid, [3 2], 'RowHeight', {24, '1x', 18}, 'ColumnWidth', {'1x', 'fit'}, ...
+    'Padding', [0 0 0 0], 'RowSpacing', 2, 'ColumnSpacing', 4, 'BackgroundColor', [0.93 0.96 1]);
+pasteButton = uibutton(pictureGrid, 'Text', 'Paste picture', 'Tag', 'aqPastePicture', ...
+    'Tooltip', 'Adds the picture on the clipboard to this answer (snip one first with Win+Shift+S)', ...
+    'ButtonPushedFcn', @(~,~) pastePicture());
+pasteButton.Layout.Column = [1 2];
+pictureImage = uiimage(pictureGrid, 'Tag', 'aqPictureThumb', 'ScaleMethod', 'fit', 'Visible', 'off', ...
+    'Tooltip', 'The last picture added to this answer');
+pictureImage.Layout.Row = 2;
+pictureImage.Layout.Column = [1 2];
+pictureCount = uilabel(pictureGrid, 'Text', '', 'FontSize', 11, 'Tag', 'aqPictureCount');
+pictureCount.Layout.Row = 3;
+pictureCount.Layout.Column = 1;
+removePictureButton = uibutton(pictureGrid, 'Text', 'Remove', 'FontSize', 10, 'Tag', 'aqRemovePicture', 'Visible', 'off', ...
+    'Tooltip', 'Takes the last picture off this answer (the file is moved to pictures\removed, not deleted)', ...
+    'ButtonPushedFcn', @(~,~) removePicture());
+removePictureButton.Layout.Row = 3;
+removePictureButton.Layout.Column = 2;
+pictureFolder = fullfile(queueFolder, 'pictures');
 statusLabel = uilabel(pageGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'Tag', 'aqStatus');
 
 answerMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
@@ -260,7 +293,8 @@ loadItems();
 answers = latestTable();
 figureHandle.UserData = struct('Show', @showItem, 'Answer', @testAnswer, 'Done', @doDone, 'Now', @doNow, ...
     'Run', @doRun, 'RunCodeTests', @doRunCodeTests, 'Items', @getItems, 'Answers', @latestTable, ...
-    'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu, 'CheckItems', @checkItems);
+    'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu, 'CheckItems', @checkItems, ...
+    'PastePicture', @pastePicture, 'RemovePicture', @removePicture, 'Pictures', @currentPictures);
 flagWatch = options.Visible;
 if ~isempty(options.Watch)
     flagWatch = logical(options.Watch);
@@ -360,6 +394,7 @@ end
             commentArea.Value = record.Comment;
         end
         setAnswers(keys, labels, recommended, selected);
+        refreshPictures();
         refreshStatus();
         refreshList();
         previousButton.Enable = matlab.lang.OnOffSwitchState(currentIndex > 1);
@@ -472,7 +507,8 @@ end
         item = items(currentIndex);
         entry = struct('ID', item.ID, 'Choice', char(choice), ...
             'Comment', strjoin(cellstr(commentArea.Value), newline), 'Who', who, ...
-            'When', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), 'ItemsWritten', itemsWritten);
+            'When', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), 'ItemsWritten', itemsWritten, ...
+            'Pictures', {currentPictures()});
         fileID = fopen(answersFile, 'a', 'n', 'UTF-8');
         if fileID < 0
             error('CarMesh3D:answersNotWritten', 'Could not write %s.', answersFile);
@@ -613,6 +649,9 @@ end
             if strlength(answered.Comment(ith_row)) > 0
                 line = sprintf('%s: %s', line, fcn_INTERNAL_short(answered.Comment(ith_row), 4000));
             end
+            if strlength(answered.Pictures(ith_row)) > 0
+                line = sprintf('%s [pictures in %s: %s]', line, pictureFolder, answered.Pictures(ith_row));
+            end
             lines{end+1} = line; %#ok<AGROW>
         end
         textOut = strjoin(lines, newline);
@@ -652,6 +691,88 @@ end
         end
     end
 
+    %% Pictures with an answer (Q93 (A))
+    function names = currentPictures()
+        % (the pictures of the item shown: <ID>_<time>.png in the pictures
+        % folder, oldest first)
+        names = {};
+        if isempty(items) || ~isfolder(pictureFolder)
+            return;
+        end
+        listing = dir(fullfile(pictureFolder, sprintf('%s_*.png', items(currentIndex).ID)));
+        names = sort({listing.name});
+    end
+
+    function fileName = pastePicture(imageIn)
+        % The picture on the clipboard (or one given, for the tests) saved
+        % with this item's answer. MATLAB's clipboard reads text only, so
+        % the picture is read through Java's (tested 2026-11-26 10:05)
+        fileName = '';
+        if nargin < 1
+            imageIn = [];
+            try
+                clip = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+                flavor = java.awt.datatransfer.DataFlavor.imageFlavor;
+                if clip.isDataFlavorAvailable(flavor)
+                    imageIn = clip.getData(flavor);
+                end
+            catch
+            end
+            if isempty(imageIn)
+                statusLabel.Text = 'No picture on the clipboard: snip one first (Win+Shift+S), then press Paste picture.';
+                return;
+            end
+        end
+        if ~isfolder(pictureFolder)
+            mkdir(pictureFolder);
+        end
+        stamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+        fileName = sprintf('%s_%s.png', items(currentIndex).ID, stamp);
+        suffix = 1;
+        while isfile(fullfile(pictureFolder, fileName))
+            suffix = suffix + 1;
+            fileName = sprintf('%s_%s_%d.png', items(currentIndex).ID, stamp, suffix);
+        end
+        if isnumeric(imageIn) || islogical(imageIn)
+            imwrite(imageIn, fullfile(pictureFolder, fileName));
+        else
+            javax.imageio.ImageIO.write(imageIn, 'png', java.io.File(fullfile(pictureFolder, fileName)));
+        end
+        addAnswer(latestChoice(items(currentIndex).ID));   % (the answer now names the picture)
+        refreshPictures();
+        statusLabel.Text = sprintf('Picture added: %s', fileName);
+    end
+
+    function removePicture()
+        % (the last picture taken off this answer: moved to pictures\removed,
+        % never deleted)
+        names = currentPictures();
+        if isempty(names)
+            return;
+        end
+        removedFolder = fullfile(pictureFolder, 'removed');
+        if ~isfolder(removedFolder)
+            mkdir(removedFolder);
+        end
+        movefile(fullfile(pictureFolder, names{end}), fullfile(removedFolder, names{end}));
+        addAnswer(latestChoice(items(currentIndex).ID));
+        refreshPictures();
+        statusLabel.Text = sprintf('Picture taken off: %s (moved to pictures\\removed)', names{end});
+    end
+
+    function refreshPictures()
+        names = currentPictures();
+        flagAny = ~isempty(names);
+        pictureImage.Visible = matlab.lang.OnOffSwitchState(flagAny);
+        removePictureButton.Visible = matlab.lang.OnOffSwitchState(flagAny);
+        if flagAny
+            pictureImage.ImageSource = fullfile(pictureFolder, names{end});
+            pictureCount.Text = sprintf('%d picture%s', numel(names), repmat('s', 1, numel(names) > 1));
+        else
+            pictureCount.Text = '';
+        end
+    end
+
     %% The record
     function found = latestRecord(id)
         found = [];
@@ -670,19 +791,19 @@ end
 
     function answerTable = latestTable()
         ids = {items.ID};
-        rows = cell(0, 5);
+        rows = cell(0, 6);
         for ith_item = 1:numel(ids)
             record = latestRecord(ids{ith_item});
             if ~isempty(record)
                 rows(end+1, :) = {string(record.ID), string(record.Choice), string(record.Comment), ...
-                    string(record.Who), string(record.When)}; %#ok<AGROW>
+                    string(record.Who), string(record.When), string(strjoin(cellstr(record.Pictures), ', '))}; %#ok<AGROW>
             end
         end
         if isempty(rows)
-            answerTable = table(strings(0,1), strings(0,1), strings(0,1), strings(0,1), strings(0,1), ...
-                'VariableNames', {'ID', 'Choice', 'Comment', 'Who', 'When'});
+            answerTable = table(strings(0,1), strings(0,1), strings(0,1), strings(0,1), strings(0,1), strings(0,1), ...
+                'VariableNames', {'ID', 'Choice', 'Comment', 'Who', 'When', 'Pictures'});
         else
-            answerTable = cell2table(rows, 'VariableNames', {'ID', 'Choice', 'Comment', 'Who', 'When'});
+            answerTable = cell2table(rows, 'VariableNames', {'ID', 'Choice', 'Comment', 'Who', 'When', 'Pictures'});
         end
     end
 
@@ -836,6 +957,10 @@ for ith_line = 1:numel(lines)
         end
         record.(name{1}) = char(record.(name{1}));
     end
+    if ~isfield(record, 'Pictures') || isempty(record.Pictures)
+        record.Pictures = {};
+    end
+    record.Pictures = cellstr(record.Pictures);
     latest(record.ID) = record;
 end
 end % Ends fcn_INTERNAL_readAnswers

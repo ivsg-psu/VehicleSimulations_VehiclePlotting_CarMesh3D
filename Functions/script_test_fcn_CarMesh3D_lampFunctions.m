@@ -106,7 +106,7 @@ assert(all(strcmp(fitMatrix.Default, 'yes')), 'No file and nothing to migrate: e
 figNum = 20003;
 fprintf(1,'Figure %.0f: TEST case: red rear turns\n', figNum);
 noRearTurns = fitMesh;
-turnIndex = find(strcmp(cellstr(noRearTurns.LightTypeNames), 'turnsignal'));
+turnIndex = find(strcmp(cellstr(noRearTurns.LightTypeNames), 'turnSignalLamp'));
 faceCenters = (noRearTurns.Vertices(noRearTurns.Faces(:,1),:) + noRearTurns.Vertices(noRearTurns.Faces(:,2),:) + noRearTurns.Vertices(noRearTurns.Faces(:,3),:))/3;
 noRearTurns.FaceLightType(noRearTurns.FaceLightType == turnIndex & faceCenters(:,1) < 1) = 0;
 redTurns = fcn_CarMesh3D_lampFunctions(noRearTurns);
@@ -119,17 +119,17 @@ assert(redTurns.TurnLeft(strcmp(redTurns.Unit, 'rear-center tail/brake lamp')) =
 figNum = 20004;
 fprintf(1,'Figure %.0f: TEST case: migration\n', figNum);
 switched = fitMesh;
-switched.LampSwitching = struct('fog', {{'FogLights', 'HighBeam'}});   % (a maker that lights the fog lamps with the high beams)
+switched.LampSwitching = struct('fogLamp', {{'FogLights', 'HighBeam'}});   % (a maker that lights the fog lamps with the high beams)
 migrated = fcn_CarMesh3D_lampFunctions(switched);
 fogRow = migrated(strcmp(migrated.Unit, 'front-left fog lamp'), :);
 assert(fogRow.FogLights == 1 && fogRow.HighBeam == 1 && strcmp(fogRow.Default, 'edited') && contains(fogRow.Source, 'LampSwitching'));
 functionsMesh = fitMesh;
-runningIndex = find(strcmp(cellstr(functionsMesh.LightTypeNames), 'running'));
+runningIndex = find(strcmp(cellstr(functionsMesh.LightTypeNames), 'runningLamp'));
 headlampFaces = fitUnits(strcmp({fitUnits.Name}, 'front-left headlamp')).Faces;
 functionsMesh.FaceLightFunctions(headlampFaces, runningIndex) = true;   % (the headlamp also lights as a running lamp)
 migrated = fcn_CarMesh3D_lampFunctions(functionsMesh);
 headRow = migrated(strcmp(migrated.Unit, 'front-left headlamp'), :);
-assert(headRow.Running == 1 && strcmp(headRow.Default, 'edited') && contains(headRow.Source, 'running'));
+assert(headRow.Running == 1 && strcmp(headRow.Default, 'edited') && contains(headRow.Source, 'runningLamp'));
 
 %% TEST case: the file: saved, read back, an edited row kept, a default row remade
 figNum = 20005;

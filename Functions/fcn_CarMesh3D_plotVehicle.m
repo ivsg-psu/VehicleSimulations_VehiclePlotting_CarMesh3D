@@ -123,7 +123,7 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           Headlights: 'off', 'low', or 'high' ('high' is both beams)
 %           LowBeam, HighBeam: true or false, to switch each beam on its
 %               own (each overrides what Headlights says for it). The
-%               high beam lamps are the 'highbeam' faces; a vehicle with
+%               high beam lamps are the 'highBeamLamp' faces; a vehicle with
 %               none lights its headlights white for the high beams
 %           TurnLeft, TurnRight: true or false (blink them in your loop)
 %           Hazards: true or false: both turn signals and the warning
@@ -222,9 +222,11 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           WheelCenters: 4 x 3 wheel centers in the vehicle frame
 %           BodyPivot: 1 x 3 point the body rolls and pitches about
 %           LightPatches: a structure with the patch handles (or []) of
-%               the lamps of each kind: headlight, turnLeft, turnRight,
-%               running, tail, backup, highBeam, fog, reflector,
-%               licenseplate, marker, warning (all the units of the kind)
+%               the lamps of each kind (the lamp keys, Q92 (A)):
+%               headlamp, turnSignalLampLeft, turnSignalLampRight,
+%               runningLamp, tailBrakeLamp, backupLamp, highBeamLamp,
+%               fogLamp, reflector, licensePlateLamp, markerLamp,
+%               warningLamp (all the units of the kind)
 %           UnitPatches: the same, one field per lamp unit (its name made
 %               a field name: front_left_headlamp); LightGroupNames: those
 %               field names, in fcn_CarMesh3D_lampUnits' order
@@ -332,7 +334,7 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % lamps, or from the headlights and tail lights, or the mesh's
 %   %   % corners, when the vehicle has no turn-signal lamps
 %   % * High beams as lamps of their own (Sean, 03:19 and 03:27): the
-%   %   % 'highbeam' light type is a light group of its own, 'highBeam';
+%   %   % 'highBeamLamp' light type is a light group of its own, 'highBeamLamp';
 %   %   % LowBeam and HighBeam in LightStates switch each beam alone
 %   %   % ('high' in Headlights is still both). A vehicle with no high
 %   %   % beam lamps lights its headlights white for the high beams, as
@@ -386,6 +388,10 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % LampFunctions and LampFaults; LightStates fields Parking and
 %   %   % Brake; LightPatches by kind kept, UnitPatches by unit added. The
 %   %   % light pools follow the lamps lit (a failed lamp throws none)
+%   % * LightPatches' fields are the new lamp keys (Q92 (A)): headlamp,
+%   %   % turnSignalLampLeft, turnSignalLampRight, runningLamp,
+%   %   % tailBrakeLamp, backupLamp, highBeamLamp, fogLamp, reflector,
+%   %   % licensePlateLamp, markerLamp, warningLamp
 
 % TO-DO:
 %
@@ -994,8 +1000,8 @@ end % Ends fcn_INTERNAL_patchesByAlpha
 %% fcn_INTERNAL_lightGroupNames
 function lightGroupNames = fcn_INTERNAL_lightGroupNames
 % The switchable light groups, in a fixed order
-lightGroupNames = {'headlight','turnLeft','turnRight','running','tail','backup','highBeam', ...
-    'fog','reflector','licenseplate','marker','warning'};   % (the last five: Sean, task 8)
+lightGroupNames = {'headlamp','turnSignalLampLeft','turnSignalLampRight','runningLamp','tailBrakeLamp','backupLamp','highBeamLamp', ...
+    'fogLamp','reflector','licensePlateLamp','markerLamp','warningLamp'};   % (the last five: Sean, task 8)
 end % Ends fcn_INTERNAL_lightGroupNames
 
 %% fcn_INTERNAL_effectGroups
@@ -1121,13 +1127,13 @@ if isgraphics(plotHandles.Transform)
     setappdata(plotHandles.Transform, 'LampFaults', lampFaults);
 end
 lit = fcn_CarMesh3D_lampColors(plotHandles.LampSetup, lightStates, LampFaults=lampFaults, FigNum=-1);
-ownColorKinds = {'reflector','marker','warning'};
+ownColorKinds = {'reflector','markerLamp','warningLamp'};
 onColors = cell(1, numel(lightGroupNames));
 for ith_group = 1:numel(lightGroupNames)
     if lit.Brightness(ith_group) <= 0
         onColors{ith_group} = [];
     elseif ismember(plotHandles.LampSetup.Kinds{ith_group}, ownColorKinds) || ~ismember(plotHandles.LampSetup.Kinds{ith_group}, ...
-            {'headlight','highbeam','turnsignal','tail','backup','running','fog','licenseplate'})
+            {'headlamp','highBeamLamp','turnSignalLamp','tailBrakeLamp','backupLamp','runningLamp','fogLamp','licensePlateLamp'})
         onColors{ith_group} = lit.Brightness(ith_group);   % (a number: its own colors, that much brighter)
     else
         onColors{ith_group} = lit.UnitColor(ith_group,:);
@@ -1224,15 +1230,15 @@ sides = plotHandles.LampSetup.Sides;
 units = plotHandles.LampSetup.Units;
 flagFront = arrayfun(@(unit) startsWith(unit.Position, 'front'), units(:));
 anyLit = @(flagUnits) any(lit.Brightness(flagUnits) > 0);
-headUnits = ismember(kinds, {'headlight','highbeam'}) & flagFront;
-tailUnits = strcmp(kinds, 'tail');
+headUnits = ismember(kinds, {'headlamp','highBeamLamp'}) & flagFront;
+tailUnits = strcmp(kinds, 'tailBrakeLamp');
 fcn_INTERNAL_setVisible(lightEffects.Pools.lowBeam, amount('LowBeam') > 0 && anyLit(headUnits));
 fcn_INTERNAL_setVisible(lightEffects.Pools.highBeam, amount('HighBeam') > 0 && anyLit(headUnits));
 fcn_INTERNAL_setVisible(lightEffects.Pools.tail, amount('Tail') > 0 && amount('Brake') == 0 && anyLit(tailUnits));
 fcn_INTERNAL_setVisible(lightEffects.Pools.brake, amount('Brake') > 0 && anyLit(tailUnits));
-fcn_INTERNAL_setVisible(lightEffects.Pools.backup, amount('Backup') > 0 && anyLit(strcmp(kinds, 'backup')));
+fcn_INTERNAL_setVisible(lightEffects.Pools.backup, amount('Backup') > 0 && anyLit(strcmp(kinds, 'backupLamp')));
 turnLit = @(side, front) anyLit(lit.Brightness > 0 & strcmp(sides, side) & (flagFront == front) & ...
-    (strcmp(kinds, 'turnsignal') | strcmp(kinds, 'tail')));
+    (strcmp(kinds, 'turnSignalLamp') | strcmp(kinds, 'tailBrakeLamp')));
 flagLeft = amount('TurnLeft') > 0;
 flagRight = amount('TurnRight') > 0;
 fcn_INTERNAL_setVisible(lightEffects.Pools.turnLeftFront, flagLeft && turnLit('left', true));
@@ -1253,14 +1259,14 @@ kindNames = cell(1, numUnits);
 for ith_unit = 1:numUnits
     groupNames{ith_unit} = matlab.lang.makeValidName(regexprep(lampSetup.Units(ith_unit).Name, '[^A-Za-z0-9]+', '_'));
     switch lampSetup.Kinds{ith_unit}
-        case 'turnsignal'
+        case 'turnSignalLamp'
             if strcmp(lampSetup.Sides{ith_unit}, 'right')
-                kindNames{ith_unit} = 'turnRight';
+                kindNames{ith_unit} = 'turnSignalLampRight';
             else
-                kindNames{ith_unit} = 'turnLeft';
+                kindNames{ith_unit} = 'turnSignalLampLeft';
             end
-        case 'highbeam'
-            kindNames{ith_unit} = 'highBeam';
+        case 'highBeamLamp'
+            kindNames{ith_unit} = 'highBeamLamp';
         otherwise
             kindNames{ith_unit} = lampSetup.Kinds{ith_unit};
     end
@@ -1272,7 +1278,7 @@ end % Ends fcn_INTERNAL_unitGroupNames
 function kindPatches = fcn_INTERNAL_kindPatches(unitPatches, groupNames, kindNames)
 % The lamp patches gathered by kind (every kind of the older groups is a
 % field, empty when the vehicle has none), for code that asks for, say,
-% LightPatches.tail
+% LightPatches.tailBrakeLamp
 kindPatches = struct;
 for kindName = fcn_INTERNAL_lightGroupNames
     kindPatches.(kindName{1}) = [];
@@ -1376,8 +1382,8 @@ end
 % labeled lamps, use the front and back of the mesh.
 meshLow = min(vehicleMesh.Vertices,[],1);
 meshHigh = max(vehicleMesh.Vertices,[],1);
-frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'headlight','highBeam'})));
-rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'tail','backup'})));
+frontVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'headlamp','highBeamLamp'})));
+rearVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'tailBrakeLamp','backupLamp'})));
 if isempty(frontVertices)
     frontX = meshHigh(1);
     frontHalfSpacing = 0.3*(meshHigh(2) - meshLow(2));
@@ -1399,7 +1405,7 @@ turnFrontX = frontX;
 turnRearX = rearX;
 turnFrontY = max(frontHalfSpacing, 0.35*(meshHigh(2) - meshLow(2)));
 turnRearY = max(rearHalfSpacing, 0.35*(meshHigh(2) - meshLow(2)));
-turnVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'turnLeft','turnRight'})));
+turnVertices = fcn_INTERNAL_groupVertices(vehicleMesh, faceLightGroup, find(fcn_INTERNAL_groupHas(groupKindNames, {'turnSignalLampLeft','turnSignalLampRight'})));
 middleX = 0.5*(meshLow(1) + meshHigh(1));
 if any(turnVertices(:,1) > middleX)
     frontTurn = turnVertices(turnVertices(:,1) > middleX,:);

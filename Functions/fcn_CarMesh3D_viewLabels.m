@@ -33,7 +33,7 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           (Parent=container), (LabelListParent=container),...
 %           (ShowTools=flag), (OnHint=function), (ColorFilter=function),...
 %           (HiddenFaces=function), (PhotoOptions=flag), (OnLamps=function),...
-%           (OnView=function), (OnNight=function), (DayNightParent=grid),...
+%           (OnView=function), (OnNight=function), (QuickBar=grid),...
 %           (Wait=flag), (Visible=flag),...
 %           (CheckStale=flag),...
 %           (FigNum=figNum))
@@ -66,7 +66,7 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      Colors: 'labels' (default: each label in its own color) or
 %      'vehicle' (the vehicle's own colors).
 %
-%      Label: the label shown alone ('part_trim', 'light_tail', ...; as
+%      Label: the label shown alone ('part_trim', 'light_tailBrakeLamp', ...; as
 %      the list's keys), or 'all' (default).
 %
 %      Hidden: labels whose faces are hidden (a cell array of keys).
@@ -126,11 +126,14 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      model, the panels, or a hook), so a host's own panels can follow.
 %      Default [] (none).
 %
-%      DayNightParent: a host's top bar (a grid layout) to put the sun/moon
-%      button in, in its last column, so every window has it in the same
-%      place: the top right, in the bar with the Menu (Sean, T86,
-%      2026-11-26). Default [] (none): in the viewer's own window, its own
-%      top bar's right end; inside a host, the model's top right corner.
+%      QuickBar: a host's top bar (a grid layout) whose last three columns
+%      take the three most-used switches, so every window has them in the
+%      same place, the top right in the bar with the Menu (Sean, T86 and
+%      10:41, 2026-11-26): Mesh (the faces' edges shown or not), Grid (the
+%      ground in 1 m squares shown or not), and the sun/moon (day or
+%      night). Default [] (none): in the viewer's own window, its own top
+%      bar's right end; inside a host with no bar, only the sun/moon, over
+%      the model's top right corner.
 %
 %      Wait: true to wait until the window is closed and return the view
 %      settings then. Default false: return at once, so the prompt stays
@@ -180,7 +183,7 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           ResetView(), SetSeeThrough(fraction), SeeThrough(): how
 %               see-through the body is drawn (0 solid, up to 0.9)
 %           LabelColor(name): the color of a label's box ('body',
-%               'headlight', 'hide', ...)
+%               'headlamp', 'hide', ...)
 %           SetGround(flag), Ground(): the ground plane shown or not (in
 %               this window only; it starts on)
 %           SetStartView(dialAngle, downAngle), StartView(): the starting
@@ -450,8 +453,11 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % ground visibility on displays to default on across GUIs"; T79
 %   %   % (B)). It had been a kept preference, so one Off stayed Off
 %   % * The sun/moon button at the top right, in the bar with the Menu: its
-%   %   % own top bar, or a host's (new option DayNightParent); over the
-%   %   % model's corner only inside a host with no bar (T86 BUG)
+%   %   % own top bar, or a host's (new option QuickBar); over the
+%   %   % model's corner only inside a host with no bar (T86 BUG). Beside
+%   %   % it, Mesh and Grid buttons that stay pressed while on: the faces'
+%   %   % edges and the ground, the three switches most often clicked
+%   %   % (Sean, 10:41)
 
 % TO-DO:
 %
@@ -486,7 +492,7 @@ arguments
     options.OnLamps = []        % Called with the lamp states when they change (a host's lamp panel)
     options.OnView = []         % Called when the camera moves (a host's camera readout)
     options.OnNight = []        % Called with true/false when day and night switch (a host's panels)
-    options.DayNightParent = [] % A host's top bar (a grid) for the sun/moon button, at its right end; [] for the viewer's own place
+    options.QuickBar = []       % A host's top bar (a grid) whose last three columns take the Mesh, Grid and sun/moon buttons; [] for the viewer's own
     options.Visible = true      % Build the window hidden (tests)
     options.CheckStale = []     % Warn when a vehicle's mesh variable is older than its saved labels
     options.FigNum = []         % Not used (a window); -1 for fast mode
@@ -636,7 +642,7 @@ if ~isfield(vehicleMesh, 'FaceLightType') || numel(vehicleMesh.FaceLightType) ~=
     vehicleMesh.FaceLightType = zeros(numFaces,1);
 end
 if ~isfield(vehicleMesh, 'LightTypeNames')
-    vehicleMesh.LightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};
+    vehicleMesh.LightTypeNames = {'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp'};
 end
 data = struct();
 data.Mesh = vehicleMesh;
@@ -772,7 +778,7 @@ if flagOwnWindow
     % panel at the left beside the model, the model, the photo dial, and
     % the photo with its options at the right)
     rootGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
-    topGrid = uigridlayout(rootGrid, [1 3], 'ColumnWidth', {90, '1x', 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+    topGrid = uigridlayout(rootGrid, [1 5], 'ColumnWidth', {90, '1x', 70, 70, 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);   % (the last three: Mesh, Grid, sun/moon)
     menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'viewerMenu', ...
         'Tooltip', 'Open a panel at the left (up to two at once; pick an open one again to close it)');
     % (Exit is the ☰ Menu's last line: Q62 (A), Sean 2026-11-25 14:31)
@@ -883,14 +889,16 @@ modelHolder.Layout.Column = 1;
 axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]), 'Tag', 'modelAxes');
 % (the sun/moon button: one click switches day and night; Q89 (A), Sean
 % 2026-11-26. At the top right, in the bar with the Menu: the viewer's own
-% top bar, or the host's (DayNightParent); else over the model's top
+% top bar, or the host's (QuickBar); else over the model's top
 % right corner. Sean, T86: "all UIs that have mesh visibility testing or
 % editing have this option in same corner ... top right in same Menu bar
 % area")
-dayNightHolder = options.DayNightParent;
+dayNightHolder = options.QuickBar;
 if flagOwnWindow
     dayNightHolder = topGrid;
 end
+meshToggle = [];
+groundToggle = [];
 % (the model panel's layout as before the button moved: its children
 % placed by hand, so a resize is handled the same way in every window)
 modelHolder.AutoResizeChildren = 'off';
@@ -901,12 +909,23 @@ if isempty(dayNightHolder)
         'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());   % (a nested function: an anonymous one would keep flagNight as it was now)
     placeDayNight();
 else
+    % (Mesh and Grid: buttons that stay pressed while on, Sean 10:41)
+    meshToggle = uibutton(dayNightHolder, 'state', 'Text', [char(9651) ' Mesh'], 'FontSize', 13, 'Tag', 'meshToggle', ...
+        'Value', flagBoundaries, 'Tooltip', 'Mesh: the edges of the faces drawn (pressed) or not', ...
+        'ValueChangedFcn', @(source,~) setBoundaries(source.Value));
+    groundToggle = uibutton(dayNightHolder, 'state', 'Text', [char(9638) ' Grid'], 'FontSize', 13, 'Tag', 'groundToggle', ...
+        'Value', flagGround, 'Tooltip', 'Grid: the ground in 1 m squares, by day and at night (pressed) or not', ...
+        'ValueChangedFcn', @(source,~) setGround(source.Value));
     dayNightButton = uibutton(dayNightHolder, 'Text', char(9728), 'FontSize', 18, 'Tag', 'dayNightButton', ...
         'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
         'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());
     if isa(dayNightHolder, 'matlab.ui.container.GridLayout')
-        dayNightButton.Layout.Row = 1;
-        dayNightButton.Layout.Column = numel(dayNightHolder.ColumnWidth);
+        lastColumn = numel(dayNightHolder.ColumnWidth);
+        quickButtons = {meshToggle, groundToggle, dayNightButton};
+        for ith_button = 1:3
+            quickButtons{ith_button}.Layout.Row = 1;
+            quickButtons{ith_button}.Layout.Column = lastColumn - 3 + ith_button;
+        end
     end
 end
 hold(axesHandle, 'on');
@@ -2034,6 +2053,17 @@ end
         end
     end
 
+    function markQuickBar()
+        % (the Mesh and Grid buttons show the settings now, however they
+        % were changed: the button, Overall Display, or a hook)
+        if ~isempty(meshToggle) && isvalid(meshToggle) && meshToggle.Value ~= flagBoundaries
+            meshToggle.Value = flagBoundaries;
+        end
+        if ~isempty(groundToggle) && isvalid(groundToggle) && groundToggle.Value ~= flagGround
+            groundToggle.Value = flagGround;
+        end
+    end
+
     function markDayNight()
         % The button shows the sun by day, the moon at night
         if isempty(dayNightButton) || ~isvalid(dayNightButton)
@@ -2286,31 +2316,31 @@ end
             'WordWrap', 'on', 'VerticalAlignment', 'top', 'FontColor', [0.4 0.4 0.4], 'FontSize', 11);
         % (every lamp can be switched; those with no labeled faces say so)
         noFaces = ' (no faces)';
-        if ~any(strcmp(lampTypes, 'headlight'))
+        if ~any(strcmp(lampTypes, 'headlamp'))
             nightControls.LowBeam.Text = [nightControls.LowBeam.Text noFaces];
         end
-        if ~any(strcmp(lampTypes, 'highbeam'))
+        if ~any(strcmp(lampTypes, 'highBeamLamp'))
             % (no high beam lamps: the headlights light white for them)
             nightControls.HighBeam.Text = [nightControls.HighBeam.Text ' (in the headlights)'];
-            if ~any(strcmp(lampTypes, 'headlight'))
+            if ~any(strcmp(lampTypes, 'headlamp'))
                 nightControls.HighBeam.Text = ['High beams' noFaces];
             end
         end
-        if ~any(strcmp(lampTypes, 'running'))
+        if ~any(strcmp(lampTypes, 'runningLamp'))
             nightControls.Running.Text = [nightControls.Running.Text noFaces];
         end
-        if ~any(strcmp(lampTypes, 'turnsignal'))
+        if ~any(strcmp(lampTypes, 'turnSignalLamp'))
             nightControls.TurnLeft.Text = [nightControls.TurnLeft.Text noFaces];
             nightControls.TurnRight.Text = [nightControls.TurnRight.Text noFaces];
             nightControls.Hazards.Text = [nightControls.Hazards.Text noFaces];
         end
-        if ~any(strcmp(lampTypes, 'tail'))
+        if ~any(strcmp(lampTypes, 'tailBrakeLamp'))
             tailLabel.Text = ['Tail lights' noFaces];
         end
-        if ~any(strcmp(lampTypes, 'backup'))
+        if ~any(strcmp(lampTypes, 'backupLamp'))
             nightControls.Backup.Text = [nightControls.Backup.Text noFaces];
         end
-        if ~any(strcmp(lampTypes, 'fog'))
+        if ~any(strcmp(lampTypes, 'fogLamp'))
             nightControls.FogLights.Text = [nightControls.FogLights.Text noFaces];
         end
         if ~any(strcmp(lampTypes, 'reflector'))
@@ -2325,6 +2355,7 @@ end
         if ~isempty(boundaryBox) && isvalid(boundaryBox)
             boundaryBox.Value = flagBoundaries;
         end
+        markQuickBar();
         redraw();
         nightEdges();
         refreshOwn();
@@ -2619,6 +2650,7 @@ end
         % The ground plane, by day and at night, for this window only (it
         % starts on in every window: Sean, 2026-11-26 10:12)
         flagGround = logical(flagOn);
+        markQuickBar();
         if ~isempty(dayGround) && isvalid(dayGround)
             dayGround.Visible = matlab.lang.OnOffSwitchState(flagGround && ~flagNight);
         end
@@ -2637,7 +2669,7 @@ end
     end
 
     function color = getLabelColor(name)
-        % The color of a label's box, by name ('body', 'headlight',
+        % The color of a label's box, by name ('body', 'headlamp',
         % 'hide', ...): the color most of its faces have in the labels
         % view, else a standard one (as the painter's)
         name = char(name);
@@ -3228,16 +3260,15 @@ end % Ends fcn_INTERNAL_labelFaces
 
 %% fcn_INTERNAL_labelKinds
 function nameOut = fcn_INTERNAL_lightName(typeName)
-% A light type's name in the label list
-switch typeName
-    case 'headlight'
-        nameOut = 'headlight (low beam)';
-    case 'highbeam'
-        nameOut = 'high beam';
-    case 'turnsignal'
-        nameOut = 'turn signal light';
-    otherwise
-        nameOut = [typeName ' light'];
+% A light type's name in the label list: its name for people from
+% fcn_CarMesh3D_lampTypes ('headlamp', 'tail/brake lamp', ...), as the
+% keys are camelCase (Q92 (A))
+lampTypes = fcn_CarMesh3D_lampTypes();
+match = find(strcmp({lampTypes.Name}, typeName), 1);
+if isempty(match)
+    nameOut = char(typeName);
+else
+    nameOut = regexprep(lampTypes(match).Label, '^(.)', '${lower($1)}');
 end
 end
 

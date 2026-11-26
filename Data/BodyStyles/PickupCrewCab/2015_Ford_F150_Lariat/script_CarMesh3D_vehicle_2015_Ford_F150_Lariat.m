@@ -224,10 +224,10 @@ widthReference = 'mirrors';   % (the mirrors are painted body, so 'body' counted
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlamps (lens and housing: by region)', 'Region',[4.30 4.60 0.28 0.75 0.82 1.16], 'BothSides',true, 'Material','^color_notint|^glass_ex', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','tail lamps (in color_notint: by region)', 'Region',[-1.20 -1.04 0.76 0.96 0.80 1.25], 'BothSides',true, 'CurrentPart','trim', 'LightType','tail');
+labelEditsAfterFit{end+1} = struct('Name','headlamps (lens and housing: by region)', 'Region',[4.30 4.60 0.28 0.75 0.82 1.16], 'BothSides',true, 'Material','^color_notint|^glass_ex', 'LightType','headlamp');
+labelEditsAfterFit{end+1} = struct('Name','tail lamps (in color_notint: by region)', 'Region',[-1.20 -1.04 0.76 0.96 0.80 1.25], 'BothSides',true, 'CurrentPart','trim', 'LightType','tailBrakeLamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh: [] (usual) keeps every face of the
 % download, as it is; a number reduces the mesh to about that many faces

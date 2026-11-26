@@ -60,7 +60,7 @@ figure(figNum); clf;
 vehicleMesh = fcn_INTERNAL_labeledSample;
 % Front of the car, both sides, only faces that are now lights
 edits = {struct('Name','front turn signals', 'Region',[2.2 2.6 0.3 0.9 0.3 0.8], ...
-    'BothSides',true, 'CurrentPart','light', 'LightType','turnsignal')};
+    'BothSides',true, 'CurrentPart','light', 'LightType','turnSignalLamp')};
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=figNum);
 
 sgtitle(titleString, 'Interpreter','none');
@@ -75,9 +75,9 @@ assert(isequal(size(editedMesh.FaceLightType), size(vehicleMesh.FaceLightType)))
 
 % Check variable values
 assert(4==numel(appliedEdits.FaceIndices));
-assert(0==fcn_INTERNAL_countLightType(editedMesh,'headlight'));
-assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnsignal'));
-assert(4==fcn_INTERNAL_countLightType(editedMesh,'tail')); % Unchanged
+assert(0==fcn_INTERNAL_countLightType(editedMesh,'headlamp'));
+assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnSignalLamp'));
+assert(4==fcn_INTERNAL_countLightType(editedMesh,'tailBrakeLamp')); % Unchanged
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));
@@ -184,10 +184,10 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-oneSide = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'CurrentPart','light','LightType','running')});
-bothSides = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','running')});
-assert(2==fcn_INTERNAL_countLightType(oneSide,'running'));
-assert(4==fcn_INTERNAL_countLightType(bothSides,'running'));
+oneSide = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'CurrentPart','light','LightType','runningLamp')});
+bothSides = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','runningLamp')});
+assert(2==fcn_INTERNAL_countLightType(oneSide,'runningLamp'));
+assert(4==fcn_INTERNAL_countLightType(bothSides,'runningLamp'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -200,7 +200,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('CurrentPart','glass','LightType','backup')});
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('CurrentPart','glass','LightType','backupLamp')});
 assert(all(editedMesh.FaceAlpha(editedMesh.FacePartIndex==4)==1));
 assert(0==sum(editedMesh.FacePartIndex==2));
 editedMesh = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('CurrentPart','light','Part','glass')}, GlassAlpha=0.5);
@@ -235,7 +235,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail')));
+tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tailBrakeLamp')));
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','no tail lights', ...
     'FaceIndices',tailFaces,'Hide','tail lamps')});
 assert(strcmp(appliedEdits(1).Part,'hide: tail lamps'));
@@ -286,29 +286,29 @@ assert(~any(figHandles==figNum));
 
 %% TEST case: AlsoLightTypes gives light faces more functions
 vehicleMesh = fcn_INTERNAL_labeledSample;
-tailIndex = find(strcmp(vehicleMesh.LightTypeNames,'tail'));
-turnIndex = find(strcmp(vehicleMesh.LightTypeNames,'turnsignal'));
+tailIndex = find(strcmp(vehicleMesh.LightTypeNames,'tailBrakeLamp'));
+turnIndex = find(strcmp(vehicleMesh.LightTypeNames,'turnSignalLamp'));
 tailFaces = find(vehicleMesh.FaceLightType==tailIndex);
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','rear turn', ...
-    'FaceIndices',tailFaces, 'AlsoLightTypes',{{'turnsignal'}})}, FigNum=-1);
+    'FaceIndices',tailFaces, 'AlsoLightTypes',{{'turnSignalLamp'}})}, FigNum=-1);
 assert(isequal(size(editedMesh.FaceLightFunctions), [size(editedMesh.Faces,1) numel(editedMesh.LightTypeNames)]));
 assert(all(editedMesh.FaceLightFunctions(tailFaces, tailIndex)) && all(editedMesh.FaceLightFunctions(tailFaces, turnIndex)));
 assert(all(editedMesh.FaceLightType(tailFaces)==tailIndex), 'The primary type is kept');
-assert(strcmp(appliedEdits(1).LightType, '+turnsignal'));
+assert(strcmp(appliedEdits(1).LightType, '+turnSignalLamp'));
 % (relabeling the faces replaces their functions)
-editedMesh = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',tailFaces(1), 'LightType','backup')}, FigNum=-1);
+editedMesh = fcn_CarMesh3D_editLabels(editedMesh, Edits={struct('FaceIndices',tailFaces(1), 'LightType','backupLamp')}, FigNum=-1);
 assert(~editedMesh.FaceLightFunctions(tailFaces(1), turnIndex) && editedMesh.FaceLightFunctions(tailFaces(1), editedMesh.FaceLightType(tailFaces(1))));
 % (faces that were not lights become lights of the first type)
 bodyFace = find(vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames,'body')), 1);
-editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoLightTypes',{{'running','turnsignal'}})}, FigNum=-1);
-assert(editedMesh.FaceLightType(bodyFace)==find(strcmp(editedMesh.LightTypeNames,'running')));
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'AlsoLightTypes',{{'runningLamp','turnSignalLamp'}})}, FigNum=-1);
+assert(editedMesh.FaceLightType(bodyFace)==find(strcmp(editedMesh.LightTypeNames,'runningLamp')));
 assert(editedMesh.FaceLightFunctions(bodyFace, turnIndex));
 
 %% TEST case: AlsoParts: faces that belong to more than one part
 vehicleMesh = fcn_INTERNAL_labeledSample;
 lightIndex = find(strcmp(vehicleMesh.PartNames,'light'));
 glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
-headFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight')));
+headFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlamp')));
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('Name','clear covers', ...
     'FaceIndices',headFaces, 'AlsoParts',{{'glass'}})}, FigNum=-1);
 assert(isequal(size(editedMesh.FaceAlsoParts,1), size(editedMesh.Faces,1)));
@@ -327,7 +327,7 @@ assert(~any(editedMesh2.FaceAlsoParts(headFaces(1),:)));
 assert(all(editedMesh2.FaceAlsoParts(headFaces(2:end), glassIndex)));
 % (with a label in the same edit: the label first, then the other parts)
 bodyFace = find(vehicleMesh.FacePartIndex==find(strcmp(vehicleMesh.PartNames,'body')), 1);
-[editedMesh2, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'LightType','tail', 'AlsoParts',{{'glass'}})}, FigNum=-1);
+[editedMesh2, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFace, 'LightType','tailBrakeLamp', 'AlsoParts',{{'glass'}})}, FigNum=-1);
 assert(editedMesh2.FacePartIndex(bodyFace)==lightIndex && editedMesh2.FaceAlsoParts(bodyFace, glassIndex));
 assert(strcmp(appliedEdits(1).Part, 'light+glass'));
 % (an interior part is added to PartNames, and FaceAlsoParts widened)
@@ -342,19 +342,19 @@ catch ME
     assert(contains(ME.message, 'light always wins'), ME.message);
 end
 
-%% TEST case: High beams on a mesh made before the 'highbeam' type
+%% TEST case: High beams on a mesh made before the 'highBeamLamp' type
 figNum = 20009;
 titleString = sprintf('TEST case: High beams on a mesh made before the highbeam type');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 oldMesh = fcn_INTERNAL_labeledSample;
-oldMesh.LightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup'};   % (as made before 2026_11_23)
+oldMesh.LightTypeNames = {'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp'};   % (as made before 2026_11_23)
 oldMesh.FaceLightType(oldMesh.FaceLightType==6) = 1;
 oldMesh.FaceLightFunctions = false(size(oldMesh.Faces,1), 5);
 headFaces = find(oldMesh.FaceLightType==1);
-editedMesh = fcn_CarMesh3D_editLabels(oldMesh, Edits={struct('FaceIndices',headFaces(1),'LightType','highbeam')});
-assert(isequal(editedMesh.LightTypeNames(1:5), oldMesh.LightTypeNames) && strcmp(editedMesh.LightTypeNames{6}, 'highbeam'));
+editedMesh = fcn_CarMesh3D_editLabels(oldMesh, Edits={struct('FaceIndices',headFaces(1),'LightType','highBeamLamp')});
+assert(isequal(editedMesh.LightTypeNames(1:5), oldMesh.LightTypeNames) && strcmp(editedMesh.LightTypeNames{6}, 'highBeamLamp'));
 assert(editedMesh.FaceLightType(headFaces(1))==6 && all(editedMesh.FaceLightType(headFaces(2:end))==1));
 assert(size(editedMesh.FaceLightFunctions,2)==numel(editedMesh.LightTypeNames) && editedMesh.FaceLightFunctions(headFaces(1),6));   % (one column per type: older meshes get every type of fcn_CarMesh3D_lampTypes added, task 8)
 
@@ -373,8 +373,8 @@ figure(figNum); close(figNum);
 [coverMesh, faceInfo] = fcn_INTERNAL_coverMesh;
 coveredMesh = fcn_CarMesh3D_findLampCovers(coverMesh, FigNum=-1);
 Nfaces = size(coveredMesh.Faces,1);
-headType = find(strcmp(coveredMesh.LightTypeNames,'headlight'));
-turnType = find(strcmp(coveredMesh.LightTypeNames,'turnsignal'));
+headType = find(strcmp(coveredMesh.LightTypeNames,'headlamp'));
+turnType = find(strcmp(coveredMesh.LightTypeNames,'turnSignalLamp'));
 glassIndex = find(strcmp(coveredMesh.PartNames,'glass'));
 turnCovers = [faceInfo.leftTurnCover; faceInfo.rightTurnCover];
 assert(all(coveredMesh.FaceCoverLamp(faceInfo.headCover)==headType) && all(coveredMesh.FaceCoverLamp(turnCovers)==turnType));
@@ -382,7 +382,7 @@ assert(all(coveredMesh.FaceCoverLamp(faceInfo.headCover)==headType) && all(cover
 % the other covers stay)
 editedMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.headCover,'Part','trim')}, FigNum=-1);
 assert(all(editedMesh.FaceCoverLamp(faceInfo.headCover)==0) && all(editedMesh.FaceCoverLamp(turnCovers)==turnType));
-editedMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.leftTurnCover,'LightType','tail')}, FigNum=-1);
+editedMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.leftTurnCover,'LightType','tailBrakeLamp')}, FigNum=-1);
 assert(all(editedMesh.FaceCoverLamp(faceInfo.leftTurnCover)==0) && all(editedMesh.FaceCoverLamp(faceInfo.rightTurnCover)==turnType));
 % (painted as plain glass: tinted glass, not a cover...)
 glassMesh = fcn_CarMesh3D_editLabels(coveredMesh, Edits={struct('FaceIndices',faceInfo.headCover,'Part','glass')}, FigNum=-1);
@@ -391,7 +391,7 @@ assert(all(abs(glassMesh.FaceAlpha(faceInfo.headCover) - 0.35) < 1e-12));
 % (...and painted as a headlight that is also glass, it lies over the
 % headlight, so it is the headlight's clear cover again)
 againMesh = fcn_CarMesh3D_editLabels(glassMesh, Edits={struct('FaceIndices',faceInfo.headCover, ...
-    'LightType','headlight','AlsoParts',{{'glass'}})}, FigNum=-1);
+    'LightType','headlamp','AlsoParts',{{'glass'}})}, FigNum=-1);
 assert(all(againMesh.FaceCoverLamp(faceInfo.headCover)==headType) && all(againMesh.FacePartIndex(faceInfo.headCover)==glassIndex));
 assert(all(abs(againMesh.FaceAlpha(faceInfo.headCover) - 0.15) < 1e-12) && all(againMesh.FaceLightType(faceInfo.headCover)==0));
 % (a FaceCoverLamp that is short, as after faces were added, is padded
@@ -405,11 +405,11 @@ assert(isequal(editedMesh.FaceCoverLamp(1:end-2), shortMesh.FaceCoverLamp));
 % fcn_CarMesh3D_plotVehicle still finds its covers when it is drawn)
 editedMesh = fcn_CarMesh3D_editLabels(coverMesh, Edits={struct('FaceIndices',faceInfo.body,'Part','trim')}, FigNum=-1);
 assert(~isfield(editedMesh,'FaceCoverLamp'));
-% (a mesh made before the 'highbeam' type: the covers' light types stay)
+% (a mesh made before the 'highBeamLamp' type: the covers' light types stay)
 oldTypesMesh = coveredMesh;
 oldTypesMesh.LightTypeNames = oldTypesMesh.LightTypeNames(1:5);
-editedMesh = fcn_CarMesh3D_editLabels(oldTypesMesh, Edits={struct('FaceIndices',faceInfo.headLamp,'LightType','highbeam')}, FigNum=-1);
-assert(strcmp(editedMesh.LightTypeNames{6},'highbeam') && isequal(editedMesh.FaceCoverLamp, coveredMesh.FaceCoverLamp));
+editedMesh = fcn_CarMesh3D_editLabels(oldTypesMesh, Edits={struct('FaceIndices',faceInfo.headLamp,'LightType','highBeamLamp')}, FigNum=-1);
+assert(strcmp(editedMesh.LightTypeNames{6},'highBeamLamp') && isequal(editedMesh.FaceCoverLamp, coveredMesh.FaceCoverLamp));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -422,16 +422,16 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail')));
-editorTimer = timer('StartDelay',2,'TimerFcn',@(~,~) fcn_INTERNAL_driveEditor(tailFaces,'light: backup'));
+tailFaces = find(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tailBrakeLamp')));
+editorTimer = timer('StartDelay',2,'TimerFcn',@(~,~) fcn_INTERNAL_driveEditor(tailFaces,'light: backupLamp'));
 start(editorTimer);
 [editedMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, Interactive=true);
 delete(editorTimer);
 assert(1==length(appliedEdits));
-assert(strcmp(appliedEdits(1).LightType,'backup'));
+assert(strcmp(appliedEdits(1).LightType,'backupLamp'));
 assert(isequal(sort(appliedEdits(1).FaceIndices(:)), sort(tailFaces(:))));
-assert(4==fcn_INTERNAL_countLightType(editedMesh,'backup'));
-assert(0==fcn_INTERNAL_countLightType(editedMesh,'tail'));
+assert(4==fcn_INTERNAL_countLightType(editedMesh,'backupLamp'));
+assert(0==fcn_INTERNAL_countLightType(editedMesh,'tailBrakeLamp'));
 % The editor window is closed
 assert(isempty(findobj(groot,'Type','figure','Name','CarMesh3D label editor')));
 
@@ -463,9 +463,9 @@ fprintf(1,'Figure: %.0f: FAST mode, empty figNum\n',figNum);
 figure(figNum); close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-edits = {struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','turnsignal')};
+edits = {struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','turnSignalLamp')};
 editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=[]);
-assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnsignal'));
+assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnSignalLamp'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -477,7 +477,7 @@ fprintf(1,'Figure: %.0f: FAST mode, figNum=-1\n',figNum);
 figure(figNum); close(figNum);
 
 editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=-1);
-assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnsignal'));
+assert(4==fcn_INTERNAL_countLightType(editedMesh,'turnSignalLamp'));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');
@@ -490,7 +490,7 @@ figure(figNum);
 close(figNum);
 
 vehicleMesh = fcn_INTERNAL_labeledSample;
-edits = {struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','turnsignal')};
+edits = {struct('Region',[2.2 2.6 0.3 0.9 0.3 0.8],'BothSides',true,'CurrentPart','light','LightType','turnSignalLamp')};
 
 Niterations = 100;
 
@@ -622,7 +622,7 @@ function [testMesh, faceInfo] = fcn_INTERNAL_coverMesh
 %   front of it marked the old way: a light that is also glass
 %   a body panel below the lamps
 partNames = {'body';'glass';'wheel';'light';'trim'};
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+lightTypeNames = {'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp';'highBeamLamp'};
 squares = { ...   % x, [ymin ymax], [zmin zmax], part, light type, also glass, name
     1.00, [ 0.40  0.60], [0.50 0.70], 4, 1, false, 'headLamp';
     1.02, [ 0.38  0.62], [0.48 0.72], 2, 0, false, 'headCover';
@@ -684,13 +684,13 @@ function edits = fcn_INTERNAL_priusLightEdits
 % 2013 Prius spec (meters, origin on the ground below the rear axle)
 edits = {};
 edits{end+1} = struct('Name','headlight housings and lenses', 'Region',[2.90 3.45 0.45 0.82 0.55 0.82], ...
-    'BothSides',true, 'Material','color_notint|glass_ex', 'LightType','headlight');
+    'BothSides',true, 'Material','color_notint|glass_ex', 'LightType','headlamp');
 edits{end+1} = struct('Name','front turn signals', 'Region',[3.30 3.50 0.65 0.80 0.25 0.47], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
+    'BothSides',true, 'Material','color_notint', 'LightType','turnSignalLamp');
 edits{end+1} = struct('Name','tail lights (upper part)', 'Region',[-0.80 -0.45 0.55 0.80 0.95 1.12], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','tail');
+    'BothSides',true, 'Material','color_notint', 'LightType','tailBrakeLamp');
 edits{end+1} = struct('Name','rear turn signals (middle)', 'Region',[-0.80 -0.45 0.55 0.80 0.82 0.95], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','turnsignal');
+    'BothSides',true, 'Material','color_notint', 'LightType','turnSignalLamp');
 edits{end+1} = struct('Name','backup lights (lower part)', 'Region',[-0.80 -0.45 0.55 0.80 0.65 0.82], ...
-    'BothSides',true, 'Material','color_notint', 'LightType','backup');
+    'BothSides',true, 'Material','color_notint', 'LightType','backupLamp');
 end % Ends fcn_INTERNAL_priusLightEdits

@@ -105,8 +105,8 @@ for ith_window = 1:numel(vehicleOutline.Windows)
     assert(all(inpolygon(windowPoints(:,1), windowPoints(:,2), vehicleOutline.Body(:,1), vehicleOutline.Body(:,2))));
 end
 lightTypes = {vehicleOutline.Lights.Type};
-headlights = vehicleOutline.Lights(strcmp(lightTypes, 'headlight'));
-tails = vehicleOutline.Lights(strcmp(lightTypes, 'tail'));
+headlights = vehicleOutline.Lights(strcmp(lightTypes, 'headlamp'));
+tails = vehicleOutline.Lights(strcmp(lightTypes, 'tailBrakeLamp'));
 assert(~isempty(headlights) && ~isempty(tails));
 assert(min(arrayfun(@(l) mean(l.Polygon(:,1)), headlights)) > max(arrayfun(@(l) mean(l.Polygon(:,1)), tails)));
 
@@ -140,7 +140,7 @@ assert(numel(vehicleOutline.Symmetry.Windows)==numel(vehicleOutline.Windows));
 % (the right tail lamp relabeled as body: the left one is mirrored onto the right)
 oneSided = priusMesh;
 lightPart = find(strcmp(oneSided.PartNames, 'light'));
-tailType = find(strcmp(oneSided.LightTypeNames, 'tail'));
+tailType = find(strcmp(oneSided.LightTypeNames, 'tailBrakeLamp'));
 faceCenterY = (oneSided.Vertices(oneSided.Faces(:,1),2) + oneSided.Vertices(oneSided.Faces(:,2),2) + oneSided.Vertices(oneSided.Faces(:,3),2))/3;
 rightTail = oneSided.FacePartIndex==lightPart & oneSided.FaceLightType==tailType & faceCenterY < 0;
 oneSided.FacePartIndex(rightTail) = find(strcmp(oneSided.PartNames, 'body'));
@@ -153,8 +153,8 @@ lastwarn('');
 warning('off', 'CarMesh3D:asymmetricOutline');
 mirroredOutline = fcn_CarMesh3D_makeOutline2D(oneSided);
 warning(warningState);
-tracedTails = traced.Lights(strcmp({traced.Lights.Type}, 'tail'));
-mirroredTails = mirroredOutline.Lights(strcmp({mirroredOutline.Lights.Type}, 'tail'));
+tracedTails = traced.Lights(strcmp({traced.Lights.Type}, 'tailBrakeLamp'));
+mirroredTails = mirroredOutline.Lights(strcmp({mirroredOutline.Lights.Type}, 'tailBrakeLamp'));
 assert(all(strcmp({tracedTails.Side}, 'left')));
 assert(any(strcmp({mirroredTails.Side}, 'right')) && ~isempty(mirroredOutline.Symmetry.Added));
 assert(strcmp(warningID, 'CarMesh3D:asymmetricOutline'));                    % (warned even when kept as traced)

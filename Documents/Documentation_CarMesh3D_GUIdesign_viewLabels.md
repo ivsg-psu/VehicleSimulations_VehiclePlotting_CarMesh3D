@@ -182,7 +182,7 @@ The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): 
 | `meshInput` (required) | | A mesh `.mat` file (the variable `vehicleMesh`, else the first labeled mesh in it), or a mesh variable. A vehicle ID is not accepted. |
 | `ViewSettings` | [] | View settings returned before: open at that view (missing fields keep their defaults). |
 | `Colors` | '' ('labels') | 'labels' or 'vehicle'; wins over ViewSettings. |
-| `Label` | '' ('all') | The label shown alone (a key such as 'part_trim', 'light_tail'); wins over ViewSettings. |
+| `Label` | '' ('all') | The label shown alone (a key such as 'part_trim', 'light_tailBrakeLamp'); wins over ViewSettings. |
 | `Hidden` | [] | Label keys not shown; wins over ViewSettings. |
 | `PhotoFolder` | [] (`photos` beside the file) | Folder of `ViewInDegrees_<angle>` photos. |
 | `Outline` | [] | 2D outline (or its file) for the dial. |
@@ -488,7 +488,7 @@ When a question is answered, its content moves into the right section above, and
   % A fresh, temporary copy of the vehicle: changes are NOT saved to the vehicle
   demoFiles = fcn_CarMesh3D_makeDemoCopy('2009_Honda_Fit_Sport', FigNum=1);
   % The view sent: the tail lights alone, seen from behind
-  sharedView = struct('Label', 'light_tail', 'PhotoAngle', 180);
+  sharedView = struct('Label', 'light_tailBrakeLamp', 'PhotoAngle', 180);
   viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView)
   ```
 
@@ -496,7 +496,7 @@ When a question is answered, its content moves into the right section above, and
   * Interior mesh is visible, this is definitely wrong. Is this an old version?
 
   *Claude, 04:58, on Sean's 4:26 notes:*
-  - *Labels all off at the start:* that view call asks for one label alone (`'Label','light_tail'`), and the agreed rule for old view calls (C2S 3 (A), 2026-11-23) opens it as "that label Colored? Yes, every other label Colored? No". Checked in MATLAB: tail lights Yes, the other 15 rows No. So it is as designed, but if it reads wrong in use, the rule can change (for example, the others Colored? Yes but drawn faint); Claude will ask once Q37 and Q38 are answered.
+  - *Labels all off at the start:* that view call asks for one label alone (`'Label','light_tailBrakeLamp'`), and the agreed rule for old view calls (C2S 3 (A), 2026-11-23) opens it as "that label Colored? Yes, every other label Colored? No". Checked in MATLAB: tail lights Yes, the other 15 rows No. So it is as designed, but if it reads wrong in use, the rule can change (for example, the others Colored? Yes but drawn faint); Claude will ask once Q37 and Q38 are answered.
   - *Interior visible, "is this an old version?":* no, the mesh is current (built 01:12). The interior label is still made by the build's voxel step (`labelInterior = true` in the Fit's script): 1,413 of the download's own faces relabeled `interior`. The agreed fix (the painter's P5, C2S 7) is not built yet; Q37 (chat, 04:33) asks whether to switch the voxel step off for the Fit now.
 - 2026-11-24 04:53 to 04:58 (Sean's results for T19 to T24, as written; Claude's fixes):
   - **T22's bug** ("If rotating with the spinner, it does not update"): a turn by the photo dial moved the camera without telling the readout (the dial's own turn is not counted as a mouse turn, so the timer never saw it). Now it does: T32.

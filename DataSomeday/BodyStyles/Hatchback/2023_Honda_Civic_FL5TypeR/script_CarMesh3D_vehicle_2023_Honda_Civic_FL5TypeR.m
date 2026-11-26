@@ -148,13 +148,13 @@ widthReference = 'mirrors';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlamp parts', 'Material','^headlight_(metal|sankaku)', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','turn signals (amber strips)', 'Material','^headlight_yellow', 'LightType','turnsignal');
-labelEditsAfterFit{end+1} = struct('Name','tail lamps', 'Material','^taillamp', 'LightType','tail');
-labelEditsAfterFit{end+1} = struct('Name','headlamp lenses (in the glass material: by region)', 'Region',[3.05 3.9 0.35 1 0.5 0.92], 'BothSides',true, 'CurrentPart','glass', 'LightType','headlight');
-labelEditsAfterFit{end+1} = struct('Name','tail lamp lenses (in the glass material: by region)', 'Region',[-1.05 -0.55 0.3 1 0.65 1.15], 'BothSides',true, 'CurrentPart','glass', 'LightType','tail');
+labelEditsAfterFit{end+1} = struct('Name','headlamp parts', 'Material','^headlight_(metal|sankaku)', 'LightType','headlamp');
+labelEditsAfterFit{end+1} = struct('Name','turn signals (amber strips)', 'Material','^headlight_yellow', 'LightType','turnSignalLamp');
+labelEditsAfterFit{end+1} = struct('Name','tail lamps', 'Material','^taillamp', 'LightType','tailBrakeLamp');
+labelEditsAfterFit{end+1} = struct('Name','headlamp lenses (in the glass material: by region)', 'Region',[3.05 3.9 0.35 1 0.5 0.92], 'BothSides',true, 'CurrentPart','glass', 'LightType','headlamp');
+labelEditsAfterFit{end+1} = struct('Name','tail lamp lenses (in the glass material: by region)', 'Region',[-1.05 -0.55 0.3 1 0.65 1.15], 'BothSides',true, 'CurrentPart','glass', 'LightType','tailBrakeLamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh ([] keeps every face)
 targetFaces = 24000;

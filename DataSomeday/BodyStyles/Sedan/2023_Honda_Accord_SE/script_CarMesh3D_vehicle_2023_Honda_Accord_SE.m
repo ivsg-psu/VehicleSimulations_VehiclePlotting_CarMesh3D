@@ -148,9 +148,9 @@ widthReference = 'mirrors';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','turn signals (amber lenses)', 'Material','AMBER', 'LightType','turnsignal');
+labelEditsAfterFit{end+1} = struct('Name','turn signals (amber lenses)', 'Material','AMBER', 'LightType','turnSignalLamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh ([] keeps every face)
 targetFaces = 24000;

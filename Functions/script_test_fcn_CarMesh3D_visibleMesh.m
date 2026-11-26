@@ -23,7 +23,7 @@ close all
 % The labeled sample, with its tail lights hidden in the set 'tail lamps'
 % and the front left wheel in the set 'front left wheel'
 sampleMesh = fcn_CarMesh3D_labelParts(fcn_CarMesh3D_fillSampleMesh(FigNum=-1), FigNum=-1);
-tailFaces = find(sampleMesh.FaceLightType==find(strcmp(sampleMesh.LightTypeNames,'tail')));
+tailFaces = find(sampleMesh.FaceLightType==find(strcmp(sampleMesh.LightTypeNames,'tailBrakeLamp')));
 wheelFaces = find(sampleMesh.FaceWheelIndex==1);
 hiddenMesh = fcn_CarMesh3D_editLabels(sampleMesh, Edits={struct('FaceIndices',tailFaces,'Hide','tail lamps'), ...
     struct('FaceIndices',wheelFaces,'Hide','front left wheel')}, FigNum=-1);

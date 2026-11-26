@@ -116,7 +116,7 @@ result = described;
 result.Skip = '';
 result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'FaceLightType'), ...
     fcn_INTERNAL_field(mesh, 'FaceColors'));
-numLamps = fcn_INTERNAL_countLamps(mesh, {'tail'});   % (the tail lamps are the brake lamps, lit bright)
+numLamps = fcn_INTERNAL_countLamps(mesh, {'tailBrakeLamp'});   % (the tail lamps are the brake lamps, lit bright)
 result.Note = sprintf('%s: %d tail and brake lamp faces', vehicle.Name, numLamps);
 if numLamps == 0
     result.Note = sprintf('%s: NO faces are labeled as tail or brake lamps', vehicle.Name);
@@ -156,7 +156,7 @@ for ith_view = 1:3
     closeAxes = axesHandles(3 + ith_view);
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, LightStates=struct('Tail', states{ith_view}), FigNum=-1);
     axis(closeAxes, 'equal', 'off');
-    fcn_INTERNAL_closeUp(closeAxes, mesh, {'tail'}, false, -135, 12);   % (the rear, from the left)
+    fcn_INTERNAL_closeUp(closeAxes, mesh, {'tailBrakeLamp'}, false, -135, 12);   % (the rear, from the left)
     title(closeAxes, captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     closeAxes.Title.Visible = 'on';
 end
@@ -181,7 +181,7 @@ count = 0;
 if ~isfield(mesh, 'FaceLightType') || ~isfield(mesh, 'LightTypeNames')
     return;
 end
-typeIndex = find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames));
+typeIndex = find(ismember(cellstr(mesh.LightTypeNames), typeNames));
 count = sum(ismember(mesh.FaceLightType, typeIndex));
 end % Ends fcn_INTERNAL_countLamps
 
@@ -195,7 +195,7 @@ function fcn_INTERNAL_closeUp(axesHandle, mesh, typeNames, flagFront, azimuth, e
 view(axesHandle, azimuth, elevation);
 flagFaces = false(size(mesh.Faces, 1), 1);
 if isfield(mesh, 'FaceLightType') && isfield(mesh, 'LightTypeNames')
-    flagFaces = ismember(mesh.FaceLightType, find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames)));
+    flagFaces = ismember(mesh.FaceLightType, find(ismember(cellstr(mesh.LightTypeNames), typeNames)));
 end
 centers = (mesh.Vertices(mesh.Faces(:,1),:) + mesh.Vertices(mesh.Faces(:,2),:) + mesh.Vertices(mesh.Faces(:,3),:))/3;
 middleX = (min(mesh.Vertices(:,1)) + max(mesh.Vertices(:,1)))/2;

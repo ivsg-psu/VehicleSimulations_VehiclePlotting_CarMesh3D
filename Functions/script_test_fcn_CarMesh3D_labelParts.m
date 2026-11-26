@@ -86,8 +86,8 @@ end
 assert(all(abs(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex==2) - 0.35)<1e-12));
 assert(all(vehicleMesh.FaceAlpha(vehicleMesh.FacePartIndex~=2)==1));
 % Light types from names: 4 headlight faces and 4 tail light faces
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlight'))));
-assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tail'))));
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'headlamp'))));
+assert(4==sum(vehicleMesh.FaceLightType==find(strcmp(vehicleMesh.LightTypeNames,'tailBrakeLamp'))));
 assert(all(vehicleMesh.FaceLightType(vehicleMesh.FacePartIndex~=4)==0));
 % The sample has no glass over its lamps: no lamp covers
 assert(all(vehicleMesh.FaceCoverLamp==0));
@@ -330,7 +330,7 @@ lampFaces = (size(sampleMesh.Faces,1)+1 : size(lampMesh.Faces,1))';
 newCenters = (lampMesh.Vertices(newFaces(:,1),:) + lampMesh.Vertices(newFaces(:,2),:) + lampMesh.Vertices(newFaces(:,3),:))/3;
 
 vehicleMesh = fcn_CarMesh3D_labelParts(lampMesh, FigNum=-1);
-highType = find(strcmp(vehicleMesh.LightTypeNames, 'highbeam'));
+highType = find(strcmp(vehicleMesh.LightTypeNames, 'highBeamLamp'));
 assert(~isempty(highType));
 flagHigh = vehicleMesh.FaceLightType(lampFaces)==highType;
 assert(all(flagHigh == (abs(newCenters(:,2)) < 0.42)), 'The inner lamps are the high beams');

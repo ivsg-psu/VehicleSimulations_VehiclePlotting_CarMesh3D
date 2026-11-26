@@ -9,7 +9,7 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 % The colors are:
 %   body light gray, glass light blue (partly see-through), wheels black,
 %   trim dark gray, a light with no type magenta; and, by light type,
-%   headlight yellow, turn signal orange, running cyan, tail red, backup
+%   headlamp yellow, turn signal orange, running cyan, tail red, backup
 %   green.
 %
 % With ColorBy='material', each face is colored by its MATERIAL instead
@@ -92,7 +92,7 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_plotLabels
-%   % * A label color for the 'highbeam' light type (blue) (Sean, 03:27)
+%   % * A label color for the 'highBeamLamp' light type (blue) (Sean, 03:27)
 %
 % 2026_11_23 (task 8) by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_plotLabels
@@ -217,8 +217,8 @@ end
 % for the gray seen through the windows; Sean, 00:05)
 partColors = struct('body',[0.97 0.97 0.97], 'glass',[0.55 0.80 1.00], 'wheel',[0.10 0.10 0.10], ...
     'light',[1.00 0.00 1.00], 'trim',[0.45 0.45 0.45], 'interior',[0.85 0.65 0.40]);
-lightColors = struct('headlight',[1.00 0.90 0.10], 'turnsignal',[1.00 0.50 0.00], 'running',[0.00 0.90 0.90], ...
-    'tail',[0.90 0.00 0.00], 'backup',[0.10 0.75 0.10], 'highbeam',[0.30 0.55 1.00]);
+lightColors = struct('headlamp',[1.00 0.90 0.10], 'turnSignalLamp',[1.00 0.50 0.00], 'runningLamp',[0.00 0.90 0.90], ...
+    'tailBrakeLamp',[0.90 0.00 0.00], 'backupLamp',[0.10 0.75 0.10], 'highBeamLamp',[0.30 0.55 1.00]);
 % (the newer lamp types: their label colors from fcn_CarMesh3D_lampTypes)
 lampNames = struct();   % (each lamp type's name for people: what the part is, rule P6)
 for thisType = fcn_CarMesh3D_lampTypes()'
@@ -356,7 +356,7 @@ if flag_do_plots
         title(axesHandle, sprintf('%s: part and light labels', titleText), 'Interpreter','none');
         annotation(figureHandle, 'textbox', [0 0.01 1 0.06], 'EdgeColor','none', 'HorizontalAlignment','center', ...
             'FontSize',9, 'String',['body light gray | glass light blue | wheels black | trim dark gray | interior tan | light with no type magenta | ' ...
-            'headlight yellow | turn signal orange | running cyan | tail red | backup green   (drag to rotate; scroll to zoom)']);
+            'headlamp yellow | turn signal orange | running cyan | tail red | backup green   (drag to rotate; scroll to zoom)']);
     end
     enableDefaultInteractivity(axesHandle);   % (drag rotates a 3D view; scroll zooms)
 end
@@ -370,11 +370,12 @@ end % Ends main function
 
 %% fcn_INTERNAL_readableName
 function readable = fcn_INTERNAL_readableName(name)
-% A label's name as a person reads it: 'turnsignal' to 'turn signal'
-known = struct('turnsignal', 'turn signal', 'highbeam', 'high beam', 'licenseplate', 'license plate', ...
-    'backup', 'backup', 'running', 'running');
-if isfield(known, name)
-    readable = known.(name);
+% A label's name as a person reads it: 'turnSignalLamp' to 'turn signal'
+lampTypes = fcn_CarMesh3D_lampTypes();
+match = find(strcmp({lampTypes.Name}, name), 1);
+if ~isempty(match)
+    % (a lamp by its name for people, rule P6; the keys are camelCase, Q92 (A))
+    readable = lower(strtrim(regexprep(lampTypes(match).Label, '\s*\([^)]*\)', '')));
 else
     readable = regexprep(char(name), '([a-z])([A-Z])', '$1 ${lower($2)}');
 end

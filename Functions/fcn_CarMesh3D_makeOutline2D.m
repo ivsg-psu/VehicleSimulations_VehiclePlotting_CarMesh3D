@@ -123,8 +123,8 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 %               only an 'interior' part, 'interior 1', ... front to rear)
 %               and Polygon (closed, counterclockwise); empty if the mesh
 %               has neither
-%           Lights: a structure array with Type ('headlight', 'turnsignal',
-%               'running', 'tail', 'backup', 'highbeam', or 'other'), Side ('left' or
+%           Lights: a structure array with Type ('headlamp', 'turnSignalLamp',
+%               'runningLamp', 'tailBrakeLamp', 'backupLamp', 'highBeamLamp', or 'other'), Side ('left' or
 %               'right'), and Polygon (closed, counterclockwise)
 %           Length, Width: the body's extent in X and Y (before thinning)
 %           PointCount: the number of points in all the polygons
@@ -186,7 +186,7 @@ function vehicleOutline = fcn_CarMesh3D_makeOutline2D(vehicleMesh, options)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_makeOutline2D
-%   % * A color for 'highbeam' lamps in the debug plot (Sean, 03:27)
+%   % * A color for 'highBeamLamp' lamps in the debug plot (Sean, 03:27)
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_makeOutline2D
@@ -607,8 +607,8 @@ if flag_do_plots
     figure(figNum);
     clf;
     layout = tiledlayout(2, 1, 'TileSpacing','compact', 'Padding','compact');
-    lightColors = struct('headlight',[0.85 0.80 0.55], 'turnsignal',[0.95 0.55 0.05], 'running',[0.85 0.80 0.55], ...
-        'tail',[0.80 0.05 0.05], 'backup',[0.60 0.60 0.60], 'highbeam',[0.85 0.85 0.75], 'other',[0.50 0.50 0.50]);
+    lightColors = struct('headlamp',[0.85 0.80 0.55], 'turnSignalLamp',[0.95 0.55 0.05], 'runningLamp',[0.85 0.80 0.55], ...
+        'tailBrakeLamp',[0.80 0.05 0.05], 'backupLamp',[0.60 0.60 0.60], 'highBeamLamp',[0.85 0.85 0.75], 'other',[0.50 0.50 0.50]);
     for thisType = fcn_CarMesh3D_lampTypes()'   % (the newer lamp types)
         if ~isfield(lightColors, thisType.Name)
             lightColors.(thisType.Name) = thisType.LabelColor;

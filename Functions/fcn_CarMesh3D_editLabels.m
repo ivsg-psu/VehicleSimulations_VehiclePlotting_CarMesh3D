@@ -38,13 +38,13 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %                    up in the rain), and the checks and outlines measure
 %                    the shown faces (fcn_CarMesh3D_visibleMesh)
 %       Unhide:      true to show the picked faces again
-%       LightType:   'headlight' (the low beam), 'highbeam',
-%                    'turnsignal', 'running', 'tail', 'backup', 'fog',
-%                    'reflector', 'licenseplate', 'marker', or 'warning'
+%       LightType:   'headlamp' (the low beam), 'highBeamLamp',
+%                    'turnSignalLamp', 'runningLamp', 'tailBrakeLamp', 'backupLamp', 'fogLamp',
+%                    'reflector', 'licensePlateLamp', 'markerLamp', or 'warningLamp'
 %                    (the names of fcn_CarMesh3D_lampTypes; this also
 %                    makes Part 'light')
 %       AlsoLightTypes: more light types the picked faces also are (a
-%                    cell array, such as {'turnsignal'}: a rear lamp that
+%                    cell array, such as {'turnSignalLamp'}: a rear lamp that
 %                    is a tail light and flashes as a turn signal; a front
 %                    running light that is a turn signal too). They are
 %                    kept in FaceLightFunctions (one column per light
@@ -69,7 +69,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %       Name:        optional description, printed in the summary
 % Example: make both taillight housings into tail lights:
 %       edits = {struct('Name','taillights', 'Region',[-0.8 -0.4 0.55 0.8 0.65 1.1], ...
-%                       'BothSides',true, 'Material','color_notint', 'LightType','tail')};
+%                       'BothSides',true, 'Material','color_notint', 'LightType','tailBrakeLamp')};
 %       vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
 %
 % INTERACTIVE EDITS. With Interactive=true, a window opens showing every
@@ -194,7 +194,7 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLabels
-%   % * 'highbeam' light type (Sean, 03:27); a mesh made before it gets it
+%   % * 'highBeamLamp' light type (Sean, 03:27); a mesh made before it gets it
 %   %   % added to its LightTypeNames (and a column in FaceLightFunctions)
 %   %   % when an edit needs it
 
@@ -228,6 +228,10 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % every face an edit touched took the part's default color: the
 %   %   % 2009 Fit's rebuild turned 724 body faces from its blue to grey,
 %   %   % where Sean had painted body over body with the Ctrl brush
+%   % * The new lamp keys (Q92 (A)): LightType and AlsoLightTypes matched
+%   %   % ignoring case and stored as fcn_CarMesh3D_lampTypes spells them
+%   %   % (camelCase, so no longer lowered); the old editor's list from
+%   %   % fcn_CarMesh3D_lampTypes
 
 % TO-DO:
 %
@@ -350,7 +354,7 @@ if 0==flag_max_speed
                     error('Edit %d has an unknown AlsoParts entry. Allowed: %s',ith_edit,strjoin(setdiff(partNames, {'light'}, 'stable')',', '));
                 end
             end
-            if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lightTypeNames))
+            if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes') && ~all(ismember(lower(cellstr(thisEdit.AlsoLightTypes)), lower(lightTypeNames)))
                 error('Edit %d has an unknown AlsoLightTypes entry. Allowed: %s',ith_edit,strjoin(lightTypeNames',', '));
             end
             if fcn_INTERNAL_hasValue(thisEdit,'Part') && ~any(strcmpi(thisEdit.Part, [partNames; {'delete'}]))
@@ -462,7 +466,7 @@ for ith_edit = 1:length(editList)
         end
         if fcn_INTERNAL_hasValue(thisEdit,'AlsoLightTypes')
             [vehicleMesh, newPart, newLightType] = fcn_INTERNAL_addLightFunctions(vehicleMesh, selectedFaces, ...
-                lower(cellstr(thisEdit.AlsoLightTypes)), newPart, newLightType, options.GlassAlpha);
+                fcn_INTERNAL_lampKey(cellstr(thisEdit.AlsoLightTypes)), newPart, newLightType, options.GlassAlpha);
         end
         if fcn_INTERNAL_hasValue(thisEdit,'AlsoParts')
             alsoParts = lower(cellstr(thisEdit.AlsoParts));
@@ -737,7 +741,7 @@ if ~isempty(newLightType)
     newPart = 'light';
 end
 newPart = lower(char(newPart));
-newLightType = lower(char(newLightType));
+newLightType = char(fcn_INTERNAL_lampKey(char(newLightType)));   % (the lamp keys are camelCase, Q92 (A): matched ignoring case)
 if isempty(selectedFaces)
     return;
 end
@@ -1037,8 +1041,7 @@ pieceOfFace = fcn_INTERNAL_connectedPieces(vehicleMesh);
 flagSelected = false(Nfaces,1);
 interactiveEdits = struct('Name',{},'Part',{},'LightType',{},'FaceIndices',{});
 undoStack = {};
-targetNames = {'body','glass','wheel','trim','interior','light: headlight','light: turnsignal', ...
-    'light: running','light: tail','light: backup'};
+targetNames = [{'body','glass','wheel','trim','interior'}, strcat({'light: '}, {fcn_CarMesh3D_lampTypes().Name})];   % (every lamp type, by its key: Q92 (A))
 selectModes = {'Connected piece','Single face','Same material','Same group'};
 
 editorFigure = figure('Name','CarMesh3D label editor','NumberTitle','off', ...
@@ -1197,3 +1200,25 @@ end
         delete(editorFigure);
     end
 end % Ends fcn_INTERNAL_interactiveEditor
+
+%% fcn_INTERNAL_lampKey
+function keys = fcn_INTERNAL_lampKey(names)
+% A lamp type's key as fcn_CarMesh3D_lampTypes spells it (camelCase, such
+% as 'tailBrakeLamp'), from a name given in any case; a name that is not
+% a lamp type is returned as it was
+lampNames = {fcn_CarMesh3D_lampTypes().Name};
+keys = names;
+flagChar = ischar(names);
+if flagChar
+    keys = {names};
+end
+for ith_name = 1:numel(keys)
+    match = find(strcmpi(keys{ith_name}, lampNames), 1);
+    if ~isempty(match)
+        keys{ith_name} = lampNames{match};
+    end
+end
+if flagChar
+    keys = keys{1};
+end
+end % Ends fcn_INTERNAL_lampKey

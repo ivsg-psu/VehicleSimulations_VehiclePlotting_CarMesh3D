@@ -243,9 +243,9 @@ widthReference = 'mirrors';
 % are part of the body) go in fcn_INTERNAL_editsBeforeFit at the end of
 % this script.
 labelEditsAfterFit = {};
-labelEditsAfterFit{end+1} = struct('Name','headlamp covers (in the glass material: by region)', 'Region',[2.80 3.45 0.20 0.90 0.45 0.75], 'BothSides',true, 'CurrentPart','glass', 'LightType','headlight');
+labelEditsAfterFit{end+1} = struct('Name','headlamp covers (in the glass material: by region)', 'Region',[2.80 3.45 0.20 0.90 0.45 0.75], 'BothSides',true, 'CurrentPart','glass', 'LightType','headlamp');
 % labelEditsAfterFit{end+1} = struct('Name','tail lights', 'Region',[xmin xmax ymin ymax zmin zmax], ...
-%     'BothSides',true, 'LightType','tail');
+%     'BothSides',true, 'LightType','tailBrakeLamp');
 
 % Face budget for the finished mesh: [] (usual) keeps every face of the
 % download, as it is; a number reduces the mesh to about that many faces

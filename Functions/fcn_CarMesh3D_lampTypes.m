@@ -25,7 +25,7 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %      lampTypes: a structure array, one element per lamp type, in the
 %      fixed order, with fields:
 %           Name: the type's name in a mesh's LightTypeNames, such as
-%               'headlight' or 'fog'
+%               'headlamp' or 'fogLamp'
 %           Label: its name for people: what the part IS, never what
 %               switches it (rule P6), such as 'Fog lamp'
 %           FaceColor: 1 x 3, the plain (unlit) color a face gets when it
@@ -100,6 +100,11 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %   %   % is the whole device that lights; a bulb is only its light source;
 %   %   % Q83 (A))
 %   %   % The Names (the keys saved in meshes) are unchanged
+%   % * The lamp keys renamed to lamp names (Q92 (A), Sean 09:47; no
+%   %   % aliases, Sean 10:36): headlamp, turnSignalLamp, runningLamp,
+%   %   % tailBrakeLamp, backupLamp, highBeamLamp, fogLamp, reflector,
+%   %   % licensePlateLamp, markerLamp, warningLamp. Saved data migrated once
+%   %   % (Claude's tools\zzQ92_migrate.m)
 
 % TO-DO:
 %
@@ -133,17 +138,17 @@ end
 
 %                Name           Label                        FaceColor           LabelColor          LitColor            SwitchedBy                                  NameRule                                           RuleOrder
 lampTable = {...
-    'headlight',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'Headlights (''low'' or ''high'') or LowBeam', 'head|front',                                      11;
-    'turnsignal',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
-    'running',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
-    'tail',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail (''on'', or ''brake'' for bright)',   'tail|brake|stop|rear',                            10;
-    'backup',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
-    'highbeam',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'Headlights (''high'') or HighBeam',        'high.?beam|hi.?beam|main.?beam',                  1;
-    'fog',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'FogLights',                                'fog',                                             2;
+    'headlamp',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'Headlights (''low'' or ''high'') or LowBeam', 'head|front',                                      11;
+    'turnSignalLamp',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
+    'runningLamp',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
+    'tailBrakeLamp',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail (''on'', or ''brake'' for bright)',   'tail|brake|stop|rear',                            10;
+    'backupLamp',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
+    'highBeamLamp',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'Headlights (''high'') or HighBeam',        'high.?beam|hi.?beam|main.?beam',                  1;
+    'fogLamp',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'FogLights',                                'fog',                                                 2;
     'reflector',   'Reflector (no lamp)',          [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          3;
-    'licenseplate','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
-    'marker',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
-    'warning',     'Warning lamp (beacon)',        [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|beacon|strobe|hazard|emergency',          9};
+    'licensePlateLamp','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
+    'markerLamp',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
+    'warningLamp',     'Warning lamp (beacon)',        [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|beacon|strobe|hazard|emergency',          9};
 
 lampTypes = cell2struct(lampTable, {'Name','Label','FaceColor','LabelColor','LitColor','SwitchedBy','NameRule','RuleOrder'}, 2);
 lampTypes = lampTypes(:);
@@ -152,24 +157,24 @@ lampTypes = lampTypes(:);
 % on lights it). EDIT HERE to change a default for every vehicle; give a
 % vehicle its own with the mesh field LampSwitching (see above)
 switchedByStates = struct( ...
-    'fog',          {{'FogLights'}}, ...
+    'fogLamp',          {{'FogLights'}}, ...
     'reflector',    {{'Reflectors'}}, ...
-    'licenseplate', {{'Tail'}}, ...
-    'marker',       {{'Running'}}, ...
-    'warning',      {{'Hazards'}});
+    'licensePlateLamp', {{'Tail'}}, ...
+    'markerLamp',       {{'Running'}}, ...
+    'warningLamp',      {{'Hazards'}});
 % The key sources for each type's switching (EDIT HERE as sources are
 % found; Sean, 23:24). US rules: FMVSS No. 108, 49 CFR 571.108
 fmvss108 = 'https://www.ecfr.gov/current/title-49/subtitle-B/chapter-V/part-571/subpart-B/section-571.108';
 sources = struct( ...
-    'turnsignal',   {{['FMVSS No. 108, S7.1 Turn signal lamps; S6.1.5.1 Hazard warning signal (both turn signals flash): ' fmvss108]}}, ...
-    'tail',         {{['FMVSS No. 108, S7.8 Taillamps and S7.3 Stop lamps: ' fmvss108]}}, ...
-    'backup',       {{['FMVSS No. 108, S7.5 Backup lamps (lit in reverse gear): ' fmvss108]}}, ...
-    'running',      {{['FMVSS No. 108, S7.10 Daytime running lamps: ' fmvss108]}}, ...
+    'turnSignalLamp',   {{['FMVSS No. 108, S7.1 Turn signal lamps; S6.1.5.1 Hazard warning signal (both turn signals flash): ' fmvss108]}}, ...
+    'tailBrakeLamp',         {{['FMVSS No. 108, S7.8 Taillamps and S7.3 Stop lamps: ' fmvss108]}}, ...
+    'backupLamp',       {{['FMVSS No. 108, S7.5 Backup lamps (lit in reverse gear): ' fmvss108]}}, ...
+    'runningLamp',      {{['FMVSS No. 108, S7.10 Daytime running lamps: ' fmvss108]}}, ...
     'reflector',    {{['FMVSS No. 108, S7.11 Reflex reflectors (no power: lit by outside light): ' fmvss108]}}, ...
-    'licenseplate', {{['FMVSS No. 108, S7.7 License plate lamps (activated with the taillamps): ' fmvss108]}}, ...
-    'marker',       {{['FMVSS No. 108, S7.4 Side marker lamps (activated with the taillamps and parking lamps): ' fmvss108]}}, ...
-    'warning',      {{['FMVSS No. 108, S6.1.5.1 Hazard warning signal: ' fmvss108]}}, ...
-    'fog',          {{'(none yet) Front fog lamps are optional in FMVSS No. 108; makers switch them in several ways (Sean, 23:23)'}});
+    'licensePlateLamp', {{['FMVSS No. 108, S7.7 License plate lamps (activated with the taillamps): ' fmvss108]}}, ...
+    'markerLamp',       {{['FMVSS No. 108, S7.4 Side marker lamps (activated with the taillamps and parking lamps): ' fmvss108]}}, ...
+    'warningLamp',      {{['FMVSS No. 108, S6.1.5.1 Hazard warning signal: ' fmvss108]}}, ...
+    'fogLamp',          {{'(none yet) Front fog lamps are optional in FMVSS No. 108; makers switch them in several ways (Sean, 23:23)'}});
 for ith_type = 1:numel(lampTypes)
     lampTypes(ith_type).Sources = {};
     if isfield(sources, lampTypes(ith_type).Name)

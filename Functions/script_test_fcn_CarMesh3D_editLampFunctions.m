@@ -32,6 +32,11 @@ assert(istable(startMatrix) && height(startMatrix) == numel(editor.Units()));
 assert(isgraphics(editor.Figure) && isstruct(editor.Viewer));
 assert(strcmp(editor.Signal(), 'LowBeam') && strcmp(editor.Mode(), 'table'));
 assert(~isempty(findall(editor.Figure, 'Tag', 'lampTable')), 'The table is drawn');
+% (its own top bar, with the viewer's Mesh, Grid and sun/moon at the right:
+% Sean 10:41)
+zzBar = findall(editor.Figure, 'Tag', 'lampTopBar');
+assert(isscalar(zzBar) && isscalar(findall(zzBar, 'Tag', 'dayNightButton')) && isscalar(findall(zzBar, 'Tag', 'meshToggle')) ...
+    && isscalar(findall(zzBar, 'Tag', 'groundToggle')), 'The top bar has Mesh, Grid and the sun/moon');
 % (readable at any number of lamps: T80, T81 BUG; names at 11 pt, rows of
 % at least 20 px, however short the panel)
 zzNames = findall(editor.Figure, 'Tag', 'lampRowName');
@@ -66,7 +71,7 @@ assert(isempty(editor.AlsoOn()), 'The edited signal is never also on');
 
 %% TEST case: a cell set; its row edited; the checks
 fprintf(1, 'TEST case: values and checks\n');
-fogRow = find(strcmp(startMatrix.Kind, 'fog'), 1);
+fogRow = find(strcmp(startMatrix.Kind, 'fogLamp'), 1);
 targetUnit = lowBeamUnits(1);
 editor.SetValue(targetUnit, 'Running', 0.33);
 matrixNow = editor.Table();

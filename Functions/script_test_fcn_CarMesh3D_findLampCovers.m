@@ -24,8 +24,8 @@ close all
 % from any lamp, a left and a right turn signal each with a cover marked
 % the old way (a light that is also glass), and a body panel
 [testMesh, faceInfo] = fcn_INTERNAL_coverMesh;
-headType = find(strcmp(testMesh.LightTypeNames,'headlight'));
-turnType = find(strcmp(testMesh.LightTypeNames,'turnsignal'));
+headType = find(strcmp(testMesh.LightTypeNames,'headlamp'));
+turnType = find(strcmp(testMesh.LightTypeNames,'turnSignalLamp'));
 glassIndex = find(strcmp(testMesh.PartNames,'glass'));
 lightIndex = find(strcmp(testMesh.PartNames,'light'));
 
@@ -339,7 +339,7 @@ function [testMesh, faceInfo] = fcn_INTERNAL_coverMesh
 %   front of it marked the old way: a light that is also glass
 %   a body panel below the lamps
 partNames = {'body';'glass';'wheel';'light';'trim'};
-lightTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam'};
+lightTypeNames = {'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp';'highBeamLamp'};
 squares = { ...   % x, [ymin ymax], [zmin zmax], part, light type, also glass, name
     1.00, [ 0.40  0.60], [0.50 0.70], 4, 1, false, 'headLamp';
     1.02, [ 0.38  0.62], [0.48 0.72], 2, 0, false, 'headCover';

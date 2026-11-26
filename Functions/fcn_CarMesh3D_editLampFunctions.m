@@ -102,6 +102,9 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   %   % instead of the rows shrinking. The tuner's names at 11 pt, wrapped
 %   %   % at the underscores. The column 520 px wide (T80, T81 BUG: "lamp
 %   %   % labels on matrix too small to see clearly")
+%   % * A top bar in its own window, as the viewer's and the painter's: its
+%   %   % name, and the Mesh, Grid and sun/moon buttons at the right (Sean,
+%   %   % 10:41, in place of Q94 (A))
 
 % TO-DO:
 %
@@ -194,12 +197,19 @@ if isempty(options.Parent)
     figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_editLampFunctions: %s', vehicleName), ...
         'Position', [60 60 1500 900], 'Visible', 'off', 'Tag', 'lampFunctionsWindow', ...
         'CloseRequestFcn', @(~,~) closeEditor());
-    rootGrid = uigridlayout(figureHandle, [1 2], 'ColumnWidth', {520, '1x'}, 'Padding', [4 4 4 4]);   % (520: the table's names at 11 pt, T80)
+    % (a top bar as in the viewer and the painter: the window's name at the
+    % left, and at the right the viewer's Mesh, Grid and sun/moon buttons;
+    % Sean, 2026-11-26 10:41: one top bar design in every window)
+    outerGrid = uigridlayout(figureHandle, [2 1], 'RowHeight', {36, '1x'}, 'Padding', [4 4 4 4], 'RowSpacing', 3);
+    topBar = uigridlayout(outerGrid, [1 4], 'ColumnWidth', {'1x', 70, 70, 44}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6, ...
+        'Tag', 'lampTopBar');
+    uilabel(topBar, 'Text', sprintf('Lamp functions: %s', vehicleName), 'FontWeight', 'bold', 'FontSize', 13, 'Interpreter', 'none');
+    rootGrid = uigridlayout(outerGrid, [1 2], 'ColumnWidth', {520, '1x'}, 'Padding', [0 0 0 0]);   % (520: the table's names at 11 pt, T80)
     columnPanel = uipanel(rootGrid, 'BorderType', 'none');
     if isempty(viewer)
         viewPanel = uipanel(rootGrid, 'BorderType', 'none');
         [~, viewer] = fcn_CarMesh3D_viewLabels(vehicleMesh, Parent=viewPanel, ShowTools=false, ...
-            CheckStale=false, Visible=options.Visible, Wait=false);
+            CheckStale=false, Visible=options.Visible, Wait=false, QuickBar=topBar);
     end
 else
     columnPanel = options.Parent;
@@ -601,7 +611,7 @@ end
             end
         end
         for ith_unit = 1:numUnits
-            if ~any(values(ith_unit,:) > 0) && ~strcmp(units(ith_unit).Kind, 'warning')
+            if ~any(values(ith_unit,:) > 0) && ~strcmp(units(ith_unit).Kind, 'warningLamp')
                 lines{end+1} = sprintf('No signal lights the %s.', unitNames{ith_unit}); %#ok<AGROW>
             end
         end

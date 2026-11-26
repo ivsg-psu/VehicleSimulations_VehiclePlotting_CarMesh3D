@@ -151,6 +151,25 @@ fcn_INTERNAL_pick(figureHandle, 'C');
 doneText = hooks.Done();
 assert(contains(doneText, 'Q91 (C)') && ~contains(doneText, 'Q90'), 'Only what is new since the last Done');
 
+%% Paste picture: saved with the answer, named in Done (Q93 (A))
+fprintf(1, 'Paste picture\n');
+pause(1.1);   % (When is to the second: after the last Done)
+hooks.Show('Q91');
+pictureName = hooks.PastePicture(uint8(repmat(reshape([200 30 30], 1, 1, 3), 40, 60)));   % (a picture given: the tests cannot fill the clipboard)
+assert(startsWith(pictureName, 'Q91_') && isfile(fullfile(queueFolder, 'pictures', pictureName)), 'Saved in the pictures folder');
+assert(isequal(hooks.Pictures(), {pictureName}), 'Listed with the item');
+assert(strcmp(findall(figureHandle, 'Tag', 'aqPictureThumb').Visible, 'on') && ...
+    strcmp(findall(figureHandle, 'Tag', 'aqPictureCount').Text, '1 picture'), 'Shown small, with a count');
+recorded = hooks.Answers();
+assert(contains(recorded.Pictures(recorded.ID == "Q91"), pictureName), 'The answer names it');
+doneText = hooks.Done();
+assert(contains(doneText, pictureName) && contains(doneText, 'Q91 (C)'), 'Done names it, with the answer kept');
+hooks.Show('Q90');
+assert(isempty(hooks.Pictures()) && strcmp(findall(figureHandle, 'Tag', 'aqPictureThumb').Visible, 'off'), 'Another item: none');
+hooks.Show('Q91');
+hooks.RemovePicture();
+assert(isempty(hooks.Pictures()) && isfile(fullfile(queueFolder, 'pictures', 'removed', pictureName)), 'Remove moves it aside');
+
 %% NOW: the item, the answer and comment, and the last error
 fprintf(1, 'NOW\n');
 hooks.Show('Q90');

@@ -680,7 +680,7 @@ for ith_view = 1:4
     fcn_INTERNAL_caption(figureHandle, viewTitles{ith_view});
     pictures{ith_view} = fcn_INTERNAL_capture(figureHandle, settings.PanelSize, true);
 end
-legendText = 'Labels:  body white | glass light blue | wheels black | trim dark gray | light with no type magenta | headlight yellow | turn signal orange | running cyan | tail red | backup green';
+legendText = 'Labels:  body white | glass light blue | wheels black | trim dark gray | light with no type magenta | headlamp yellow | turn signal orange | running cyan | tail red | backup green';
 fileName = fcn_INTERNAL_montage(pictures, 2, 2, sprintf('%s: part and light labels', settings.VehicleName), legendText, settings, fileName);
 
 % The .fig is one 3D view that can be rotated and zoomed (in place of the

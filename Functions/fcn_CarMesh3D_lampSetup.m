@@ -40,7 +40,7 @@ function lampSetup = fcn_CarMesh3D_lampSetup(vehicleMesh, options)
 %
 %      lampSetup: a structure with
 %           Units: the units (fcn_CarMesh3D_lampUnits)
-%           Kinds, Sides: each unit's kind ('headlight', ...) and side
+%           Kinds, Sides: each unit's kind ('headlamp', ...) and side
 %               ('left', 'right', 'center')
 %           FaceUnit: each face's unit, if it is a lamp face (else 0)
 %           FaceCoverUnit: each face's unit, if it is a cover (else 0)

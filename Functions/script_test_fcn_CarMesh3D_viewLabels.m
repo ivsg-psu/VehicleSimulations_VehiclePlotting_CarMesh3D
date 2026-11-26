@@ -156,12 +156,12 @@ assert(viewer5.Patch.FaceVertexAlphaData(1) == 0 && isequal(viewer5.Hidden(), {'
 % (a new mesh with the same faces: face 2 relabeled as a tail light)
 relabeled = loaded.vehicleMesh;
 lightPart = find(strcmp(relabeled.PartNames, 'light'), 1);
-tailType = find(strcmp(relabeled.LightTypeNames, 'tail'), 1);
+tailType = find(strcmp(relabeled.LightTypeNames, 'tailBrakeLamp'), 1);
 relabeled.FacePartIndex(2) = lightPart;
 relabeled.FaceLightType(2) = tailType;
 viewer5.SetMesh(relabeled, viewer5.Patch.FaceVertexCData, ones(numFaces,1));
-viewer5.ShowLabel('light_tail');
-assert(strcmp(viewer5.Label(), 'light_tail'));
+viewer5.ShowLabel('light_tailBrakeLamp');
+assert(strcmp(viewer5.Label(), 'light_tailBrakeLamp'));
 viewer5.Stop();
 rmappdata(0, 'testViewerHint');
 delete(hostFigure);
@@ -214,7 +214,7 @@ loaded = load(meshFile, 'vehicleMesh');
 flagLamp = loaded.vehicleMesh.FaceLightType(:) > 0;
 assert(~any(viewer.NightLights().LowBeam));
 viewer.SetNightLights(struct('Tail', 'brake'));
-flagTail = loaded.vehicleMesh.FaceLightType(:) == find(strcmp(loaded.vehicleMesh.LightTypeNames, 'tail'));
+flagTail = loaded.vehicleMesh.FaceLightType(:) == find(strcmp(loaded.vehicleMesh.LightTypeNames, 'tailBrakeLamp'));
 assert(all(max(abs(viewer.Patch.FaceVertexCData(flagTail,:) - [1.00 0.12 0.08]), [], 2) < 1e-9), 'Brake lights lit by day');
 % (and the clear covers of lit lamps, which glow in the lamp's lit color by day too: 2026_11_24)
 if isfield(loaded.vehicleMesh, 'FaceCoverLamp')
@@ -442,6 +442,24 @@ end
 menuButtonNow = findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'viewerMenu');
 assert(dayNightButton.Parent == menuButtonNow.Parent, 'The sun/moon button is in the top bar, with the Menu');
 assert(dayNightButton.Layout.Column == numel(dayNightButton.Parent.ColumnWidth), 'The sun/moon button is at the bar''s right end');
+% (beside it, Mesh and Grid: pressed while on, and following the settings
+% however they change; Sean 10:41)
+meshToggle = findall(viewer.Figure, 'Tag', 'meshToggle');
+groundToggle = findall(viewer.Figure, 'Tag', 'groundToggle');
+assert(isscalar(meshToggle) && isscalar(groundToggle) && meshToggle.Parent == dayNightButton.Parent, 'Mesh and Grid in the top bar');
+assert(meshToggle.Layout.Column == dayNightButton.Layout.Column - 2 && groundToggle.Layout.Column == dayNightButton.Layout.Column - 1, ...
+    'Mesh, Grid, then the sun/moon');
+assert(groundToggle.Value == viewer.Ground() && meshToggle.Value == viewer.Boundaries(), 'They show the settings');
+groundToggle.Value = false;
+groundToggle.ValueChangedFcn(groundToggle, []);
+assert(~viewer.Ground(), 'Grid off: no ground');
+viewer.SetGround(true);
+assert(groundToggle.Value, 'Grid follows the setting');
+meshToggle.Value = true;
+meshToggle.ValueChangedFcn(meshToggle, []);
+assert(viewer.Boundaries(), 'Mesh on: the edges drawn');
+viewer.SetBoundaries(false);
+assert(~meshToggle.Value, 'Mesh follows the setting');
 % (Sean's T7: the camera's angles and distance in Overall Display)
 camera = viewer.CameraInfo();
 assert(all(isfield(camera, {'DialAngle','DownAngle','Distance'})) && camera.Distance > 0, 'CameraInfo');

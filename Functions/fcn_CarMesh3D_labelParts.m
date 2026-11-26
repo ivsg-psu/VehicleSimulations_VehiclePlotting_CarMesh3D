@@ -12,9 +12,9 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 % Users can add their own rules, which are checked first.
 %
 % Light faces are also given a light type, used to switch them on and off
-% in fcn_CarMesh3D_plotVehicle: 'headlight' (the low beams, or both beams
-% when no high beams are found), 'turnsignal', 'running', 'tail',
-% 'backup', or 'highbeam'. The type comes from the names (for example
+% in fcn_CarMesh3D_plotVehicle: 'headlamp' (the low beams, or both beams
+% when no high beams are found), 'turnSignalLamp', 'runningLamp', 'tailBrakeLamp',
+% 'backupLamp', or 'highBeamLamp'. The type comes from the names (for example
 % 'TurnSignal', 'Reverse', 'TailLight', 'HighBeam'); a light with no
 % recognized type becomes a headlight if it is in the front half of the
 % vehicle, and a tail light if it is in the rear half. Then, with
@@ -141,9 +141,9 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %           FaceColors (M x 3): RGB display color of each face
 %           FaceAlpha (M x 1): transparency of each face
 %           LightTypeNames (cell, one per lamp type): the names of
-%               fcn_CarMesh3D_lampTypes, in its order ('headlight',
-%               'turnsignal', 'running', 'tail', 'backup', 'highbeam',
-%               'fog', 'reflector', 'licenseplate', 'marker', 'warning')
+%               fcn_CarMesh3D_lampTypes, in its order ('headlamp',
+%               'turnSignalLamp', 'runningLamp', 'tailBrakeLamp', 'backupLamp', 'highBeamLamp',
+%               'fogLamp', 'reflector', 'licensePlateLamp', 'markerLamp', 'warningLamp')
 %           FaceLightType (M x 1): index into LightTypeNames for light
 %               faces, 0 for all other faces
 %           TextureColorParts (cell): the TextureColorParts option
@@ -209,12 +209,12 @@ function vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh, options)
 %
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_labelParts
-%   % * High beams as a lamp type of their own, 'highbeam' (Sean, 03:19
+%   % * High beams as a lamp type of their own, 'highBeamLamp' (Sean, 03:19
 %   %   % and 03:27: separate bulbs in separate places, as on the Fit);
 %   %   % found by name, or by AutoHighBeams: each side's headlight split
 %   %   % in two by position where its faces clearly form two clusters
 %   %   % (the inner, or upper, one is the high beam), as a start to fix
-%   %   % in the label painter. 'headlight' is the low beam (or both
+%   %   % in the label painter. 'headlamp' is the low beam (or both
 %   %   % beams, when a vehicle has no high beams)
 %
 % 2026_11_23 (later) by Sean Brennan, sbrennan@psu.edu

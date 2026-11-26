@@ -80,6 +80,7 @@ function result = fcn_CarMesh3D_assess_headlights(vehicleInput, options)
 %   % * Two rows (Sean, T76 (B)): the far views on top ("Far view"), and
 %   %   % close-ups of the left (driver's side) headlight below
 %   %   % (drafted with Claude)
+%   % * The new lamp keys (Q92 (A)); type names compared as spelled
 
 % TO-DO:
 %
@@ -99,7 +100,7 @@ described = struct('Key', 'headlights', 'Title', 'Headlights', ...
     'Answers', {{'Yes', 'No'}}, 'ProblemAnswers', {{'No'}}, ...
     'Help', ['The front at night, three times: headlights off, on low beam, on high beam, with the beams on ' ...
     'the ground ahead (short and wide for low; long and narrow added for high); below, the same close up on ' ...
-    'the left (driver''s side) headlight. No if a headlight ' ...
+    'the left (driver''s side) headlamp. No if a headlamp ' ...
     'does not light, the wrong part lights (such as the grille), or a lamp lights when it should be ' ...
     'off.'], ...
     'Detail', 'If unsure, select No and check the night view in the viewer; fix in the painter. Do not select Yes if unsure.', ...
@@ -116,7 +117,7 @@ result = described;
 result.Skip = '';
 result.Fingerprint = fcn_CarMesh3D_fingerprint(mesh.Vertices, mesh.Faces, fcn_INTERNAL_field(mesh, 'FaceLightType'), ...
     fcn_INTERNAL_field(mesh, 'FaceColors'));
-numLamps = fcn_INTERNAL_countLamps(mesh, {'headlight', 'highbeam'});
+numLamps = fcn_INTERNAL_countLamps(mesh, {'headlamp', 'highBeamLamp'});
 result.Note = sprintf('%s: %d headlight faces', vehicle.Name, numLamps);
 if numLamps == 0
     result.Note = sprintf('%s: NO faces are labeled as headlights', vehicle.Name);
@@ -129,7 +130,7 @@ end
 states = {'off', 'low', 'high'};
 captions = {'Headlights off', 'Low beam', 'High beam'};
 axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, Dark=true, ...
-    RowLabels={'Far view', 'Close-up of left headlight'}, FigNum=options.FigNum);
+    RowLabels={'Far view', 'Close-up of left headlamp'}, FigNum=options.FigNum);
 % (the beams: plotVehicle's light pools, on a dark ground that reaches
 % groundAhead meters in front of the vehicle, seen from above the front
 % left so the cones show; Sean, T63)
@@ -156,7 +157,7 @@ for ith_view = 1:3
     closeAxes = axesHandles(3 + ith_view);
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, LightStates=struct('Headlights', states{ith_view}), FigNum=-1);
     axis(closeAxes, 'equal', 'off');
-    fcn_INTERNAL_closeUp(closeAxes, mesh, {'headlight', 'highbeam'}, true, 135, 12);
+    fcn_INTERNAL_closeUp(closeAxes, mesh, {'headlamp', 'highBeamLamp'}, true, 135, 12);
     title(closeAxes, captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     closeAxes.Title.Visible = 'on';
 end
@@ -181,7 +182,7 @@ count = 0;
 if ~isfield(mesh, 'FaceLightType') || ~isfield(mesh, 'LightTypeNames')
     return;
 end
-typeIndex = find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames));
+typeIndex = find(ismember(cellstr(mesh.LightTypeNames), typeNames));
 count = sum(ismember(mesh.FaceLightType, typeIndex));
 end % Ends fcn_INTERNAL_countLamps
 
@@ -195,7 +196,7 @@ function fcn_INTERNAL_closeUp(axesHandle, mesh, typeNames, flagFront, azimuth, e
 view(axesHandle, azimuth, elevation);
 flagFaces = false(size(mesh.Faces, 1), 1);
 if isfield(mesh, 'FaceLightType') && isfield(mesh, 'LightTypeNames')
-    flagFaces = ismember(mesh.FaceLightType, find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames)));
+    flagFaces = ismember(mesh.FaceLightType, find(ismember(cellstr(mesh.LightTypeNames), typeNames)));
 end
 centers = (mesh.Vertices(mesh.Faces(:,1),:) + mesh.Vertices(mesh.Faces(:,2),:) + mesh.Vertices(mesh.Faces(:,3),:))/3;
 middleX = (min(mesh.Vertices(:,1)) + max(mesh.Vertices(:,1)))/2;

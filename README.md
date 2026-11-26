@@ -41,7 +41,7 @@ Two maps join the layers, and each is edited in its own place:
 
 - **Labels connect position to meaning.** A wrong label means faces were painted wrong: fix it in the painter (`fcn_CarMesh3D_paintLabels`).
 - **Functions connect meaning to signals.** A wrong function means a meaning is wired to the wrong signal: fix it in the lamp-to-function matrix (being designed, 2026-11-26), never by painting.
-- **Never put a function in a label.** A label says what a part *is*, never what switches it: "headlamp", not "low beams". Many cars light one lamp for several functions (the 2009 Fit's daytime running lights are its high-beam lamps, dimmed), and one function lights many lamps (a left turn lights the front-left and rear-left turn-signal lamps); a label that names a function cannot say either. The names people see were renamed to what each lamp is on 2026-11-26; the keys saved inside meshes are to follow (Q78 (A)).
+- **Never put a function in a label.** A label says what a part *is*, never what switches it: "headlamp", not "low beams". Many cars light one lamp for several functions (the 2009 Fit's daytime running lights are its high-beam lamps, dimmed), and one function lights many lamps (a left turn lights the front-left and rear-left turn-signal lamps); a label that names a function cannot say either. The names people see were renamed to what each lamp is on 2026-11-26, and so were the keys saved inside meshes, label fixes and lamp-function files (Q78 (A), Q92 (A)): `headlamp`, `turnSignalLamp`, `runningLamp`, `tailBrakeLamp`, `backupLamp`, `highBeamLamp`, `fogLamp`, `reflector`, `licensePlateLamp`, `markerLamp`, `warningLamp`. The old keys (`headlight`, `tail`, ...) are no longer read: the data was converted once.
 - **"Lamp" means the whole device that lights; a "bulb" is only its light source** (Sean, 2026-11-26 00:57 and 01:47). A lamp is its bulb or LEDs, reflector and cover: everything that glows when it is on. CarMesh3D labels and switches lamps; bulbs and filaments are not modeled. A detailed mesh may draw a real bulb; most downloads do not, and model only a lamp's housing, lens and colored sections. Either way, the faces that light are the lamp. Its cover glass is part of the lamp, and lights with it. Say "lamp" unless the light source itself is meant ("the Fit's DRL is its high-beam filament, dimmed").
 - **Time is not part of the mesh** (Sean, 2026-11-26 01:35). The three layers say where a part is, what it is, and what lights it, and how bright, *when* a signal is on. When signals come on, go off, flash or follow a sequence is decided by whatever drives them (AnimateCar3D, or your own loop), never stored with the vehicle. Example: hazard lights flashing on and off change neither the lamps' position, their labels, nor which signal lights them; only the signals change, in time.
 - **Faults belong to layer 3.** A broken brake lamp is a change to the functions (that unit no longer answers the brake signal), not to the labels: the library keeps each vehicle as designed, and a tool such as AnimateCar3D can change the functions it uses.
@@ -693,17 +693,17 @@ Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by
 
 | Type | Lamp | Lit by (`LightStates`) | Lit color |
 |---|---|---|---|
-| `'headlight'` | Low beam (both beams, on a vehicle with no high-beam faces) | `Headlights` ('low' or 'high'), or `LowBeam` | warm white |
-| `'highbeam'` | High beam, a lamp of its own | `Headlights` ('high'), or `HighBeam` | white |
-| `'turnsignal'` | Turn signal; left and right are found from position (Y > 0 is left), so a turn signal is labeled once | `TurnLeft`, `TurnRight`, or `Hazards` | amber |
-| `'running'` | Front running lights (DRL) | `Running` | white |
-| `'tail'` | Tail lights (and the brake lights: braking makes them bright) | `Tail` ('on', or 'brake') | dark red; bright red braking |
-| `'backup'` | Backup (reverse) lights | `Backup` | white |
-| `'fog'` | Fog lamps | `FogLights` | warm white |
+| `'headlamp'` | Low beam (both beams, on a vehicle with no high-beam faces) | `Headlights` ('low' or 'high'), or `LowBeam` | warm white |
+| `'highBeamLamp'` | High beam, a lamp of its own | `Headlights` ('high'), or `HighBeam` | white |
+| `'turnSignalLamp'` | Turn signal; left and right are found from position (Y > 0 is left), so a turn signal is labeled once | `TurnLeft`, `TurnRight`, or `Hazards` | amber |
+| `'runningLamp'` | Front running lights (DRL) | `Running` | white |
+| `'tailBrakeLamp'` | Tail lights (and the brake lights: braking makes them bright) | `Tail` ('on', or 'brake') | dark red; bright red braking |
+| `'backupLamp'` | Backup (reverse) lights | `Backup` | white |
+| `'fogLamp'` | Fog lamps | `FogLights` | warm white |
 | `'reflector'` | Reflectors: no power of their own; they glow when outside light (another vehicle's headlights, a street light) falls on them | `Reflectors` (the outside light, 0 to 1) | their own color (amber, red or white), brighter |
-| `'licenseplate'` | License plate lamp | lit whenever the tail lights (or parking lights) are | white |
-| `'marker'` | Marker lamps (side markers, clearance lamps) | lit with the running, parking and tail lights | their own color, brighter |
-| `'warning'` | Warning lamps (beacons, light bars, arrow boards) | no signal by default: switched by your own loop | their own color, brighter |
+| `'licensePlateLamp'` | License plate lamp | lit whenever the tail lights (or parking lights) are | white |
+| `'markerLamp'` | Marker lamps (side markers, clearance lamps) | lit with the running, parking and tail lights | their own color, brighter |
+| `'warningLamp'` | Warning lamps (beacons, light bars, arrow boards) | no signal by default: switched by your own loop | their own color, brighter |
 
 **The lamp-to-function (L2F) matrix** (2026-11-26; `Documents/Documentation_CarMesh3D_GUIdesign_lampFunctions.md`). The "Lit by" column above is now each vehicle's default; what really lights each lamp is the vehicle's matrix. Faces of one lamp label that sit together form a **lamp unit** ("front-left headlamp", "rear-center tail/brake lamp": `fcn_CarMesh3D_lampUnits`); the matrix gives each unit a brightness from 0 to 1 for each **signal** (`fcn_CarMesh3D_lampSignals`: LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight, Tail, Brake, Backup, FogLights, Reflectors). It is kept with the vehicle as `lampFunctions_<ID>.csv`, every unit and every cell, rows changed by hand marked `edited` with their source (`fcn_CarMesh3D_lampFunctions`); the 2009 Fit's file says its daytime running lights are its headlamps at 0.3. `fcn_CarMesh3D_plotVehicle` and the viewers light lamps from it through one set of rules (`fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`), and AnimateCar3D can mark units as failed at run time (`LampFaults`). The matrix is set in a window of its own, `fcn_CarMesh3D_editLampFunctions` (also the painter's Lamp Functions panel): pick the signal to edit, see other signals lit with it, and set each lamp with bar cells or vertical sliders. The older `LampSwitching` field and `FaceLightFunctions` are read once, to make a vehicle's first matrix.
 
@@ -863,10 +863,10 @@ A window shows each part and light type in its own color. Click on the vehicle t
 edits = {};
 edits{end+1} = struct('Name','headlight housings and lenses', ...
     'Region',[2.90 3.45 0.45 0.82 0.55 0.82], 'BothSides',true, ...
-    'Material','color_notint|glass_ex', 'LightType','headlight');
+    'Material','color_notint|glass_ex', 'LightType','headlamp');
 edits{end+1} = struct('Name','tail lights', ...
     'Region',[-0.80 -0.45 0.55 0.80 0.95 1.12], 'BothSides',true, ...
-    'Material','color_notint', 'LightType','tail');
+    'Material','color_notint', 'LightType','tailBrakeLamp');
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits);
 ```
 
@@ -1169,7 +1169,7 @@ A finished `vehicleMesh` (here the 2009 Fit: N = 31,293 vertices, M = 22,276 fac
 | `FaceCoverLamp` | M x 1 | findLampCovers | For a clear cover in front of a lamp, the light type of the lamp it covers (0 for other faces) |
 | `LampSwitching` | struct (optional) | the vehicle script | This vehicle's own lamp switching, overriding `fcn_CarMesh3D_lampTypes`' standard one |
 | `FaceWheelIndex` | double, M x 1 | label | 0, or 1 FL, 2 FR, 3 RL, 4 RR |
-| `LightTypeNames` | cell, 6 x 1 | label | `{'headlight';'turnsignal';'running';'tail';'backup';'highbeam'}` |
+| `LightTypeNames` | cell, 6 x 1 | label | `{'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp';'highBeamLamp'}` |
 | `FaceLightType` | double, M x 1 | label, edit | Each light face's lamp type (0: not a lamp) |
 | `FaceLightFunctions` | logical, M x types | edit | A lamp's other functions (only when a lamp has several) |
 | `FaceColors`, `FaceAlpha` | double, M x 3, M x 1 | label | Display color and transparency |
@@ -1305,7 +1305,7 @@ For plotting and animating vehicles in 2D (top-down), each vehicle also has XY o
 | `Body` | N x 2: the whole vehicle seen from above, mirrors included (about 40 points; within `Tolerance`, 1 cm, of the mesh's outline) |
 | `Windows(k)` | `Name` (`'glass 1'`, ... front to rear) and `Polygon` (N x 2): each piece of glass that faces up (windshield, roof glass, rear window) |
 | `Wheels(k)` | `Name` (`'FL'`, `'FR'`, `'RL'`, `'RR'`), `Center` ([x y]), `Length` (the tire's diameter), `Width`, `Steers` (true for the front wheels), and `Rectangle` (5 x 2: the corners around [0 0]) |
-| `Lights(k)` | `Type` (`'headlight'`, `'turnsignal'`, `'running'`, `'tail'`, `'backup'`, or `'other'`), `Side` (`'left'` or `'right'`), and `Polygon` (N x 2): each lamp's convex outline from above |
+| `Lights(k)` | `Type` (`'headlamp'`, `'turnSignalLamp'`, `'runningLamp'`, `'tailBrakeLamp'`, `'backupLamp'`, or `'other'`), `Side` (`'left'` or `'right'`), and `Polygon` (N x 2): each lamp's convex outline from above |
 | `Name`, `Units` (`'m'`), `Frame`, `Source` | Descriptions |
 | `Length`, `Width`, `PointCount` | The body's size (before thinning) and the number of points in all the polygons (215 for the Prius) |
 | `Symmetry` | How far the traced outlines were from symmetric, and what was done about it (see **Symmetry** below) |
@@ -1772,7 +1772,7 @@ vehicleMesh = fcn_CarMesh3D_labelParts(vehicleMesh,...
 | `AutoHighBeams` | option | Split each headlight into low and high beams by position? Default `true`. | logical | 1 x 1 |
 | `TextureColorParts` | option | a cell array of part names whose faces take their texture colors (FaceTextureColors, from fcn_CarMesh3D_readGLB or fcn_CarMesh3D_transferTextureColors), for example TextureColorParts = {'light','trim','wheel'} applied after PartColors. Default is {} (none). | cell | 1 x n |
 | `FigNum` | option | a figure number to plot the labeled parts. If empty or omitted, no plot is made. Default `[]`. | double | 1 x 1 (or empty) |
-| `vehicleMesh` | output | the same structure with these fields added: PartNames (5 x 1 cell): {'body';'glass';'wheel';'light';'trim'} FacePartIndex (M x 1): index into PartNames for each face FaceWheelIndex (M x 1): 0 for non-wheel faces, else 1 to 4 (1 FL, 2 FR, 3 RL, 4 RR) FaceColors (M x 3): RGB display color of each face FaceAlpha (M x 1): transparency of each face LightTypeNames (6 x 1 cell): {'headlight';'turnsignal'; 'running';'tail';'backup';'highbeam'} FaceLightType (M x 1): index into LightTypeNames for light faces, 0 for all other faces TextureColorParts (cell): the TextureColorParts option FaceAlsoParts (M x numel(PartNames) logical): the other parts each face also belongs to (one column per part). | struct | 1 x 1 |
+| `vehicleMesh` | output | the same structure with these fields added: PartNames (5 x 1 cell): {'body';'glass';'wheel';'light';'trim'} FacePartIndex (M x 1): index into PartNames for each face FaceWheelIndex (M x 1): 0 for non-wheel faces, else 1 to 4 (1 FL, 2 FR, 3 RL, 4 RR) FaceColors (M x 3): RGB display color of each face FaceAlpha (M x 1): transparency of each face LightTypeNames (6 x 1 cell): {'headlamp';'turnSignalLamp'; 'runningLamp';'tailBrakeLamp';'backupLamp';'highBeamLamp'} FaceLightType (M x 1): index into LightTypeNames for light faces, 0 for all other faces TextureColorParts (cell): the TextureColorParts option FaceAlsoParts (M x numel(PartNames) logical): the other parts each face also belongs to (one column per part). | struct | 1 x 1 |
 
 ![fcn_CarMesh3D_labelParts sample output](Images/functions/fcn_CarMesh3D_labelParts.png)
 
@@ -2852,7 +2852,7 @@ A viewer for looking at a vehicle's labels next to its photos: the mesh with eac
 | `meshInput` | input | the mesh to view, either way: - a file name: a .mat file holding a labeled CarMesh3D mesh (the variable vehicleMesh, else the first mesh in it), such as a vehicle's mesh file or a timestamped copy from the painter. | char or struct | 1 x n, or 1 x 1 |
 | `ViewSettings` | option | view settings this viewer returned before: opens at that camera, label, hidden labels, colors and photo. Default `[]`. | struct | 1 x 1 |
 | `Colors` | option | 'labels' (default: each label in its own color) or 'vehicle' (the vehicle's own colors). Default `''`. | char | 1 x n |
-| `Label` | option | the label shown alone ('part_trim', 'light_tail', ...; as the list's keys), or 'all' (default). Default `''`. | char | 1 x n |
+| `Label` | option | the label shown alone ('part_trim', 'light_tailBrakeLamp', ...; as the list's keys), or 'all' (default). Default `''`. | char | 1 x n |
 | `Hidden` | option | labels whose faces are hidden (a cell array of keys). Default `[]`. | cell | 1 x n |
 | `PhotoFolder` | option | a folder of ViewInDegrees_<angle> photos. Default: a folder "photos" beside the mesh file (a file given), else none. | char or string | 1 x n |
 | `Outline` | option | the vehicle's 2D outline (fcn_CarMesh3D_makeOutline2D's output, or a .mat file holding vehicleOutline), drawn in the photo dial. Default: none (the dial draws the mesh from above). | char | 1 x n |
@@ -2904,7 +2904,7 @@ A window for fixing a vehicle's labels: select faces (a highlighter, whatever th
 | `FigNum` | option | not used (the painter is a window); [] or -1 (fast mode: no input checks). Default `[]`. | double | 1 x 1 (or empty) |
 | `editedMesh` | output | the mesh with the applied edits (from the edits file, when the painter returns at once; or as left, with Wait=true). | struct | 1 x 1 |
 | `labelEdits` | output | the applied edits, as fcn_CarMesh3D_editLabels edits (one per label, faces by their centers). | cell | 1 x n (structs) |
-| `painter` | output | a structure of the painter's handles and functions: Figure, Axes, Patch (the model), EditsFile ShowLabel(key): one label colored ('part_body', 'light_tail', ...; as fcn_CarMesh3D_reviewVehicle's label keys), the rest gray, or 'all' for every label in its color SetHidden(keys): hide the faces of these labels (a cell array of keys; {} shows all) EditedMesh(), Edits(), NumPainted(), IsUnsaved(), Status() Apply(), Undo(), Save(), RevertToSaved(), RevertToStart() SaveVersion(): Save, and keep a timestamped copy (returns its file); LastVersionFile(); VersionFolder(); SetVersionFolder(folder) (remembered for next time; '' for the default) WorkingMesh(): the working mesh (the mesh before any edits, with the saved edits taken in; same faces), with the LabelColors the view shows SetTool(name), Paint(tool, points, flagErase): paint the faces nearest these points (for scripts and tests; then Save) SetPhotoAngle(angle), PhotoAngle() StrokeStart(flagErase), MouseMove(), MouseUp(), Click(flagPiece): for a window that holds the painter and handles the mouse itself (MouseMove and MouseUp say whether they used the event) Stop(): stop the painter's timer (before the parent is cleared) Close(): close its own window | struct | 1 x 1 |
+| `painter` | output | a structure of the painter's handles and functions: Figure, Axes, Patch (the model), EditsFile ShowLabel(key): one label colored ('part_body', 'light_tailBrakeLamp', ...; as fcn_CarMesh3D_reviewVehicle's label keys), the rest gray, or 'all' for every label in its color SetHidden(keys): hide the faces of these labels (a cell array of keys; {} shows all) EditedMesh(), Edits(), NumPainted(), IsUnsaved(), Status() Apply(), Undo(), Save(), RevertToSaved(), RevertToStart() SaveVersion(): Save, and keep a timestamped copy (returns its file); LastVersionFile(); VersionFolder(); SetVersionFolder(folder) (remembered for next time; '' for the default) WorkingMesh(): the working mesh (the mesh before any edits, with the saved edits taken in; same faces), with the LabelColors the view shows SetTool(name), Paint(tool, points, flagErase): paint the faces nearest these points (for scripts and tests; then Save) SetPhotoAngle(angle), PhotoAngle() StrokeStart(flagErase), MouseMove(), MouseUp(), Click(flagPiece): for a window that holds the painter and handles the mouse itself (MouseMove and MouseUp say whether they used the event) Stop(): stop the painter's timer (before the parent is cleared) Close(): close its own window | struct | 1 x 1 |
 
 **Assumptions:** A vehicle ID with a saved mesh (or a mesh and an EditsFile); edits are saved to labelEdits_<ID>.mat and applied by the next build.
 
@@ -3215,7 +3215,7 @@ Runs one of the CarMesh3D demo examples, as chosen in the demo menu of script_de
 
 | Variable | Kind | Meaning | Class | Size |
 |---|---|---|---|---|
-| `exampleName` | input | which example (see 'list'): 'library' the library browser: pick vehicles from a list 'viewer' the label viewer, beside the vehicle's photos 'sharedView' the viewer opened at a view another user sent 'editor' the mesh (label) editor on its own 'reviewer' the reviewer 'animate' plot a finished vehicle and drive it around 'history' a mesh's change log, license, and review status 'list' (the example) list every vehicle in the library 'browse' the vehicle browser (a menu of its own) or one of these, which run nothing: 'examples' return the list of examples (for building a menu) 'last' print the last example's commands again 'warning' print what the demo copy is, and that changes made to it are not saved to the vehicle | char | 1 x n |
+| `exampleName` | input | which example (see 'list'): 'library' the library browser: pick vehicles from a list 'viewer' the label viewer, beside the vehicle's photos 'sharedView' the viewer opened at a view another user sent 'editor' the mesh (label) editor on its own 'reviewer' the reviewer 'animate' plot a finished vehicle and drive it around 'history' a mesh's change log, license, and review status 'list' (the example) list every vehicle in the library 'browse' the vehicle browser (a menu of its own) or one of these, which run nothing: 'examples' return the list of examples (for building a menu) 'last' print the last example's commands again 'warningLamp' print what the demo copy is, and that changes made to it are not saved to the vehicle | char | 1 x n |
 | `VehicleID` | option | the vehicle the examples use. Default '2009_Honda_Fit_Sport'. | char | 1 x n |
 | `Run` | option | false to only print the commands. Default true. | logical | 1 x 1 |
 | `FigNum` | option | if set to -1, input checking is skipped (fast mode) and nothing is printed (the commands are still run, if Run is true). Otherwise not used. Default `[]`. | double | 1 x 1 (or empty) |
@@ -3750,7 +3750,7 @@ Six lists, kept in step with the project's work queue: **Claude work** (developm
 **Done** (2026_11_22 to 2026_11_23)
 
 - Hidden faces in named sets instead of deleted faces (`fcn_CarMesh3D_visibleMesh`, `fcn_CarMesh3D_checkHiddenFaces`, `ShowHidden=`); the painter's hide and unhide tools
-- High beams as lamps of their own (`'highbeam'`, `LowBeam`/`HighBeam`, `AutoHighBeams`); turn-signal light pools; lamp covers that are also glass; lamps with several functions
+- High beams as lamps of their own (`'highBeamLamp'`, `LowBeam`/`HighBeam`, `AutoHighBeams`); turn-signal light pools; lamp covers that are also glass; lamps with several functions
 - `fcn_CarMesh3D_viewLabels`: label list in label colors, mesh boundaries, a resizable photo, a lamp list, and the nighttime view; `fcn_CarMesh3D_paintLabels`, `fcn_CarMesh3D_reviewVehicle`, `fcn_CarMesh3D_browseLibrary`
 - Simpler verification: mesh families, the download kept as it is by default, only the dimension and label checks written by default, the frame-rate table
 - Downloads moved out of git (`model/` folders, the large-file area, `fcn_CarMesh3D_checkModels`); `rawMesh_<ID>.mat` kept

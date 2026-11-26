@@ -25,7 +25,7 @@
 %% Set up the workspace
 % A small made-up mesh: a 4 m by 1.6 m box of a vehicle, front at +x,
 % left at +y, with lamps as little squares of two triangles each
-lampTypeNames = {'headlight';'turnsignal';'running';'tail';'backup';'highbeam';'fog';'reflector';'licenseplate';'marker';'warning'};
+lampTypeNames = {'headlamp';'turnSignalLamp';'runningLamp';'tailBrakeLamp';'backupLamp';'highBeamLamp';'fogLamp';'reflector';'licensePlateLamp';'markerLamp';'warningLamp'};
 testMesh = fcn_INTERNAL_lampMesh(lampTypeNames);
 
 %% Code demos start here
@@ -85,7 +85,7 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 expectedNames = {'front-left headlamp'; 'front-left marker lamp'; 'front-right headlamp'; ...
     'rear-left tail/brake lamp'; 'rear-center tail/brake lamp'; 'rear-right tail/brake lamp'; 'rear-right tail/brake lamp 2'};
 assert(isequal({units.Name}', expectedNames), 'Names and order:\n%s', strjoin({units.Name}, newline));
-assert(strcmp(units(1).Kind, 'headlight') && strcmp(units(1).KindLabel, 'headlamp') && strcmp(units(1).Position, 'front-left'));
+assert(strcmp(units(1).Kind, 'headlamp') && strcmp(units(1).KindLabel, 'headlamp') && strcmp(units(1).Position, 'front-left'));
 % (each face belongs to the unit that lists it)
 for ith_unit = 1:numel(units)
     assert(all(faceUnit(units(ith_unit).Faces) == ith_unit));
@@ -111,8 +111,8 @@ titleString = sprintf('TEST case: covers');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 headlampIndex = find(strcmp({units.Name}, 'front-left headlamp'));
 markerIndex = find(strcmp({units.Name}, 'front-left marker lamp'));
-coverOverHeadlamp = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'headlight')));
-coverOverHighBeam = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'highbeam')));
+coverOverHeadlamp = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'headlamp')));
+coverOverHighBeam = find(testMesh.FaceCoverLamp == find(strcmp(lampTypeNames, 'highBeamLamp')));
 assert(all(ismember(coverOverHeadlamp, units(headlampIndex).CoverFaces)), 'A headlamp cover belongs to the headlamp');
 assert(all(ismember(coverOverHighBeam, [units(headlampIndex).CoverFaces; units(markerIndex).CoverFaces])), ...
     'A high-beam cover (no high-beam unit) belongs to the nearest unit');
@@ -237,16 +237,16 @@ faceCover = [0; 0; 0; 0];
 % (each square: its center, the lamp kind it is, the kind it covers; and
 % its half-size across, in y)
 squares = { ...
-    [4 0.60 0.70], 'headlight', '', 0.02; ...
-    [4 0.65 0.70], 'headlight', '', 0.02; ...      % (the scrap: 1 cm from the headlamp's edge)
-    [4 0.75 0.85], 'marker', '', 0.02; ...
-    [4.005 0.60 0.70], '', 'headlight', 0.02; ...  % (a cover 5 mm in front of the headlamp)
-    [4.005 0.62 0.74], '', 'highbeam', 0.02; ...   % (a cover over a kind with no unit)
-    [4 -0.60 0.70], 'headlight', '', 0.02; ...
-    [0 0.60 0.80], 'tail', '', 0.02; ...
-    [0 -0.60 0.80], 'tail', '', 0.02; ...
-    [0 -0.60 0.40], 'tail', '', 0.02; ...          % (30 cm below: a second rear-right tail lamp)
-    [0 0 1.32], 'tail', '', 0.10};                 % (the high brake lamp, across the middle)
+    [4 0.60 0.70], 'headlamp', '', 0.02; ...
+    [4 0.65 0.70], 'headlamp', '', 0.02; ...      % (the scrap: 1 cm from the headlamp's edge)
+    [4 0.75 0.85], 'markerLamp', '', 0.02; ...
+    [4.005 0.60 0.70], '', 'headlamp', 0.02; ...  % (a cover 5 mm in front of the headlamp)
+    [4.005 0.62 0.74], '', 'highBeamLamp', 0.02; ...   % (a cover over a kind with no unit)
+    [4 -0.60 0.70], 'headlamp', '', 0.02; ...
+    [0 0.60 0.80], 'tailBrakeLamp', '', 0.02; ...
+    [0 -0.60 0.80], 'tailBrakeLamp', '', 0.02; ...
+    [0 -0.60 0.40], 'tailBrakeLamp', '', 0.02; ...          % (30 cm below: a second rear-right tail lamp)
+    [0 0 1.32], 'tailBrakeLamp', '', 0.10};                 % (the high brake lamp, across the middle)
 for ith_square = 1:size(squares,1)
     center = squares{ith_square,1};
     halfY = squares{ith_square,4};

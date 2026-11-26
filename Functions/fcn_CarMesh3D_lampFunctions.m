@@ -360,54 +360,54 @@ column = @(name) find(strcmp(signalNames, name), 1);
 % (whether the vehicle has rear turn-signal lamps of its own, per side)
 flagRearTurn = struct('left', false, 'right', false, 'center', false);
 for ith_unit = 1:numUnits
-    if strcmp(units(ith_unit).Kind, 'turnsignal') && startsWith(units(ith_unit).Position, 'rear')
+    if strcmp(units(ith_unit).Kind, 'turnSignalLamp') && startsWith(units(ith_unit).Position, 'rear')
         flagRearTurn.(fcn_INTERNAL_side(units(ith_unit).Position)) = true;
     end
 end
 % (and high-beam lamps of its own, per side)
 flagHighBeam = struct('left', false, 'right', false, 'center', false);
 for ith_unit = 1:numUnits
-    if strcmp(units(ith_unit).Kind, 'highbeam')
+    if strcmp(units(ith_unit).Kind, 'highBeamLamp')
         flagHighBeam.(fcn_INTERNAL_side(units(ith_unit).Position)) = true;
     end
 end
 for ith_unit = 1:numUnits
     side = fcn_INTERNAL_side(units(ith_unit).Position);
     switch units(ith_unit).Kind
-        case 'headlight'
+        case 'headlamp'
             % (a headlamp is the high beam too, unless the vehicle has
             % high-beam lamps of its own on that side)
             values(ith_unit, column('LowBeam')) = 1;
             if ~flagHighBeam.(side)
                 values(ith_unit, column('HighBeam')) = 1;
             end
-        case 'highbeam'
+        case 'highBeamLamp'
             values(ith_unit, column('HighBeam')) = 1;
-        case 'turnsignal'
+        case 'turnSignalLamp'
             values(ith_unit, fcn_INTERNAL_turnColumns(side, column)) = 1;
             if strcmp(side, 'center')
                 sources{ith_unit} = '(default: a turn-signal lamp in the middle lights with both turn signals)';
             end
-        case 'running'
+        case 'runningLamp'
             values(ith_unit, column('Running')) = 1;
-        case 'marker'
+        case 'markerLamp'
             values(ith_unit, [column('Running') column('Parking') column('Tail')]) = 1;
-        case 'tail'
+        case 'tailBrakeLamp'
             values(ith_unit, [column('Parking') column('Tail')]) = 0.4;
             values(ith_unit, column('Brake')) = 1;
             if ~strcmp(side, 'center') && ~flagRearTurn.(side)
                 values(ith_unit, fcn_INTERNAL_turnColumns(side, column)) = 1;
                 sources{ith_unit} = '(default: also the rear turn signal, as the vehicle has no rear turn-signal lamp on this side)';
             end
-        case 'backup'
+        case 'backupLamp'
             values(ith_unit, column('Backup')) = 1;
-        case 'fog'
+        case 'fogLamp'
             values(ith_unit, column('FogLights')) = 1;
-        case 'licenseplate'
+        case 'licensePlateLamp'
             values(ith_unit, [column('Parking') column('Tail')]) = 1;
         case 'reflector'
             values(ith_unit, column('Reflectors')) = 1;
-        case 'warning'
+        case 'warningLamp'
             sources{ith_unit} = '(default: none; a warning lamp (beacon) is switched by your own loop)';
         otherwise
             sources{ith_unit} = '(default: none; a lamp kind the defaults do not know)';
@@ -463,25 +463,25 @@ end % Ends fcn_INTERNAL_migrate
 function columns = fcn_INTERNAL_kindColumns(kind, side, column)
 % The signals a lamp kind answers, for a face that also lights as that kind
 switch kind
-    case {'headlight', 'highbeam'}
-        if strcmp(kind, 'headlight')
+    case {'headlamp', 'highBeamLamp'}
+        if strcmp(kind, 'headlamp')
             columns = [column('LowBeam') column('HighBeam')];
         else
             columns = column('HighBeam');
         end
-    case 'turnsignal'
+    case 'turnSignalLamp'
         columns = fcn_INTERNAL_turnColumns(side, column);
-    case 'running'
+    case 'runningLamp'
         columns = column('Running');
-    case 'marker'
+    case 'markerLamp'
         columns = [column('Running') column('Parking') column('Tail')];
-    case 'tail'
+    case 'tailBrakeLamp'
         columns = [column('Tail') column('Brake')];
-    case 'backup'
+    case 'backupLamp'
         columns = column('Backup');
-    case 'fog'
+    case 'fogLamp'
         columns = column('FogLights');
-    case 'licenseplate'
+    case 'licensePlateLamp'
         columns = [column('Parking') column('Tail')];
     case 'reflector'
         columns = column('Reflectors');
