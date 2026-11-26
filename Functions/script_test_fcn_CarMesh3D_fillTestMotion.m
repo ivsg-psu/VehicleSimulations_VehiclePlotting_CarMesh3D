@@ -72,6 +72,10 @@ signals = testMotion.Signals(inLights);
 assert(any([signals.HighBeam]) && any([signals.TurnLeft]) && any([signals.Backup]));
 assert(any([signals.Brake]));
 assert(any([signals.Parking]) && any([signals.Fog]) && any([signals.Tail]) && any([signals.Running]));
+% (tiers 2 and 3 too: every lampSignals name but Reflectors is lit, alone, at some time)
+for signalName = setdiff({fcn_CarMesh3D_lampSignals().Name}, {'Reflectors'})
+    assert(isfield(signals, signalName{1}) && any([signals.(signalName{1})]), 'Lit in the lights segment: %s', signalName{1});
+end
 hazardRows = contains(testMotion.Caption(inLights), 'hazards');
 assert(any([signals(hazardRows).TurnLeft] & [signals(hazardRows).TurnRight]), 'Hazards: both turn signals blink together');
 assert(~all([signals(hazardRows).TurnLeft]), 'Hazards blink');

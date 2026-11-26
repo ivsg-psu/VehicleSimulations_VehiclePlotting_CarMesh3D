@@ -744,7 +744,25 @@ end
             'Running', 'Running lights', 'runningLamp', 'runningLamp'; 'TurnLeft', 'Left turn signal', 'turnSignalLamp', 'turnSignalLamp'; ...
             'TurnRight', 'Right turn signal', 'turnSignalLamp', 'turnSignalLamp'; 'Hazards', 'Hazards', 'turnSignalLamp', 'turnSignalLamp'; ...
             'Tail', 'Tail lights', 'tailBrakeLamp', 'tailBrakeLamp'; 'Backup', 'Backup lights', 'backupLamp', 'backupLamp'; ...
-            'Fog', 'Fog lamps', 'fogLamp', 'fogLamp'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};
+            'Fog', 'Fog lamps', 'fogLamp', 'fogLamp'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'; ...
+            ... % (tiers 2 and 3, Sean 2026-11-26 17:08: every signal now, to see whether the panel gets crowded;
+            ... %  column 3 lists the lamp kinds a signal lights, column 4 the kind whose color the box shows)
+            'RearFog', 'Rear fog lamps', {'rearFogLamp'}, 'rearFogLamp'; ...
+            'EmergencyBrake', 'Emergency brake', {'tailBrakeLamp', 'highMountStopLamp'}, 'highMountStopLamp'; ...
+            'DoorOpen', 'Door open', {'puddleLamp'}, 'puddleLamp'; 'Cargo', 'Cargo lamps', {'cargoLamp'}, 'cargoLamp'; ...
+            'Automated', 'Automated (ADS)', {'adsMarkerLamp'}, 'adsMarkerLamp'; ...
+            'CorneringLeft', 'Cornering left', {'corneringLamp'}, 'corneringLamp'; ...
+            'CorneringRight', 'Cornering right', {'corneringLamp'}, 'corneringLamp'; ...
+            'Welcome', 'Welcome', {'puddleLamp', 'logoLamp'}, 'logoLamp'; ...
+            'Charging', 'Charging', {'chargePortLamp'}, 'chargePortLamp'; 'Beacon', 'Beacons', {'beaconLamp'}, 'beaconLamp'; ...
+            'Work', 'Work lamps', {'workLamp'}, 'workLamp'; ...
+            'EmergencyRed', 'Emergency red', {'emergencyRedLamp'}, 'emergencyRedLamp'; ...
+            'EmergencyBlue', 'Emergency blue', {'emergencyBlueLamp'}, 'emergencyBlueLamp'; ...
+            'EmergencyWhite', 'Emergency white', {'emergencyWhiteLamp'}, 'emergencyWhiteLamp'; ...
+            'EmergencyAmber', 'Emergency amber', {'emergencyAmberLamp'}, 'emergencyAmberLamp'; ...
+            'EmergencyGreen', 'Emergency green', {'emergencyGreenLamp'}, 'emergencyGreenLamp'; ...
+            'SchoolAmber', 'School bus amber', {'schoolBusAmberLamp'}, 'schoolBusAmberLamp'; ...
+            'SchoolRed', 'School bus red', {'schoolBusRedLamp', 'stopArmLamp'}, 'schoolBusRedLamp'};
         numRows = size(rows,1) + 2;
         % (the heading in a grid of its own above the rows, so it stays in
         % view when the rows scroll)
@@ -757,18 +775,23 @@ end
             'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 4 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
             'BackgroundColor', band, 'Scrollable', 'on');
         lampGroups = struct();
+        signalList = fcn_CarMesh3D_lampSignals();
         for ith_row = 1:size(rows,1)
             row = ith_row;
             lampName = rows{ith_row,1};
             box = uipanel(grid, 'BackgroundColor', labelColor(rows{ith_row,4}), 'BorderType', 'line');
             fcn_INTERNAL_place(box, row, 1);
             nameLabel = fcn_INTERNAL_gridText(grid, row, 2, rows{ith_row,2}, 'normal', '');
+            signalRow = strcmp({signalList.Name}, lampName);
+            if any(signalRow)
+                nameLabel.Tooltip = signalList(signalRow).Description;
+            end
             if strcmp(lampName, 'Hazards')
                 nameLabel.Tooltip = 'Both turn signals at once';
             elseif strcmp(lampName, 'Reflectors')
                 nameLabel.Tooltip = 'The reflectors as another car''s headlights light them (outside light)';
             end
-            if ~any(strcmp(lampTypes, rows{ith_row,3}))
+            if ~any(ismember(cellstr(rows{ith_row,3}), lampTypes))
                 set(nameLabel, 'FontColor', [0.55 0.55 0.55], 'FontAngle', 'italic', ...
                     'Tooltip', 'No faces have this lamp yet; its light still shows at night');
             end
@@ -809,7 +832,8 @@ end
         if ~isfield(lampGroups, 'LowBeam') || ~isvalid(lampGroups.LowBeam)
             return;
         end
-        for lampField = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'Fog'}
+        steadyFields = setdiff(fieldnames(lampGroups)', {'Tail', 'Hazards', 'Reflectors', 'All'}, 'stable');
+        for lampField = steadyFields
             if isfield(states, lampField{1})
                 lampGroups.(lampField{1}).Value = logical(states.(lampField{1}));
             end
@@ -826,8 +850,10 @@ end
             tailChoice = 'on';
         end
         fcn_INTERNAL_selectRadio(lampGroups.Tail, tailChoice);
-        flagsOn = [states.LowBeam, states.HighBeam, states.Running, states.TurnLeft, states.TurnRight, ...
-            logical(states.Tail), states.Backup, fogOn, reflectorsOn];
+        flagsOn = [logical(states.Tail), fogOn, reflectorsOn];
+        for lampField = steadyFields
+            flagsOn(end+1) = isfield(states, lampField{1}) && logical(states.(lampField{1})); %#ok<AGROW>
+        end
         lampGroups.All.Value = all(logical(flagsOn));   % (ticked only when every lamp is on)
     end
 

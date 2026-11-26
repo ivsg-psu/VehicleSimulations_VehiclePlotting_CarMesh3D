@@ -956,8 +956,9 @@ switch inputs
     case 'lights'
         % (one 0/1 line per signal column, each a little higher than the
         % last so the lines do not hide one another)
-        names = {'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
-            'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
+        names = fieldnames(motionData)';
+        names = names(startsWith(names, 'signal'));   % (every signal column the file has)
+        names = names(cellfun(@(name) any(motionData.(name)(rows) ~= 0), names));   % (only those switched on here: 29 lines would hide one another)
         for ith_name = 1:numel(names)
             if isfield(motionData, names{ith_name})
                 stairs(axesHandle, time, motionData.(names{ith_name})(rows) + 0.04*ith_name, 'LineWidth', 1.5, 'DisplayName', names{ith_name});

@@ -31,6 +31,7 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           (WheelSpin=spinAngles),...
 %           (SteerAngle=steerAngles),...
 %           (Signals=signals),...
+%           (InteriorSignals=interiorSignals),...
 %           (AxesHandle=axesHandle),...
 %           (FigNum=figNum))
 %
@@ -121,10 +122,10 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      Signals: a structure that switches the vehicle's lights. Any
 %      field may be left out (it then stays off):
 %           LowBeam: true or false: the headlamps on, dipped
-%           HighBeam: true or false: the headlamps on full (the low
-%               beams stay lit too). The high beam lamps are the
-%               'highBeamLamp' faces; a vehicle with none lights its
-%               headlamps white for the high beams
+%           HighBeam: true or false: the headlamps on full (each
+%               beam alone: LowBeam and HighBeam both true for both). The
+%               high beam lamps are the 'highBeamLamp' faces; a vehicle
+%               with none lights its headlamps white for the high beams
 %           TurnLeft, TurnRight: true or false (blink them in your loop)
 %           Hazards: true or false: both turn signals and the warning
 %               lamps (blink it in your loop)
@@ -139,6 +140,22 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %           Parking: true or false (parking lights)
 %           Brake: true or false (the brake pedal pressed: the tail/brake
 %               lamps bright)
+%           and the signals of tiers 2 and 3 (true or false; the full list,
+%           with what each means, is fcn_CarMesh3D_lampSignals):
+%           RearFog, EmergencyBrake, DoorOpen, Cargo, Automated,
+%           CorneringLeft, CorneringRight, Welcome, Charging, Beacon,
+%           Work, EmergencyRed, EmergencyBlue, EmergencyWhite,
+%           EmergencyAmber, EmergencyGreen, SchoolAmber, SchoolRed.
+%           Flashing (EmergencyBrake, emergency and school bus lamps) is
+%           switched in your loop, as for the turn signals.
+%
+%      InteriorSignals: the interior lights switched on, a structure of
+%      its own beside Signals (Sean, 2026-11-26 17:08): any of the fields
+%      of fcn_CarMesh3D_interiorSignals (Dome, MapLeft, MapRight,
+%      ReadingRear, DoorOpen, Footwell, Ambient, Instruments, TrunkOpen,
+%      GloveBoxOpen). Checked, and kept with the plot handles; nothing
+%      is lit by it yet, as no interior faces are labeled as lamps.
+%      Default [].
 %      WHICH LAMPS each signal lights, and how brightly, is the vehicle's
 %      lamp-to-function (L2F) matrix (fcn_CarMesh3D_lampFunctions: its
 %      file lampFunctions_<ID>.csv, else the defaults), applied by
@@ -425,6 +442,7 @@ arguments
     options.BodyHeave = 0           % Body rise relative to the wheels [m], + up
     options.BodyPivot = []          % [x y z] point the body rolls and pitches about
     options.Signals = []        % Struct of light states (see help)
+    options.InteriorSignals = [] % Struct of interior lights switched on (see help)
     options.LampFunctions = []      % The lamp-to-function matrix (a table); [] for the mesh's own, else the defaults
     options.LampFaults = []         % Lamp units that do not light (names); [] to keep the plot's
     options.FlagLightEffects = false    % Glows and ground light pools, for night scenes
@@ -566,12 +584,23 @@ if 0==flag_max_speed
             if ~isstruct(options.Signals)
                 error('Signals must be a structure (see help fcn_CarMesh3D_plotVehicle)');
             end
-            allowedFields = {'LowBeam','HighBeam','TurnLeft','TurnRight','Running','Tail','Backup', ...
-                'Hazards','Fog','Reflectors','Parking','Brake'};
+            allowedFields = [{fcn_CarMesh3D_lampSignals().Name}, {'Hazards'}];   % (the signals' one list)
             givenFields = fieldnames(options.Signals);
             unknownFields = setdiff(givenFields, allowedFields);
             if ~isempty(unknownFields)
                 error('Unknown Signals field(s): %s. Allowed: %s', strjoin(unknownFields,', '), strjoin(allowedFields,', '));
+            end
+        end
+
+        % Check the InteriorSignals input
+        if ~isempty(options.InteriorSignals)
+            if ~isstruct(options.InteriorSignals)
+                error('InteriorSignals must be a structure (see help fcn_CarMesh3D_plotVehicle)');
+            end
+            allowedFields = {fcn_CarMesh3D_interiorSignals().Name};
+            unknownFields = setdiff(fieldnames(options.InteriorSignals), allowedFields);
+            if ~isempty(unknownFields)
+                error('Unknown InteriorSignals field(s): %s. Allowed: %s', strjoin(unknownFields,', '), strjoin(allowedFields,', '));
             end
         end
 
@@ -617,6 +646,9 @@ end
 if flagUpdateOnly
     plotHandles = options.PlotHandles;
     plotHandles.Transform.Matrix = poseMatrix;
+    if ~isempty(options.InteriorSignals)
+        plotHandles.InteriorSignals = options.InteriorSignals;   % (kept; nothing lit by it yet)
+    end
     fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
     if ~isempty(options.Signals) || ~isempty(options.LampFaults)
@@ -901,6 +933,7 @@ else
     plotHandles.HiddenPatches = hiddenPatches;
 
     % Set the pose, wheels, and lights
+    plotHandles.InteriorSignals = options.InteriorSignals;   % (kept; nothing lit by it yet: no interior lamps labeled)
     transformHandle.Matrix = poseMatrix;
     fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);

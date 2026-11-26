@@ -168,6 +168,7 @@ end % Ends main function
 function [color, flagOwnColors] = fcn_INTERNAL_kindColor(kind, strongestSignal, level)
 % The color a unit of this kind glows in, lit most by this signal at this
 % level (0 to 1); or its own colors (reflectors, marker and warning lamps)
+persistent litColors   % (each kind's LitColor, read once)
 flagOwnColors = false;
 dimming = 0.45 + 0.55*level;   % (a dimmed lamp: its color, darker; full at 1)
 switch kind
@@ -198,9 +199,21 @@ switch kind
         color = [1.00 0.97 0.85]*dimming;
     case 'licensePlateLamp'
         color = [1.00 1.00 0.95]*dimming;
-    otherwise   % (reflector, marker, warning, and kinds the list lacks)
+    otherwise
+        % (the kinds of tiers 2 and 3, and any later: their LitColor in
+        % fcn_CarMesh3D_lampTypes; a kind with none, such as reflector,
+        % marker, warning, clearance and identification lamps, keeps its
+        % own colors, brighter)
+        if isempty(litColors)
+            lampTypes = fcn_CarMesh3D_lampTypes();
+            litColors = containers.Map({lampTypes.Name}, {lampTypes.LitColor});
+        end
         color = [1 1 1];
         flagOwnColors = true;
+        if isKey(litColors, kind) && numel(litColors(kind)) == 3
+            color = litColors(kind)*dimming;
+            flagOwnColors = false;
+        end
 end
 end % Ends fcn_INTERNAL_kindColor
 

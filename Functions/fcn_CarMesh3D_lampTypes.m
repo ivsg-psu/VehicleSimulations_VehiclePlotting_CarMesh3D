@@ -138,17 +138,41 @@ end
 
 %                Name           Label                        FaceColor           LabelColor          LitColor            SwitchedBy                                  NameRule                                           RuleOrder
 lampTable = {...
-    'headlamp',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'LowBeam (or HighBeam)',                      'head|front',                                      11;
-    'turnSignalLamp',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
-    'runningLamp',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
-    'tailBrakeLamp',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail, or Brake for bright',                 'tail|brake|stop|rear',                            10;
-    'backupLamp',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
-    'highBeamLamp',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'HighBeam',                                 'high.?beam|hi.?beam|main.?beam',                  1;
-    'fogLamp',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'Fog',                                'fog',                                                 2;
-    'reflector',   'Reflector (no lamp)',          [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          3;
-    'licensePlateLamp','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
-    'markerLamp',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
-    'warningLamp',     'Warning lamp (beacon)',        [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|beacon|strobe|hazard|emergency',          9};
+    'headlamp',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'LowBeam (or HighBeam)',                      'head|front',                                      33;
+    'turnSignalLamp',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   25;
+    'runningLamp',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             29;
+    'tailBrakeLamp',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail, or Brake for bright',                 'tail|brake|stop|rear',                            32;
+    'backupLamp',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          28;
+    'highBeamLamp',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'HighBeam',                                 'high.?beam|hi.?beam|main.?beam',                  4;
+    'fogLamp',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'Fog',                                'fog',                                                 6;
+    'reflector',   'Reflector (no lamp)',          [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          24;
+    'licensePlateLamp','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               26;
+    'markerLamp',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light',                    27;
+    'warningLamp',     'Warning lamp (beacon)',        [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|hazard',          30;
+    % (the kinds of tiers 2 and 3: Documentation_CarMesh3D_lampSignalsSurvey.md;
+    % Sean, 2026-11-26 17:08. Added at the end, so a saved mesh's
+    % LabelLampNames keeps its order; RuleOrder puts their name rules
+    % ahead of the broader ones they would otherwise lose to)
+    'highMountStopLamp',  'High-mounted stop lamp (CHMSL)', [0.55 0.05 0.05], [0.65 0.00 0.15], [1.00 0.12 0.08], 'Brake, EmergencyBrake',         'chmsl|high.?mount|third.?(brake|stop)|center.?stop', 1;
+    'rearFogLamp',        'Rear fog lamp',               [0.55 0.05 0.05], [0.95 0.35 0.35], [1.00 0.10 0.06], 'RearFog',                       'rear.?fog|fog.?rear',                     2;
+    'puddleLamp',         'Puddle / courtesy lamp',      [0.88 0.88 0.85], [0.85 0.85 0.55], [1.00 0.98 0.90], 'DoorOpen, Welcome',             'puddle|courtesy|approach|ground.?light',  10;
+    'cargoLamp',          'Cargo / bed lamp',            [0.88 0.88 0.85], [0.55 0.45 0.25], [1.00 1.00 0.95], 'Cargo',                         'cargo|bed.?l|box.?l',                     11;
+    'adsMarkerLamp',      'ADS marker lamp (turquoise)', [0.30 0.70 0.70], [0.00 0.55 0.55], [0.25 0.95 0.85], 'Automated',                     'ads.?marker|turquoise|cyan',              3;
+    'logoLamp',           'Lit logo / light bar',        [0.85 0.85 0.85], [0.45 0.45 0.75], [1.00 1.00 1.00], 'Running, Parking, Welcome',     'logo|emblem|badge|light.?bar',            20;
+    'clearanceLamp',      'Clearance lamp',              [0.85 0.55 0.15], [0.95 0.65 0.10], [],               'Tail, Parking',                 'clearance',                               21;
+    'identificationLamp', 'Identification lamp (3)',     [0.85 0.55 0.15], [0.80 0.40 0.00], [],               'Tail, Parking',                 'identif|id.?lamp',                        22;
+    'corneringLamp',      'Cornering lamp',              [0.90 0.90 0.85], [0.60 0.80 1.00], [1.00 0.98 0.90], 'CorneringLeft, CorneringRight', 'cornering',                               19;
+    'chargePortLamp',     'Charge-port lamp',            [0.50 0.80 0.50], [0.20 0.80 0.30], [0.30 1.00 0.40], 'Charging',                      'charge.?port|charging',                   18;
+    'beaconLamp',         'Beacon (amber)',              [0.85 0.55 0.15], [1.00 0.85 0.00], [1.00 0.65 0.00], 'Beacon',                        'beacon|rotat|strobe',                     14;
+    'workLamp',           'Work lamp',                   [0.88 0.88 0.85], [0.40 0.40 0.40], [1.00 1.00 1.00], 'Work',                          'work.?l|flood|spot.?l',                   15;
+    'emergencyRedLamp',   'Emergency lamp, red',         [0.55 0.05 0.05], [1.00 0.20 0.40], [1.00 0.05 0.05], 'EmergencyRed',                  'emerg\w*red|red\w*emerg|police\w*red',    7;
+    'emergencyBlueLamp',  'Emergency lamp, blue',        [0.10 0.15 0.55], [0.10 0.20 0.90], [0.10 0.30 1.00], 'EmergencyBlue',                 'emerg\w*blue|blue\w*emerg|police\w*blue', 8;
+    'emergencyWhiteLamp', 'Emergency lamp, white',       [0.85 0.85 0.85], [0.80 0.90 0.95], [1.00 1.00 1.00], 'EmergencyWhite',                'emerg\w*white|white\w*emerg|wig.?wag',    9;
+    'emergencyAmberLamp', 'Emergency lamp, amber',       [0.85 0.55 0.15], [0.90 0.55 0.30], [1.00 0.60 0.00], 'EmergencyAmber',                'emerg\w*amber|amber\w*emerg',             12;
+    'emergencyGreenLamp', 'Emergency lamp, green',       [0.10 0.45 0.15], [0.00 0.60 0.20], [0.10 1.00 0.20], 'EmergencyGreen',                'emerg\w*green|green\w*emerg',             13;
+    'schoolBusAmberLamp', 'School bus lamp, amber',      [0.85 0.55 0.15], [0.75 0.75 0.00], [1.00 0.70 0.00], 'SchoolAmber',                   'school\w*amber|amber\w*school',           16;
+    'schoolBusRedLamp',   'School bus lamp, red',        [0.55 0.05 0.05], [0.70 0.10 0.10], [1.00 0.05 0.05], 'SchoolRed',                     'school\w*red|red\w*school',               17;
+    'stopArmLamp',        'Stop-arm lamp',               [0.55 0.05 0.05], [0.50 0.00 0.00], [1.00 0.05 0.05], 'SchoolRed',                     'stop.?arm',                               5};
 
 lampTypes = cell2struct(lampTable, {'Name','Label','FaceColor','LabelColor','LitColor','SwitchedBy','NameRule','RuleOrder'}, 2);
 lampTypes = lampTypes(:);
@@ -174,7 +198,23 @@ sources = struct( ...
     'licensePlateLamp', {{['FMVSS No. 108, S7.7 License plate lamps (activated with the taillamps): ' fmvss108]}}, ...
     'markerLamp',       {{['FMVSS No. 108, S7.4 Side marker lamps (activated with the taillamps and parking lamps): ' fmvss108]}}, ...
     'warningLamp',      {{['FMVSS No. 108, S6.1.5.1 Hazard warning signal: ' fmvss108]}}, ...
-    'fogLamp',          {{'(none yet) Front fog lamps are optional in FMVSS No. 108; makers switch them in several ways (Sean, 23:23)'}});
+    'fogLamp',          {{'(none yet) Front fog lamps are optional in FMVSS No. 108; makers switch them in several ways (Sean, 23:23)'}}, ...
+    'highMountStopLamp',  {{['FMVSS No. 108, S6.1.1.2 and S7.3 High-mounted stop lamps: ' fmvss108]}}, ...
+    'rearFogLamp',        {{'UN Regulation No. 38 (rear fog lamps) and No. 48 (installation): https://eur-lex.europa.eu/eli/reg/2021/1718/oj/eng'}}, ...
+    'clearanceLamp',      {{['FMVSS No. 108, Table I (vehicles 80 in or wider): clearance lamps; 49 CFR 393.11: ' fmvss108]}}, ...
+    'identificationLamp', {{['FMVSS No. 108, Table I (vehicles 80 in or wider): three identification lamps; 49 CFR 393.11: ' fmvss108]}}, ...
+    'cargoLamp',          {{['FMVSS No. 108, S4 (definition of cargo lamp): ' fmvss108]}}, ...
+    'adsMarkerLamp',      {{'SAE J3134 Automated Driving System (ADS) Marker Lamp: https://saemobilus.sae.org/standards/j3134_202512-automated-driving-system-ads-marker-lamp'}}, ...
+    'corneringLamp',      {{'UN Regulation No. 119 (cornering lamps), installed under UN R48'}}, ...
+    'schoolBusAmberLamp', {{['FMVSS No. 108, school bus signal lamps (four red, or four red and four amber): ' fmvss108]}}, ...
+    'schoolBusRedLamp',   {{['FMVSS No. 108, school bus signal lamps (four red, or four red and four amber): ' fmvss108]}}, ...
+    'stopArmLamp',        {{'FMVSS No. 131, S5.3.2 (at least two red lamps on each side of the stop arm): https://www.law.cornell.edu/cfr/text/49/571.131'}}, ...
+    'emergencyRedLamp',   {{'State law (for example Washington WAC 204-21-130; Iowa Code 321.424); 360-degree lamps: SAE J845'}}, ...
+    'emergencyBlueLamp',  {{'State law (for example Washington WAC 204-21-130; Iowa Code 321.424); 360-degree lamps: SAE J845'}}, ...
+    'emergencyWhiteLamp', {{'State law (for example California Vehicle Code 25259)'}}, ...
+    'emergencyAmberLamp', {{'State law (for example California Vehicle Code 25259)'}}, ...
+    'emergencyGreenLamp', {{'State law (for example Washington WAC 204-21-130: volunteer firefighters)'}}, ...
+    'beaconLamp',         {{'State law (amber warning lamps: for example California Vehicle Code 25253 for tow trucks)'}});
 for ith_type = 1:numel(lampTypes)
     lampTypes(ith_type).Sources = {};
     if isfield(sources, lampTypes(ith_type).Name)

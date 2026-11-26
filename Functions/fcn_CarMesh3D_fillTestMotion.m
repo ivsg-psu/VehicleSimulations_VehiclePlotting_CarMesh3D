@@ -6,13 +6,14 @@ function testMotion = fcn_CarMesh3D_fillTestMotion(vehicleSpec, options)
 % to a CSV file in the CarMesh3D column convention and then read back with
 % fcn_CarMesh3D_loadMotionCSV, so the file reader is checked too.
 %
-% THE SEGMENTS (about 49 s in all):
+% THE SEGMENTS (about 60 s in all):
 %
-%   1. lights    (parked, 14.4 s) Each light alone, 1.2 s each: all off,
-%                low beams, high beams, running lights, parking lights,
-%                left signal, right signal, hazards, tail lights, brake
-%                lights, backup lights, fog lamps (one signal column each,
-%                Q96 (A), 2026-11-26).
+%   1. lights    (parked, 25.2 s) All off, then each signal alone: the
+%                11 every vehicle has (low beams, high beams, running,
+%                parking, left, right, hazards, tail, brake, backup, fog)
+%                1.2 s each, then the 18 of tiers 2 and 3 (rear fog,
+%                emergency brake, ..., school red) 0.6 s each (one signal
+%                column each: Q96 (A); all tiers, Sean 2026-11-26 17:08).
 %   2. body      (parked, 11 s) Smooth 1.1 s pulses, one input at a time:
 %                roll +5 deg (right side down), roll -5 deg, pitch +3 deg
 %                (nose down), pitch -3 deg, heave +5 cm, heave -5 cm, then
@@ -216,28 +217,33 @@ end
 % columns; anything not set stays at its "off" value.
 timeValues = zeros(0,1);
 segments = struct('Name',{},'StartTime',{},'EndTime',{},'Description',{});
-columns = struct('U',[],'curvature',[],'roll',[],'pitch',[],'heave',[],'lift',[], ...
-    'spinFactor',[],'signalLowBeam',[],'signalHighBeam',[],'signalRunning',[],'signalParking',[], ...
-    'signalTurnLeft',[],'signalTurnRight',[],'signalHazards',[],'signalTail',[],'signalBrake',[],'signalBackup',[],'signalFog',[]);
+% (the signal columns: every signal of fcn_CarMesh3D_lampSignals but
+% Reflectors, with Hazards; one list in one place)
+signalNames = fcn_INTERNAL_motionSignals();
+columns = struct('U',[],'curvature',[],'roll',[],'pitch',[],'heave',[],'lift',[],'spinFactor',[]);
+for ith_signal = 1:numel(signalNames)
+    columns.(['signal' signalNames{ith_signal}]) = [];
+end
 captions = cell(0,1);
 
 % --- 1. Lights, parked: each light alone for 1.2 s
-lightSteps = {   % caption, the signal column switched on ('' for none)
-    'all lights off',                     '';
-    'low beams (signalLowBeam = 1)',      'signalLowBeam';
-    'high beams (signalHighBeam = 1)',    'signalHighBeam';
-    'running lights (signalRunning = 1)', 'signalRunning';
-    'parking lights (signalParking = 1)', 'signalParking';
-    'left signal (signalTurnLeft = 1)',   'signalTurnLeft';
-    'right signal (signalTurnRight = 1)', 'signalTurnRight';
-    'hazards (signalHazards = 1)',        'signalHazards';
-    'tail lights (signalTail = 1)',       'signalTail';
-    'brake lights (signalBrake = 1)',     'signalBrake';
-    'backup lights (signalBackup = 1)',   'signalBackup';
-    'fog lamps (signalFog = 1)',          'signalFog'};
-stepTime = 1.2;
+% (all off, then each signal alone, in fcn_CarMesh3D_lampSignals' order:
+% 1.2 s for the signals every vehicle has, 0.6 s for those of tiers 2
+% and 3, which most vehicles have no lamps for)
+signalKinds = fcn_CarMesh3D_lampSignals();
+tierOneNames = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'};
+lightSteps = {'all lights off', '', 1.2};
+for ith_signal = 1:numel(signalNames)
+    thisName = signalNames{ith_signal};
+    thisLabel = 'hazards';
+    if ~strcmp(thisName, 'Hazards')
+        thisLabel = lower(signalKinds(strcmp({signalKinds.Name}, thisName)).Label);
+    end
+    stepSeconds = 0.6 + 0.6*any(strcmp(tierOneNames, thisName));
+    lightSteps(end+1,:) = {sprintf('%s (signal%s = 1)', thisLabel, thisName), ['signal' thisName], stepSeconds}; %#ok<AGROW>
+end
 for ith_step = 1:size(lightSteps,1)
-    Nrows = round(stepTime/dt);
+    Nrows = round(lightSteps{ith_step,3}/dt);
     signalOn = {};
     if ~isempty(lightSteps{ith_step,2})
         signalOn = {lightSteps{ith_step,2}, 1};
@@ -354,8 +360,8 @@ end
 motionToWrite = struct('Time',timeValues, 'Pose',[xValues yValues yawValues], 'Speed',speedValues, ...
     'WheelSpin',wheelSpin, 'SteerAngle',steerAngles);
 signalsToWrite = struct();   % (the signal columns, as one structure of K x 1 fields)
-for signalName = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'}
-    signalsToWrite.(signalName{1}) = columns.(['signal' signalName{1}]) > 0;
+for ith_signal = 1:numel(signalNames)
+    signalsToWrite.(signalNames{ith_signal}) = columns.(['signal' signalNames{ith_signal}]) > 0;
 end
 fcn_CarMesh3D_saveMotionCSV(csvFile, motionToWrite, BodyRoll=columns.roll, BodyPitch=columns.pitch, ...
     BodyHeave=columns.heave, WheelLift=columns.lift, Signals=signalsToWrite, FigNum=-1);
@@ -446,10 +452,10 @@ end
 timeValues = [timeValues; newTimes];
 zeroColumn = zeros(Nrows,1);
 newValues = struct('U',zeroColumn,'curvature',zeroColumn,'roll',zeroColumn,'pitch',zeroColumn, ...
-    'heave',zeroColumn,'lift',zeros(Nrows,4),'spinFactor',ones(Nrows,4), ...
-    'signalLowBeam',zeroColumn,'signalHighBeam',zeroColumn,'signalRunning',zeroColumn,'signalParking',zeroColumn, ...
-    'signalTurnLeft',zeroColumn,'signalTurnRight',zeroColumn,'signalHazards',zeroColumn,'signalTail',zeroColumn, ...
-    'signalBrake',zeroColumn,'signalBackup',zeroColumn,'signalFog',zeroColumn);
+    'heave',zeroColumn,'lift',zeros(Nrows,4),'spinFactor',ones(Nrows,4));
+for signalName = fcn_INTERNAL_motionSignals()
+    newValues.(['signal' signalName{1}]) = zeroColumn;
+end
 for ith_pair = 1:2:length(varargin)
     newValues.(varargin{ith_pair}) = varargin{ith_pair+1}*ones(Nrows, size(newValues.(varargin{ith_pair}),2));
 end
@@ -465,3 +471,14 @@ function segment = fcn_INTERNAL_segment(name, timeValues, startRow, description)
 % One segment's name, start and end times, and description
 segment = struct('Name',name, 'StartTime',timeValues(startRow+1), 'EndTime',timeValues(end), 'Description',description);
 end % Ends fcn_INTERNAL_segment
+
+%% fcn_INTERNAL_motionSignals
+function signalNames = fcn_INTERNAL_motionSignals
+% The signals with a motion-file column, in file order (as
+% fcn_CarMesh3D_saveMotionCSV writes them): fcn_CarMesh3D_lampSignals'
+% list without Reflectors, with Hazards after TurnRight
+signalNames = {fcn_CarMesh3D_lampSignals().Name};
+signalNames = signalNames(~strcmp(signalNames, 'Reflectors'));
+at = find(strcmp(signalNames, 'TurnRight'), 1);
+signalNames = [signalNames(1:at), {'Hazards'}, signalNames(at+1:end)];
+end % Ends fcn_INTERNAL_motionSignals

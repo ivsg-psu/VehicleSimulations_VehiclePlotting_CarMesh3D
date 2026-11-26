@@ -31,6 +31,16 @@ for thisType = lampTypes'
     assert(~isempty(regexpi(thisType.Name, thisType.NameRule, 'once')), 'Each name rule matches its own name: %s', thisType.Name);
 end
 assert(numel(unique([lampTypes.RuleOrder])) == numel(lampTypes), 'Each name rule has its own place in the order');
+% (in RuleOrder, the first rule that matches a type's own name is its own,
+% so the tier 2 and 3 types, added 2026-11-26, are not taken by the
+% broader rules: 'rearFogLamp' is not a fogLamp, 'highMountStopLamp' not a
+% tailBrakeLamp)
+[~, ruleOrder] = sort([lampTypes.RuleOrder]);
+for thisType = lampTypes'
+    firstMatch = find(~cellfun(@isempty, regexpi(thisType.Name, {lampTypes(ruleOrder).NameRule}, 'once')), 1);
+    assert(strcmp(lampTypes(ruleOrder(firstMatch)).Name, thisType.Name), 'Its own rule comes first: %s', thisType.Name);
+end
+assert(numel(lampTypes) == 31 && strcmp(names{end}, 'stopArmLamp'), 'The 20 tier 2 and 3 types, added at the end');
 assert(isfield(lampTypes, 'Sources') && all(cellfun(@iscell, {lampTypes.Sources})), 'Each type has a Sources list (Sean, 23:24)');
 assert(contains(lampTypes(strcmp(names,'licensePlateLamp')).Sources{1}, 'https://'), 'Sources are links');
 labelColors = vertcat(lampTypes.LabelColor);

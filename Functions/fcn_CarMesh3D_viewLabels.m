@@ -722,8 +722,7 @@ nightBox = [];
 dayNightButton = [];   % (the sun/moon button over the model)
 lampSetupCache = [];   % (the shown mesh's lamp units and matrix: currentLampSetup)
 lampSetupKey = {};
-nightSignals = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, 'TurnRight', false, ...
-    'Tail',false, 'Brake', false, 'Backup', false, 'Fog', false, 'Hazards', false, 'Reflectors', 0);   % (the lamps switched on: none by day, at first; all, the first time night falls)
+nightSignals = fcn_INTERNAL_allSignals(false);   % (the lamps switched on: none by day, at first; all, the first time night falls)
 flagLampsSet = false;
 uncoloredKeys = {};     % (labels drawn plain gray: a host's "Colored? No"; Sean, 10:24)
 flagTurnWithPhoto = logical(fcn_INTERNAL_pref('TurnWithPhoto', true));   % (the model turns to a photo picked on the dial)
@@ -2011,10 +2010,14 @@ end
         % fcn_CarMesh3D_lampSignals; missing ones off), Parking and Brake
         % included: every other lamp off
         amountOf = @(name) isfield(signalsIn, name) && double(signalsIn.(name)) > 0;
-        statesNew = struct('LowBeam', amountOf('LowBeam'), 'HighBeam', amountOf('HighBeam'), ...
-            'Running', amountOf('Running'), 'TurnLeft', amountOf('TurnLeft'), 'TurnRight', amountOf('TurnRight'), ...
-            'Tail', amountOf('Tail'), 'Backup', amountOf('Backup'), 'Fog', amountOf('Fog'), 'Hazards', false, ...
-            'Reflectors', double(amountOf('Reflectors')), 'Parking', amountOf('Parking'), 'Brake', amountOf('Brake'));
+        statesNew = fcn_INTERNAL_allSignals(false);
+        for signalName = fieldnames(statesNew)'
+            if strcmp(signalName{1}, 'Reflectors')
+                statesNew.Reflectors = double(amountOf('Reflectors'));
+            else
+                statesNew.(signalName{1}) = amountOf(signalName{1});
+            end
+        end
         statesNew.Hazards = statesNew.TurnLeft && statesNew.TurnRight;
         nightSignals = statesNew;
         flagLampsSet = true;
@@ -2115,8 +2118,7 @@ end
         fcn_INTERNAL_freezeCamera(axesHandle);
         if ~flagLampsSet
             % (the first night, with no lamps set: every lamp on)
-            nightSignals = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
-                'TurnRight', true, 'Tail',true, 'Brake', true, 'Backup', true, 'Fog', true, 'Hazards', true, 'Reflectors', 1);
+            nightSignals = fcn_INTERNAL_allSignals(true);
             flagLampsSet = true;
             showNightLights();
         end
@@ -2271,6 +2273,12 @@ end
             end
             nightControls.Tail.SelectedObject = findobj(nightControls.Tail.Children, 'UserData', tailChoice);
             nightControls.Backup.Value = logical(nightSignals.Backup);
+            moreSignals = fcn_INTERNAL_moreSignals();
+            for moreName = moreSignals(:,1)'
+                if isfield(nightControls, moreName{1}) && isvalid(nightControls.(moreName{1}))
+                    nightControls.(moreName{1}).Value = logical(nightSignals.(moreName{1}));
+                end
+            end
         end
         if flagNight && ~isempty(nightHandles) && isfield(nightHandles, 'Transform') && isvalid(nightHandles.Transform)
             fcn_CarMesh3D_plotVehicle(data.Mesh, 'PlotHandles', nightHandles, 'Signals', nightSignals);
@@ -2305,11 +2313,9 @@ end
                 nightSignals.Hazards = logical(nightSignals.TurnLeft) && logical(nightSignals.TurnRight);
             case 'All'
                 if value
-                    nightSignals = struct('LowBeam', true, 'HighBeam', true, 'Running', true, 'TurnLeft', true, ...
-                        'TurnRight', true, 'Tail',true, 'Brake', true, 'Backup', true, 'Fog', true, 'Hazards', true, 'Reflectors', 1);
+                    nightSignals = fcn_INTERNAL_allSignals(true);
                 else
-                    nightSignals = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
-                        'TurnRight', false, 'Tail',false, 'Brake', false, 'Backup', false, 'Fog', false, 'Hazards', false, 'Reflectors', 0);
+                    nightSignals = fcn_INTERNAL_allSignals(false);
                 end
             case 'Tail'
                 % (the Tail choice: 'off', 'on' or 'brake'; brake lights the
@@ -2332,7 +2338,9 @@ end
         lampTypes = fcn_INTERNAL_lampTypes(data.Mesh);
         lampPanel = uipanel(listInner, 'Title', 'Lamps', 'Scrollable', 'on');
         lampPanel.Layout.Row = 2;
-        lampGrid = uigridlayout(lampPanel, [14 1], 'RowHeight', {20, 22, 22, 22, 22, 22, 22, 20, 28, 22, 22, 22, 30, 60}, ...
+        moreSignals = fcn_INTERNAL_moreSignals();   % (tiers 2 and 3: Sean, 2026-11-26 17:08)
+        lampGrid = uigridlayout(lampPanel, [15+size(moreSignals,1) 1], 'RowHeight', ...
+            [{20, 22, 22, 22, 22, 22, 22, 20, 28, 22, 22, 22, 20}, repmat({22}, 1, size(moreSignals,1)), {30, 60}], ...
             'Padding', [8 6 8 6], 'RowSpacing', 4, 'Scrollable', 'on');
         % (the grid scrolls, not the panel: a grid fills its panel and
         % squeezes its rows, so a scrollable panel around it never
@@ -2365,6 +2373,15 @@ end
         nightControls.Reflectors = uicheckbox(lampGrid, 'Tag', 'nightLamp_Reflectors', 'Text', 'Reflectors lit (outside light)', ...
             'Tooltip', 'The reflectors as another car''s headlights light them', ...
             'ValueChangedFcn', @(source,~) setNightLamp('Reflectors', source.Value));
+        uilabel(lampGrid, 'Text', 'More signals (tiers 2 and 3)', 'FontWeight', 'bold');
+        for ith_more = 1:size(moreSignals,1)
+            moreName = moreSignals{ith_more,1};
+            nightControls.(moreName) = uicheckbox(lampGrid, 'Tag', ['nightLamp_' moreName], 'Text', moreSignals{ith_more,2}, ...
+                'Tooltip', moreSignals{ith_more,4}, 'ValueChangedFcn', @(source,~) setNightLamp(moreName, source.Value));
+            if ~any(ismember(moreSignals{ith_more,3}, lampTypes))
+                nightControls.(moreName).Text = [nightControls.(moreName).Text ' (no faces)'];
+            end
+        end
         buttonGrid = uigridlayout(lampGrid, [1 2], 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
         uibutton(buttonGrid, 'Text', 'All on', 'ButtonPushedFcn', @(~,~) setNightLamp('All', true), 'Tag', 'nightLampsAllOn');
         uibutton(buttonGrid, 'Text', 'All off', 'ButtonPushedFcn', @(~,~) setNightLamp('All', false), 'Tag', 'nightLampsAllOff');
@@ -3130,6 +3147,35 @@ textOut = sprintf('fcn_CarMesh3D_viewLabels(%s, ViewSettings=%s);', vehicleText,
 end % Ends fcn_INTERNAL_viewCall
 
 %% fcn_INTERNAL_labelColor
+function moreSignals = fcn_INTERNAL_moreSignals()
+% The tier 2 and 3 signals of the lamp list: name, label, the lamp kinds
+% each lights, and its description (the same as makeDisplayPanels' rows)
+signalList = fcn_CarMesh3D_lampSignals();
+kinds = {'RearFog', {'rearFogLamp'}; 'EmergencyBrake', {'tailBrakeLamp', 'highMountStopLamp'}; ...
+    'DoorOpen', {'puddleLamp'}; 'Cargo', {'cargoLamp'}; 'Automated', {'adsMarkerLamp'}; ...
+    'CorneringLeft', {'corneringLamp'}; 'CorneringRight', {'corneringLamp'}; 'Welcome', {'puddleLamp', 'logoLamp'}; ...
+    'Charging', {'chargePortLamp'}; 'Beacon', {'beaconLamp'}; 'Work', {'workLamp'}; ...
+    'EmergencyRed', {'emergencyRedLamp'}; 'EmergencyBlue', {'emergencyBlueLamp'}; 'EmergencyWhite', {'emergencyWhiteLamp'}; ...
+    'EmergencyAmber', {'emergencyAmberLamp'}; 'EmergencyGreen', {'emergencyGreenLamp'}; ...
+    'SchoolAmber', {'schoolBusAmberLamp'}; 'SchoolRed', {'schoolBusRedLamp', 'stopArmLamp'}};
+moreSignals = cell(size(kinds,1), 4);
+for ith_signal = 1:size(kinds,1)
+    thisSignal = signalList(strcmp({signalList.Name}, kinds{ith_signal,1}));
+    moreSignals(ith_signal,:) = {thisSignal.Name, thisSignal.Label, kinds{ith_signal,2}, thisSignal.Description};
+end
+end % Ends fcn_INTERNAL_moreSignals
+
+function signals = fcn_INTERNAL_allSignals(flagOn)
+% Every signal of fcn_CarMesh3D_lampSignals (tiers 1 to 3), and Hazards,
+% all on or all off; Reflectors is 0 or 1 (the outside light)
+persistent signalNames
+if isempty(signalNames)
+    signalNames = [{fcn_CarMesh3D_lampSignals().Name}, {'Hazards'}];
+end
+signals = cell2struct(num2cell(repmat(logical(flagOn), numel(signalNames), 1)), signalNames(:), 1);
+signals.Reflectors = double(logical(flagOn));
+end % Ends fcn_INTERNAL_allSignals
+
 function shownMesh = fcn_INTERNAL_keepFaces(vehicleMesh, flagKeep)
 % The mesh with only the faces kept (every per-face field cut to match;
 % the vertices stay as they are)

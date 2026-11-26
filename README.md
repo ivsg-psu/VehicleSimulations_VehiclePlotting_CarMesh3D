@@ -148,8 +148,26 @@ CarMesh3D draws a vehicle from two kinds of input. Everything else in this READM
 | 34 | `signalBrake` | – | Brake pedal pressed | 0 (off) |
 | 35 | `signalBackup` | – | Reverse gear: the backup lamps | 0 (off) |
 | 36 | `signalFog` | – | Fog lamps | 0 (off) |
+| 37 | `signalRearFog` | – | Rear fog lamps | 0 (off) |
+| 38 | `signalEmergencyBrake` | – | Hard braking: the stop lamps flash | 0 (off) |
+| 39 | `signalDoorOpen` | – | A door open: puddle and courtesy lamps | 0 (off) |
+| 40 | `signalCargo` | – | Cargo and bed lamps | 0 (off) |
+| 41 | `signalAutomated` | – | An automated driving system driving: turquoise ADS marker lamps | 0 (off) |
+| 42 | `signalCorneringLeft` | – | Left cornering lamp | 0 (off) |
+| 43 | `signalCorneringRight` | – | Right cornering lamp | 0 (off) |
+| 44 | `signalWelcome` | – | Approach and unlock lighting | 0 (off) |
+| 45 | `signalCharging` | – | Plugged in and charging: charge-port lamps | 0 (off) |
+| 46 | `signalBeacon` | – | Amber beacons and light bars | 0 (off) |
+| 47 | `signalWork` | – | Work lamps | 0 (off) |
+| 48 | `signalEmergencyRed` | – | Red emergency lamps | 0 (off) |
+| 49 | `signalEmergencyBlue` | – | Blue emergency lamps | 0 (off) |
+| 50 | `signalEmergencyWhite` | – | White emergency lamps | 0 (off) |
+| 51 | `signalEmergencyAmber` | – | Amber emergency lamps | 0 (off) |
+| 52 | `signalEmergencyGreen` | – | Green emergency lamps | 0 (off) |
+| 53 | `signalSchoolAmber` | – | School bus: amber lamps | 0 (off) |
+| 54 | `signalSchoolRed` | – | School bus: red lamps and the stop arm | 0 (off) |
 
-The light columns are the fields of `fcn_CarMesh3D_plotVehicle`'s `Signals`, with the `signal` prefix (see [Names](#names)), each 0 or 1. *(Before 2026-11-26 the file had five coded columns: `headlights` 0/1/2, `indicator` 0/1/2/3, `brakeLight` 0/1/2, `reverseLight`, `runningLights`.)*
+The light columns are the fields of `fcn_CarMesh3D_plotVehicle`'s `Signals`, with the `signal` prefix (see [Names](#names)), each 0 or 1. Columns 37–54 are the tier 2 and 3 signals (Sean, 2026-11-26 17:08; `Documents/Documentation_CarMesh3D_lampSignalsSurvey.md`); the columns follow `fcn_CarMesh3D_lampSignals`, so a signal added there gets a column. *(Before 2026-11-26 the file had five coded columns: `headlights` 0/1/2, `indicator` 0/1/2/3, `brakeLight` 0/1/2, `reverseLight`, `runningLights`.)*
 
 Optional extra columns: `roadZ` (m, ground height under the rear axle; default 0), `steerAngle` (rad, one centerline angle), `steeringWheelAngle` (rad), and `wheelAngle_FL`, `wheelAngle_RL`, `wheelAngle_RR`, `wheelAngle_FR` (rad, wheel rotation angles). Any other column is read and ignored. Columns 1–13 and the four wheel speeds follow the IVSG state vector `[X Y Z roll pitch yaw U V W roll_rate pitch_rate yaw_rate w1 w2 w3 w4]`; `w1`–`w4` are accepted as names for the wheel speeds.
 
@@ -712,8 +730,30 @@ Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by
 | `'licensePlateLamp'` | License plate lamp | lit whenever the tail lights (or parking lights) are | white |
 | `'markerLamp'` | Marker lamps (side markers, clearance lamps) | lit with the running, parking and tail lights | their own color, brighter |
 | `'warningLamp'` | Warning lamps (beacons, light bars, arrow boards) | no signal by default: switched by your own loop | their own color, brighter |
+| `'highMountStopLamp'` | High-mounted stop lamp (CHMSL) | `Brake`, `EmergencyBrake` | red |
+| `'rearFogLamp'` | Rear fog lamp | `RearFog` | red |
+| `'puddleLamp'` | Puddle and courtesy lamps | `DoorOpen`, `Welcome` | white |
+| `'cargoLamp'` | Cargo and bed lamps | `Cargo` | white |
+| `'adsMarkerLamp'` | ADS marker lamps (SAE J3134) | `Automated` | turquoise |
+| `'logoLamp'` | Lit logo | `Running`, `Parking`, `Welcome` | white |
+| `'clearanceLamp'` | Clearance lamps (wide vehicles) | `Parking`, `Tail` | their own color |
+| `'identificationLamp'` | Identification lamps (three in a row) | `Parking`, `Tail` | their own color |
+| `'corneringLamp'` | Cornering lamp (by side) | `CorneringLeft`, `CorneringRight` | white |
+| `'chargePortLamp'` | Charge-port lamp | `Charging` | green |
+| `'beaconLamp'` | Beacons, light bars, strobes | `Beacon` | amber |
+| `'workLamp'` | Work lamps | `Work` | white |
+| `'emergencyRedLamp'` | Emergency lamp, red | `EmergencyRed` | red |
+| `'emergencyBlueLamp'` | Emergency lamp, blue | `EmergencyBlue` | blue |
+| `'emergencyWhiteLamp'` | Emergency lamp, white | `EmergencyWhite` | white |
+| `'emergencyAmberLamp'` | Emergency lamp, amber | `EmergencyAmber` | amber |
+| `'emergencyGreenLamp'` | Emergency lamp, green | `EmergencyGreen` | green |
+| `'schoolBusAmberLamp'` | School bus amber lamps | `SchoolAmber` | amber |
+| `'schoolBusRedLamp'` | School bus red lamps | `SchoolRed` | red |
+| `'stopArmLamp'` | School bus stop-arm lamps | `SchoolRed` | red |
 
-**The lamp-to-function (L2F) matrix** (2026-11-26; `Documents/Documentation_CarMesh3D_GUIdesign_lampFunctions.md`). The "Lit by" column above is now each vehicle's default; what really lights each lamp is the vehicle's matrix. Faces of one lamp label that sit together form a **lamp unit** ("front-left headlamp", "rear-center tail/brake lamp": `fcn_CarMesh3D_lampUnits`); the matrix gives each unit a brightness from 0 to 1 for each **signal** (`fcn_CarMesh3D_lampSignals`: LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight, Tail, Brake, Backup, Fog, Reflectors). It is kept with the vehicle as `lampFunctions_<ID>.csv`, every unit and every cell, rows changed by hand marked `edited` with their source (`fcn_CarMesh3D_lampFunctions`); the 2009 Fit's file says its daytime running lights are its headlamps at 0.3. `fcn_CarMesh3D_plotVehicle` and the viewers light lamps from it through one set of rules (`fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`), and AnimateCar3D can mark units as failed at run time (`LampFaults`). The matrix is set in a window of its own, `fcn_CarMesh3D_editLampFunctions` (also the painter's Lamp Functions panel): pick the signal to edit, see other signals lit with it, and set each lamp with bar cells or vertical sliders. The older `SignalLampSwitching` field and `LabelFaceAlsoLamps` are read once, to make a vehicle's first matrix.
+The last 20 types (2026-11-26) go with the tier 2 and 3 signals; they are added at the end of the list, so the lamp numbers saved in a mesh keep their meaning. Interior lamps are not in this matrix: `fcn_CarMesh3D_interiorSignals` lists the interior signals (dome, map, footwell, ambient, ...) in a structure of their own, given to plotVehicle as `InteriorSignals=` (kept for later use; nothing interior lights yet).
+
+**The lamp-to-function (L2F) matrix** (2026-11-26; `Documents/Documentation_CarMesh3D_GUIdesign_lampFunctions.md`). The "Lit by" column above is now each vehicle's default; what really lights each lamp is the vehicle's matrix. Faces of one lamp label that sit together form a **lamp unit** ("front-left headlamp", "rear-center tail/brake lamp": `fcn_CarMesh3D_lampUnits`); the matrix gives each unit a brightness from 0 to 1 for each **signal** (`fcn_CarMesh3D_lampSignals`: LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight, Tail, Brake, Backup, Fog, Reflectors, then the tier 2 and 3 signals RearFog to SchoolRed, 29 in all). It is kept with the vehicle as `lampFunctions_<ID>.csv`, every unit and every cell, rows changed by hand marked `edited` with their source (`fcn_CarMesh3D_lampFunctions`); the 2009 Fit's file says its daytime running lights are its headlamps at 0.3. `fcn_CarMesh3D_plotVehicle` and the viewers light lamps from it through one set of rules (`fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`), and AnimateCar3D can mark units as failed at run time (`LampFaults`). The matrix is set in a window of its own, `fcn_CarMesh3D_editLampFunctions` (also the painter's Lamp Functions panel): pick the signal to edit, see other signals lit with it, and set each lamp with bar cells or vertical sliders. The older `SignalLampSwitching` field and `LabelFaceAlsoLamps` are read once, to make a vehicle's first matrix.
 
 `fcn_CarMesh3D_labelParts` sets the type from names (`TurnSignal`, `Reverse`, `TailLight`, `HighBeam`, `Fog`, `Reflector`...); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. **High beams are found automatically** where a headlight's faces clearly form two clusters (`FlagAutoHighBeams`, on by default): the cluster nearer the middle of the car (or the upper one) becomes the high beam. This is a starting point; check it in `fcn_CarMesh3D_viewLabels` ("high beam") and fix it in the label painter.
 
@@ -1908,6 +1948,7 @@ The functions of the lamp-to-function matrix (see [Switchable lights](#switchabl
 |---|---|
 | `units = fcn_CarMesh3D_lampUnits(vehicleMesh)` | The lamp units: faces of one lamp label within 3 cm of each other, named from where they are ("front-left headlamp"), each with its clear covers |
 | `signals = fcn_CarMesh3D_lampSignals()` | The signals, the matrix's columns: Name, Label, Description |
+| `signals = fcn_CarMesh3D_interiorSignals()` | The interior signals, kept apart from the matrix (Sean, 2026-11-26 17:08): Name, Label, Values, Lamps, Description |
 | `[matrix, units, info] = fcn_CarMesh3D_lampFunctions(vehicle, (Mesh=), (Table=), (FlagSave=))` | A vehicle's matrix (a table: one row per unit, one column per signal, then Default and Source), from its `lampFunctions_<ID>.csv`, the defaults, and a first-time migration; `FlagSave=true` writes the file |
 | `setup = fcn_CarMesh3D_lampSetup(vehicleMesh, (FlagLampFunctions=))` | Everything needed to light the lamps, worked out once per mesh (which unit each face belongs to, the matrix as numbers) |
 | `lit = fcn_CarMesh3D_lampColors(setup, signals, (LampFaults=))` | How each unit and face is lit for a set of signals: the one place the lighting rules live |

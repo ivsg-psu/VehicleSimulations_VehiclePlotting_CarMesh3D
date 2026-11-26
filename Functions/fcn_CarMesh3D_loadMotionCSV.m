@@ -52,6 +52,28 @@ function motion = fcn_CarMesh3D_loadMotionCSV(fileName, options)
 %   34  signalBrake     -      Brake pedal pressed (0)
 %   35  signalBackup    -      Reverse gear: the backup lamps (0)
 %   36  signalFog       -      Fog lamps (0)
+%   37  signalRearFog   -      Rear fog lamps (0)
+%   38  signalEmergencyBrake - Hard braking: the stop lamps flash (0)
+%   39  signalDoorOpen  -      A door open: puddle and courtesy lamps (0)
+%   40  signalCargo     -      Cargo and bed lamps (0)
+%   41  signalAutomated -      ADS marker lamps (turquoise) (0)
+%   42  signalCorneringLeft -  Left cornering lamp (0)
+%   43  signalCorneringRight - Right cornering lamp (0)
+%   44  signalWelcome   -      Approach and unlock lighting (0)
+%   45  signalCharging  -      Charge-port lamps (0)
+%   46  signalBeacon    -      Amber beacons and light bars (0)
+%   47  signalWork      -      Work lamps (0)
+%   48  signalEmergencyRed   - Red emergency lamps (0)
+%   49  signalEmergencyBlue  - Blue emergency lamps (0)
+%   50  signalEmergencyWhite - White emergency lamps (0)
+%   51  signalEmergencyAmber - Amber emergency lamps (0)
+%   52  signalEmergencyGreen - Green emergency lamps (0)
+%   53  signalSchoolAmber -    School bus amber lamps (0)
+%   54  signalSchoolRed -      School bus red lamps and stop arm (0)
+%
+% Columns 26 to 54 are the signals of fcn_CarMesh3D_lampSignals (tiers 1
+% to 3, Sean 2026-11-26 17:08), in its order, with Hazards; a file without
+% the newer columns reads them as 0.
 %
 % The light columns are the fields of plotVehicle's Signals, with the
 % signal prefix (Q96 (A), Sean 2026-11-26 15:34; before, the file had
@@ -474,7 +496,7 @@ end
 %%%%
 % Lights: one true/false column per signal (brake and backup are inputs,
 % never worked out from the motion)
-signalNames = {'LowBeam','HighBeam','Running','Parking','TurnLeft','TurnRight','Hazards','Tail','Brake','Backup','Fog'};
+signalNames = fcn_INTERNAL_motionSignals();   % (from fcn_CarMesh3D_lampSignals: one list in one place)
 signalColumns = false(Nrows, numel(signalNames));
 for ith_signal = 1:numel(signalNames)
     signalColumns(:,ith_signal) = getColumn(['signal' signalNames{ith_signal}], 0) > 0;
@@ -623,14 +645,25 @@ end % Ends fcn_INTERNAL_readMatrix
 %% fcn_INTERNAL_usualColumns
 function usualNames = fcn_INTERNAL_usualColumns
 % The usual column names, in the usual order
-usualNames = {'time','X','Y','Z','roll','pitch','yaw','U','V','W', ...
+usualNames = [{'time','X','Y','Z','roll','pitch','yaw','U','V','W', ...
     'roll_rate','pitch_rate','yaw_rate', ...
     'wheelSpeed_FL','wheelSpeed_RL','wheelSpeed_RR','wheelSpeed_FR', ...
     'wheelLift_FL','wheelLift_RL','wheelLift_RR','wheelLift_FR', ...
-    'roadRoll','roadPitch','steer_FL','steer_FR', ...
-    'signalLowBeam','signalHighBeam','signalRunning','signalParking','signalTurnLeft','signalTurnRight', ...
-    'signalHazards','signalTail','signalBrake','signalBackup','signalFog'};
+    'roadRoll','roadPitch','steer_FL','steer_FR'}, ...
+    strcat('signal', fcn_INTERNAL_motionSignals())];
 end % Ends fcn_INTERNAL_usualColumns
+
+%% fcn_INTERNAL_motionSignals
+function signalNames = fcn_INTERNAL_motionSignals
+% The signals that have a motion-file column (signal<Name>), in file
+% order: fcn_CarMesh3D_lampSignals' list (one list in one place), with
+% Hazards after TurnRight, and without Reflectors (outside light is the
+% scene's, not the vehicle's)
+signalNames = {fcn_CarMesh3D_lampSignals().Name};
+signalNames = signalNames(~strcmp(signalNames, 'Reflectors'));
+at = find(strcmp(signalNames, 'TurnRight'), 1);
+signalNames = [signalNames(1:at), {'Hazards'}, signalNames(at+1:end)];
+end % Ends fcn_INTERNAL_motionSignals
 
 %% fcn_INTERNAL_knownColumns
 function [knownNames, angleNames] = fcn_INTERNAL_knownColumns
@@ -703,8 +736,10 @@ function signals = fcn_INTERNAL_signals(timeValues, signalTable, blinkPeriod)
 % blink, starting lit whenever the turn columns (left, right, hazards)
 % change.
 Nrows = length(timeValues);
-signals = repmat(struct('LowBeam',false,'HighBeam',false,'Running',false,'Parking',false, ...
-    'TurnLeft',false,'TurnRight',false,'Tail',false,'Brake',false,'Backup',false,'Fog',false), Nrows, 1);
+steadyNames = signalTable.Properties.VariableNames;
+steadyNames = steadyNames(~ismember(steadyNames, {'TurnLeft','TurnRight','Hazards'}));
+template = cell2struct(num2cell(false(numel(steadyNames) + 2, 1)), [steadyNames(:); {'TurnLeft'; 'TurnRight'}], 1);
+signals = repmat(template, Nrows, 1);
 turnCodes = double(signalTable.TurnLeft) + 2*double(signalTable.TurnRight);
 turnCodes(signalTable.Hazards) = 3;   % (hazards: both turn signals, in step)
 switchTime = timeValues(1);
@@ -713,8 +748,8 @@ for ith_row = 1:Nrows
         switchTime = timeValues(ith_row);
     end
     blinkOn = mod(timeValues(ith_row) - switchTime, blinkPeriod) < blinkPeriod/2;
-    for signalName = {'LowBeam','HighBeam','Running','Parking','Tail','Brake','Backup','Fog'}
-        signals(ith_row).(signalName{1}) = signalTable.(signalName{1})(ith_row);
+    for ith_name = 1:numel(steadyNames)
+        signals(ith_row).(steadyNames{ith_name}) = signalTable.(steadyNames{ith_name})(ith_row);
     end
     signals(ith_row).TurnLeft = blinkOn && any(turnCodes(ith_row)==[1 3]);
     signals(ith_row).TurnRight = blinkOn && any(turnCodes(ith_row)==[2 3]);

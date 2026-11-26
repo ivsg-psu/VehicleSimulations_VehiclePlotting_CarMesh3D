@@ -369,9 +369,21 @@ fprintf(1,'TEST case: the GUI test vehicle\n');
 guiTestFiles = fcn_CarMesh3D_makeDemoCopy(guiTestID, DemoFolder=fullfile(demoRoot, 'guiTest1'), FigNum=-1);   % (a temporary copy: the test saves nothing in the vehicle)
 [~, ~, testPainter] = fcn_CarMesh3D_paintLabels(guiTestFiles.Folder, FlagVisible=false);
 assert(all(ismember({'headlamp','highBeamLamp','turnSignalLamp','runningLamp','tailBrakeLamp','backupLamp'}, testPainter.Viewer.LampTypes())));
+% (gray, no faces: only the tier 2 and 3 lamps, added 2026-11-26 after
+% the test vehicle was made; it has every tier 1 lamp type)
+allTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
+newerNames = {allTypes(12:end).Name};
+newerTexts = [newerNames, regexprep({allTypes(12:end).Label}, '^(.)', '${lower($1)}'), {fcn_CarMesh3D_lampSignals().Label}];
+assert(~any(ismember(newerNames, testPainter.Viewer.LampTypes())), 'The test vehicle has no tier 2 or 3 lamps (if it now has, tighten this test)');
 for panelName = {'Labels To Display', 'Lamps To Display'}
     thisPanel = findall(testPainter.Figure, 'Type', 'uipanel', 'Tag', panelName{1});
-    assert(isempty(findall(thisPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'A gray (no faces) name in %s', panelName{1});
+    grayLabels = findall(thisPanel, 'Type', 'uilabel', 'FontAngle', 'italic');
+    grayTexts = cell(0,1);
+    if ~isempty(grayLabels)
+        grayTexts = cellstr(get(grayLabels, 'Text'));
+    end
+    grayTexts = grayTexts(~ismember(grayTexts, newerTexts) & ~startsWith(grayTexts, {'School bus', 'Automated', 'Rear fog', 'Cargo', 'Beacons', 'Work lamps', 'Emergency', 'Cornering', 'Door open', 'Welcome', 'Charging'}));
+    assert(isempty(grayTexts), 'A gray (no faces) tier 1 name in %s: %s', panelName{1}, strjoin(grayTexts, ', '));
 end
 testMesh = testPainter.EditedMesh();
 assert(all(ismember({'hidden','hard top'}, testMesh.LabelHiddenSetNames)));

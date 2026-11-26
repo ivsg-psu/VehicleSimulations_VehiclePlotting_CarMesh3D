@@ -1,6 +1,6 @@
 # Lamp signals survey: what production vehicles switch, and what CarMesh3D should call it
 
-*Written by Claude, 2026-11-26 16:53 to 17:40, for Sean's request of 13:57 ("capture all of the signals out there and group them into common naming conventions ... a template that lists our findings"), split into exterior and interior signals (Sean, 13:57). Item N1 in the answer queue. Names follow the project's conventions (`Documentation_CarMesh3D_namingTable.md`, section 3): a signal is what is switched on at one moment; a lamp is the hardware it lights.*
+*Written by Claude, 2026-11-26 16:53 to 16:56 (clock checked), for Sean's request of 13:57 ("capture all of the signals out there and group them into common naming conventions ... a template that lists our findings"), split into exterior and interior signals (Sean, 13:57). Item N1 in the answer queue. Names follow the project's conventions (`Documentation_CarMesh3D_namingTable.md`, section 3): a signal is what is switched on at one moment; a lamp is the hardware it lights.*
 
 ## 0. How to read this
 

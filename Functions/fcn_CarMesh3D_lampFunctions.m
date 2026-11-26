@@ -394,7 +394,7 @@ for ith_unit = 1:numUnits
             values(ith_unit, [column('Running') column('Parking') column('Tail')]) = 1;
         case 'tailBrakeLamp'
             values(ith_unit, [column('Parking') column('Tail')]) = 0.4;
-            values(ith_unit, column('Brake')) = 1;
+            values(ith_unit, [column('Brake') column('EmergencyBrake')]) = 1;
             if ~strcmp(side, 'center') && ~flagRearTurn.(side)
                 values(ith_unit, fcn_INTERNAL_turnColumns(side, column)) = 1;
                 sources{ith_unit} = '(default: also the rear turn signal, as the vehicle has no rear turn-signal lamp on this side)';
@@ -410,6 +410,12 @@ for ith_unit = 1:numUnits
         case 'warningLamp'
             sources{ith_unit} = '(default: none; a warning lamp (beacon) is switched by your own loop)';
         otherwise
+            % (the kinds of tiers 2 and 3: Documentation_CarMesh3D_lampSignalsSurvey.md)
+            kindColumns = fcn_INTERNAL_kindColumns(units(ith_unit).Kind, side, column);
+            if ~isempty(kindColumns)
+                values(ith_unit, kindColumns) = 1;
+                continue;
+            end
             sources{ith_unit} = '(default: none; a lamp kind the defaults do not know)';
     end
 end
@@ -485,6 +491,49 @@ switch kind
         columns = [column('Parking') column('Tail')];
     case 'reflector'
         columns = column('Reflectors');
+    case 'highMountStopLamp'
+        columns = [column('Brake') column('EmergencyBrake')];
+    case 'rearFogLamp'
+        columns = column('RearFog');
+    case 'puddleLamp'
+        columns = [column('DoorOpen') column('Welcome')];
+    case 'cargoLamp'
+        columns = column('Cargo');
+    case 'adsMarkerLamp'
+        columns = column('Automated');
+    case 'logoLamp'
+        columns = [column('Running') column('Parking') column('Welcome')];
+    case {'clearanceLamp', 'identificationLamp'}
+        columns = [column('Parking') column('Tail')];
+    case 'corneringLamp'
+        switch side
+            case 'left'
+                columns = column('CorneringLeft');
+            case 'right'
+                columns = column('CorneringRight');
+            otherwise
+                columns = [column('CorneringLeft') column('CorneringRight')];
+        end
+    case 'chargePortLamp'
+        columns = column('Charging');
+    case 'beaconLamp'
+        columns = column('Beacon');
+    case 'workLamp'
+        columns = column('Work');
+    case 'emergencyRedLamp'
+        columns = column('EmergencyRed');
+    case 'emergencyBlueLamp'
+        columns = column('EmergencyBlue');
+    case 'emergencyWhiteLamp'
+        columns = column('EmergencyWhite');
+    case 'emergencyAmberLamp'
+        columns = column('EmergencyAmber');
+    case 'emergencyGreenLamp'
+        columns = column('EmergencyGreen');
+    case 'schoolBusAmberLamp'
+        columns = column('SchoolAmber');
+    case {'schoolBusRedLamp', 'stopArmLamp'}
+        columns = column('SchoolRed');
     otherwise
         columns = [];
 end

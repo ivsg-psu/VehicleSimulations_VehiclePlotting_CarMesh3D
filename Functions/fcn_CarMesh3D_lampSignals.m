@@ -80,6 +80,27 @@ signalList = {
     'Backup',       'Backup',                    'Reverse gear'
     'Fog',          'Fog',                       'The fog lights switched on'
     'Reflectors',   'Reflectors',                'Outside light reaching the reflectors (another vehicle''s lamps)'
+    % (tier 2: every passenger vehicle; tier 3: special vehicles and
+    % equipment. Documentation_CarMesh3D_lampSignalsSurvey.md, section 4;
+    % Sean, 2026-11-26 17:08: all three tiers now)
+    'RearFog',        'Rear fog',                'The rear fog lamps (red, brighter than the tail lamps; UN R48)'
+    'EmergencyBrake', 'Emergency brake',         'Hard braking: the stop lamps flash (emergency stop signal; switched by the vehicle)'
+    'DoorOpen',       'Door open',               'A door open: the puddle and courtesy lamps'
+    'Cargo',          'Cargo',                   'The cargo and bed lamps (for loading)'
+    'Automated',      'Automated',               'An automated driving system is driving: the turquoise ADS marker lamps (SAE J3134)'
+    'CorneringLeft',  'Cornering left',          'The left cornering lamp (lit steady while turning left at low speed)'
+    'CorneringRight', 'Cornering right',         'The right cornering lamp (lit steady while turning right at low speed)'
+    'Welcome',        'Welcome',                 'Approach and unlock lighting (puddle lamps, lit logo)'
+    'Charging',       'Charging',                'Plugged in and charging: the charge-port status lamps'
+    'Beacon',         'Beacon',                  'Amber warning beacons and light bars (tow, utility, maintenance trucks)'
+    'Work',           'Work',                    'Work lamps (spot and flood lamps; not for driving on the road)'
+    'EmergencyRed',   'Emergency red',           'Red emergency lamps (police, fire, ambulance: by state law)'
+    'EmergencyBlue',  'Emergency blue',          'Blue emergency lamps (police: by state law)'
+    'EmergencyWhite', 'Emergency white',         'White emergency lamps and flashers'
+    'EmergencyAmber', 'Emergency amber',         'Amber emergency lamps (often to the rear)'
+    'EmergencyGreen', 'Emergency green',         'Green lamps (volunteer firefighters, command posts: by state law)'
+    'SchoolAmber',    'School amber',            'School bus: the amber lamps (about to stop; switched by the driver)'
+    'SchoolRed',      'School red',              'School bus: the red lamps and the stop arm (stopped, door open)'
     };
 
 signalKinds = struct('Name', signalList(:,1), 'Label', signalList(:,2), 'Description', signalList(:,3));
