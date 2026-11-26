@@ -207,7 +207,7 @@ viewer.Close();
 fprintf(1,'TEST case: nighttime view\n');
 [~, viewer] = fcn_CarMesh3D_viewLabels(meshFile, Visible=false, Wait=false);
 colorsOff = viewer.Patch.FaceVertexCData;
-numBefore = numel(viewer.Axes.Children);
+numBefore = sum(strcmp({viewer.Axes.Children.Visible}, 'on'));   % (the objects shown by day)
 cameraBefore = viewer.Axes.CameraPosition;
 % (by day: the lamps start off; switched on, they are drawn lit on the model)
 loaded = load(meshFile, 'vehicleMesh');
@@ -250,7 +250,9 @@ viewer.SetHidden({});
 assert(numel(findobj(viewer.Axes, 'Type', 'patch')) == childrenBefore);
 viewer.SetNightView(false);
 assert(strcmp(viewer.Patch.Visible, 'on'));
-assert(numel(viewer.Axes.Children) == numBefore, 'The night scene removed');
+% (the night scene put away by day, kept to be shown again: Sean, 12:49;
+% nothing of it shows)
+assert(sum(strcmp({viewer.Axes.Children.Visible}, 'on')) == numBefore, 'The night scene put away: none of it shown');
 viewer.SetNightLights(struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, ...
     'TurnRight', false, 'Tail', 'off', 'Backup', false));
 assert(isequal(viewer.Patch.FaceVertexCData, colorsOff), 'Night off, lamps off: as before');
@@ -435,6 +437,14 @@ if isscalar(nightRow)
 end
 dayNightButton.ButtonPushedFcn(dayNightButton, []);
 assert(~viewer.NightView() && strcmp(dayNightButton.Text, char(9728)), 'Another click: day, and the sun shows');
+% (night again with nothing changed: the night scene kept from the last
+% night is shown again, not built anew, so it is quick: Sean, 12:49)
+nightTransform = findall(viewer.Axes, 'Type', 'hgtransform');
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(viewer.NightView() && isequal(sort(double(findall(viewer.Axes, 'Type', 'hgtransform'))), sort(double(nightTransform))), ...
+    'Night again: the same night scene, shown again');
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(~viewer.NightView(), 'And day again');
 if isscalar(nightRow)
     assert(isequal(nightRow.SelectedObject.UserData, false), 'Nighttime view? follows back');
 end
@@ -936,7 +946,7 @@ end
 if ~isequal(values.turnWithPhoto, viewer.TurnWithPhoto()), problems{end+1} = 'Turn model with photo? differs'; end
 % (the ground: by day the light one, at night the dark one, each only when shown)
 dayGround = findall(viewer.Axes, 'Tag', 'dayGround');
-nightGround = findall(viewer.Axes, 'Tag', 'nightGround');
+nightGround = findall(viewer.Axes, 'Tag', 'nightGround', 'Visible', 'on');   % (shown: by day a night scene may be put away, hidden)
 if strcmp(dayGround.Visible, 'on') ~= (viewer.Ground() && ~flagNight)
     problems{end+1} = 'the day ground shown when it should not be, or not shown';
 end

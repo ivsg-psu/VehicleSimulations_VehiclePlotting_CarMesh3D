@@ -458,6 +458,11 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % it, Mesh and Grid buttons that stay pressed while on: the faces'
 %   %   % edges and the ground, the three switches most often clicked
 %   %   % (Sean, 10:41)
+%   % * Day to night quick (Sean, 12:49: "a noticeable delay" one way
+%   %   % only): the night scene is put away by day, not deleted, and shown
+%   %   % again at the next night unless something it was built from changed
+%   %   % (labels, colors, the lamp matrix, the faces shown, the ground);
+%   %   % then it is built anew as before
 
 % TO-DO:
 %
@@ -721,6 +726,8 @@ nightHandles = [];      % (fcn_CarMesh3D_plotVehicle's handles in it)
 nightControls = struct();   % (the lamp list's controls)
 listInner = [];         % (the label list over the lamp list: one shown at a time)
 nightObjects = gobjects(0);   % (the night scene's ground, light and vehicle)
+nightKey = {};          % (what the night scene was built from: kept by day, and shown again if unchanged)
+nightVisible = {};      % (each night object's Visible when it was put away by day)
 dayLights = gobjects(0);      % (the viewer's own lights, off at night)
 labelSwatches = gobjects(0);
 photoIndex = 0;
@@ -2109,7 +2116,18 @@ end
         nightSky = [0.04 0.05 0.09];
         axesHandle.Color = nightSky;
         modelHolder.BackgroundColor = nightSky;
-        buildNight();
+        % (the night scene kept from the last night, shown again if nothing
+        % it was built from has changed; else built anew: Sean, 12:49, day
+        % to night took about 1 s, rebuilding the whole scene each time)
+        if ~isempty(nightObjects) && all(isvalid(nightObjects)) && isequal(nightKey, currentNightKey())
+            for ith_object = 1:numel(nightObjects)
+                nightObjects(ith_object).Visible = nightVisible{ith_object};
+            end
+            fcn_CarMesh3D_plotVehicle(data.Mesh, 'PlotHandles', nightHandles, 'LightStates', nightStates);   % (the lamps as switched by day)
+            nightEdges();
+        else
+            buildNight();
+        end
         nightHint = ['<b>Nighttime view:</b> switch the lamps in Lamps To Display (' char(9776) ' Menu); set a label''s ' ...
             'Shown? to No to take it away (the glass over a lamp, say).'];
         if ~isempty(options.HiddenFaces)
@@ -2138,6 +2156,7 @@ end
         nightHandles = fcn_CarMesh3D_plotVehicle(shownMesh, 'Finish', 'matte', 'LightEffects', true, ...
             'SceneLights', 'none', 'LightStates', nightStates, 'AxesHandle', axesHandle);
         nightObjects = setdiff(axesHandle.Children, before);
+        nightKey = currentNightKey();
         set(findobj(nightObjects, '-property', 'HitTest'), 'HitTest', 'off');
         set(findobj(nightObjects, '-property', 'Clipping'), 'Clipping', 'off');
         nightEdges();
@@ -2145,9 +2164,12 @@ end
     end
 
     function leaveNight()
-        delete(nightObjects(isvalid(nightObjects)));
-        nightObjects = gobjects(0);
-        nightHandles = [];
+        % (the night scene put away, not deleted: shown again at the next
+        % night if nothing it was built from changes; each object's own
+        % Visible kept, as the glows and pools are on or off by the lamps)
+        nightObjects = nightObjects(isvalid(nightObjects));
+        nightVisible = arrayfun(@(object) object.Visible, nightObjects, 'UniformOutput', false);
+        set(nightObjects, 'Visible', 'off');
         set(dayLights(isvalid(dayLights)), 'Visible', 'on');
         if isempty(axesHandle) || ~isvalid(axesHandle)
             return;
@@ -2159,6 +2181,19 @@ end
         axesHandle.Color = [1 1 1];
         modelHolder.BackgroundColor = [1 1 1];
         redraw();
+    end
+
+    function key = currentNightKey()
+        % (what the night scene is built from: the mesh's labels and colors,
+        % the lamp matrix, the faces shown, and the ground)
+        key = {size(data.Mesh.Faces, 1), flagGround, hiddenFaceFlags()};
+        for name = {'FaceLightType', 'FacePartIndex', 'FaceColors', 'FaceAlpha', 'FaceCoverLamp', 'FaceAlsoParts', 'FaceLightFunctions', 'LampFunctions', 'Vertices'}
+            if isfield(data.Mesh, name{1})
+                key{end+1} = data.Mesh.(name{1}); %#ok<AGROW>
+            else
+                key{end+1} = []; %#ok<AGROW>
+            end
+        end
     end
 
     function nightEdges()
@@ -2219,7 +2254,7 @@ end
                 'UserData', lower(char(nightStates.Tail)));
             nightControls.Backup.Value = logical(nightStates.Backup);
         end
-        if ~isempty(nightHandles) && isfield(nightHandles, 'Transform') && isvalid(nightHandles.Transform)
+        if flagNight && ~isempty(nightHandles) && isfield(nightHandles, 'Transform') && isvalid(nightHandles.Transform)
             fcn_CarMesh3D_plotVehicle(data.Mesh, 'PlotHandles', nightHandles, 'LightStates', nightStates);
         elseif ~flagNight
             redraw();   % (by day: the lamps lit on the model)
