@@ -26,7 +26,7 @@ NOTE: this section notes planned current and future steps. If all are done, or t
 
 Key:
 - **Only what a person must judge** (Sean, 2026-11-25 13:15 and 14:24, for every file): look, feel, clarity, and other human-only checks. Anything of the form "does X show Y" or "does pressing X do Y" is a code test instead; this section names those code tests, so it is clear what is covered.
-- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all force; clear functions; clc`, even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
+- **TNN.** A test step. **Every step carries its own exact MATLAB commands, right under it** (G34; Sean, 2026-11-25 14:24), beginning with `close all; clear functions; clc` (Q74 (A), 2026-11-26: plain `close all` leaves the answer queue open), even when they repeat the step before: never "same window as above". T-numbers are unique across every file (G35); use them little outside this section.
 - (Sean's results are in parentheses under the step.)
 - Expected outcomes are labeled (A), (B), (both) and so on, as answers are, so a review can be quick: "confirm (A)". A bug is marked **BUG**; an uncertain or unexpected outcome **???**.
 - Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
