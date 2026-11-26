@@ -226,19 +226,27 @@ fcn_INTERNAL_writeItems(queueFolder, items);
 assert(strcmp(figureHandle.UserData.Current().ID, 'Q92'), 'The first item not answered');
 delete(figureHandle);
 
-%% The answers use the area's full width (Sean, 22:57)
-fprintf(1, 'The answers across the full width\n');
+%% The answers use the area's full width, wrapped (Sean, 22:57 and 02:18)
+fprintf(1, 'The answers across the full width, wrapped\n');
+items(1).Options(1).Text = repmat('a long answer that has to wrap onto more lines ', 1, 8);
+fcn_INTERNAL_writeItems(queueFolder, items);
 [~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Remember=false, Watch=false);
-figureHandle.UserData.Show('T90');   % (a test: five answers, two columns)
+figureHandle.UserData.Show(items(1).ID);
 drawnow;
 answerGroup = findall(figureHandle, 'Tag', 'aqAnswers');
 groupWidth = answerGroup.InnerPosition(3);
-answerBug = findall(figureHandle, 'Tag', 'aqAnswer_BUG');
-assert(answerBug.Position(3) > (groupWidth - 8)/2 - 10, 'Each column half the area: %.0f of %.0f', answerBug.Position(3), groupWidth);
+answerA = findall(figureHandle, 'Tag', 'aqAnswer_A');
+answerB = findall(figureHandle, 'Tag', 'aqAnswer_B');
+answerLater = findall(figureHandle, 'Tag', 'aqAnswer_Later');
+assert(strcmp(answerA.WordWrap, 'on'), 'The lettered answers wrap');
+assert(answerA.Position(3) > groupWidth - 20, 'A lettered answer takes the full width: %.0f of %.0f', answerA.Position(3), groupWidth);
+assert(answerA.Position(4) > answerB.Position(4), 'A long answer gets more lines');
+assert(answerA.Position(2) > answerB.Position(2) && answerB.Position(2) > answerLater.Position(2), 'In order, top to bottom');
+assert(answerLater.Position(3) < groupWidth/2, 'Other and Later share the last row');
 figureHandle.Position(3) = figureHandle.Position(3) + 300;   % (wider: the answers follow)
 drawnow;
 answerGroup.SizeChangedFcn(answerGroup, []);
-assert(answerBug.Position(3) > (answerGroup.InnerPosition(3) - 8)/2 - 10);
+assert(answerA.Position(3) > answerGroup.InnerPosition(3) - 20);
 delete(figureHandle);
 
 %% Watch: new items load while the window stays open (Sean, 23:17)

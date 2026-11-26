@@ -22,7 +22,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 % FORMAT:
 %
 %       [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput,...
-%           (Always=flagAlways),...
+%           (Always=flagAlways), (OrientFaces=flagOrient),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -35,6 +35,13 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %      Always: true to apply the saved fixes to the stage-1 mesh even when
 %      the mesh file is newer (for checking that the two agree). Default
 %      false.
+%
+%      OrientFaces: true (default) to turn each face to point the same way
+%      as its neighbors (fcn_CarMesh3D_orientFaces), so faces pointing the
+%      wrong way do not show as bright or dark slivers; false for the faces
+%      as saved. Only the faces' direction changes, so saved label edits
+%      (matched by face position) are not affected (Q87 (A), Sean
+%      2026_11_26 03:16).
 %
 %      FigNum: a figure to plot the returned mesh in. If empty or omitted,
 %      no plot is made. If set to -1, input checking is skipped and no plot
@@ -53,11 +60,14 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %           NumEdits: the number of label fixes in the labelEdits file (0
 %               when there is none)
 %           EditsFile, MeshFile: the files used
+%           NumFacesTurned: the faces fcn_CarMesh3D_orientFaces turned (0
+%               with OrientFaces=false)
 %
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_editLabels,
-%      fcn_CarMesh3D_findLampCovers, fcn_CarMesh3D_plotVehicle (plotting)
+%      fcn_CarMesh3D_findLampCovers, fcn_CarMesh3D_orientFaces,
+%      fcn_CarMesh3D_plotVehicle (plotting)
 %
 % EXAMPLES:
 %
@@ -75,6 +85,14 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %   % * First write (Q32 (A), Sean 01:55): replaces the hidden painters
 %   %   % that fcn_CarMesh3D_animateChecks and fcn_CarMesh3D_reviewVehicle
 %   %   % built to get the mesh with its saved label fixes
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_meshWithLabelEdits
+%   % * OrientFaces (default true; Q87 (A), Sean 03:16): the faces turned to
+%   %   % agree with their neighbors (fcn_CarMesh3D_orientFaces), so every
+%   %   % viewer, the painter, the V&V and the Animator's detail levels get
+%   %   % it for every vehicle, with no files rebuilt (the Fit's white
+%   %   % slivers at the driver door handle, Q86 (A))
 
 % TO-DO:
 %
@@ -90,6 +108,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 arguments
     vehicleInput
     options.Always = false      % Apply the fixes to the stage-1 mesh even when the mesh file is newer
+    options.OrientFaces = true  % Turn faces to agree with their neighbors (fcn_CarMesh3D_orientFaces)
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -147,6 +166,10 @@ if 0==flag_max_speed
         if ~(islogical(options.Always) || isnumeric(options.Always)) || ~isscalar(options.Always)
             error('Always must be true or false');
         end
+        % Check the OrientFaces input
+        if ~(islogical(options.OrientFaces) || isnumeric(options.OrientFaces)) || ~isscalar(options.OrientFaces)
+            error('OrientFaces must be true or false');
+        end
     end
 end
 
@@ -173,7 +196,8 @@ vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(vehicleInput), FigNum=-1);
 editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFiles.ID));
 stage1File = fullfile(vehicleFiles.Folder, 'cache', 'stage1_mesh.mat');
 
-info = struct('Source', 'mesh file', 'NumEdits', 0, 'EditsFile', '', 'MeshFile', vehicleFiles.MeshFile);
+info = struct('Source', 'mesh file', 'NumEdits', 0, 'EditsFile', '', 'MeshFile', vehicleFiles.MeshFile, ...
+    'NumFacesTurned', 0);
 
 % The saved label fixes, if any
 edits = {};
@@ -218,6 +242,13 @@ if isempty(vehicleMesh)
 end
 if ~isfield(vehicleMesh, 'FaceAlpha') || numel(vehicleMesh.FaceAlpha) ~= size(vehicleMesh.Faces,1)
     vehicleMesh.FaceAlpha = ones(size(vehicleMesh.Faces,1),1);
+end
+
+% Faces turned to point the same way as their neighbors (a few
+% hundredths of a second)
+if options.OrientFaces
+    [vehicleMesh, orientInfo] = fcn_CarMesh3D_orientFaces(vehicleMesh, FigNum=-1);
+    info.NumFacesTurned = orientInfo.NumFlipped;
 end
 
 %% Plot the results (for debugging)?

@@ -123,8 +123,8 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
 % - In fcn_CarMesh3D_makeDisplayPanels
-%   % * Labels To Display: the lamp group is "Lamp parts (bulbs)", its rows
-%   %   % named for what each part is ("headlamp bulb"), from
+%   % * Labels To Display: the lamp group is "Lamps", its rows named for
+%   %   % what each lamp is ("headlamp", "fog lamp"; Q83 (A)), from
 %   %   % fcn_CarMesh3D_lampTypes' new labels (rule P6, Sean 00:46)
 
 % TO-DO:
@@ -558,7 +558,7 @@ end
         % within interior, lights, visibility)
         groups = {'Main body panels', {'part_body', 'part_glass', 'part_wheel', 'part_trim'}, {'body', 'glass', 'wheel', 'trim'};
             'Objects within interior', {'part_interior'}, {'interior'};
-            'Lamp parts (bulbs)', strcat('light_', {lampTypes.Name}), ...
+            'Lamps', strcat('light_', {lampTypes.Name}), ...
             regexprep({lampTypes.Label}, '^(.)', '${lower($1)}')};   % (what each part is, never what switches it: rule P6)
         listedKeys = [groups{:,2}];
         extra = setdiff(kinds.Keys, [listedKeys, {'hidden'}], 'stable');   % (any other label of the mesh)

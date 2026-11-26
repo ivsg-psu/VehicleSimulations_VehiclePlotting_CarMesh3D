@@ -245,7 +245,7 @@ codeTestsButton = uibutton(runGrid, 'Text', 'Run the code tests', 'Tag', 'aqRunC
 runStatus = uilabel(runGrid, 'Text', '', 'Tag', 'aqRunStatus');
 answerGrid = uigridlayout(pageGrid, [1 2], 'ColumnWidth', {'2x', '1x'}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 answerGroup = uibuttongroup(answerGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'aqAnswers', ...
-    'SelectionChangedFcn', @(~,event) onPicked(event), 'AutoResizeChildren', 'off', ...
+    'SelectionChangedFcn', @(~,event) onPicked(event), 'AutoResizeChildren', 'off', 'Scrollable', 'on', ...
     'SizeChangedFcn', @(~,~) placeAnswers());
 commentArea = uitextarea(answerGrid, 'Placeholder', 'Comment (optional)', 'Tag', 'aqComment', ...
     'ValueChangedFcn', @(~,~) onComment());
@@ -370,9 +370,8 @@ end
         flagShowing = true;
         delete(answerGroup.Children);
         blank = uiradiobutton(answerGroup, 'Text', '', 'Visible', 'off', 'Position', [1 1 1 1], 'UserData', '');
-        % (three to a column, the columns sharing the area's full width; the
-        % recommended answer says so right after its letter, in bold, so the
-        % mark is never the part cut off: Sean, 17:10)
+        % (laid out by placeAnswers; the recommended answer says so right
+        % after its letter, in bold: Sean, 17:10)
         answerButtons = gobjects(1, numel(keys));
         for ith_key = 1:numel(keys)
             text = labels{ith_key};
@@ -401,24 +400,54 @@ end
     end
 
     function placeAnswers()
-        % (three to a column, the columns sharing the area's full width; run
+        % (each lettered answer on its own row across the area's full width,
+        % its text wrapped to as many lines as it needs, so no answer is cut
+        % off; BUG, ???, Other and Later share the last row. The answer row
+        % of the page grows to fit, up to a limit, and scrolls past it. Run
         % again whenever the area changes size, since its width is not known
-        % until the window is laid out: Sean, 22:57)
+        % until the window is laid out: Sean, 22:57 and 02:18)
         answerButtons = answerButtons(isvalid(answerButtons));
         numKeys = numel(answerButtons);
         if numKeys == 0
             return;
         end
-        numPerColumn = 3;
         groupWidth = answerGroup.InnerPosition(3);
         if groupWidth < 100
             groupWidth = 680;   % (not laid out yet: placed again when it is)
         end
-        columnWidth = (groupWidth - 8)/max(1, ceil(numKeys/numPerColumn));
-        for ith_key = 1:numKeys
-            column = floor((ith_key - 1)/numPerColumn);
-            row = mod(ith_key - 1, numPerColumn);
-            answerButtons(ith_key).Position = [6 + columnWidth*column, 42 - 20*row, columnWidth - 5, 20];
+        fixedKeys = {'BUG', '???', 'Other', 'Later'};
+        isFixed = arrayfun(@(button) any(strcmp(button.UserData, fixedKeys)), answerButtons);
+        lineHeight = 18;
+        textWidth = groupWidth - 40;   % (less the round button and margins)
+        heights = zeros(1, numKeys);
+        for ith_key = find(~isFixed)
+            button = answerButtons(ith_key);
+            charWidth = 7.2 + 0.6*strcmp(button.FontWeight, 'bold');   % (13-point text, roughly)
+            numLines = max(1, ceil(numel(button.Text)*charWidth/textWidth));
+            heights(ith_key) = lineHeight*numLines + 4;
+        end
+        rowGap = 3;
+        totalHeight = sum(heights(~isFixed)) + rowGap*nnz(~isFixed) + (lineHeight + 4)*any(isFixed) + 6;
+        % (the page grid's answer row fits the answers, between 70 and 260 pixels)
+        wantedRow = min(260, max(70, totalHeight + 10));
+        if ~isequal(pageGrid.RowHeight{5}, wantedRow)
+            pageGrid.RowHeight{5} = wantedRow;
+        end
+        groupHeight = max(answerGroup.InnerPosition(4), totalHeight);
+        top = groupHeight - 3;
+        for ith_key = find(~isFixed)
+            top = top - heights(ith_key);
+            answerButtons(ith_key).WordWrap = 'on';
+            answerButtons(ith_key).Position = [6, top, groupWidth - 12, heights(ith_key)];
+            top = top - rowGap;
+        end
+        fixedIndices = find(isFixed);
+        if ~isempty(fixedIndices)
+            top = top - (lineHeight + 4);
+            fixedWidth = (groupWidth - 8)/numel(fixedIndices);
+            for ith_fixed = 1:numel(fixedIndices)
+                answerButtons(fixedIndices(ith_fixed)).Position = [6 + fixedWidth*(ith_fixed - 1), top, fixedWidth - 5, lineHeight + 4];
+            end
         end
     end
 

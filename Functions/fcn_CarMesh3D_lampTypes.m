@@ -27,7 +27,7 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 %           Name: the type's name in a mesh's LightTypeNames, such as
 %               'headlight' or 'fog'
 %           Label: its name for people: what the part IS, never what
-%               switches it (rule P6), such as 'Fog bulb'
+%               switches it (rule P6), such as 'Fog lamp'
 %           FaceColor: 1 x 3, the plain (unlit) color a face gets when it
 %               is labeled as this type and no color is given
 %           LabelColor: 1 x 3, its color in the label views (the false
@@ -95,7 +95,10 @@ function lampTypes = fcn_CarMesh3D_lampTypes(options) %#ok<INUSD>
 % - In fcn_CarMesh3D_lampTypes
 %   % * Labels name the part, not the function that switches it (Sean,
 %   %   % 00:35 to 00:46; rule P6, README "Position, meaning, and function"):
-%   %   % 'Headlamp bulb' in place of 'Low beams (headlights)', and so on.
+%   %   % 'Headlamp bulb' in place of 'Low beams (headlights)', and so on;
+%   %   % then 'Headlamp', 'Fog lamp' ... (Sean's style guide, 01:47: a lamp
+%   %   % is the whole device that lights; a bulb is only its light source;
+%   %   % Q83 (A))
 %   %   % The Names (the keys saved in meshes) are unchanged
 
 % TO-DO:
@@ -130,17 +133,17 @@ end
 
 %                Name           Label                        FaceColor           LabelColor          LitColor            SwitchedBy                                  NameRule                                           RuleOrder
 lampTable = {...
-    'headlight',   'Headlamp bulb',               [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'Headlights (''low'' or ''high'') or LowBeam', 'head|front',                                      11;
-    'turnsignal',  'Turn-signal bulb',            [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
-    'running',     'Running-light bulb (DRL)',    [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
-    'tail',        'Tail/brake bulb',             [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail (''on'', or ''brake'' for bright)',   'tail|brake|stop|rear',                            10;
-    'backup',      'Backup (reverse) bulb',       [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
-    'highbeam',    'High-beam bulb (separate)',   [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'Headlights (''high'') or HighBeam',        'high.?beam|hi.?beam|main.?beam',                  1;
-    'fog',         'Fog bulb',                    [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'FogLights',                                'fog',                                             2;
-    'reflector',   'Reflector (no bulb)',         [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          3;
-    'licenseplate','License-plate bulb',          [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
-    'marker',      'Marker bulb',                 [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
-    'warning',     'Warning bulb (beacon)',       [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|beacon|strobe|hazard|emergency',          9};
+    'headlight',   'Headlamp',                     [0.90 0.90 0.85],   [1.00 0.90 0.10],   [1.00 0.96 0.78],   'Headlights (''low'' or ''high'') or LowBeam', 'head|front',                                      11;
+    'turnsignal',  'Turn-signal lamp',             [0.85 0.55 0.15],   [1.00 0.50 0.00],   [1.00 0.55 0.00],   'TurnLeft, TurnRight, or Hazards',          'turn|indicator|blinker|signal',                   4;
+    'running',     'Running lamp (DRL)',           [0.90 0.90 0.85],   [0.00 0.90 0.90],   [1.00 0.98 0.90],   'Running',                                  'drl|running|daytime',                             8;
+    'tail',        'Tail/brake lamp',              [0.55 0.05 0.05],   [0.90 0.00 0.00],   [0.70 0.04 0.04],   'Tail (''on'', or ''brake'' for bright)',   'tail|brake|stop|rear',                            10;
+    'backup',      'Backup (reverse) lamp',        [0.85 0.85 0.85],   [0.10 0.75 0.10],   [1.00 1.00 1.00],   'Backup',                                   'reverse|backup|back_up',                          7;
+    'highbeam',    'High-beam lamp (separate)',    [0.92 0.92 0.90],   [0.30 0.55 1.00],   [1.00 1.00 1.00],   'Headlights (''high'') or HighBeam',        'high.?beam|hi.?beam|main.?beam',                  1;
+    'fog',         'Fog lamp',                     [0.92 0.92 0.88],   [0.55 1.00 0.55],   [1.00 0.97 0.85],   'FogLights',                                'fog',                                             2;
+    'reflector',   'Reflector (no lamp)',          [0.60 0.08 0.05],   [1.00 0.60 0.80],   [],                 'Reflectors (the outside light, 0 to 1)',   'reflector|reflex|retro',                          3;
+    'licenseplate','License-plate lamp',           [0.90 0.90 0.85],   [0.75 0.55 1.00],   [1.00 1.00 0.95],   'Tail (lit whenever the tail lamps are)',   'licen[cs]e|number.?plate|plate.?l',               5;
+    'marker',      'Marker lamp',                  [0.85 0.55 0.15],   [1.00 0.78 0.35],   [],                 'Running (lit with the running lights)',    'marker|side.?light|clearance',                    6;
+    'warning',     'Warning lamp (beacon)',        [0.85 0.55 0.15],   [0.60 0.00 0.30],   [],                 'Hazards (flash them in your loop)',        'warning|beacon|strobe|hazard|emergency',          9};
 
 lampTypes = cell2struct(lampTable, {'Name','Label','FaceColor','LabelColor','LitColor','SwitchedBy','NameRule','RuleOrder'}, 2);
 lampTypes = lampTypes(:);

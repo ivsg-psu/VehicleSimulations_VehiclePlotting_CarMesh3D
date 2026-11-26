@@ -1,6 +1,8 @@
 # Design: lamp units and the lamp-to-function matrix (`fcn_CarMesh3D_editLampFunctions`)
 
-*Words: every file uses the three layers of the README's "Position, meaning, and function" (rule P6): **position** (faces), **meaning** (labels), **function** (signals). Say which layer a section is about; never call a label by a function ("headlamp bulb", not "low beams").*
+*Terms (Sean's style guide, 2026-11-26 01:47): a **lamp** is the whole device that lights (its bulb or LEDs, reflector and cover: all that glows when it is on); a **bulb** is only the light source inside it, and a **filament** the part of a bulb that glows. CarMesh3D labels and switches **lamps**; bulbs and filaments are not modeled. Say "lamp" unless the light source itself is meant ("the Fit's DRL is its high-beam filament, dimmed").*
+
+*Words: every file uses the three layers of the README's "Position, meaning, and function" (rule P6): **position** (faces), **meaning** (labels), **function** (signals). Say which layer a section is about; never call a label by a function ("headlamp", not "low beams").*
 
 *Started 2026-11-26 00:55 by Claude, from Sean's Fit review (00:07 to 00:53; Q76 (A)). The general GUI rules are in `Documentation_CarMesh3D_GUIdesign_rules.md`.*
 
@@ -13,12 +15,12 @@
 ## 1. What it is for
 
 A vehicle's lamps have to answer two questions, and today one label tries to answer both:
-- **What is this part?** (layer 2, meaning): a headlamp bulb, a marker bulb, a cover glass.
+- **What is this part?** (layer 2, meaning): a headlamp, a marker lamp (and the cover glass that is part of a lamp).
 - **What makes it light?** (layer 3, function): the high-beam signal, the left-turn signal, the running lights (dimmed).
 
-Real vehicles mix these terms freely. The 2009 Fit's daytime running lights are its high-beam bulbs, dimmed. One left-turn signal lights two bulbs, front left and rear left, but is still called "left turn signal". One tail/brake bulb answers two signals at two brightnesses, and is called a brake light and tail light. 
+Real vehicles mix these terms freely. The 2009 Fit's daytime running lights are its high-beam lamps, dimmed. One left-turn signal lights two lamps, front left and rear left, but is still called "left turn signal". One tail/brake lamp answers two signals at two brightnesses, and is called a brake light and tail light. 
 
-But this mix of function and location can fail. A broken brake lamp is a bulb that no longer answers its signal. A label cannot say any of this since the label only names a physical space; a matrix can fix this, by associating name with function. For example, the area labeled brake light is unchanged, even if the light burns out. But the function is what is failing, not the labeling or position because the brake light did not suddenly become a turn signal nor change location. It simply does not respond to the signal anymore to activate.
+But this mix of function and location can fail. A broken brake lamp is a lamp that no longer answers its signal (its bulb has burned out). A label cannot say any of this since the label only names a physical space; a matrix can fix this, by associating name with function. For example, the area labeled brake light is unchanged, even if the light burns out. But the function is what is failing, not the labeling or position because the brake light did not suddenly become a turn signal nor change location. It simply does not respond to the signal anymore to activate.
 
 This following descriptions present a design that keeps the label for layer 2 only, and adds a **lamp-to-function (L2F) matrix** for layer 3, kept with each vehicle and edited in a window of its own.
 
@@ -32,8 +34,8 @@ This following descriptions present a design that keeps the label for layer 2 on
 | Layer | For lamps | Example (2009 Fit) | Edited in |
 |---|---|---|---|
 | 1. Position | the faces | the faces inside the front-left headlamp housing | (the mesh) |
-| 2. Meaning | a **label** per face (the lamp part's kind), and the **lamp units** the faces form (section 3) | "headlamp bulb"; unit "front-left headlamp bulb" | the painter |
-| 3. Function | the **matrix**: which signals light each unit, and how bright | unit "front-left headlamp bulb": Low beam on, High beam on, Running dim (0.3) | the matrix window |
+| 2. Meaning | a **label** per face (the lamp part's kind), and the **lamp units** the faces form (section 3) | "headlamp"; unit "front-left headlamp" | the painter |
+| 3. Function | the **matrix**: which signals light each unit, and how bright | unit "front-left headlamp": Low beam on, High beam on, Running dim (0.3) | the matrix window |
 
 - **Labels map faces to meaning.** A face is painted a kind; it never learns its function.
 - **The matrix maps meaning to signals.** It names units, never faces.
@@ -41,56 +43,56 @@ This following descriptions present a design that keeps the label for layer 2 on
 
 ## 3. Lamp units (layer 2): found, never drawn by hand
 
-A **unit** is one connected piece of faces with one lamp label. The 2009 Fit's front-left headlamp housing holds, for example, a headlamp-bulb unit, a turn-signal unit and a marker unit. And the headlamp-bulb itself allows multiple activation levels.
+A **unit** is one connected piece of faces with one lamp label. The 2009 Fit's front-left headlamp housing holds, for example, a headlamp unit, a turn-signal unit and a marker unit. And the headlamp itself allows multiple activation levels.
 
 - **Found automatically** each time the mesh or its labels change: faces of one lamp label that share edges form one unit (the connected-piece rule already used to label the Fit's front lamps, 2026-11-23).
-- **Named from position (layer 1) and kind (layer 2):** front or rear (from x against the vehicle's middle), left or right (from y; center when it crosses the middle, such as a high brake lamp), then the kind: "front-left headlamp bulb", "rear-center tail/brake bulb". Two units with one name get a number: "front-left marker bulb 2".
+- **Named from position (layer 1) and kind (layer 2):** front or rear (from x against the vehicle's middle), left or right (from y; center when it crosses the middle, such as a high brake lamp), then the kind: "front-left headlamp", "rear-center tail/brake lamp". Two units with one name get a number: "front-left marker lamp 2".
 - **Cover glass:** a lens over a unit belongs to it (the mesh's `FaceCoverLamp` already records which lamp each cover sits over), and lights with it.
-- **What "bulb" means here:** the part of the lamp that lights, not the physical (small) location of the bulb filiment. Most filaments are enclosed within reflectors and lenses, and this entire space lights when the bulb is activated. For labeling, this entire space is considered the bulb. Most downloads do not model bulbs, only the colored section of a lamp assembly (section 7); the colored section is therefore the bulb, in most downloads. However, some downloads may share names across bulbs, for example headlights. If this spans more than 1 assembly and phsical bulb locations - for example, a right and left lamp area - then this is not a bulb description because the bulb-to-lit area convention is violated. The right bulb may be burned out, but that does not mean the left headlight does not activate. This illustrates the need to separate bulb filaments (not used in this work), bulb-lit areas - hereafter called "bulbs", versus bulb functions - highbeams for example. Normal wording often mixes all three of these labels, and this toolset assumes the "lit area by one bulb" meaning only.
+- **What "lamp" means here:** the whole part that lights, not the physical (small) bulb or filament inside it. Most filaments are enclosed within reflectors and lenses, and this entire space lights when the bulb is activated; for labeling, this entire space is the lamp. Most downloads do not model bulbs at all, only the colored section of a lamp assembly (section 7); the colored section is therefore the lamp, in most downloads. However, some downloads share one name across lamps, for example "headlights" for both sides. A name that spans more than one lamp (a right and a left headlamp) does not describe one lamp: the right bulb may be burned out while the left headlamp still lights. This is why three things are kept apart: bulbs and filaments (the light sources, not modeled in this work), lamps (the area one light source lights: what is labeled), and functions (what signals light a lamp: high beams, for example). Everyday wording mixes all three; this toolset uses "lamp" in the "area lit by one light source" meaning only.
 
-## 4. The matrix (layer 3)
+## 4. The L2F matrix (layer 3)
 
-Rows are labeled bulbs (right-front fog light for example); columns are signals (fog lights "on", for example); each cell is a brightness from 0 (off) to 1 (full). The matrix allows a bulb to be reused. For example, the fog light bulb may activate 100% with fog lights "on" signaling, at 20% with "parking light" signaling, or 100% with "high beams" signaling. 
+In the lamp-to-function matrix (L2F), rows are labeled lamps (right-front fog light for example); columns are signals (fog lights "on", for example); each cell is a brightness from 0 (off) to 1 (full). The matrix allows a lamp to be reused. For example, the fog lamp may light 100% with fog lights "on" signaling, at 20% with "parking light" signaling, or 100% with "high beams" signaling. 
 
 | Unit | Low beam | High beam | Running | Parking | Left turn | Right turn | Tail | Brake | Backup | Fog | Source |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| front-left headlamp bulb | 1 | 1 | 0.3 | | | | | | | | Honda: DRL is the high-beam filament, dimmed |
-| front-right headlamp bulb | 1 | 1 | 0.3 | | | | | | | | (as front-left) |
-| front-left turn-signal bulb | | | | | 1 | | | | | | (default) |
-| front-right turn-signal bulb | | | | | | 1 | | | | | (default) |
-| front-left marker bulb | | | 1 | 1 | | | 1 | | | | (default) |
-| front-left fog bulb | | 1 | | 0.2 | | | | | | 1 | (an example of reuse: on with fog lights, 20% as a parking light, on with high beams) |
-| front-right fog bulb | | 1 | | 0.2 | | | | | | 1 | (as front-left) |
-| rear-left tail/brake bulb | | | | 1 | | | 0.4 | 1 | | | (default) |
-| rear-left backup bulb | | | | | | | | | 1 | | (default) |
+| front-left headlamp | 1 | 1 | 0.3 | | | | | | | | Honda: DRL is the high-beam filament, dimmed |
+| front-right headlamp | 1 | 1 | 0.3 | | | | | | | | (as front-left) |
+| front-left turn-signal lamp | | | | | 1 | | | | | | (default) |
+| front-right turn-signal lamp | | | | | | 1 | | | | | (default) |
+| front-left marker lamp | | | 1 | 1 | | | 1 | | | | (default) |
+| front-left fog lamp | | 1 | | 0.2 | | | | | | 1 | (an example of reuse: on with fog lights, 20% as a parking light, on with high beams) |
+| front-right fog lamp | | 1 | | 0.2 | | | | | | 1 | (as front-left) |
+| rear-left tail/brake lamp | | | | 1 | | | 0.4 | 1 | | | (default) |
+| rear-left backup lamp | | | | | | | | | 1 | | (default) |
 | ... | | | | | | | | | | | |
 
-*The fog rows show one bulb reused by three signals at two brightnesses (Sean, T78): the fog bulb is the same lit area, in the same place, whichever signal lights it. (The 2009 Fit's own fog bulbs answer the fog signal only; the example is not the Fit.)*
+*The fog rows show one lamp reused by three signals at two brightnesses (Sean, T78): the fog lamp is the same lit area, in the same place, whichever signal lights it. (The 2009 Fit's own fog lamps answer the fog signal only; the example is not the Fit.)*
 
 - **A unit's brightness** is the largest of its active cells (tail 0.4 and brake 1 together: 1).
 - **The signals are plotVehicle's light states** (LowBeam, HighBeam, Running, Parking (new), TurnLeft, TurnRight, Tail, Brake, Backup, FogLights; and Reflectors, the outside light reaching the reflectors).
 - **Hazards is not a column** (Q80 (A)): it is the two turn signals switched together, and the window has a Hazards button above the matrix to switch them so. Hazards flashing is the turn signals switched on and off over time, which is not part of the matrix (next rule).
-- **Time is not part of the mesh** (Sean, 2026-11-26 01:35; README and rule P6). The matrix says what lights, and how bright, *when* a signal is on. When a signal comes on, goes off, flashes, or follows a sequence is a choice of whatever drives the signals (AnimateCar3D, or a user's own loop), never part of the vehicle's files. Example: hazard lights flashing on and off change neither the bulbs' position (layer 1), their labels (layer 2), nor which signal lights them and how bright (layer 3); only the signal changes, in time.
+- **Time is not part of the mesh** (Sean, 2026-11-26 01:35; README and rule P6). The matrix says what lights, and how bright, *when* a signal is on. When a signal comes on, goes off, flashes, or follows a sequence is a choice of whatever drives the signals (AnimateCar3D, or a user's own loop), never part of the vehicle's files. Example: hazard lights flashing on and off change neither the lamps' position (layer 1), their labels (layer 2), nor which signal lights them and how bright (layer 3); only the signal changes, in time.
 - **Defaults** come from the kind and the side, so most vehicles need no edits:
 
 | Kind | Default signals |
 |---|---|
-| headlamp bulb | Low beam 1, High beam 1 (High beam only when the vehicle also has high-beam bulbs) |
-| high-beam bulb | High beam 1 |
-| turn-signal bulb | Left turn (left side) or Right turn (right side) 1 |
-| running-light bulb | Running 1 |
-| marker bulb | Running 1, Parking 1, Tail 1 |
-| tail/brake bulb | Parking 1 (at the tail brightness), Tail 0.4, Brake 1; a rear turn signal too when the vehicle has no separate rear turn bulbs (US red rear turns) |
-| backup bulb | Backup 1 |
-| fog bulb | Fog 1 |
-| license-plate bulb | Parking 1, Tail 1 |
+| headlamp | Low beam 1, High beam 1 (High beam only when the vehicle also has high-beam lamps) |
+| high-beam lamp | High beam 1 |
+| turn-signal lamp | Left turn (left side) or Right turn (right side) 1 |
+| running lamp (DRL) | Running 1 |
+| marker lamp | Running 1, Parking 1, Tail 1 |
+| tail/brake lamp | Parking 1 (at the tail brightness), Tail 0.4, Brake 1; a rear turn signal too when the vehicle has no separate rear turn lamps (US red rear turns) |
+| backup lamp | Backup 1 |
+| fog lamp | Fog 1 |
+| license-plate lamp | Parking 1, Tail 1 |
 | reflector | Reflectors (the outside light) |
 
 ## 5. Where it lives, and who reads it
 
 - **With the vehicle** (rule G40): `lampFunctions_<ID>.csv` in the vehicle's folder, **every unit and every cell** (Q79 (A)), the columns of section 4 plus a **Default** column (yes, or edited) and a **Source** column; a rebuild that changes the units keeps the edited rows and remakes the default ones (rule: tables of facts carry their sources). CSV, so it is readable, shows changes clearly in git, and a student can edit it by hand (Q79).
 - **Read in one place:** `fcn_CarMesh3D_plotVehicle` lights the lamps from the matrix. The viewer, the painter and the V&V GUI all draw lamps through it, in place of their own copies of the lamp rules today. Those copies are where the painter lit the fog lamps with the high beams (Sean's Fit review, 00:36); one reader fixes that kind of mismatch for good.
-- **AnimateCar3D** gets the matrix through `plotVehicle`, with nothing new to do, and can change it at run time for faults: `LampFaults={'rear-left tail/brake bulb'}` makes that unit answer no signal. The library keeps each vehicle as designed; a fault belongs to the scene, not the vehicle.
+- **AnimateCar3D** gets the matrix through `plotVehicle`, with nothing new to do, and can change it at run time for faults: `LampFaults={'rear-left tail/brake lamp'}` makes that unit answer no signal. The library keeps each vehicle as designed; a fault belongs to the scene, not the vehicle.
 - **Retired** once the matrix is in: the per-face function table `FaceLightFunctions` and the per-vehicle `LampSwitching`, which each held part of layer 3 inside the mesh. A one-time migration turns them into each vehicle's matrix.
 
 ## 6. The window (`fcn_CarMesh3D_editLampFunctions`)
@@ -115,22 +117,22 @@ So the downloads already say what and where (layers 1 and 2), not what switches 
 
 ## 8. Someday
 
-- **New signals from the window's menu** (Sean, T78): a user adds a signal the list lacks (a column), such as a work light, a beacon or an aftermarket light bar, with a name and the bulbs it lights.
-- **Fades, in time and in space** (Sean, Q80 note). The matrix holds one brightness per bulb per signal; some modern lamps need more:
-  - **in space:** many modern turn signals are a bar of many LEDs that lights in a sweep, right to left for a left turn. Lighting each LED as its own bulb quickly becomes unworkable; a bulb with a direction and a sweep would describe the whole bar;
+- **New signals from the window's menu** (Sean, T78): a user adds a signal the list lacks (a column), such as a work light, a beacon or an aftermarket light bar, with a name and the lamps it lights.
+- **Fades, in time and in space** (Sean, Q80 note). The matrix holds one brightness per lamp per signal; some modern lamps need more:
+  - **in space:** many modern turn signals are a bar of many LEDs that lights in a sweep, right to left for a left turn. Lighting each LED as its own lamp quickly becomes unworkable; a lamp with a direction and a sweep would describe the whole bar;
   - **in time:** some modern turn signals do not blink but fade on, then fade off.
-  How a sweep or a fade is *played* over time belongs to the driver of the signals (rule above: time is not part of the mesh); what the vehicle must record is the bulb's shape for it (the sweep's direction and length, or that it fades). Not supported by the matrix as designed.
+  How a sweep or a fade is *played* over time belongs to the driver of the signals (rule above: time is not part of the mesh); what the vehicle must record is the lamp's shape for it (the sweep's direction and length, or that it fades). Not supported by the matrix as designed.
 
 ## 9. Plan
 
-1. DONE (01:35): Sean's review (T78 (B), with edits); Q79 (A), Q80 (A), Q78 (A): the saved lamp keys are renamed to bulb names with this work, by one migration.
+1. DONE (01:35): Sean's review (T78 (B), with edits); Q79 (A), Q80 (A), Q78 (A): the saved lamp keys are renamed to lamp names (what each lamp is) with this work, by one migration.
 2. `fcn_CarMesh3D_lampUnits`: units from a mesh, with their names and covers; tested on the Fit and the GUI test vehicle.
 3. The matrix: defaults (section 4), read and write `lampFunctions_<ID>.csv`, and the migration from `FaceLightFunctions` and `LampSwitching`.
 4. `plotVehicle` lights lamps from the matrix; the viewer and painter draw lamps through it (their own lamp rules removed). The Fit's fog-with-high-beams bug as a test.
 5. The window (section 6), hosted in the painter.
-6. The Fit: its matrix (DRL from the headlamp bulbs, dimmed, with Honda as the source); Sean re-checks the Headlights question in the V&V GUI.
+6. The Fit: its matrix (DRL from the headlamps, dimmed, with Honda as the source); Sean re-checks the Headlights question in the V&V GUI.
 7. AnimateCar3D: `LampFaults`, and its contract check.
-8. The library: every vehicle migrated and checked (face counts per lamp before and after), the saved lamp keys renamed to bulb names (Q78 (A)).
+8. The library: every vehicle migrated and checked (face counts per lamp before and after), the saved lamp keys renamed to lamp names (Q78 (A)).
 9. Before the window: a day/night icon (sun and moon, Sean's picture, 2026-11-26 01:26) in every model view, out of the way, switching day and night with one click; the window switches to night when it is used (section 6). The start setting stays in Shared GUI settings ("Day or night at start").
 
 ## Tests for Sean
@@ -171,3 +173,4 @@ Key:
   - **Q79 (A)**: the file holds every unit and every cell, with a Default column (section 5).
   - **Q80 (A)**: Hazards is not a column: "Hazards, in implementation, are simply a signal change in time. Time-axis events are animator choices, not part of this rep." The rule "time is not part of the mesh" (section 4; README; rule P6). Someday: fades in time and space (section 8).
   - **Q78 (A)**: the saved lamp keys are renamed to bulb names, with this work (plan items 1 and 8).
+- 2026-11-26 01:47, Sean: edits to sections 3 and 4 (L2F named; rows are labeled lamps), and the style guide: "bias toward the word 'lamp' rather than 'bulb' - in physical lighting, a lamp is an entire device (bulb, covering, etc) being lit up, but bulb refers to the part holding the filament." Claude: the whole file in those terms (a Terms note at the top; "headlamp", "marker lamp", "tail/brake lamp" ...; "bulb" kept only for the light source itself).

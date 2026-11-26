@@ -7,6 +7,10 @@
 % 2026_11_24 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_meshWithLabelEdits
 %   % * First write
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_meshWithLabelEdits
+%   % * OrientFaces (Q87 (A))
 
 %% Set up the workspace
 close all;
@@ -50,6 +54,19 @@ figuresBefore = findall(groot, 'Type', 'figure');
 fcn_CarMesh3D_meshWithLabelEdits(vehicleID, Always=true, FigNum=-1);
 figuresAfter = findall(groot, 'Type', 'figure');
 assert(numel(figuresAfter) == numel(figuresBefore));
+
+%% TEST case: OrientFaces (Q87 (A), 2026_11_26): faces turned by default, as saved with false
+figNum = 20003;
+fprintf(1,'Figure %.0f: TEST case: OrientFaces\n', figNum);
+[savedMesh, savedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, OrientFaces=false, FigNum=-1);
+[turnedMesh, turnedInfo] = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FigNum=-1);
+[expectedMesh, expectedInfo] = fcn_CarMesh3D_orientFaces(savedMesh, FigNum=-1);
+assert(savedInfo.NumFacesTurned == 0);
+assert(turnedInfo.NumFacesTurned == expectedInfo.NumFlipped && turnedInfo.NumFacesTurned > 0, 'The demo vehicle has faces to turn');
+assert(isequal(turnedMesh.Faces, expectedMesh.Faces), 'The default is the mesh after fcn_CarMesh3D_orientFaces');
+assert(isequal(sort(turnedMesh.Faces, 2), sort(savedMesh.Faces, 2)), 'Only the order of each face''s corners changes');
+assert(isequal(turnedMesh.FacePartIndex, savedMesh.FacePartIndex) && isequal(turnedMesh.FaceLightType, savedMesh.FaceLightType), ...
+    'The labels are unchanged');
 
 %% FAST mode cases
 figNum = 80001;

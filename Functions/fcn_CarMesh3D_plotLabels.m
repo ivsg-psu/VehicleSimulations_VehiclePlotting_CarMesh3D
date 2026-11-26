@@ -104,7 +104,7 @@ function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, opti
 %   % * A second output, legendEntries: the label colors the mesh uses,
 %   %   % for a legend in the V&V GUI's label pictures (Sean, T62)
 %   % * The legend's lamp names come from fcn_CarMesh3D_lampTypes: what
-%   %   % each part is, such as "headlamp bulb" (rule P6, Sean 2026-11-26)
+%   %   % each lamp is, such as "headlamp" (rule P6, Sean 2026-11-26)
 
 % TO-DO:
 %
@@ -278,7 +278,7 @@ if ~flagByMaterial
                 flagLampColor = flagLampColor | flagType;
                 readable = fcn_INTERNAL_readableName(thisName);
                 if isfield(lampNames, thisName)
-                    readable = lampNames.(thisName);   % ("headlamp bulb", not "headlight")
+                    readable = lampNames.(thisName);   % ("headlamp", not "headlight")
                 end
                 typeEntries(end+1) = struct('Name', readable, ...
                     'Color', lightColors.(thisName), 'Faces', sum(flagType)); %#ok<AGROW>
