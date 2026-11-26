@@ -10,14 +10,15 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 % FORMAT:
 %
 %       axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews,...
-%           (Captions=captions), (Dark=flag), (Legend=entries), (FigNum=figNum))
+%           (Captions=captions), (Dark=flag), (Legend=entries),...
+%           (Rows=numRows), (RowLabels=labels), (FigNum=figNum))
 %
 % INPUTS:
 %
 %      parent: the panel to draw in (a uipanel), or [] for a figure of its
 %      own.
 %
-%      numViews: how many pictures, side by side (1 to 4).
+%      numViews: how many pictures (1 to 4 in a row; up to 8 in two rows).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -32,13 +33,21 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 %      of fcn_CarMesh3D_plotLabels); default none (Sean, T62: a simple
 %      legend of the label colors).
 %
+%      Rows: 1 (default) or 2: the pictures in two rows, filled row by
+%      row (the lamp pictures: far views on top, close-ups below; Sean,
+%      T76 (B)).
+%
+%      RowLabels: a label for each row, shown above it (such as {'Far
+%      view', 'Close-up of left headlight'}); default none. In a figure of
+%      its own, each picture's caption starts with its row's label.
+%
 %      FigNum: the figure to use when parent is [] (cleared first); []
 %      (default) for a new figure. -1: fast mode (no input checks), a new
 %      figure.
 %
 % OUTPUTS:
 %
-%      axesHandles: 1 x numViews axes (uiaxes inside a panel), ready for
+%      axesHandles: 1 x numViews axes, row by row (uiaxes inside a panel), ready for
 %      fcn_CarMesh3D_plotVehicle(..., AxesHandle=axesHandles(k)).
 %
 % DEPENDENCIES:
@@ -66,6 +75,12 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 % - In fcn_CarMesh3D_assessAxes
 %   % * Legend=: a line of label-color swatches under the pictures (Sean,
 %   %   % T62)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_assessAxes
+%   % * Rows and RowLabels: two rows of pictures with a label above each
+%   %   % (the lamp pictures' far views and close-ups; Sean, T76 (B))
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -77,6 +92,8 @@ arguments
     options.Captions = {}   % A caption under each picture
     options.Dark = false    % Dark background
     options.Legend = []     % Swatches under the pictures: struct array with Name, Color
+    options.Rows = 1        % 1 or 2 rows of pictures
+    options.RowLabels = {}  % A label above each row
     options.FigNum = []     % The figure when parent is []; -1 fast mode
 end
 
@@ -97,8 +114,11 @@ if 0==flag_max_speed && flag_check_inputs
     if ~isempty(parent) && ~isgraphics(parent)
         error('CarMesh3D:badInput', 'parent must be a panel, or [].');
     end
-    if ~isnumeric(numViews) || ~isscalar(numViews) || numViews < 1 || numViews > 4 || numViews ~= round(numViews)
-        error('CarMesh3D:badInput', 'numViews must be 1, 2, 3 or 4.');
+    if ~isnumeric(numViews) || ~isscalar(numViews) || numViews < 1 || numViews > 4*options.Rows || numViews ~= round(numViews)
+        error('CarMesh3D:badInput', 'numViews must be 1 to 4 per row.');
+    end
+    if ~any(isequal(options.Rows, 1) | isequal(options.Rows, 2))
+        error('CarMesh3D:badInput', 'Rows must be 1 or 2.');
     end
     if ~isempty(options.Legend) && ~(isstruct(options.Legend) && all(isfield(options.Legend, {'Name', 'Color'})))
         error('CarMesh3D:badInput', 'Legend must be a structure array with Name and Color.');
@@ -114,6 +134,13 @@ if options.Dark
 end
 axesHandles = gobjects(1, numViews);
 flagLegend = ~isempty(options.Legend);
+numRows = options.Rows;
+numColumns = ceil(numViews/numRows);
+rowLabels = cellstr(options.RowLabels);
+flagRowLabels = ~isempty(options.RowLabels);
+captions = options.Captions;
+rowOf = @(index) ceil(index/numColumns);
+columnOf = @(index) index - (rowOf(index) - 1)*numColumns;
 
 if isempty(parent)
     % (by itself at the prompt: a figure of its own)
@@ -124,9 +151,19 @@ if isempty(parent)
         clf(figureHandle);
     end
     figureHandle.Color = background;
-    layout = tiledlayout(figureHandle, 1, numViews, 'TileSpacing', 'compact', 'Padding', 'compact');
+    layout = tiledlayout(figureHandle, numRows, numColumns, 'TileSpacing', 'compact', 'Padding', 'compact');
     for ith_view = 1:numViews
-        axesHandles(ith_view) = nexttile(layout);
+        axesHandles(ith_view) = nexttile(layout, ith_view);
+    end
+    if flagRowLabels
+        % (no room for a label above a row of tiles: each caption starts
+        % with its row's label)
+        for ith_view = 1:numViews
+            thisRow = rowOf(ith_view);
+            if thisRow <= numel(rowLabels) && ith_view <= numel(captions)
+                captions{ith_view} = sprintf('%s: %s', rowLabels{thisRow}, captions{ith_view});
+            end
+        end
     end
     if flagLegend
         % (TeX: a colored square and the name for each)
@@ -138,18 +175,39 @@ if isempty(parent)
 else
     delete(parent.Children);
     parent.BackgroundColor = background;
-    grid = uigridlayout(parent, [1 + flagLegend, numViews], 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
-        'RowSpacing', 2, 'BackgroundColor', background);
+    % (rows: for each row of pictures, its label above it if any; then
+    % the legend)
+    rowHeights = {};
+    axesRow = zeros(1, numRows);
+    for ith_row = 1:numRows
+        if flagRowLabels
+            rowHeights{end+1} = 20; %#ok<AGROW>
+        end
+        rowHeights{end+1} = '1x'; %#ok<AGROW>
+        axesRow(ith_row) = numel(rowHeights);
+    end
     if flagLegend
-        grid.RowHeight = {'1x', 22};
+        rowHeights{end+1} = 22;
+    end
+    grid = uigridlayout(parent, [numel(rowHeights), numColumns], 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
+        'RowSpacing', 2, 'BackgroundColor', background, 'RowHeight', rowHeights);
+    if flagRowLabels
+        for ith_row = 1:min(numRows, numel(rowLabels))
+            rowLabel = uilabel(grid, 'Text', rowLabels{ith_row}, 'FontWeight', 'bold', 'FontSize', 12, ...
+                'FontColor', textColor, 'Tag', 'assessRowLabel');
+            rowLabel.Layout.Row = axesRow(ith_row) - 1;
+            rowLabel.Layout.Column = [1 numColumns];
+        end
+    end
+    if flagLegend
         legendGrid = fcn_INTERNAL_legendRow(grid, options.Legend, background, textColor);
-        legendGrid.Layout.Row = 2;
-        legendGrid.Layout.Column = [1 numViews];
+        legendGrid.Layout.Row = numel(rowHeights);
+        legendGrid.Layout.Column = [1 numColumns];
     end
     for ith_view = 1:numViews
         axesHandles(ith_view) = uiaxes(grid);
-        axesHandles(ith_view).Layout.Row = 1;
-        axesHandles(ith_view).Layout.Column = ith_view;
+        axesHandles(ith_view).Layout.Row = axesRow(rowOf(ith_view));
+        axesHandles(ith_view).Layout.Column = columnOf(ith_view);
         disableDefaultInteractivity(axesHandles(ith_view));
     end
 end
@@ -159,8 +217,8 @@ for ith_view = 1:numViews
     axesHandle.Color = background;
     axis(axesHandle, 'off');
     hold(axesHandle, 'on');
-    if ith_view <= numel(options.Captions)
-        title(axesHandle, options.Captions{ith_view}, 'Color', textColor, 'FontWeight', 'normal', 'FontSize', 11);
+    if ith_view <= numel(captions)
+        title(axesHandle, captions{ith_view}, 'Color', textColor, 'FontWeight', 'normal', 'FontSize', 11);
         axesHandle.Title.Visible = 'on';   % (shown with the axis off)
     end
 end

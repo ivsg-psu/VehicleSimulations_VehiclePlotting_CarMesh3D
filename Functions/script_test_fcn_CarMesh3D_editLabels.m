@@ -157,6 +157,26 @@ assert(all(all(editedMesh.FaceColors(1:3,:)==[1 0 0])));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
+%% TEST case: relabeled faces keep this vehicle's colors (Q88 (A), 2026_11_26)
+figNum = 20010;
+titleString = sprintf('TEST case: relabeled faces keep this vehicle''s colors');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+vehicleMesh = fcn_INTERNAL_labeledSample;
+bodyFaces = find(vehicleMesh.FacePartIndex == 1);
+vehicleMesh.FaceColors(bodyFaces,:) = repmat([0.05 0.20 0.60], numel(bodyFaces), 1);   % (a blue vehicle)
+% Body painted over body: nothing changes (the 2009 Fit turned grey here)
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFaces(1:5),'Part','body')});
+assert(isequal(editedMesh.FaceColors, vehicleMesh.FaceColors), 'Painting body over body keeps the colors');
+% A trim face made body takes the vehicle's body color, not the default grey
+trimFaces = find(vehicleMesh.FacePartIndex == 5);
+if ~isempty(trimFaces)
+    editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',trimFaces(1),'Part','body')});
+    assert(isequal(editedMesh.FaceColors(trimFaces(1),:), [0.05 0.20 0.60]), 'A new body face takes the vehicle''s body color');
+end
+% A color in the edit still wins
+editedMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits={struct('FaceIndices',bodyFaces(1),'Part','body','Color',[1 0 0])});
+assert(isequal(editedMesh.FaceColors(bodyFaces(1),:), [1 0 0]));
+
 %% TEST case: BothSides mirrors the region across the centerline
 figNum = 20002;
 titleString = sprintf('TEST case: BothSides mirrors the region across the centerline');

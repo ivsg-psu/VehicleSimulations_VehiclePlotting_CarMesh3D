@@ -33,6 +33,12 @@
 %   %   % save, its folder) in place of the old Settings panel, with the
 %   %   % preference put back at the end; Review greyed
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_paintLabels
+%   % * Selecting only with Ctrl (Q84 (A)): clicks and double-clicks are
+%   %   % made with Ctrl held; plain clicks select nothing; a Ctrl+click
+%   %   % selects one face whatever the brush (drafted with Claude)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -277,7 +283,7 @@ painter.ShowLabel('all');
 
 %% TEST case: The menu and the panels (the design file's layout; the shared menu, two panels at once)
 fprintf(1,'TEST case: the menu and the panels\n');
-panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Shared GUI settings'};
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Lamp Functions', 'Shared GUI settings'};
 assert(isequal(painter.OpenNames(), {'Labels To Display', 'Modify Labels'}) || flagHadPanelPref, ...
     'It opens with Labels To Display over Modify Labels');
 for ith_panel = 1:numel(panelNames)
@@ -296,10 +302,22 @@ assert(isequal(cellstr(getpref('CarMesh3D', 'PainterPanels')), {'Shared GUI sett
 % (Shared GUI settings in the painter: Review greyed, Editing used)
 assert(strcmp(findall(painter.Figure, 'Tag', 'settingsResetReview').Enable, 'off'), 'Review: greyed in the painter');
 assert(strcmp(findall(painter.Figure, 'Tag', 'settingsResetEditing').Enable, 'on'), 'Editing: used by the painter');
-% (no check boxes: every on/off choice is a pair of radio buttons)
+% (check boxes only where one click on or off is wanted: the lamps in
+% Lamps To Display (Sean's Fit feedback); every other on/off choice is a pair
+% of radio buttons)
 for ith_panel = 1:numel(panelNames)
-    assert(isempty(findall(findall(painter.Figure, 'Type', 'uipanel', 'Tag', panelNames{ith_panel}), 'Type', 'uicheckbox')));
+    boxes = findall(findall(painter.Figure, 'Type', 'uipanel', 'Tag', panelNames{ith_panel}), 'Type', 'uicheckbox');
+    assert(isempty(boxes) || all(startsWith({boxes.Tag}, {'lamp_', 'lampOnlyLit', 'lampGroup'})), 'Check boxes only for the lamps');
 end
+% (the Lamp Functions panel: the matrix window, made when first opened,
+% driving the painter's view; the lamp-functions plan, item 5)
+painter.OpenPanels({'Lamp Functions'});
+lampEditor = painter.LampEditor();
+assert(isstruct(lampEditor) && height(lampEditor.Table()) == numel(lampEditor.Units()), 'The matrix window in its panel');
+assert(~isempty(findall(painter.Figure, 'Tag', 'lampTable')), 'Its table drawn');
+lampEditor.SetSignal('TurnLeft');
+assert(~isempty(findall(painter.Axes, 'Tag', 'lampOutline')), 'The edited signal''s lamps outlined on the painter''s model');
+painter.Viewer.SetNightView(false);
 % (Labels To Display: Colored? No draws a label plain gray)
 glassIndex = find(strcmp(baseMesh.PartNames, 'glass'));
 glassFaces = find(baseMesh.FacePartIndex == glassIndex);
@@ -321,6 +339,19 @@ tailGroup.SelectionChangedFcn(tailGroup, struct('NewValue', onButton));
 assert(strcmp(painter.Viewer.NightLights().Tail, 'on'));
 painter.Viewer.SetNightLamp('All', false);
 assert(strcmp(tailGroup.SelectedObject.UserData, 'off'));
+% (the viewer's sun/moon button, pressed: the painter's Nighttime view?
+% follows; Q89 (A), 2026-11-26)
+dayNightButton = findall(painter.Figure, 'Type', 'uibutton', 'Tag', 'dayNightButton');
+assert(isscalar(dayNightButton), 'The sun/moon button is in the painter too');
+nightBefore = painter.Viewer.NightView();
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(painter.Viewer.NightView() ~= nightBefore, 'One click switches day and night');
+nightRow = findall(painter.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallNight');
+if isscalar(nightRow)
+    assert(isequal(nightRow.SelectedObject.UserData, painter.Viewer.NightView()), 'Nighttime view? follows the button');
+end
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(painter.Viewer.NightView() == nightBefore, 'Another click switches back');
 % (Modify Labels: the tool picked shows as its radio button)
 painter.SetTool('trim');
 paintGroup = findall(painter.Figure, 'Tag', 'paintAs');
@@ -475,33 +506,59 @@ testMesh = gp.WorkingMesh();
 seen = fcn_INTERNAL_seenFaces(gp, testMesh);
 assert(numel(seen) >= 20, 'Enough faces in view to click');
 face = seen(1);
-gp.ClickAt(face);
+gp.ClickAt(face, {'control'});
 layers = gp.Layers();
 assert(layers.Paint(face) == "body" && any(layers.PendingFaces == face), 'A click paints the face under the mouse');
 fcn_INTERNAL_checkRules(gp);
-gp.ClickAt(face);
+gp.ClickAt(face, {'control'});
 assert(gp.Layers().Paint(face) == "", 'A second click takes it off');
 % (a quick second click on another piece: the system calls it a
 % double-click; it paints only the face clicked)
 pieceIndex = fcn_INTERNAL_pieceOf(testMesh);
 otherFace = seen(find(pieceIndex(seen) ~= pieceIndex(face), 1));
-gp.ClickAt(face);
-gp.MouseDownAt(otherFace, {}, 'open');
+gp.ClickAt(face, {'control'});
+gp.MouseDownAt(otherFace, {'control'}, 'open');
 gp.MouseUpAt(otherFace);
 layers = gp.Layers();
 assert(layers.Paint(otherFace) == "body" && nnz(layers.Paint ~= "") == 2, 'A fast click on another piece paints one face, not the piece');
 gp.ClearPending();
 % (a double-click paints the whole piece; another takes it off)
-gp.DoubleClickAt(face);
+gp.DoubleClickAt(face, {'control'});
 piece = find(pieceIndex == pieceIndex(face));
 layers = gp.Layers();
 assert(all(layers.Paint(piece) == "body") && nnz(layers.Paint ~= "") == numel(piece), 'A double-click paints the whole piece');
-gp.DoubleClickAt(face);
+gp.DoubleClickAt(face, {'control'});
 assert(nnz(gp.Layers().Paint ~= "") == 0, 'A second double-click takes it off');
 % (a click off the model paints nothing)
-gp.ClickAt(NaN);
+gp.ClickAt(NaN, {'control'});
 assert(nnz(gp.Layers().Paint ~= "") == 0);
 fcn_INTERNAL_checkRules(gp);
+% (Q84 (A): selecting only with Ctrl. A plain click, or a plain
+% double-click, selects nothing; a Ctrl+click selects exactly one face,
+% whatever the brush; Ctrl+Shift+click unselects it)
+gp.ClickAt(face);
+gp.DoubleClickAt(face);
+assert(nnz(gp.Layers().Paint ~= "") == 0, 'Plain clicks only turn the model: nothing selected (Q84 (A))');
+flagHadBrush = ispref('CarMesh3D', 'PaintBrush');   % (the brush is remembered: put back after)
+if flagHadBrush
+    brushBefore = getpref('CarMesh3D', 'PaintBrush');
+end
+brushGroup = findall(gp.Figure, 'Type', 'uibuttongroup', 'Tag', 'paintBrush');
+brushLarge = findobj(brushGroup.Children, 'flat', 'Text', 'Large');
+brushGroup.SelectedObject = brushLarge;
+brushGroup.SelectionChangedFcn(brushGroup, struct('NewValue', brushLarge));
+gp.ClickAt(face, {'control'});
+assert(isequal(find(gp.Layers().Paint ~= ""), face), 'A Ctrl+click selects exactly one face, even with the large brush');
+gp.ClickAt(face, {'control', 'shift'});
+assert(nnz(gp.Layers().Paint ~= "") == 0, 'Ctrl+Shift+click unselects it');
+brushFine = findobj(brushGroup.Children, 'flat', 'Text', 'Fine');
+brushGroup.SelectedObject = brushFine;
+brushGroup.SelectionChangedFcn(brushGroup, struct('NewValue', brushFine));
+if flagHadBrush
+    setpref('CarMesh3D', 'PaintBrush', brushBefore);
+else
+    rmpref('CarMesh3D', 'PaintBrush');
+end
 
 %% TEST case: Mouse: Ctrl+drag paints every face passed over; Ctrl+Shift+drag erases them
 fprintf(1,'TEST case: Ctrl+drag and Ctrl+Shift+drag\n');
@@ -535,9 +592,9 @@ fcn_INTERNAL_checkRules(gp);
 
 %% TEST case: Mouse: faces can be picked after Apply; glass with the glass tool
 fprintf(1,'TEST case: picking after Apply; glass\n');
-gp.ClickAt(seen(2));
+gp.ClickAt(seen(2), {'control'});
 gp.Apply();
-gp.ClickAt(seen(3));
+gp.ClickAt(seen(3), {'control'});
 layers = gp.Layers();
 assert(layers.Paint(seen(3)) == "body" && any(layers.PendingFaces == seen(3)), 'A click after Apply paints');
 assert(layers.Applied(seen(2)) == "body");
@@ -573,7 +630,7 @@ glassIndex = find(strcmp(testMesh.PartNames, 'glass'));
 gp.SetTool('glass');
 glassSeen = fcn_INTERNAL_seenFaces(gp, testMesh, find(testMesh.FacePartIndex == glassIndex));
 assert(~isempty(glassSeen), 'Glass in view');
-gp.DoubleClickAt(glassSeen(1));
+gp.DoubleClickAt(glassSeen(1), {'control'});
 glassPiece = find(pieceIndex == pieceIndex(glassSeen(1)));
 assert(all(gp.Layers().Paint(glassPiece) == "glass"), 'A double-click on glass, with the glass tool, paints the window');
 gp.ClearPending();
@@ -584,18 +641,18 @@ gp.ClearPending();
 %% TEST case: Keys: Ctrl+Z, Ctrl+S, Esc; the top bar's Revert to save
 fprintf(1,'TEST case: keys, and Revert to save\n');
 undoBefore = gp.Status().UndoSteps;
-gp.ClickAt(seen(1));
-gp.ClickAt(seen(6));
+gp.ClickAt(seen(1), {'control'});
+gp.ClickAt(seen(6), {'control'});
 assert(gp.Status().UndoSteps == undoBefore + 2);
 gp.Key('z', {'control'});
 assert(gp.Status().UndoSteps == undoBefore + 1 && gp.Layers().Paint(seen(6)) == "", 'Ctrl+Z undoes');
 gp.Key('s', {'control'});
 assert(gp.Status().Saved && ~gp.IsUnsaved(), 'Ctrl+S saves');
 savedStatus = gp.Status();
-gp.ClickAt(seen(7));
+gp.ClickAt(seen(7), {'control'});
 gp.Key('escape');
 assert(gp.Status().Pending == 0, 'Esc unselects the pending paint');
-gp.ClickAt(seen(8));
+gp.ClickAt(seen(8), {'control'});
 gp.Apply();
 gp.Press('painterRevert');   % (hidden: no question)
 statusNow = gp.Status();
@@ -646,7 +703,8 @@ for ith_size = 1:size(sizes,1)
         if height(ownErrors) > 0
             disp(ownErrors);
         end
-        assert(height(ownErrors) == 0, 'Layout errors in the painter''s own parts at %dx%d, %s', sizes(ith_size,:), parts.PanelNames{ith_panel});
+        assert(height(ownErrors) == 0, 'Layout errors in the painter''s own parts at %dx%d, %s: %s', sizes(ith_size,1), sizes(ith_size,2), ...
+            parts.PanelNames{ith_panel}, strjoin(strcat(ownErrors.Control, ': ', ownErrors.Problem), ' | '));   % (each argument a scalar: a row of sizes broke the message)
     end
 end
 % (the panels the painter builds scroll, so their last rows can be reached)
@@ -847,7 +905,7 @@ function fcn_INTERNAL_undoCheck(painter, seen)
 % A click, then Undo: the layers and the status are as before the click
 statusBefore = painter.Status();
 layersBefore = painter.Layers();
-painter.ClickAt(seen(randi(numel(seen))));
+painter.ClickAt(seen(randi(numel(seen))), {'control'});
 if painter.Status().UndoSteps > statusBefore.UndoSteps
     painter.Undo();
     statusAfter = painter.Status();
@@ -863,11 +921,13 @@ pick = @() seen(randi(numel(seen)));
 pickTwo = @() centers(seen(randi(numel(seen), 2, 1)),:);
 modifyOpen = @() any(strcmp(painter.OpenNames(), 'Modify Labels'));
 list = cell(0,3);   % (name, what it does, when it can be done: [] for always)
-list(end+1,:) = {'click', @() painter.ClickAt(pick()), []};
-list(end+1,:) = {'double-click', @() painter.DoubleClickAt(pick()), []};
+list(end+1,:) = {'click', @() painter.ClickAt(pick(), {'control'}), []};
+list(end+1,:) = {'double-click', @() painter.DoubleClickAt(pick(), {'control'}), []};
 list(end+1,:) = {'Ctrl+drag', @() painter.DragAt(pickTwo(), {'control'}), []};
 list(end+1,:) = {'Ctrl+Shift+drag', @() painter.DragAt(pickTwo(), {'control', 'shift'}), []};
-list(end+1,:) = {'click off the model', @() painter.ClickAt(NaN), []};
+list(end+1,:) = {'click off the model', @() painter.ClickAt(NaN, {'control'}), []};
+list(end+1,:) = {'plain click (turns only)', @() painter.ClickAt(pick()), []};
+list(end+1,:) = {'Ctrl+Shift+click', @() painter.ClickAt(pick(), {'control', 'shift'}), []};
 list(end+1,:) = {'Apply', @() painter.Press('paintApply'), modifyOpen};
 list(end+1,:) = {'Undo button', @() painter.Press('painterUndo'), []};
 list(end+1,:) = {'Ctrl+Z', @() painter.Key('z', {'control'}), []};

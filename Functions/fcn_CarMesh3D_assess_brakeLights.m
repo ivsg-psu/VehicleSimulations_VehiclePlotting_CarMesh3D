@@ -72,6 +72,12 @@ function result = fcn_CarMesh3D_assess_brakeLights(vehicleInput, options)
 %   % * Detail: a second line of guidance under the question (Sean, T62);
 %   %   % shorter, without function names: the GUI's "Show the commands"
 %   %   % gives them (Sean, T74)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_assess_brakeLights
+%   % * Two rows (Sean, T76 (B)): the far views on top ("Far view"), and
+%   %   % close-ups of the left (driver's side) tail light below
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -89,7 +95,8 @@ end
 described = struct('Key', 'brakeLights', 'Title', 'Brake lights', ...
     'Question', 'Do the brake lights come on as expected in these pictures?', ...
     'Answers', {{'Yes', 'No'}}, 'ProblemAnswers', {{'No'}}, ...
-    'Help', ['The rear at night, three times: lamps off, tail lamps on, braking. Tail and brake lamps often ' ...
+    'Help', ['The rear at night, three times: lamps off, tail lamps on, braking; below, the same close up on the left ' ...
+    '(driver''s side) tail light. Tail and brake lamps often ' ...
     'share a housing, so this catches one labeled as the other. No if the brake lamps do not light, ' ...
     'the wrong part lights, or braking looks no brighter than the tail lamps alone.'], ...
     'Detail', 'If unsure, select No and check the night view in the viewer; fix in the painter. Do not select Yes if unsure.', ...
@@ -118,7 +125,8 @@ end
 % The pictures: the rear at night, off, tail lamps, braking
 states = {'off', 'on', 'brake'};
 captions = {'Lamps off', 'Tail lamps on', 'Braking'};
-axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 3, Dark=true, FigNum=options.FigNum);
+axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, Dark=true, ...
+    RowLabels={'Far view', 'Close-up of left tail light'}, FigNum=options.FigNum);
 for ith_view = 1:3
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=axesHandles(ith_view), ...
         LightStates=struct('Tail', states{ith_view}), FigNum=-1);
@@ -126,6 +134,13 @@ for ith_view = 1:3
     axis(axesHandles(ith_view), 'equal', 'off');
     title(axesHandles(ith_view), captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     axesHandles(ith_view).Title.Visible = 'on';
+    % (below it: the same lamps, close up on the left tail light)
+    closeAxes = axesHandles(3 + ith_view);
+    fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, LightStates=struct('Tail', states{ith_view}), FigNum=-1);
+    axis(closeAxes, 'equal', 'off');
+    fcn_INTERNAL_closeUp(closeAxes, mesh, {'tail'}, false, -135, 12);   % (the rear, from the left)
+    title(closeAxes, captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
+    closeAxes.Title.Visible = 'on';
 end
 end % Ends main function
 
@@ -151,3 +166,38 @@ end
 typeIndex = find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames));
 count = sum(ismember(mesh.FaceLightType, typeIndex));
 end % Ends fcn_INTERNAL_countLamps
+
+%% fcn_INTERNAL_closeUp
+function fcn_INTERNAL_closeUp(axesHandle, mesh, typeNames, flagFront, azimuth, elevation)
+% The view close up on the left (+y, the driver's side) lamps of these
+% types, at the front or the rear, from this direction: the axes' limits
+% cut down to a box around them, so everything outside is clipped (a
+% zoomed camera alone draws past the picture's edge, over its
+% neighbors); the whole vehicle when it has none
+view(axesHandle, azimuth, elevation);
+flagFaces = false(size(mesh.Faces, 1), 1);
+if isfield(mesh, 'FaceLightType') && isfield(mesh, 'LightTypeNames')
+    flagFaces = ismember(mesh.FaceLightType, find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames)));
+end
+centers = (mesh.Vertices(mesh.Faces(:,1),:) + mesh.Vertices(mesh.Faces(:,2),:) + mesh.Vertices(mesh.Faces(:,3),:))/3;
+middleX = (min(mesh.Vertices(:,1)) + max(mesh.Vertices(:,1)))/2;
+sideY = 0.3*max(mesh.Vertices(:,2));   % (the left lamps: clear of a lamp in the middle, such as a high brake lamp)
+if flagFront
+    flagFaces = flagFaces & centers(:,1) > middleX & centers(:,2) > sideY;
+else
+    flagFaces = flagFaces & centers(:,1) < middleX & centers(:,2) > sideY;
+end
+if ~any(flagFaces)
+    return;
+end
+corners = mesh.Vertices(unique(mesh.Faces(flagFaces,:)),:);
+low = min(corners, [], 1);
+high = max(corners, [], 1);
+center = (low + high)/2;
+halfSize = max(0.25, 0.75*max(high - low));   % [m] (a cube around the lamp, at least 50 cm across)
+xlim(axesHandle, center(1) + halfSize*[-1 1]);
+ylim(axesHandle, center(2) + halfSize*[-1 1]);
+zlim(axesHandle, center(3) + halfSize*[-1 1]);
+set(findall(axesHandle, 'Type', 'patch'), 'Clipping', 'on');
+set(findall(axesHandle, 'Type', 'line'), 'Clipping', 'on');
+end % Ends fcn_INTERNAL_closeUp

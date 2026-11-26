@@ -57,6 +57,8 @@ result = fcn_CarMesh3D_assess_<name>(vehicle, Mode='fingerprint')  % the fingerp
 | `Help` | What to look at (the question's tooltip) |
 | `Detail` | (optional) A second line under the question, smaller and not bold: what to do when unsure (Sean, T62: "Do not select Yes if unsure"). An assessment without one shows no second line |
 | `GroupKey`, `GroupTitle`, `GroupHelp` | The function's own key (its name after `fcn_CarMesh3D_assess_`), title and tooltip, for the list and Shared GUI settings |
+| `Score` | (optional) The range of a score asked with the answer, such as `[0 10]` (Normals: 0 bad, 10 perfect; Sean, 2026-11-26 04:41). The host shows a score box beside the answers and records it |
+| `Examples` | (optional) true: the host offers "Compare with examples" (saved pictures of other reviews, best first) and "Save as an example" (Q90 (A), Q91 (A): a PNG of the pictures as turned, and a one-line text file beside it, in `Data/VandV/Examples/<GroupKey>/`, named `<GroupKey>_s<score>_<accept or reject>_<vehicle>_<initials>_<date>.png`, so an example is re-ranked by renaming it) |
 | `Fingerprint` | (not in describe mode) The fingerprint of the data it draws (section 4) |
 | `Skip` | (not in describe mode) '' or why the question cannot be asked for this vehicle (realism with no exemplar): recorded as skipped, with the reason |
 | `Note` | (not in describe mode) One line for the status line, such as the number of headlight faces |
@@ -91,18 +93,19 @@ For each question: the answer, an optional one-line comment, who (your initials,
 | 1 | first | Overall | Does this mesh pass a first glance? *(tooltip: A few seconds, before anything else: No if something is plainly wrong, such as the wrong vehicle, missing parts, a scrambled or inside-out mesh, or far too few faces to be usable. No ends the review here when "Stop at the first No?" is on.)* (Sean, 01:13) | Yes / No | (new) | optional |
 | 2 | first | Labels | Are the labels on the correct portions of the mesh? (one or two pictures in label colors) | Yes / No | Labels (the painter is no longer inside) | optional |
 | 3 | first | Patchy labels | Are the labels clean, with no blotchy or patchy areas? *(tooltip: Patches often mean faces pointing the wrong way, or mixed-up labels.)* (Sean, 01:32: "a perfect example of something a human catches in fractions of a second whereas code takes tons of computations"; a No means the mesh got past the build's guards, or labels were mixed up when it was made, "very common") | Yes / No | Labels (was "Label Directions", Q54) | optional |
-| 4 | first | Headlights | Do the headlights go off, low, high as expected in these three pictures? | Yes / No | Lights | optional |
-| 5 | first | Brake lights | Do the brake lights come on as expected in these pictures? (off; tail lamps on; braking: tail and brake lamps often share a housing, so this catches one labeled as the other) (Sean, 01:28: "the most important illumination signal in the entire list") | Yes / No | Lights (was "Taillights") | optional |
-| 6 | first | Realism | Is the realism of this mesh (Fig 1) higher than, equal to, or lower than this approved mesh (Fig 2)? (Lower counts as the problem answer) | Higher / Equal / Lower | (new) | optional |
-| 7 | later | Orientation | Are the x-axis and z-axis labeled correctly in this image? (front and up arrows on the model) | Yes / No | Orientation | optional |
-| 8 | later | Dimensioning lines | Are the length, width, height and wheelbase lines placed on the right points? (the numbers are checked by code, not asked) | Yes / No | Dimensions | optional |
-| 9 | later | Tires (four questions) | Does Fig 1 show the front driver tire? (its labeled faces highlighted against the body; then the front passenger, rear driver and rear passenger tires) | Yes / No | Body, Steering, Wheels, Drive | optional |
-| 10 | later | Blinkers | Do the blinkers go off and on as expected in these two pictures? | Yes / No | Lights | optional |
-| 11 | later | Fog lights | Do the fog lights go off and on as expected in these two pictures? | Yes / No | Lights | optional |
-| 12 | later | Seats and wheel | Are the seats and the steering wheel found where they are? | Yes / No | (new: a core mesh requirement) | optional |
-| 13 | later | Photos | Are the vehicle photos correct all the way around (correct vehicle, correct approximate angle)? | Yes / No | (new: a core mesh requirement) | optional |
-| 14 | later | 2D outline | Is the 2D outline representative of an overhead view of the vehicle? | Yes / No | 2D outline | optional |
-| 15 | later | 2D interior | Are the 2D outline's interior elements (seats, steering wheel) visually useful? | Yes / No | (new) | optional |
+| 4 | first | Normals | Do all faces point outward, with no face in the opposite color to its neighbors? (each face colored by its unit normal, RGB = (n+1)/2, in two views turned with the CAD mouse; Sean, 02:35: "the errors stand out dramatically") *(with a score from 0, bad, to 10, perfect; examples to compare with, and "Save as an example": Sean, 04:41; Q90 (A), Q91 (A))* | Accept / Reject | (new) | optional |
+| 5 | first | Headlights | Do the headlights go off, low, high as expected in these pictures? | Yes / No | Lights | optional |
+| 6 | first | Brake lights | Do the brake lights come on as expected in these pictures? (off; tail lamps on; braking: tail and brake lamps often share a housing, so this catches one labeled as the other) (Sean, 01:28: "the most important illumination signal in the entire list") | Yes / No | Lights (was "Taillights") | optional |
+| 7 | first | Realism | Is the realism of this mesh (Fig 1) higher than, equal to, or lower than this approved mesh (Fig 2)? (Lower counts as the problem answer) | Higher / Equal / Lower | (new) | optional |
+| 8 | later | Orientation | Are the x-axis and z-axis labeled correctly in this image? (front and up arrows on the model) | Yes / No | Orientation | optional |
+| 9 | later | Dimensioning lines | Are the length, width, height and wheelbase lines placed on the right points? (the numbers are checked by code, not asked) | Yes / No | Dimensions | optional |
+| 10 | later | Tires (four questions) | Does Fig 1 show the front driver tire? (its labeled faces highlighted against the body; then the front passenger, rear driver and rear passenger tires) | Yes / No | Body, Steering, Wheels, Drive | optional |
+| 11 | later | Blinkers | Do the blinkers go off and on as expected in these two pictures? | Yes / No | Lights | optional |
+| 12 | later | Fog lights | Do the fog lights go off and on as expected in these two pictures? | Yes / No | Lights | optional |
+| 13 | later | Seats and wheel | Are the seats and the steering wheel found where they are? | Yes / No | (new: a core mesh requirement) | optional |
+| 14 | later | Photos | Are the vehicle photos correct all the way around (correct vehicle, correct approximate angle)? | Yes / No | (new: a core mesh requirement) | optional |
+| 15 | later | 2D outline | Is the 2D outline representative of an overhead view of the vehicle? | Yes / No | 2D outline | optional |
+| 16 | later | 2D interior | Are the 2D outline's interior elements (seats, steering wheel) visually useful? | Yes / No | (new) | optional |
 | last | (always) | Summary | (not a question: every answer, and the overall decision) | Approve / Reject | Summary | required |
 
 **Realism's reference** (Q58 (A), Sean 2026-11-25 12:16): the approved exemplar of the vehicle's body style (`Data/bodyStyles.csv`, Exemplars column), another vehicle than the one reviewed; skipped, with why, when the style has none or the vehicle is its only exemplar. This gives exemplars a further purpose. Sean: an exemplar is (1) a template to build other vehicles of its style parametrically, (2) the mesh for the visibility (detail-level) ladders, and now (3) the reference for realism. *To do:* check that the body-style documentation states all three (`claude/body_styles.md`, the README).
@@ -111,7 +114,7 @@ For each question: the answer, an optional one-line comment, who (your initials,
 
 **Removed** (Sean, 22:54 to 22:59):
 - **Differences** (holes and changes in the mesh): "this is not the point of V&V (it's not even the point of the paint GUI)". A code check, if needed.
-- **Body, Steering, Wheels, Drive** (the animations): code correctness, and very costly; what they really tested is whether each tire is labeled right, asked directly in the tires assessment (order 9).
+- **Body, Steering, Wheels, Drive** (the animations): code correctness, and very costly; what they really tested is whether each tire is labeled right, asked directly in the tires assessment (order 10).
 - **Detail levels:** never failed; kept only for exemplars, if anywhere.
 - **The painter inside the reviewer:** fixing is not V&V.
 
@@ -156,7 +159,7 @@ The picture of it is in the README.
 
 - **Batch sampling for a trusted source** (Claude, 2026-11-25 00:53; Sean's example: FHWA's database of about 1000 vehicles). Review a random sample with every assessment on; if none of n fails, the batch's failure rate is below about 3/n at 95% confidence ("rule of three": 60 with no failure, under about 5%; 300, under about 1%). The rest are approved with the reason recorded ("batch FHWA-2026-11: 60 of 1000 sampled, 0 failed"); any failure sends the batch back for a closer look.
 - **Claude as a screener** (Sean, 2026-11-25 01:00: "a definite option if given a large batch of data"): Claude looks at every vehicle's pictures and flags the doubtful ones, so the sample includes them; the approval stays the reviewer's (P5). The first trial also tests the screener: a batch where Sean has reviewed some vehicles by hand, to compare what Claude flags with what he found.
-- **The other assessments** (orders 7 to 15), added once the first round has been worked through on real vehicles.
+- **The other assessments** (orders 8 to 16), added once the first round has been worked through on real vehicles.
 - **Timeouts for computing, and the next picture drawn ahead** (section 3): when an assessment needs them.
 - **Someday: pre-flight unit-normal tests, as another panel** (Sean, 2026-11-26 03:12 and 03:14; plan item 15). On the 2009 Fit, Sean found and judged wrong-way faces with a 2 x 2 window: the mesh colored by unit normal, and gray by each face's mean dot product with its edge neighbors (backward faces dark), before and after flipping the faces below a cutoff, with a slider for the cutoff (-1 to 1), "Start from" (the original, or after `fcn_CarMesh3D_orientFaces`) and "Sweeps" (repeat the flip, eroding a backward patch from its border). It chose `orientFaces`' rules: the patch rule, then one sweep at -0.5 ("caught almost everything"; what remains are seams between panels, ill-conditioned where meshes join at very thin curvature, which barely show in renders). As a panel: the reviewer sets the cutoff and sweeps for a vehicle and sees the result, and the choice is kept with the vehicle (rule G40). The working code is kept so the idea is not lost: `Documents/SomedayCode/starter_CarMesh3D_normalsSlider.m` (off the MATLAB path; its header says how to run it and what it lacks).
 - **Someday: many people editing, and merged vehicle folders** (Sean, 2026-11-25 01:53, verbatim): "if many are editing and we merge edits wherein someone remotely added in their own vehicles, etc, is there any place where code obviosly breaks? If so, we should trigger a rescan of the folders. This gives another possible issue: that information may be stored about the vehilce list in one part of the folder, that doesn't know about additions to the folder. The GUI could be use a long time without ever catching this. Maybe add a rule - weigh in please - variables about a vehilce are stored with the vehicle, not kept separate. And variables about vehicle data should not assume the data is static from run-to-run. This shouldn't take our time now, though."
@@ -176,11 +179,11 @@ NOTE: this section notes planned current and future steps. If all are done, or a
 7. DONE (17:26): a simple legend of the label colors under the label pictures (Sean, T62): only the colors the mesh uses, parts then lamp types (section 7).
 8. DONE (17:30): the headlights' beams on a dark ground plane in front of the vehicle (plotVehicle's light pools, `LightEffects=true`), seen from above the front left and zoomed so the vehicle stays large (Sean, T63). The body is still lit as by day (the scene lights): T76 asks whether it should be darker.
 9. DONE (23:22): the second line shorter, with no function names, and a "Show the commands" link beside it that prints, in the Command Window, the commands to open the vehicle in the viewer and the painter (Sean, T74: "a mouse-click detection that triggers an fprintf command"; T77 (A)).
-10. Next: the Headlights and Brake lights pictures as a 2 x 3 grid: the far views on top (side label "Far view"), close-ups of the left (driver's side) lamp below ("Close-up of left headlight", "Close-up of left tail light") (Sean, T74 note, moved to T76 (B)).
-11. Next: `Start=` (Q70 (A)): open at a given question, such as `Start='labels'`, so test commands go straight to what is judged.
-12. Next: one V&V window per vehicle (Q71 (A)): a second call on the same vehicle brings the open window to the front.
-13. Then: work real vehicles through the first round, starting with the Fit (Sean: at or near pass; the Transit Connect has many errors); add the later assessments (section 5, orders 7 to 15) one at a time.
-14. Next (Sean, 2026-11-26 03:12): a **Normals** assessment in the first round: the mesh with each face colored by its unit normal, RGB = (n+1)/2, in views that turn and zoom with the CAD mouse (`fcn_CarMesh3D_addCadMouse`). A face pointing the wrong way shows in the opposite color to its neighbors (Sean, 02:35: "the errors stand out dramatically. I could spot them instantly"). Its row goes into section 5's table, and `fcn_CarMesh3D_reviewChecks`, when it is built (the table and the code are checked against each other).
+10. DONE (2026-11-26 05:55, Claude; `fcn_CarMesh3D_assessAxes`' Rows= and RowLabels=): the Headlights and Brake lights pictures as a 2 x 3 grid: the far views on top (side label "Far view"), close-ups of the left (driver's side) lamp below ("Close-up of left headlight", "Close-up of left tail light") (Sean, T74 note, moved to T76 (B)).
+11. DONE (2026-11-26 06:00): `Start=` (Q70 (A)): open at a given question, such as `Start='labels'`, so test commands go straight to what is judged.
+12. DONE (2026-11-26 06:00; shown windows only, so tests' hidden windows are unaffected): one V&V window per vehicle (Q71 (A)): a second call on the same vehicle brings the open window to the front.
+13. Then: work real vehicles through the first round, starting with the Fit (Sean: at or near pass; the Transit Connect has many errors); add the later assessments (section 5, orders 8 to 16) one at a time.
+14. DONE (2026-11-26, Claude; Sean 03:12 and 04:41, Q90 (A), Q91 (A)): a **Normals** assessment in the first round: the mesh with each face colored by its unit normal, RGB = (n+1)/2, in views that turn and zoom with the CAD mouse (`fcn_CarMesh3D_addCadMouse`). A face pointing the wrong way shows in the opposite color to its neighbors (Sean, 02:35: "the errors stand out dramatically. I could spot them instantly"). Its row is in section 5's table (order 4, after Patchy labels) and in `fcn_CarMesh3D_reviewChecks`. Accept / Reject, with a score from 0 to 10 (the interface's new `Score` field, recorded in `vvAnswers.Score`); "Compare with examples" and "Save as an example" (the interface's new `Examples` field), kept in the repo in `Data/VandV/Examples/normals/` as a PNG and a one-line text file.
 15. Someday (Sean, 03:12 and 03:14): **pre-flight unit-normal tests as another panel**, from the 2 x 2 window Sean used to choose `fcn_CarMesh3D_orientFaces`' rules (section 9). Its code is kept in the repo as starter code: `Documents/SomedayCode/starter_CarMesh3D_normalsSlider.m`.
 
 
@@ -210,7 +213,14 @@ Key:
 - *the second line: the assessment's Detail shown under the question, and none for an assessment without one; every listed assessment has a Detail (`script_test_fcn_CarMesh3D_reviewChecks.m`);*
 - *"Show the commands": the real link pressed, and the viewer and painter commands printed.*
 
-(none open: T74 to T77 and their results are in the change log)
+T83. Normals (plan item 14): turn the Fit with the mouse in both views. Do faces pointing the wrong way stand out as they did in your 2 x 2 window? Then answer, give a score, and "Save as an example": does the score and the examples list feel right? (Your example is saved into the repo's Data/VandV/Examples/normals/.)
+`close all; clear functions; clc; fcn_CarMesh3D_reviewVehicle('2009_Honda_Fit_Sport', Start='normals');`
+
+T84. Headlights and Brake lights (plan item 10): far views on top, close-ups of the left lamp below. Are the close-ups close enough, and on the right lamp?
+`close all; clear functions; clc; fcn_CarMesh3D_reviewVehicle('2009_Honda_Fit_Sport', Start='headlights');`
+
+T85. One window per vehicle (plan item 12): with the window from T84 open, run the command again. Does the open window come to the front, at Brake lights?
+`fcn_CarMesh3D_reviewVehicle('2009_Honda_Fit_Sport', Start='brakeLights');`
 
 ## Open questions
 
@@ -259,3 +269,5 @@ When a question is answered, its content moves into the right section above, and
   - **T76 (B)**: see T74's note (the 2 x 3 grid: plan item 10).
   - **T77 (A)**: the shorter line and "Show the commands": "Works great, very nice feature. Fit opened up this time."
 - 2026-11-26 03:15 (Claude; Sean 03:12 and 03:14): plan item 14, a Normals assessment (the mesh colored by unit normal, with the CAD mouse), and plan item 15 and a section 9 Someday item, pre-flight unit-normal tests as a panel, with its starter code kept in `Documents/SomedayCode`. Context: the white slivers at the Fit's driver door handle were faces pointing into the car (Q86 (A)); `fcn_CarMesh3D_orientFaces` turns such faces, with rules Sean chose by eye.
+- 2026-11-26 05:50, Claude: plan item 14 built (Sean, 03:12 and 04:41; Q90 (A), Q91 (A)): `fcn_CarMesh3D_assess_normals`, order 4 in the first round (later rows renumbered); two new optional fields in the assessment interface (section 3): `Score` (a score asked with the answer, recorded in `vvAnswers.Score`) and `Examples` (the host's "Compare with examples" and "Save as an example"). The score and the examples are the host's, so the assessment function still only draws and returns data (rules 2 and 3).
+- 2026-11-26 06:10, Claude: plan items 10, 11 and 12 built (the lamp pictures in two rows with close-ups of the left lamp; Start=; one shown window per vehicle). Headlights' question now says "these pictures" (there are six). T83 to T85 for Sean.

@@ -1,8 +1,9 @@
 function result = fcn_CarMesh3D_assess_headlights(vehicleInput, options)
 % fcn_CarMesh3D_assess_headlights
 % V&V assessment: "Do the headlights go off, low, high as expected in
-% these three pictures?" The front of the vehicle at night, three times: headlights off,
-% on low beam, on high beam (Sean, 2026-11-24 22:54).
+% these pictures?" The front of the vehicle at night, three times: headlights off,
+% on low beam, on high beam (Sean, 2026-11-24 22:54); far views on top,
+% close-ups of the left (driver's side) headlight below (Sean, T76 (B)).
 %
 % Every V&V assessment function works the same way (the V&V design file,
 % Documentation_CarMesh3D_GUIdesign_VandV.md, section 3):
@@ -73,6 +74,12 @@ function result = fcn_CarMesh3D_assess_headlights(vehicleInput, options)
 %   %   % gives them (Sean, T74)
 %   % * The beams on a ground plane ahead, so the light cones show (Sean,
 %   %   % T63): plotVehicle's LightEffects, on a dark ground
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_assess_headlights
+%   % * Two rows (Sean, T76 (B)): the far views on top ("Far view"), and
+%   %   % close-ups of the left (driver's side) headlight below
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -88,10 +95,11 @@ end
 
 %% Main code
 described = struct('Key', 'headlights', 'Title', 'Headlights', ...
-    'Question', 'Do the headlights go off, low, high as expected in these three pictures?', ...
+    'Question', 'Do the headlights go off, low, high as expected in these pictures?', ...
     'Answers', {{'Yes', 'No'}}, 'ProblemAnswers', {{'No'}}, ...
     'Help', ['The front at night, three times: headlights off, on low beam, on high beam, with the beams on ' ...
-    'the ground ahead (short and wide for low; long and narrow added for high). No if a headlight ' ...
+    'the ground ahead (short and wide for low; long and narrow added for high); below, the same close up on ' ...
+    'the left (driver''s side) headlight. No if a headlight ' ...
     'does not light, the wrong part lights (such as the grille), or a lamp lights when it should be ' ...
     'off.'], ...
     'Detail', 'If unsure, select No and check the night view in the viewer; fix in the painter. Do not select Yes if unsure.', ...
@@ -120,7 +128,8 @@ end
 % The pictures: the front at night, off, low and high
 states = {'off', 'low', 'high'};
 captions = {'Headlights off', 'Low beam', 'High beam'};
-axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 3, Dark=true, FigNum=options.FigNum);
+axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 6, Rows=2, Dark=true, ...
+    RowLabels={'Far view', 'Close-up of left headlight'}, FigNum=options.FigNum);
 % (the beams: plotVehicle's light pools, on a dark ground that reaches
 % groundAhead meters in front of the vehicle, seen from above the front
 % left so the cones show; Sean, T63)
@@ -143,6 +152,13 @@ for ith_view = 1:3
     camzoom(axesHandles(ith_view), 1.35);   % (the vehicle as large as the beams allow)
     title(axesHandles(ith_view), captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     axesHandles(ith_view).Title.Visible = 'on';
+    % (below it: the same lamps, close up on the left headlight)
+    closeAxes = axesHandles(3 + ith_view);
+    fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=closeAxes, LightStates=struct('Headlights', states{ith_view}), FigNum=-1);
+    axis(closeAxes, 'equal', 'off');
+    fcn_INTERNAL_closeUp(closeAxes, mesh, {'headlight', 'highbeam'}, true, 135, 12);
+    title(closeAxes, captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
+    closeAxes.Title.Visible = 'on';
 end
 end % Ends main function
 
@@ -168,3 +184,38 @@ end
 typeIndex = find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames));
 count = sum(ismember(mesh.FaceLightType, typeIndex));
 end % Ends fcn_INTERNAL_countLamps
+
+%% fcn_INTERNAL_closeUp
+function fcn_INTERNAL_closeUp(axesHandle, mesh, typeNames, flagFront, azimuth, elevation)
+% The view close up on the left (+y, the driver's side) lamps of these
+% types, at the front or the rear, from this direction: the axes' limits
+% cut down to a box around them, so everything outside is clipped (a
+% zoomed camera alone draws past the picture's edge, over its
+% neighbors); the whole vehicle when it has none
+view(axesHandle, azimuth, elevation);
+flagFaces = false(size(mesh.Faces, 1), 1);
+if isfield(mesh, 'FaceLightType') && isfield(mesh, 'LightTypeNames')
+    flagFaces = ismember(mesh.FaceLightType, find(ismember(lower(cellstr(mesh.LightTypeNames)), typeNames)));
+end
+centers = (mesh.Vertices(mesh.Faces(:,1),:) + mesh.Vertices(mesh.Faces(:,2),:) + mesh.Vertices(mesh.Faces(:,3),:))/3;
+middleX = (min(mesh.Vertices(:,1)) + max(mesh.Vertices(:,1)))/2;
+sideY = 0.3*max(mesh.Vertices(:,2));   % (the left lamps: clear of a lamp in the middle, such as a high brake lamp)
+if flagFront
+    flagFaces = flagFaces & centers(:,1) > middleX & centers(:,2) > sideY;
+else
+    flagFaces = flagFaces & centers(:,1) < middleX & centers(:,2) > sideY;
+end
+if ~any(flagFaces)
+    return;
+end
+corners = mesh.Vertices(unique(mesh.Faces(flagFaces,:)),:);
+low = min(corners, [], 1);
+high = max(corners, [], 1);
+center = (low + high)/2;
+halfSize = max(0.25, 0.75*max(high - low));   % [m] (a cube around the lamp, at least 50 cm across)
+xlim(axesHandle, center(1) + halfSize*[-1 1]);
+ylim(axesHandle, center(2) + halfSize*[-1 1]);
+zlim(axesHandle, center(3) + halfSize*[-1 1]);
+set(findall(axesHandle, 'Type', 'patch'), 'Clipping', 'on');
+set(findall(axesHandle, 'Type', 'line'), 'Clipping', 'on');
+end % Ends fcn_INTERNAL_closeUp

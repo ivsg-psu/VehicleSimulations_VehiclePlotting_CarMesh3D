@@ -183,8 +183,8 @@ Labeling behavior?
 Mirror to the other side       ( ) Off  (o) On
 Show hidden faces              (o) Off  ( ) On
 [Apply]
-How to paint: Ctrl+drag paints; Ctrl+Shift+drag erases; a click paints one face (click again to take it off);
-a double-click paints a whole piece. Paint is pending (yellow edges) until Apply or Save. Hiding takes faces
+How to paint (Q84 (A), 2026-11-26: selecting only with Ctrl): Ctrl+click selects one face, with no brush (Ctrl+click again to unselect); Ctrl+drag selects with the brush (Modify Labels: Fine, Medium, Large); Ctrl+double-click a piece; Ctrl+Shift unselects; plain clicks and drags only turn the model.
+Paint is pending (yellow edges) until Apply or Save. Hiding takes faces
 out of view, never out of the mesh. To reach faces under others, set their label to Shown = No.
 ```
 
@@ -232,7 +232,7 @@ With no edits file (a mesh given as a variable), the save-related controls are g
 
 ## 7. Behavior kept from the current window
 
-- Mouse: left-drag rotates, right-drag pans, the wheel zooms (CAD-style, own handling, not MATLAB's rotate tool); Ctrl+drag paints; Ctrl+Shift+drag erases; click paints one face; double-click paints a piece.
+- Mouse: left-drag rotates, right-drag pans, the wheel zooms (CAD-style, own handling, not MATLAB's rotate tool). Selecting only with Ctrl (Q84 (A), 2026-11-26): Ctrl+click one face (no brush), Ctrl+drag with the brush, Ctrl+double-click a piece, Ctrl+Shift unselects.
 - Pending paint shows yellow edges until applied.
 - Edits are saved as Points (face centers), so they survive a rebuild of the mesh; Hide and Unhide are saved the same way.
 - Built into the reviewer: the window is the reviewer's panel; the top bar keeps Undo and Save, and the reviewer's own Close replaces Exit.
@@ -340,7 +340,11 @@ Key:
 - Each step is separated by a blank line, so the steps are easy to tell apart in a plain-text editor.
 - A finished round (every step with a result) moves to the change log, with the results.
 
-(none open: earlier rounds and their results are in the change log)
+T86. Selecting only with Ctrl (Q84 (A)): turn the model with plain clicks and short drags (nothing should be selected); Ctrl+click single faces (exactly one each); Ctrl+drag with the brush at Fine, then Large (Modify Labels, "Brush"); Ctrl+double-click a door; Ctrl+Shift+click to unselect. Does it feel safer and still quick?
+`close all; clear functions; clc; fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');`
+
+T87. Lamps To Display (☰ Menu): a check box per lamp, one click on or off; scroll the list in a short window: do the headings stay at the top (in Labels To Display too)?
+`close all; clear functions; clc; fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');`
 
 ## Open questions
 
@@ -648,3 +652,4 @@ Re **Agreed order of work**: Agree with this ordering. Merge in changes from C2S
   25. **Every input argument is shown in the GUI in some way:** what a call can set, the window can show or set too (a control, or text in the subtitle, status line or a panel). This rule applies to every CarMesh3D window; the viewLabels and browseLibrary design files refer to it (Sean, 18:01 and Q20, 18:02).
   26. **Anything that can take more than 2 or 3 seconds shows a progress bar** (a `uiprogressdlg` in the window; indeterminate when the length is not known), and the window says when it is done or what went wrong; it never just stops responding. An error in a callback is shown in the window, not only in the command window. This rule applies to every CarMesh3D window (Sean, 22:15, from the library browser's slow re-sort).
 - 2026-11-24 16:25 to 21:00 (Claude, Sean away; Sean, 16:23: "Please proceed with the UI edits needed..."): the shared panels (`Documentation_CarMesh3D_GUIdesign_sharedPanels.md`). The menu is the shared one, up to two panels at once, starting with Labels To Display over Modify Labels (preference `PainterPanels`, was `PainterPanel`); Settings became Shared GUI settings (You, View, Demo vehicle and Editing used; Review greyed); Save as version, Revert to start and the edits file moved to "Saving" at the foot of Modify Labels; Who defaults to your initials; option `Menu=` for a host's menu. Tests pass (hidden). T56 in the shared-panels file.
+- 2026-11-26 06:12, Claude: selecting only with Ctrl (Q84 (A), Sean 02:25; the brush in Modify Labels: Fine by default, Medium, Large); Lamps To Display as check boxes and fixed headings (Sean's Fit feedback); the Lamp Functions panel (the lamp-functions design file, plan item 5). T86 and T87 for Sean.

@@ -11,6 +11,10 @@
 % - In script_test_fcn_CarMesh3D_assess_brakeLights
 %   % * First write (drafted with Claude)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_assess_brakeLights
+%   % * Six pictures in two rows, the close-ups below (T76 (B))
+
 % TO-DO:
 %
 % (none)
@@ -57,7 +61,7 @@ fprintf(1, 'Draw mode, in a figure\n');
 figNum = 1001;
 result = fcn_CarMesh3D_assess_brakeLights(vehicle, FigNum=figNum);
 if isempty(result.Skip)
-    assert(numel(findall(figure(figNum), 'Type', 'axes')) == 3);
+    assert(numel(findall(figure(figNum), 'Type', 'axes')) == 6);   % (far views, and close-ups below: T76 (B))
     assert(~isempty(findall(figure(figNum), 'Type', 'patch')));
 end
 close(figure(figNum));
@@ -69,8 +73,15 @@ panel = uipanel(figureHandle, 'Position', [0 0 1000 500]);
 uilabel(panel, 'Text', 'left from before');   % (cleared by the function)
 result = fcn_CarMesh3D_assess_brakeLights(vehicle, Parent=panel, FigNum=-1);
 if isempty(result.Skip)
-    assert(isempty(findall(panel, 'Type', 'uilabel')));
-    assert(numel(findall(panel, 'Type', 'axes')) == 3);
+    labelsNow = findall(panel, 'Type', 'uilabel');
+    assert(~any(strcmp({labelsNow.Text}, 'left from before')));   % (cleared: only its own row labels)
+    assert(numel(findall(panel, 'Type', 'axes')) == 6);
+    rowLabels = findall(panel, 'Tag', 'assessRowLabel');
+    assert(numel(rowLabels) == 2 && any(strcmp({rowLabels.Text}, 'Far view')), 'The rows are labeled');
+    % (the close-ups look at the left (+y) lamp: their cameras aim at it)
+    allAxes = findall(panel, 'Type', 'axes');
+    targets = vertcat(allAxes.CameraTarget);
+    assert(sum(targets(:,2) > 0.2) == 3, 'Three close-ups, aimed at the left lamp');
 end
 delete(figureHandle);
 

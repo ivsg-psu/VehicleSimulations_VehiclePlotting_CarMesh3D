@@ -76,6 +76,12 @@ function viewer = fcn_CarMesh3D_viewDetailLevels(vehicleInput, options)
 %   % * Its own window's title is this function's name, with the
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewDetailLevels
+%   % * The mouse is fcn_CarMesh3D_addCadMouse (one copy of the CAD-style
+%   %   % mouse for every viewer; Sean, 03:15), in place of its own
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -200,9 +206,6 @@ allTransforms = gobjects(0,1);
 turnTimer = [];
 turnStart = [];
 startViews = {};
-mouseMode = '';
-mouseAxes = [];
-mouseLast = [0 0];
 if flagOwnWindow
     visibleText = 'on';
     if ~options.Visible
@@ -238,9 +241,14 @@ if flagOwnWindow
     hintLabel = uilabel(rootGrid, 'Text', '', 'Interpreter', 'html', 'WordWrap', 'on', 'FontColor', [0.25 0.25 0.25]);
     hintLabel.Layout.Row = 2;
     hintLabel.Layout.Column = [1 2];
-    set(figureHandle, 'WindowButtonDownFcn', @(~,~) onOwnDown(), 'WindowButtonMotionFcn', @(~,~) onOwnMove(), ...
-        'WindowButtonUpFcn', @(~,~) onOwnUp(), 'WindowScrollWheelFcn', @onOwnScroll, ...
-        'CloseRequestFcn', @(~,~) closeViewer());
+    set(figureHandle, 'CloseRequestFcn', @(~,~) closeViewer());
+    % (the CAD mouse: left-drag turns, right-drag pans, the wheel zooms the
+    % view under the pointer; a flat view pans: fcn_CarMesh3D_addCadMouse)
+    mouseAxes = [lineupAxes, sceneAxes];
+    mouseAxes = mouseAxes(arrayfun(@(h) isgraphics(h), mouseAxes));
+    if ~isempty(mouseAxes)
+        fcn_CarMesh3D_addCadMouse(mouseAxes, FigNum=-1);
+    end
 end
 if ~isempty(lineupAxes)
     setHint(['Every vehicle turns slowly.<br><br>Top: rotate (left-drag) and zoom (wheel) freely.<br><br>' ...
@@ -370,62 +378,6 @@ end
             options.OnHint(textIn);
         elseif ~isempty(hintLabel) && isvalid(hintLabel)
             hintLabel.Text = strrep(textIn, '<br><br>', ' ');
-        end
-    end
-
-    %% Its own window: the mouse, and closing
-    function onOwnDown()
-        % Top: left-drag rotates, right-drag pans. Bottom (a fixed view):
-        % dragging pans.
-        mouseMode = '';
-        clicked = figureHandle.CurrentObject;
-        if isempty(clicked) || ~isvalid(clicked)
-            return;
-        end
-        clickedAxes = ancestor(clicked, 'axes');
-        if isempty(clickedAxes) || ~(isequal(clickedAxes, lineupAxes) || isequal(clickedAxes, sceneAxes))
-            return;
-        end
-        mouseAxes = clickedAxes;
-        if strcmp(figureHandle.SelectionType, 'alt') || isappdata(mouseAxes, 'mouse2D')
-            mouseMode = 'pan';
-        else
-            mouseMode = 'rotate';
-        end
-        mouseLast = figureHandle.CurrentPoint;
-    end
-
-    function onOwnMove()
-        if isempty(mouseMode)
-            return;
-        end
-        point = figureHandle.CurrentPoint;
-        delta = point - mouseLast;
-        mouseLast = point;
-        if strcmp(mouseMode, 'rotate')
-            camorbit(mouseAxes, -0.5*delta(1), -0.5*delta(2), 'data', [0 0 1]);
-        else
-            camdolly(mouseAxes, -delta(1), -delta(2), 0, 'movetarget', 'pixels');
-        end
-        drawnow limitrate;
-    end
-
-    function onOwnUp()
-        mouseMode = '';
-    end
-
-    function onOwnScroll(~, event)
-        % (the view under the mouse)
-        point = figureHandle.CurrentPoint;
-        viewAxes = {lineupAxes, sceneAxes};
-        for ith_view = 1:2
-            if isempty(viewAxes{ith_view}) || ~isvalid(viewAxes{ith_view})
-                continue;
-            end
-            box = getpixelposition(viewAxes{ith_view}, true);
-            if point(1) >= box(1) && point(1) <= box(1)+box(3) && point(2) >= box(2) && point(2) <= box(2)+box(4)
-                camzoom(viewAxes{ith_view}, 1.15^(-event.VerticalScrollCount));
-            end
         end
     end
 

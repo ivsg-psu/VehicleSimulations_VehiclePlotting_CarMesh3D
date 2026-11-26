@@ -23,6 +23,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %
 %       [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput,...
 %           (Always=flagAlways), (OrientFaces=flagOrient),...
+%           (LampFunctions=flagLamps),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -42,6 +43,14 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %      as saved. Only the faces' direction changes, so saved label edits
 %      (matched by face position) are not affected (Q87 (A), Sean
 %      2026_11_26 03:16).
+%
+%      LampFunctions: true (default) to add the vehicle's lamp-to-function
+%      matrix to the mesh, as the field LampFunctions (a table, from
+%      fcn_CarMesh3D_lampFunctions: the vehicle's file
+%      lampFunctions_<ID>.csv, else the defaults), so whatever draws the
+%      mesh lights its lamps as the vehicle's file says
+%      (fcn_CarMesh3D_plotVehicle, through fcn_CarMesh3D_lampSetup);
+%      false for none.
 %
 %      FigNum: a figure to plot the returned mesh in. If empty or omitted,
 %      no plot is made. If set to -1, input checking is skipped and no plot
@@ -67,6 +76,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_editLabels,
 %      fcn_CarMesh3D_findLampCovers, fcn_CarMesh3D_orientFaces,
+%      fcn_CarMesh3D_lampFunctions,
 %      fcn_CarMesh3D_plotVehicle (plotting)
 %
 % EXAMPLES:
@@ -93,6 +103,8 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %   %   % viewer, the painter, the V&V and the Animator's detail levels get
 %   %   % it for every vehicle, with no files rebuilt (the Fit's white
 %   %   % slivers at the driver door handle, Q86 (A))
+%   % * LampFunctions (default true): the vehicle's lamp-to-function
+%   %   % matrix added to the mesh (the lamp-functions plan, item 4)
 
 % TO-DO:
 %
@@ -109,6 +121,7 @@ arguments
     vehicleInput
     options.Always = false      % Apply the fixes to the stage-1 mesh even when the mesh file is newer
     options.OrientFaces = true  % Turn faces to agree with their neighbors (fcn_CarMesh3D_orientFaces)
+    options.LampFunctions = true % Add the vehicle's lamp-to-function matrix (field LampFunctions)
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -249,6 +262,12 @@ end
 if options.OrientFaces
     [vehicleMesh, orientInfo] = fcn_CarMesh3D_orientFaces(vehicleMesh, FigNum=-1);
     info.NumFacesTurned = orientInfo.NumFlipped;
+end
+
+% The vehicle's lamp-to-function matrix, on the mesh (its file, else the
+% defaults; a few hundredths of a second)
+if options.LampFunctions && isfield(vehicleMesh, 'FaceLightType') && isfield(vehicleMesh, 'LightTypeNames')
+    vehicleMesh.LampFunctions = fcn_CarMesh3D_lampFunctions(vehicleFiles.Folder, Mesh=vehicleMesh, FigNum=-1);
 end
 
 %% Plot the results (for debugging)?

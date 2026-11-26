@@ -11,6 +11,10 @@
 %   % * First write (drafted with Claude)
 %   % * Legend= (Sean, T62)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_assessAxes
+%   % * Two rows, with row labels (drafted with Claude)
+
 % TO-DO:
 %
 % (none)
@@ -72,6 +76,31 @@ try
     error('should have failed');
 catch inputError
     assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'));
+end
+
+%% Two rows, with a label above each (the lamp pictures: Sean, T76 (B))
+fprintf(1, 'Two rows\n');
+figureHandle = uifigure('Visible', 'off');
+panel = uipanel(figureHandle);
+axesHandles = fcn_CarMesh3D_assessAxes(panel, 6, Rows=2, RowLabels={'Far view', 'Close-up'}, ...
+    Captions={'a', 'b', 'c', 'd', 'e', 'f'}, Dark=true);
+assert(numel(axesHandles) == 6);
+rows = arrayfun(@(h) h.Layout.Row, axesHandles);
+columns = arrayfun(@(h) h.Layout.Column, axesHandles);
+assert(isequal(columns, [1 2 3 1 2 3]) && all(rows(1:3) == rows(1)) && all(rows(4:6) > rows(1)), 'Filled row by row');
+rowLabels = findall(panel, 'Tag', 'assessRowLabel');
+assert(numel(rowLabels) == 2 && isequal(sort({rowLabels.Text}), {'Close-up', 'Far view'}));
+assert(strcmp(axesHandles(4).Title.String, 'd'));
+delete(figureHandle);
+figNum = 1003;
+axesHandles = fcn_CarMesh3D_assessAxes([], 4, Rows=2, RowLabels={'Top', 'Bottom'}, Captions={'a', 'b', 'c', 'd'}, FigNum=figNum);
+assert(numel(axesHandles) == 4 && strcmp(axesHandles(3).Title.String, 'Bottom: c'), 'In a figure, the row label starts the caption');
+close(figure(figNum));
+try
+    fcn_CarMesh3D_assessAxes([], 5);
+    error('should have failed');
+catch inputError
+    assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'), 'Five in one row');
 end
 
 %% Fast mode

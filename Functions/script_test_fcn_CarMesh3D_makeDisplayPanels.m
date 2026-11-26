@@ -72,7 +72,7 @@ fcn_INTERNAL_pickRadio(findall(labelsPanel, 'Tag', 'allShown'), true);
 assert(~any(strcmp(viewer.Hidden(), 'part_trim')), 'All labels Shown? Yes');
 fcn_INTERNAL_pickRadio(findall(lampsPanel, 'Tag', 'lamp_Tail'), 'brake');
 assert(strcmp(viewer.NightLights().Tail, 'brake'), 'Tail lights Brake');
-fcn_INTERNAL_pickRadio(findall(lampsPanel, 'Tag', 'lamp_All'), false);
+fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_All'), false);
 assert(strcmp(viewer.NightLights().Tail, 'off') && ~viewer.NightLights().LowBeam, 'All lamps Off');
 assert(fcn_INTERNAL_count(0) > changesBefore, 'OnChange called');
 
@@ -85,9 +85,17 @@ panels.MarkAll();
 boundaries = findall(overallPanel, 'Tag', 'overallBoundaries');
 assert(isequal(boundaries.SelectedObject.UserData, true), 'Boundaries marked On');
 lowBeam = findall(lampsPanel, 'Tag', 'lamp_LowBeam');
-assert(isequal(lowBeam.SelectedObject.UserData, true), 'Low beams marked On');
+assert(isa(lowBeam, 'matlab.ui.control.CheckBox') && lowBeam.Value, 'Low beams marked On (a checkbox: one click; Sean)');
 allLamps = findall(lampsPanel, 'Tag', 'lamp_All');
-assert(isnan(allLamps.SelectedObject.UserData), 'All lamps mixed');
+assert(~allLamps.Value, 'All lamps: not ticked while only some are on');
+% (one click switches a lamp; the headings stay above the rows that scroll)
+fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_FogLights'), true);
+assert(logical(viewer.NightLights().FogLights), 'One tick switches the fog lamps on');
+fcn_INTERNAL_tick(findall(lampsPanel, 'Tag', 'lamp_FogLights'), false);
+for headingTag = {'labelsHeadings', 'lampsHeadings'}
+    headings = findall(hostFigure, 'Tag', headingTag{1});
+    assert(isscalar(headings) && strcmp(headings.Scrollable, 'off'), 'The headings do not scroll: %s', headingTag{1});
+end
 viewer.SetBoundaries(false);
 
 %% TEST case: driven by script (fcn_CarMesh3D_guiDriver): every control tagged, each value set, the viewer follows
@@ -101,8 +109,18 @@ end
 state = fcn_CarMesh3D_guiDriver(overallPanel, 'state');
 assert(all(isfield(state.Values, {'overallResetView', 'overallCopyViewCall', 'overallPhotoBrowse', 'overallPhotoFolder', 'cameraReadout'})), 'The Overall Display''s Tags');
 assert(~state.Enabled.turnWithPhoto && ~state.Enabled.turnPhotoWithModel && ~state.Enabled.photoSize, 'No photos given: the photo options grayed');
-% (each radio group set to each of its values; the panels then show the viewer's state)
+% (each radio group set to each of its values, and each checkbox ticked and
+% unticked; the panels then show the viewer's state)
 for panelHandle = [overallPanel, labelsPanel, lampsPanel]
+    boxes = findall(panelHandle, 'Type', 'uicheckbox');
+    for ith_box = 1:numel(boxes)
+        for value = [true false]
+            fcn_CarMesh3D_guiDriver(panelHandle, 'set', boxes(ith_box).Tag, value);
+            stateNow = fcn_CarMesh3D_guiDriver(hostFigure, 'state');
+            assert(isequal(stateNow.Values.lamp_Hazards, logical(viewer.NightLights().TurnLeft) && logical(viewer.NightLights().TurnRight)), ...
+                'After %s = %d the panels differ from the viewer', boxes(ith_box).Tag, value);
+        end
+    end
     groups = findall(panelHandle, 'Type', 'uibuttongroup');
     for ith_group = 1:numel(groups)
         radios = findobj(groups(ith_group).Children, 'flat', 'Type', 'uiradiobutton', 'Visible', 'on', 'Enable', 'on');
@@ -229,6 +247,12 @@ for ith_pref = 1:numel(prefNames)
     end
 end
 end % Ends fcn_INTERNAL_restorePrefs
+
+function fcn_INTERNAL_tick(box, value)
+% A checkbox ticked or unticked, as a click does (its callback runs)
+box.Value = value;
+box.ValueChangedFcn(box, struct('Value', value));
+end % Ends fcn_INTERNAL_tick
 
 function fcn_INTERNAL_pickRadio(group, value)
 % Picks the radio button of this value in a button group, as a click

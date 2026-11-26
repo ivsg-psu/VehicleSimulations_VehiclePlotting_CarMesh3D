@@ -29,6 +29,12 @@
 %   % * The second line under the question: the assessment's Detail
 %   %   % (Sean, T62); the "Show the commands" link (Sean, T74)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_reviewVehicle
+%   % * A score with the answer, and examples to compare with and to save
+%   %   % (the Normals assessment) (drafted with Claude)
+%   % * Start= (Q70 (A)); one shown window per vehicle (Q71 (A))
+
 % TO-DO:
 %
 % (none)
@@ -388,6 +394,70 @@ exitItem.ButtonPushedFcn(exitItem, []);
 assert(~isvalid(figureHandle), 'Exit closes the window');
 assert(isfile(reportFile));
 
+%% A score with the answer, and examples (the Normals assessment; Sean, 04:41; Q90 (A), Q91 (A))
+fprintf(1, 'A score, and examples to compare with\n');
+examplesFolder = fullfile(demoFolder, 'zzExamples');   % (never the repo's examples)
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+    Assessments={@fcn_CarMesh3D_assess_zzDraws, @fcn_CarMesh3D_assess_normals}, ExamplesFolder=examplesFolder);
+hooks = figureHandle.UserData;
+hooks.Show('drawsA');
+assert(fcn_INTERNAL_questionRowHeight(figureHandle) == 0, 'No score or examples for a question that asks for none');
+hooks.Show('normals');
+assert(fcn_INTERNAL_questionRowHeight(figureHandle) > 0 && strcmp(findall(figureHandle, 'Tag', 'vvScore').Visible, 'on'));
+assert(contains(findall(figureHandle, 'Tag', 'vvExamples').Items{1}, '(0)'), 'No examples yet');
+assert(isempty(hooks.SaveExample()), 'No example before an answer and a score');
+hooks.Answer('Accept', 'clean all round');
+hooks.Show('normals');
+hooks.Score(9);
+answersNow = hooks.Answers();
+assert(answersNow.Score(answersNow.Key == "normals") == 9 && answersNow.Answer(answersNow.Key == "normals") == "Accept");
+exampleFile = hooks.SaveExample();
+[~, exampleName] = fileparts(exampleFile);
+assert(isfile(exampleFile) && startsWith(exampleName, 'normals_s09_accept_') && contains(exampleName, '_ZZT_'), ...
+    'The example''s name carries the score and the verdict');
+assert(contains(fileread(fullfile(fileparts(exampleFile), [exampleName '.txt'])), 'score=9; verdict=Accept; who=ZZT'));
+% (a second one, lower: the list is best first)
+hooks.Score(3);
+lowerFile = hooks.SaveExample();
+[~, listedNames] = cellfun(@fileparts, hooks.Examples(), 'UniformOutput', false);
+[~, lowerName] = fileparts(lowerFile);
+assert(isequal(listedNames, {exampleName, lowerName}), 'Best first');
+hooks.ShowExample(lowerFile);
+exampleWindow = findall(groot, 'Tag', 'vvExampleWindow');
+assert(isscalar(exampleWindow) && contains(findall(exampleWindow, 'Tag', 'vvExampleText').Text, 'score=3'));
+delete(exampleWindow);
+% (the score is kept in the record and the report)
+saved = load(reviewFile, 'vvAnswers');
+assert(saved.vvAnswers.Score(saved.vvAnswers.Key == "normals") == 3);
+close(figureHandle);   % (as the window's X: the report is written)
+assert(contains(fileread(reportFile), 'Accept (3)'), 'The report shows the score');
+
+%% Start= (Q70 (A)), and one shown window per vehicle (Q71 (A))
+fprintf(1, 'Start=, and one window per vehicle\n');
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+    Assessments=testAssessments, Start='slow');
+current = figureHandle.UserData.Current();
+assert(strcmp(current.Key, 'slow'), 'Opened at the question Start names');
+delete(figureHandle);
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+    Assessments=testAssessments, Start='summary');
+assert(strcmp(findall(figureHandle, 'Tag', 'vvQuestion').Text, 'Approve this mesh?'), 'Start=''summary''');
+delete(figureHandle);
+lastwarn('');
+[~, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
+    Assessments=testAssessments, Start='noSuchQuestion');
+[~, warningID] = lastwarn;
+assert(strcmp(warningID, 'CarMesh3D:unknownStart'));
+delete(figureHandle);
+% (shown windows, briefly: the second call brings the first to the front)
+[~, firstWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=true, Reviewer='ZZT', Assessments=testAssessments);
+[~, secondWindow] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=true, Reviewer='ZZT', ...
+    Assessments=testAssessments, Start='fails');
+assert(isequal(firstWindow, secondWindow) && numel(findall(groot, 'Tag', 'vvWindow', 'Visible', 'on')) == 1, 'One window per vehicle');
+current = firstWindow.UserData.Current();
+assert(strcmp(current.Key, 'fails'), 'The open window goes to Start');
+delete(firstWindow);
+
 %% Fast mode
 fprintf(1, 'Fast mode\n');
 [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, Visible=false, Reviewer='ZZT', ...
@@ -413,6 +483,14 @@ end
 fprintf(1, 'All tests of fcn_CarMesh3D_reviewVehicle passed.\n');
 
 %% Functions follow
+%% fcn_INTERNAL_questionRowHeight
+function height = fcn_INTERNAL_questionRowHeight(figureHandle)
+% The height of the question area's fourth row (the score and examples)
+scoreDropdown = findall(figureHandle, 'Tag', 'vvScore');
+rowHeights = scoreDropdown.Parent.Parent.RowHeight;
+height = rowHeights{4};
+end % Ends fcn_INTERNAL_questionRowHeight
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   ______                _   _
 %  |  ____|              | | (_)

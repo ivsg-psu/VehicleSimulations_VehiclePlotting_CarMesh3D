@@ -54,7 +54,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput,...
 %           (Vehicles=IDs), (Reviewer=initials), (Assessments=handles),...
-%           (Visible=flag), (FigNum=figNum))
+%           (ExamplesFolder=folder), (Start=key), (Visible=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -75,8 +75,19 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %      of the list in fcn_CarMesh3D_reviewChecks (a run of one's own, or
 %      tests). Default {} (the list).
 %
+%      ExamplesFolder: where the saved examples are kept, one folder per
+%      assessment (an assessment whose describe mode says Examples=true:
+%      "Compare with examples" and "Save as an example"). Default: the
+%      repo's Data/VandV/Examples (Q91 (A)); tests give a temporary one.
+%
+%      Start: the question to open at, by its key (such as 'labels' or
+%      'normals'), or 'summary'; '' (default) for the first not answered
+%      (Q70 (A): test commands go straight to what is judged).
+%
 %      Visible: true (default) to show the window; false to build it
-%      hidden (tests).
+%      hidden (tests). One shown window per vehicle (Q71 (A)): a second
+%      call for a vehicle already open in a shown window brings that
+%      window to the front (at Start, if given) and returns it.
 %
 %      FigNum: not used for plotting (the window is its own). If -1,
 %      input checking is skipped.
@@ -85,7 +96,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %
 %      answers: the answers when the window opened (one row per
 %      question): Assessment, Key, Title, Question, Answer, Problem,
-%      Comment, Who, When, Fingerprint, Status, Note, Seconds. The window
+%      Comment, Who, When, Fingerprint, Status, Note, Seconds, Score (NaN
+%      when the question asks for none, or none is given). The window
 %      keeps them up to date; read them later with
 %      figureHandle.UserData.Answers().
 %
@@ -94,7 +106,9 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %      Decide(text, comment), Current(), Answers(), Summary(), Pages(),
 %      Retry(), SkipError(), LastError(), NextVehicle(), PreviousVehicle(),
 %      ToggleSummary() (the Summary, or back to the questions), ReviewFile(),
-%      ReportFile(), Menu, Settings.
+%      ReportFile(), Score(value) (the score box), SaveExample() (returns
+%      the picture's file), Examples() (the example files offered),
+%      ShowExample(file), Menu, Settings.
 %
 % DEPENDENCIES:
 %
@@ -147,6 +161,20 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %   %   % Plan item 6)
 %   % * "Show the commands" beside the second line: prints the commands to
 %   %   % open the vehicle in the viewer and the painter (Sean, T74)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * A score with the answer, for an assessment that asks for one (its
+%   %   % describe mode's Score, such as [0 10]), kept in vvAnswers.Score and
+%   %   % the report (the Normals assessment; Sean, 04:41)
+%   % * Examples, for an assessment that keeps them (Examples=true):
+%   %   % "Compare with examples" (best first) and "Save as an example": a
+%   %   % PNG of the pictures as turned, and a one-line text file, in
+%   %   % Data/VandV/Examples/<assessment>/, named with the score and the
+%   %   % verdict so an example is re-ranked by renaming it (Q90 (A), Q91
+%   %   % (A)); new option ExamplesFolder (drafted with Claude)
+%   % * Start=, the question to open at (Q70 (A)); one shown window per
+%   %   % vehicle: a second call brings it to the front (Q71 (A))
 
 % TO-DO:
 %
@@ -160,6 +188,8 @@ arguments
     options.Vehicles = {}       % A batch: IDs or folders, in order
     options.Reviewer = ''       % Initials; '' for yours (fcn_CarMesh3D_userInfo)
     options.Assessments = {}    % Function handles in place of the list
+    options.ExamplesFolder = '' % Saved examples; '' for the repo's Data/VandV/Examples
+    options.Start = ''          % The question to open at (its key), or 'summary'
     options.Visible = true      % false: built hidden (tests)
     options.FigNum = []         % Not used; -1 skips input checks
 end
@@ -191,6 +221,21 @@ if ~isempty(vehicleInput)
 end
 vehicleList = reshape(vehicleList, 1, []);
 
+% One shown window per vehicle (Q71 (A)): a vehicle already open in a
+% shown window is brought to the front, not opened twice
+if options.Visible && isscalar(vehicleList)
+    existing = fcn_INTERNAL_openWindow(vehicleList{1});
+    if ~isempty(existing)
+        figure(existing);
+        if ~isempty(options.Start)
+            existing.UserData.Show(char(options.Start));
+        end
+        answers = existing.UserData.Answers();
+        figureHandle = existing;
+        return;
+    end
+end
+
 % Who is reviewing
 reviewerName = char(options.Reviewer);
 if isempty(reviewerName)
@@ -219,7 +264,7 @@ lastSeconds = NaN;
 flagShowing = false;      % (the answer buttons being set by the window, not the user)
 
 %% The window
-figureHandle = uifigure('Name', 'fcn_CarMesh3D_reviewVehicle', 'Position', [40 40 1400 900], ...
+figureHandle = uifigure('Name', 'fcn_CarMesh3D_reviewVehicle', 'Position', [40 40 1400 900], 'Tag', 'vvWindow', ...
     'Visible', 'off', 'Color', [1 1 1], 'CloseRequestFcn', @(~,~) onClose(), 'AutoResizeChildren', 'off');
 [contentPanel, titleBar] = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_reviewVehicle', FigNum=-1);
 mainGrid = uigridlayout(contentPanel, [2 1], 'RowHeight', {72, '1x'}, 'Padding', [6 6 6 6], 'RowSpacing', 6, ...
@@ -276,7 +321,7 @@ headingLabel = uilabel(pageGrid, 'Text', '', 'FontSize', 22, 'FontWeight', 'bold
     'BackgroundColor', [0.15 0.25 0.45], 'Tag', 'vvHeading');
 drawPanel = uipanel(pageGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1], 'Tag', 'vvDrawPanel', ...
     'AutoResizeChildren', 'off');
-questionGrid = uigridlayout(pageGrid, [3 2], 'RowHeight', {30, 20, '1x'}, 'ColumnWidth', {420, '1x'}, ...
+questionGrid = uigridlayout(pageGrid, [4 2], 'RowHeight', {30, 20, '1x', 0}, 'ColumnWidth', {420, '1x'}, ...
     'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 questionLabel = uilabel(questionGrid, 'Text', '', 'FontSize', 18, 'FontWeight', 'bold', 'Tag', 'vvQuestion');
 questionLabel.Layout.Row = 1;
@@ -303,6 +348,27 @@ commentArea = uitextarea(questionGrid, 'Placeholder', 'Comment (optional): what 
     'ValueChangedFcn', @(~,~) onCommentChanged());
 commentArea.Layout.Row = 3;
 commentArea.Layout.Column = 2;
+% (a fourth row, shown only for an assessment that asks for a score or
+% keeps examples: the score, "Compare with examples", "Save as an example")
+extrasGrid = uigridlayout(questionGrid, [1 5], 'ColumnWidth', {'fit', 90, 30, 330, 'fit'}, 'Padding', [0 0 0 0], ...
+    'ColumnSpacing', 6, 'BackgroundColor', questionGrid.BackgroundColor);
+extrasGrid.Layout.Row = 4;
+extrasGrid.Layout.Column = [1 2];
+scoreLabel = uilabel(extrasGrid, 'Text', 'Score:', 'FontSize', 14, 'Tag', 'vvScoreLabel');
+scoreDropdown = uidropdown(extrasGrid, 'Items', {'(none)'}, 'FontSize', 14, 'Tag', 'vvScore', ...
+    'ValueChangedFcn', @(~,~) onScoreChanged());
+uilabel(extrasGrid, 'Text', '');
+examplesDropdown = uidropdown(extrasGrid, 'Items', {'Compare with examples ...'}, 'ItemsData', {''}, 'Tag', 'vvExamples', ...
+    'Tooltip', 'Saved examples of this assessment, best first: pick one to see it beside this one', ...
+    'ValueChangedFcn', @(source,~) showExample(source.Value));
+saveExampleButton = uibutton(extrasGrid, 'Text', 'Save as an example', 'Tag', 'vvSaveExample', ...
+    'Tooltip', 'Saves these pictures, as you turned them, with your answer and score, as an example for others to compare with', ...
+    'ButtonPushedFcn', @(~,~) saveExample());
+examplesRoot = char(options.ExamplesFolder);
+if isempty(examplesRoot)
+    examplesRoot = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'Data', 'VandV', 'Examples');
+end
+exampleWindow = [];
 statusLabel = uilabel(pageGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'Tag', 'vvStatus');
 
 % The ☰ Menu: Shared GUI settings, and the list of questions
@@ -317,11 +383,20 @@ questionsList = uilistbox(uigridlayout(questionsPanel, [1 1], 'Padding', [6 6 6 
     'Tooltip', [char(10003) ' answered   ' char(10007) ' a problem   ? not answered   - skipped   ! error']);
 
 loadVehicle(1);
+if ~isempty(options.Start)
+    startKey = char(options.Start);
+    if any(strcmp([{pages.QKey}, {'summary'}], startKey))
+        showPage(startKey);
+    else
+        warning('CarMesh3D:unknownStart', 'Start=''%s'' is not a question of this review: opened at the first not answered.', startKey);
+    end
+end
 figureHandle.UserData = struct('Show', @testShow, 'Answer', @testAnswer, 'Decide', @testDecide, ...
     'Current', @getCurrent, 'Answers', @getAnswers, 'Summary', @getSummary, 'Pages', @() pages, ...
     'Retry', @testRetry, 'SkipError', @skipError, 'LastError', @getLastError, ...
     'NextVehicle', @nextVehicle, 'PreviousVehicle', @previousVehicle, 'ToggleSummary', @toggleSummary, ...
     'ReviewFile', @getReviewFile, 'ReportFile', @getReportFile, ...
+    'Score', @testScore, 'SaveExample', @saveExample, 'Examples', @listExamples, 'ShowExample', @showExample, ...
     'Menu', reviewMenu, 'Settings', sharedSettings, 'Commands', @printCommands);
 if options.Visible
     figureHandle.Visible = 'on';
@@ -333,6 +408,7 @@ end
     function loadVehicle(index)
         vehicleIndex = index;
         vehicle = fcn_CarMesh3D_reviewInput(vehicleList{index}, FigNum=-1);
+        setappdata(figureHandle, 'vvVehicleFolder', vehicle.Files.Folder);   % (one window per vehicle: Q71 (A))
         figureHandle.Name = sprintf('fcn_CarMesh3D_reviewVehicle: %s', vehicle.Name);
         titleBar.SetSubtitle(vehicle.Name);
         folder = vehicle.Files.ChecksFolder;
@@ -449,6 +525,7 @@ end
         lastError = [];
         lastSeconds = NaN;
         delete(drawPanel.Children);
+        hideExtras();
         if index == summaryIndex
             showSummary();
         else
@@ -523,7 +600,160 @@ end
         end
         setAnswers(page.Answers, selected, true);
         commentArea.Value = char(answers.Comment(row));
+        showExtras(index);
         refreshStatus(index);
+    end
+
+    %% The score and the examples (an assessment that asks for them)
+    function hideExtras()
+        questionGrid.RowHeight{4} = 0;
+        extrasGrid.Visible = 'off';
+    end
+
+    function showExtras(index)
+        page = pages(index);
+        if isempty(page.Score) && ~page.Examples
+            return;
+        end
+        questionGrid.RowHeight{4} = 30;
+        extrasGrid.Visible = 'on';
+        flagScore = ~isempty(page.Score);
+        scoreLabel.Visible = matlab.lang.OnOffSwitchState(flagScore);
+        scoreDropdown.Visible = matlab.lang.OnOffSwitchState(flagScore);
+        if flagScore
+            scoreLabel.Text = sprintf('Score (%g bad to %g perfect):', page.Score(1), page.Score(2));
+            scoreDropdown.Items = [{'(none)'}, arrayfun(@(value) sprintf('%g', value), page.Score(1):page.Score(2), 'UniformOutput', false)];
+            value = answers.Score(rowOf(index));
+            if isnan(value)
+                scoreDropdown.Value = '(none)';
+            else
+                scoreDropdown.Value = sprintf('%g', value);
+            end
+        end
+        examplesDropdown.Visible = matlab.lang.OnOffSwitchState(page.Examples);
+        saveExampleButton.Visible = matlab.lang.OnOffSwitchState(page.Examples);
+        if page.Examples
+            refreshExamples();
+        end
+    end
+
+    function onScoreChanged()
+        if currentPage == summaryIndex
+            return;
+        end
+        row = rowOf(currentPage);
+        answers.Score(row) = str2double(scoreDropdown.Value);   % (NaN for '(none)')
+        saveAnswers();
+        refreshStatus(currentPage);
+    end
+
+    function testScore(value)
+        if isnan(value)
+            scoreDropdown.Value = '(none)';
+        else
+            scoreDropdown.Value = sprintf('%g', value);
+        end
+        onScoreChanged();
+    end
+
+    function folder = examplesFolder()
+        folder = fullfile(examplesRoot, char(pages(currentPage).FKey));
+    end
+
+    function files = listExamples()
+        % (the saved examples of this assessment, best score first)
+        files = {};
+        if currentPage == summaryIndex || ~isfolder(examplesFolder())
+            return;
+        end
+        listing = dir(fullfile(examplesFolder(), '*.png'));
+        files = fullfile({listing.folder}, {listing.name});
+        scores = cellfun(@(name) fcn_INTERNAL_exampleScore(name), {listing.name});
+        [~, order] = sort(scores, 'descend');
+        files = files(order);
+    end
+
+    function refreshExamples()
+        files = listExamples();
+        [~, names] = cellfun(@fileparts, files, 'UniformOutput', false);
+        examplesDropdown.Items = [{sprintf('Compare with examples (%d) ...', numel(files))}, names];
+        examplesDropdown.ItemsData = [{''}, files];
+        examplesDropdown.Value = '';
+    end
+
+    function showExample(file)
+        % (a saved example, in a window of its own beside this one)
+        if isempty(file)
+            return;
+        end
+        if ~isempty(exampleWindow) && isvalid(exampleWindow)
+            delete(exampleWindow);
+        end
+        [~, name] = fileparts(file);
+        exampleWindow = uifigure('Name', sprintf('Example: %s', name), 'Tag', 'vvExampleWindow', ...
+            'Visible', matlab.lang.OnOffSwitchState(options.Visible), 'Position', [80 80 960 560]);
+        grid = uigridlayout(exampleWindow, [2 1], 'RowHeight', {'1x', 'fit'});
+        uiimage(grid, 'ImageSource', file, 'ScaleMethod', 'fit', 'Tag', 'vvExampleImage');
+        textFile = fullfile(fileparts(file), [name '.txt']);
+        textLine = name;
+        if isfile(textFile)
+            textLine = strtrim(fileread(textFile));
+        end
+        uilabel(grid, 'Text', textLine, 'WordWrap', 'on', 'Tag', 'vvExampleText');
+        examplesDropdown.Value = '';
+    end
+
+    function file = saveExample()
+        % (these pictures, as turned, with the answer and the score: a PNG
+        % and a one-line text file, named so renaming re-ranks it; Q90 (A))
+        file = '';
+        if currentPage == summaryIndex
+            return;
+        end
+        page = pages(currentPage);
+        row = rowOf(currentPage);
+        score = answers.Score(row);
+        if strlength(answers.Answer(row)) == 0 || (~isempty(page.Score) && isnan(score))
+            statusLabel.Text = 'To save an example, answer first (and give a score).';
+            return;
+        end
+        folder = examplesFolder();
+        if ~isfolder(folder)
+            mkdir(folder);
+        end
+        scoreText = '';
+        if ~isnan(score)
+            scoreText = sprintf('_s%02d', round(score));
+        end
+        base = sprintf('%s%s_%s_%s_%s_%s', char(page.FKey), scoreText, lower(char(answers.Answer(row))), vehicle.ID, ...
+            reviewerName, char(datetime('now', 'Format', 'yyyy_MM_dd')));
+        base = regexprep(base, '[^\w]', '_');
+        file = fullfile(folder, [base '.png']);
+        count = 1;
+        while isfile(file)
+            count = count + 1;
+            file = fullfile(folder, sprintf('%s_%d.png', base, count));
+        end
+        try
+            exportgraphics(drawPanel, file, 'Resolution', 96);
+        catch
+            exportapp(figureHandle, file);   % (the whole window, if the panel cannot be exported alone)
+        end
+        % (the line beside it: vehicle, score, verdict, who, when, the views)
+        views = {};
+        for thisAxes = reshape(findall(drawPanel, 'Type', 'axes'), 1, [])
+            [azimuth, elevation] = view(thisAxes);
+            views{end+1} = sprintf('az %.0f el %.0f', azimuth, elevation); %#ok<AGROW>
+        end
+        textLine = sprintf('vehicle=%s; score=%s; verdict=%s; who=%s; when=%s; views=%s; comment=%s', vehicle.ID, ...
+            num2str(score), char(answers.Answer(row)), reviewerName, char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')), ...
+            strjoin(views, ' | '), strrep(char(answers.Comment(row)), newline, ' '));
+        [~, name] = fileparts(file);
+        fileID = fopen(fullfile(folder, [name '.txt']), 'w', 'n', 'UTF-8');
+        fprintf(fileID, '%s\n', textLine);
+        fclose(fileID);
+        statusLabel.Text = sprintf('Saved as an example: %s', name);
+        refreshExamples();
     end
 
     function showError(index, drawError)
@@ -927,7 +1157,8 @@ function pages = fcn_INTERNAL_pages(checkList)
 % One page per question: each assessment function's questions, from its
 % describe mode, in the list's order
 pages = struct('Function', {}, 'FKey', {}, 'QKey', {}, 'Title', {}, 'Question', {}, 'Answers', {}, ...
-    'ProblemAnswers', {}, 'Help', {}, 'Detail', {}, 'GroupTitle', {}, 'GroupHelp', {}, 'On', {}, 'Built', {});
+    'ProblemAnswers', {}, 'Help', {}, 'Detail', {}, 'GroupTitle', {}, 'GroupHelp', {}, 'On', {}, 'Built', {}, ...
+    'Score', {}, 'Examples', {});
 for ith_row = 1:height(checkList)
     described = checkList.Questions{ith_row};
     functionHandle = checkList.Function{ith_row};
@@ -943,11 +1174,17 @@ for ith_row = 1:height(checkList)
         if isfield(question, 'Detail') && ~isempty(question.Detail)
             detail = char(question.Detail);
         end
+        scoreRange = [];   % (Score and Examples are optional too)
+        if isfield(question, 'Score') && numel(question.Score) == 2
+            scoreRange = double(question.Score(:)');
+        end
+        flagExamples = isfield(question, 'Examples') && isequal(question.Examples, true);
         pages(end+1) = struct('Function', functionHandle, 'FKey', string(checkList.Key(ith_row)), ...
             'QKey', char(question.Key), 'Title', char(question.Title), 'Question', char(question.Question), ...
             'Answers', {cellstr(question.Answers)}, 'ProblemAnswers', {cellstr(question.ProblemAnswers)}, ...
             'Help', char(question.Help), 'Detail', detail, 'GroupTitle', char(question.GroupTitle), 'GroupHelp', char(question.GroupHelp), ...
-            'On', checkList.On(ith_row), 'Built', checkList.Built(ith_row)); %#ok<AGROW>
+            'On', checkList.On(ith_row), 'Built', checkList.Built(ith_row), 'Score', scoreRange, ...
+            'Examples', flagExamples); %#ok<AGROW>
     end
 end
 end % Ends fcn_INTERNAL_pages
@@ -959,9 +1196,9 @@ function [answers, summary, keptOld] = fcn_INTERNAL_startAnswers(pages, checkLis
 numPages = numel(pages);
 blank = strings(numPages, 1);
 answers = table([pages.FKey]', string({pages.QKey})', string({pages.Title})', string({pages.Question})', ...
-    blank, false(numPages, 1), blank, blank, blank, blank, blank, blank, NaN(numPages, 1), ...
+    blank, false(numPages, 1), blank, blank, blank, blank, blank, blank, NaN(numPages, 1), NaN(numPages, 1), ...
     'VariableNames', {'Assessment', 'Key', 'Title', 'Question', 'Answer', 'Problem', 'Comment', 'Who', 'When', ...
-    'Fingerprint', 'Status', 'Note', 'Seconds'});
+    'Fingerprint', 'Status', 'Note', 'Seconds', 'Score'});
 summary = [];
 keptOld = [];
 if isfile(reviewFile)
@@ -971,6 +1208,9 @@ if isfile(reviewFile)
             row = find(answers.Assessment == saved.vvAnswers.Assessment(ith_row) & answers.Key == saved.vvAnswers.Key(ith_row), 1);
             if ~isempty(row)
                 kept = {'Answer', 'Problem', 'Comment', 'Who', 'When', 'Fingerprint', 'Status', 'Note', 'Seconds'};
+                if ismember('Score', saved.vvAnswers.Properties.VariableNames)
+                    kept{end+1} = 'Score'; %#ok<AGROW>   (files saved before 2026-11-26 have none)
+                end
                 answers(row, kept) = saved.vvAnswers(ith_row, kept);
             end
         end
@@ -1031,6 +1271,51 @@ reviewTable = [reviewTable; table("summary", "summary", "Approve this mesh?", su
     summaryRow{:}, 'VariableNames', reviewTable.Properties.VariableNames)];
 end % Ends fcn_INTERNAL_oldFormat
 
+%% fcn_INTERNAL_openWindow
+function existing = fcn_INTERNAL_openWindow(vehicleInput)
+% A shown V&V window already open on this vehicle (its folder), or []
+existing = [];
+windows = findall(groot, 'Type', 'figure', 'Tag', 'vvWindow', 'Visible', 'on');
+if isempty(windows)
+    return;
+end
+try
+    if isstruct(vehicleInput)
+        folder = vehicleInput.Files.Folder;
+    else
+        files = fcn_CarMesh3D_findVehicleFiles(char(vehicleInput), FigNum=-1);
+        folder = files.Folder;
+    end
+catch
+    return;
+end
+for ith_window = 1:numel(windows)
+    if strcmpi(getappdata(windows(ith_window), 'vvVehicleFolder'), folder) && isstruct(windows(ith_window).UserData)
+        existing = windows(ith_window);
+        return;
+    end
+end
+end % Ends fcn_INTERNAL_openWindow
+
+%% fcn_INTERNAL_answerText
+function text = fcn_INTERNAL_answerText(answers, row)
+% The answer, with its score when one was given ("Accept (9)")
+text = char(answers.Answer(row));
+if ismember('Score', answers.Properties.VariableNames) && ~isnan(answers.Score(row)) && ~isempty(text)
+    text = sprintf('%s (%g)', text, answers.Score(row));
+end
+end % Ends fcn_INTERNAL_answerText
+
+%% fcn_INTERNAL_exampleScore
+function score = fcn_INTERNAL_exampleScore(fileName)
+% An example's score, from its name (..._s09_...), or -1 when it has none
+score = -1;
+token = regexp(fileName, '_s(\d+)_', 'tokens', 'once');
+if ~isempty(token)
+    score = str2double(token{1});
+end
+end % Ends fcn_INTERNAL_exampleScore
+
 %% fcn_INTERNAL_writeReport
 function fcn_INTERNAL_writeReport(reportFile, vehicle, answers, summary)
 % A readable report of the review, in Markdown
@@ -1048,7 +1333,7 @@ lines = [lines, {fcn_INTERNAL_countsText(answers), '', '| Assessment | Question 
     '|---|---|---|---|---|---|---|'}];
 for ith_row = 1:height(answers)
     cells = cellfun(@(value) strrep(strrep(char(value), '|', '/'), newline, ' '), ...
-        {answers.Title(ith_row), answers.Question(ith_row), answers.Answer(ith_row), answers.Status(ith_row), ...
+        {answers.Title(ith_row), answers.Question(ith_row), fcn_INTERNAL_answerText(answers, ith_row), answers.Status(ith_row), ...
         answers.Comment(ith_row), answers.Who(ith_row), answers.When(ith_row)}, 'UniformOutput', false);
     lines{end+1} = ['| ' strjoin(cells, ' | ') ' |']; %#ok<AGROW>
 end

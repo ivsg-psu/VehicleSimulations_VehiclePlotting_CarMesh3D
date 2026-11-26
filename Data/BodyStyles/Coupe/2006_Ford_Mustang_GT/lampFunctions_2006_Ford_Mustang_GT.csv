@@ -1,0 +1,7 @@
+Unit,Kind,Position,LowBeam,HighBeam,Running,Parking,TurnLeft,TurnRight,Tail,Brake,Backup,FogLights,Reflectors,Default,Source
+"front-left headlamp","headlight","front-left",1,0,0,0,0,0,0,0,0,0,0,"yes","(default)"
+"front-left high-beam lamp","highbeam","front-left",0,1,0,0,0,0,0,0,0,0,0,"yes","(default)"
+"front-right headlamp","headlight","front-right",1,0,0,0,0,0,0,0,0,0,0,"yes","(default)"
+"front-right high-beam lamp","highbeam","front-right",0,1,0,0,0,0,0,0,0,0,0,"yes","(default)"
+"rear-left tail/brake lamp","tail","rear-left",0,0,0,0.4,1,0,0.4,1,0,0,0,"yes","(default: also the rear turn signal, as the vehicle has no rear turn-signal lamp on this side)"
+"rear-right tail/brake lamp","tail","rear-right",0,0,0,0.4,0,1,0.4,1,0,0,0,"yes","(default: also the rear turn signal, as the vehicle has no rear turn-signal lamp on this side)"

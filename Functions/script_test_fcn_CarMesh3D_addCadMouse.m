@@ -12,6 +12,10 @@
 % - In script_test_fcn_CarMesh3D_addCadMouse
 %   % * First write of the code (drafted with Claude)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_addCadMouse
+%   % * A flat view ('mouse2D'): a left-drag pans (drafted with Claude)
+
 % TO-DO:
 %
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
@@ -99,6 +103,16 @@ assert(norm(axesHandle.CameraTarget - targetBefore) < 1e-9, 'Turning keeps the t
 targetBefore = axesHandle.CameraTarget;
 fcn_INTERNAL_drag(figureHandle, boxPatch, 'alt', [100 100], [100 130]);
 assert(norm(axesHandle.CameraTarget - targetBefore) > 1e-9, 'Right-drag pans');
+
+% A flat view (appdata 'mouse2D', as the outline viewer's view from
+% above): a left-drag pans too, never turns
+setappdata(axesHandle, 'mouse2D', true);
+positionBefore = axesHandle.CameraPosition;
+targetBefore = axesHandle.CameraTarget;
+fcn_INTERNAL_drag(figureHandle, boxPatch, 'normal', [100 100], [100 130]);
+assert(norm(axesHandle.CameraTarget - targetBefore) > 1e-9, 'A flat view: left-drag pans');
+assert(abs(norm(axesHandle.CameraPosition - axesHandle.CameraTarget) - norm(positionBefore - targetBefore)) < 1e-9, 'and does not turn');
+rmappdata(axesHandle, 'mouse2D');
 
 % After the button is let go, moving the mouse does nothing
 positionBefore = axesHandle.CameraPosition;

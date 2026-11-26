@@ -701,11 +701,11 @@ Two words are kept apart: a **lamp** is hardware (what a light face *is*, set by
 | `'backup'` | Backup (reverse) lights | `Backup` | white |
 | `'fog'` | Fog lamps | `FogLights` | warm white |
 | `'reflector'` | Reflectors: no power of their own; they glow when outside light (another vehicle's headlights, a street light) falls on them | `Reflectors` (the outside light, 0 to 1) | their own color (amber, red or white), brighter |
-| `'licenseplate'` | License plate lamp | lit whenever the tail lights are | white |
-| `'marker'` | Marker lamps (side markers, clearance lamps) | lit with the running lights | their own color, brighter |
-| `'warning'` | Warning lamps (beacons, light bars, arrow boards) | `Hazards` | their own color, brighter |
+| `'licenseplate'` | License plate lamp | lit whenever the tail lights (or parking lights) are | white |
+| `'marker'` | Marker lamps (side markers, clearance lamps) | lit with the running, parking and tail lights | their own color, brighter |
+| `'warning'` | Warning lamps (beacons, light bars, arrow boards) | no signal by default: switched by your own loop | their own color, brighter |
 
-The switching can differ by vehicle (fog lamps, for one, are switched in several ways): a mesh's `LampSwitching` field overrides the standard switching for that vehicle.
+**The lamp-to-function (L2F) matrix** (2026-11-26; `Documents/Documentation_CarMesh3D_GUIdesign_lampFunctions.md`). The "Lit by" column above is now each vehicle's default; what really lights each lamp is the vehicle's matrix. Faces of one lamp label that sit together form a **lamp unit** ("front-left headlamp", "rear-center tail/brake lamp": `fcn_CarMesh3D_lampUnits`); the matrix gives each unit a brightness from 0 to 1 for each **signal** (`fcn_CarMesh3D_lampSignals`: LowBeam, HighBeam, Running, Parking, TurnLeft, TurnRight, Tail, Brake, Backup, FogLights, Reflectors). It is kept with the vehicle as `lampFunctions_<ID>.csv`, every unit and every cell, rows changed by hand marked `edited` with their source (`fcn_CarMesh3D_lampFunctions`); the 2009 Fit's file says its daytime running lights are its headlamps at 0.3. `fcn_CarMesh3D_plotVehicle` and the viewers light lamps from it through one set of rules (`fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`), and AnimateCar3D can mark units as failed at run time (`LampFaults`). The matrix is set in a window of its own, `fcn_CarMesh3D_editLampFunctions` (also the painter's Lamp Functions panel): pick the signal to edit, see other signals lit with it, and set each lamp with bar cells or vertical sliders. The older `LampSwitching` field and `FaceLightFunctions` are read once, to make a vehicle's first matrix.
 
 `fcn_CarMesh3D_labelParts` sets the type from names (`TurnSignal`, `Reverse`, `TailLight`, `HighBeam`, `Fog`, `Reflector`...); a light with no recognized name becomes a headlight in the front half and a tail light in the rear half. **High beams are found automatically** where a headlight's faces clearly form two clusters (`AutoHighBeams`, on by default): the cluster nearer the middle of the car (or the upper one) becomes the high beam. This is a starting point; check it in `fcn_CarMesh3D_viewLabels` ("high beam") and fix it in the label painter.
 
@@ -1875,6 +1875,21 @@ lampTypes = fcn_CarMesh3D_lampTypes((FigNum=figNum))
 
 </details>
 
+<details><summary><b><code>fcn_CarMesh3D_lampUnits</code>, <code>_lampSignals</code>, <code>_lampFunctions</code>, <code>_lampSetup</code>, <code>_lampColors</code>, <code>_editLampFunctions</code></b> (each with its own test script): the lamp-to-function matrix.</summary>
+
+The functions of the lamp-to-function matrix (see [Switchable lights](#switchable-lights) and `Documents/Documentation_CarMesh3D_GUIdesign_lampFunctions.md`):
+
+| Function | What it does |
+|---|---|
+| `units = fcn_CarMesh3D_lampUnits(vehicleMesh)` | The lamp units: faces of one lamp label within 3 cm of each other, named from where they are ("front-left headlamp"), each with its clear covers |
+| `signals = fcn_CarMesh3D_lampSignals()` | The signals, the matrix's columns: Name, Label, Description |
+| `[matrix, units, info] = fcn_CarMesh3D_lampFunctions(vehicle, (Mesh=), (Table=), (Save=))` | A vehicle's matrix (a table: one row per unit, one column per signal, then Default and Source), from its `lampFunctions_<ID>.csv`, the defaults, and a first-time migration; `Save=true` writes the file |
+| `setup = fcn_CarMesh3D_lampSetup(vehicleMesh, (LampFunctions=))` | Everything needed to light the lamps, worked out once per mesh (which unit each face belongs to, the matrix as numbers) |
+| `lit = fcn_CarMesh3D_lampColors(setup, lightStates, (LampFaults=))` | How each unit and face is lit for a set of signals: the one place the lighting rules live |
+| `[matrix, editor] = fcn_CarMesh3D_editLampFunctions(vehicle, (Viewer=), (Parent=))` | The matrix window: Editing and Table / Tuner, Also on, filters, bar cells or vertical sliders, Checks, Save |
+
+</details>
+
 <details><summary><b><code>fcn_CarMesh3D_findLampCovers</code></b> (test: <code>script_test_fcn_CarMesh3D_findLampCovers.m</code>): Finds the clear covers in front of lamps and makes each one clear glass that covers its lamp.</summary>
 
 Finds the clear glass covers lying in front of a vehicle's lamps (looking straight behind each glass face for a lamp face within `Distance`), and makes each one clear glass that is the cover of the lamp behind it: untinted and about 15% opaque, so the lamp shows through; `fcn_CarMesh3D_plotVehicle` tints a cover with its lamp's lit color while the lamp is on. Windows are never over a lamp, so they stay as they are. Run again, it gives the same result. The vehicle script runs it after the painted label fixes.
@@ -2679,15 +2694,16 @@ The V&V GUI asks a person short questions that only a person answers quickly (a 
 
 </details>
 
-<details><summary><b><code>fcn_CarMesh3D_assess_overall</code>, <code>_labels</code>, <code>_patchyLabels</code>, <code>_headlights</code>, <code>_brakeLights</code>, <code>_realism</code></b> (tests: <code>script_test_fcn_CarMesh3D_assess_&lt;name&gt;.m</code>): The V&V GUI's first round of assessments, one question each.</summary>
+<details><summary><b><code>fcn_CarMesh3D_assess_overall</code>, <code>_labels</code>, <code>_patchyLabels</code>, <code>_normals</code>, <code>_headlights</code>, <code>_brakeLights</code>, <code>_realism</code></b> (tests: <code>script_test_fcn_CarMesh3D_assess_&lt;name&gt;.m</code>): The V&V GUI's first round of assessments, one question each.</summary>
 
 | Function | Question | Answers (the problem answer last) | Pictures |
 |---|---|---|---|
 | `fcn_CarMesh3D_assess_overall` | Does this mesh pass a first glance? | Yes / No | the vehicle, front left and rear right |
 | `fcn_CarMesh3D_assess_labels` | Are the labels on the correct portions of the mesh? | Yes / No | the label colors, front left and rear right |
 | `fcn_CarMesh3D_assess_patchyLabels` | Are the labels clean, with no blotchy or patchy areas? | Yes / No | the label colors, lit from the front only: faces pointing the wrong way show nearly black |
-| `fcn_CarMesh3D_assess_headlights` | Do the headlights go off, low, high as expected in these three pictures? | Yes / No | the front at night: off, low beam, high beam |
-| `fcn_CarMesh3D_assess_brakeLights` | Do the brake lights come on as expected in these pictures? | Yes / No | the rear at night: off, tail lamps on, braking |
+| `fcn_CarMesh3D_assess_normals` | Do all faces point outward, with no face in the opposite color to its neighbors? | Accept / Reject, with a score from 0 to 10 | each face colored by the direction it points, (n+1)/2, in two views you turn with the mouse; saved examples to compare with (`Data/VandV/Examples/normals/`) |
+| `fcn_CarMesh3D_assess_headlights` | Do the headlights go off, low, high as expected in these pictures? | Yes / No | the front at night: off, low beam, high beam; below, close-ups of the left headlight |
+| `fcn_CarMesh3D_assess_brakeLights` | Do the brake lights come on as expected in these pictures? | Yes / No | the rear at night: off, tail lamps on, braking; below, close-ups of the left tail light |
 | `fcn_CarMesh3D_assess_realism` | Is the realism of this mesh (Fig 1) higher than, equal to, or lower than this approved mesh (Fig 2)? | Higher / Equal / Lower | this mesh beside its body style's approved exemplar; skipped, with why, when there is none |
 
 Every assessment function works the same way, so it can be run and debugged alone:

@@ -81,6 +81,12 @@ function checkList = fcn_CarMesh3D_reviewChecks(options)
 %   %   % (Sean, 2026-11-25 01:22 to 01:36), every one optional; Function
 %   %   % and Questions columns; Assessments= for a list of one's own
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewChecks
+%   % * Normals added to the first round, after Patchy labels (the V&V
+%   %   % design file, plan item 14; Sean, 03:12 and 04:41) (drafted with
+%   %   % Claude)
+
 % TO-DO:
 %
 % (the "later" assessments in the V&V design file, section 5)
@@ -122,6 +128,7 @@ rows = {
     @fcn_CarMesh3D_assess_overall,             false;
     @fcn_CarMesh3D_assess_labels,              false;
     @fcn_CarMesh3D_assess_patchyLabels,        false;
+    @fcn_CarMesh3D_assess_normals,             false;
     @fcn_CarMesh3D_assess_headlights,          false;
     @fcn_CarMesh3D_assess_brakeLights,         false;
     @fcn_CarMesh3D_assess_realism,             false};

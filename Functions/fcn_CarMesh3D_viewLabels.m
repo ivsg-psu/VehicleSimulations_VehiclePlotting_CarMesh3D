@@ -32,7 +32,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %           (Parent=container), (LabelListParent=container),...
 %           (ShowTools=flag), (OnHint=function), (ColorFilter=function),...
 %           (HiddenFaces=function), (PhotoOptions=flag), (OnLamps=function),...
-%           (Wait=flag), (Visible=flag),...
+%           (OnView=function), (OnNight=function), (Wait=flag), (Visible=flag),...
+%           (CheckStale=flag),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -43,8 +44,15 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %             as a vehicle's mesh file or a timestamped copy from the
 %             painter. The viewer shows exactly that file; it does not
 %             choose between files.
+%           - a vehicle ID ('2009_Honda_Fit_Sport') or its folder: the
+%             vehicle's mesh with its saved label fixes, as
+%             fcn_CarMesh3D_meshWithLabelEdits gives it (the latest, even
+%             when the painter saved fixes after the vehicle's script ran).
 %           - a variable: a labeled CarMesh3D mesh (Vertices, Faces,
-%             PartNames, FacePartIndex).
+%             PartNames, FacePartIndex). If it is a vehicle's mesh (its
+%             BuildInfo or Name names a vehicle) and its labels differ from the
+%             vehicle's latest, a warning says so (a variable loaded
+%             before the painter saved is out of date).
 %
 %     (OPTIONAL INPUTS, given as Name=Value pairs)
 %
@@ -111,11 +119,22 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      moved, for a window that shows the camera's angles (the shared
 %      Overall Display). Default [] (none).
 %
+%      OnNight: a function called with true or false whenever the view
+%      switches between day and night (from the sun/moon button on the
+%      model, the panels, or a hook), so a host's own panels can follow.
+%      Default [] (none).
+%
 %      Wait: true to wait until the window is closed and return the view
 %      settings then. Default false: return at once, so the prompt stays
 %      free, as the other GUIs do (Q68 (A), Sean 2026-11-25); the settings
 %      when it opened are returned, and the viewer's GetView gives them
 %      later.
+%
+%      CheckStale: true to compare a vehicle's mesh given as a variable
+%      with the vehicle's latest labels, and warn if they differ (a second
+%      or two); false to skip it. Default [] (true in a window of its own;
+%      false built into a host, such as the painter, whose mesh may hold
+%      edits not yet saved).
 %
 %      Visible: false to build the window hidden (for tests). Default true.
 %
@@ -123,7 +142,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %
 % OUTPUTS:
 %
-%      viewSettings: a structure: MeshFile ('' for a mesh variable),
+%      viewSettings: a structure: MeshFile ('' for a mesh variable; the
+%      vehicle ID when opened by ID, so the view call opens the latest),
 %      Camera (CameraPosition, CameraTarget, CameraUpVector,
 %      CameraViewAngle, Projection, XLim, YLim, ZLim), Label, Hidden,
 %      Colors, PhotoAngle (the photo shown, in degrees; NaN for none),
@@ -204,6 +224,9 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %
 %       % Open the same view (or someone else's, from "Copy view call")
 %       fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, ViewSettings=viewSettings);
+%
+%       % A vehicle by its ID: its mesh with its latest saved label fixes
+%       fcn_CarMesh3D_viewLabels('2009_Honda_Fit_Sport');
 %
 %       See the script: script_test_fcn_CarMesh3D_viewLabels.m for a full
 %       test suite.
@@ -394,6 +417,27 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   % * Wait defaults to false: the viewer returns at once and the prompt
 %   %   % stays free (Q68 (A), Sean 23:15)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * A sun/moon button in the model view's top right corner switches
+%   %   % day and night with one click (Q89 (A), Sean 03:52: "I'm using
+%   %   % that a lot, and this requires exiting/entering the panels
+%   %   % over/over"; the lamp-functions plan, item 9); it shows the sun
+%   %   % by day and the moon at night. New option OnNight, so a host (the
+%   %   % painter) keeps its own Nighttime view? setting in step
+%   % * The day-lit lamps use fcn_CarMesh3D_lampSetup and
+%   %   % fcn_CarMesh3D_lampColors (the lamp-to-function matrix), the same
+%   %   % rules as fcn_CarMesh3D_plotVehicle (the lamp-functions plan,
+%   %   % item 4)
+%   % * meshInput may be a vehicle ID: the vehicle's mesh with its saved
+%   %   % label fixes (fcn_CarMesh3D_meshWithLabelEdits). A mesh variable
+%   %   % whose labels differ from the vehicle's latest gives a warning
+%   %   % (Q85 (A), Sean 02:24: the door patch that "survived" was a mesh
+%   %   % variable loaded before the painter saved). New option CheckStale
+%   % * Hooks for the lamp-functions window: SetLampFunctions (the matrix
+%   %   % the lamps light by), SetLampSignals (the lamps lit by any signals,
+%   %   % Parking and Brake too), OutlineFaces (cyan outlines)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -426,7 +470,9 @@ arguments
     options.PhotoOptions = false % Photo options under the photo (folder, turn the model, size)
     options.OnLamps = []        % Called with the lamp states when they change (a host's lamp panel)
     options.OnView = []         % Called when the camera moves (a host's camera readout)
+    options.OnNight = []        % Called with true/false when day and night switch (a host's panels)
     options.Visible = true      % Build the window hidden (tests)
+    options.CheckStale = []     % Warn when a vehicle's mesh variable is older than its saved labels
     options.FigNum = []         % Not used (a window); -1 for fast mode
 end
 
@@ -477,12 +523,20 @@ if 0==flag_max_speed
     if flag_check_inputs
         if ischar(meshInput) || isstring(meshInput)
             if ~isfile(meshInput)
-                error('The mesh file %s does not exist', char(meshInput));
+                vehicleFound = false;
+                try
+                    vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(meshInput), FigNum=-1);
+                    vehicleFound = vehicleFiles.Found && vehicleFiles.HasMesh;
+                catch
+                end
+                if ~vehicleFound
+                    error('%s is not a mesh file, nor the ID of a vehicle with a mesh', char(meshInput));
+                end
             end
         elseif ~(isstruct(meshInput) && all(isfield(meshInput, {'Vertices','Faces','PartNames','FacePartIndex'})))
             error('meshInput must be a mesh file name, or a labeled CarMesh3D mesh (Vertices, Faces, PartNames, FacePartIndex)');
         end
-        for callbackName = {'OnHint', 'ColorFilter', 'HiddenFaces'}
+        for callbackName = {'OnHint', 'ColorFilter', 'HiddenFaces', 'OnNight'}
             if ~isempty(options.(callbackName{1})) && ~isa(options.(callbackName{1}), 'function_handle')
                 error('%s must be a function handle, or empty', callbackName{1});
             end
@@ -513,10 +567,22 @@ end
 %%%% The mesh (a file name or a variable, told apart by what it is), its
 %%%% label colors, the photos, and the outline
 meshFile = '';
+viewSource = '';
 vehicleName = 'mesh';
 photoFolder = '';
-if ischar(meshInput) || isstring(meshInput)
+if (ischar(meshInput) || isstring(meshInput)) && ~isfile(meshInput)
+    % (a vehicle ID: its mesh with its saved label fixes, Q85 (A))
+    vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(meshInput), FigNum=-1);
+    vehicleMesh = fcn_CarMesh3D_meshWithLabelEdits(vehicleFiles.Folder, FigNum=-1);
+    meshFile = vehicleFiles.MeshFile;
+    viewSource = vehicleFiles.ID;   % (the view settings reopen it by ID)
+    vehicleName = vehicleFiles.ID;
+    if isfolder(fullfile(vehicleFiles.Folder, 'photos'))
+        photoFolder = fullfile(vehicleFiles.Folder, 'photos');
+    end
+elseif ischar(meshInput) || isstring(meshInput)
     meshFile = char(meshInput);
+    viewSource = meshFile;
     vehicleMesh = fcn_INTERNAL_loadMesh(meshFile);
     [meshFolder, vehicleName] = fileparts(meshFile);
     if isfolder(fullfile(meshFolder, 'photos'))
@@ -524,6 +590,13 @@ if ischar(meshInput) || isstring(meshInput)
     end
 else
     vehicleMesh = meshInput;
+    flagCheckStale = options.CheckStale;
+    if isempty(flagCheckStale)
+        flagCheckStale = isempty(options.Parent);
+    end
+    if flagCheckStale
+        fcn_INTERNAL_warnIfStale(vehicleMesh);
+    end
 end
 if isfield(vehicleMesh, 'Name') && ~isempty(vehicleMesh.Name)
     vehicleName = char(vehicleMesh.Name);
@@ -612,6 +685,9 @@ flagBoundaries = false;   % (the mesh's face edges drawn)
 boundaryBox = [];
 flagNight = false;   % (the nighttime view)
 nightBox = [];
+dayNightButton = [];   % (the sun/moon button over the model)
+lampSetupCache = [];   % (the shown mesh's lamp units and matrix: currentLampSetup)
+lampSetupKey = {};
 nightStates = struct('LowBeam', false, 'HighBeam', false, 'Running', false, 'TurnLeft', false, 'TurnRight', false, ...
     'Tail', 'off', 'Backup', false, 'FogLights', false, 'Hazards', false, 'Reflectors', 0);   % (the lamps switched on: none by day, at first; all, the first time night falls)
 flagLampsSet = false;
@@ -788,6 +864,14 @@ modelHolder = uipanel(layout, 'BorderType', 'none', 'BackgroundColor', [1 1 1]);
 modelHolder.Layout.Row = 1;
 modelHolder.Layout.Column = 1;
 axesHandle = uiaxes(uigridlayout(modelHolder, [1 1], 'Padding', [0 0 0 0]), 'Tag', 'modelAxes');
+% (the sun/moon button over the model's top right corner: one click
+% switches day and night; Q89 (A), Sean 2026-11-26)
+dayNightButton = uibutton(modelHolder, 'Text', char(9728), 'FontSize', 20, 'Tag', 'dayNightButton', ...
+    'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
+    'Tooltip', 'Day (click for night)', 'ButtonPushedFcn', @(~,~) toggleDayNight());   % (a nested function: an anonymous one would keep flagNight as it was now)
+modelHolder.AutoResizeChildren = 'off';
+modelHolder.SizeChangedFcn = @(~,~) placeDayNight();
+placeDayNight();
 hold(axesHandle, 'on');
 axis(axesHandle, 'off');
 axesHandle.Color = [1 1 1];
@@ -922,7 +1006,8 @@ viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Patch', meshPatch, 
     'CheckLayout', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'checkLayout'), ...
     'Controls', @() fcn_CarMesh3D_guiDriver(driverRoot(), 'controls'), ...
     'MouseDrag', @mouseDrag, 'Scroll', @scrollHook, 'DialDrag', @dialDrag, 'Resize', @resizeWindow, ...
-    'Tick', @onModelViewChanged, 'Settle', @settle, 'FitInfo', @getFitInfo);
+    'Tick', @onModelViewChanged, 'Settle', @settle, 'FitInfo', @getFitInfo, ...
+    'SetLampFunctions', @setLampFunctions, 'SetLampSignals', @setLampSignals, 'OutlineFaces', @outlineFaces);
 if flagOwnWindow
     % (the panels, made once the hooks are: the display panels shared
     % with the painter, fcn_CarMesh3D_makeDisplayPanels, and GUI
@@ -1108,24 +1193,23 @@ end
         end
         % (by day, the lamps switched on in the lamp list drawn lit, in
         % their lit colors, solid; Sean, 03:53)
-        [flagLit, litColors] = fcn_INTERNAL_litColors(data.Mesh, nightStates);
-        baseColors(flagLit,:) = litColors(flagLit,:);
-        baseAlpha(flagLit) = 1;
+        % (from the vehicle's lamp-to-function matrix, by the one set of
+        % lighting rules, fcn_CarMesh3D_lampColors, as at night in
+        % fcn_CarMesh3D_plotVehicle: the viewer's own copy of the rules
+        % lit the 2009 Fit's fog lamps with the high beams in the painter,
+        % Sean 2026-11-26 00:36)
+        lampSetup = currentLampSetup();
+        litNow = fcn_CarMesh3D_lampColors(lampSetup, nightStates, FigNum=-1);
+        flagLampLit = litNow.FlagLit & lampSetup.FaceUnit > 0;
+        baseColors(flagLampLit,:) = litNow.Colors(flagLampLit,:);
+        baseAlpha(flagLampLit) = 1;
         % (a lit lamp's clear cover glows in the lamp's lit color, as at
         % night in fcn_CarMesh3D_plotVehicle; else the glass over it, drawn
         % as glass since Q29, washed the lit color out: a turn signal by
         % day was very dim; Sean, 2026_11_24 01:03)
-        if isfield(data.Mesh,'FaceCoverLamp') && numel(data.Mesh.FaceCoverLamp)==numFaces
-            flagCover = data.Mesh.FaceCoverLamp(:) > 0;
-            if any(flagCover)
-                coverMesh = data.Mesh;
-                coverMesh.FaceLightType(flagCover) = data.Mesh.FaceCoverLamp(flagCover);
-                [flagCoverLit, coverColors] = fcn_INTERNAL_litColors(coverMesh, nightStates);
-                flagCoverLit = flagCoverLit & flagCover;
-                baseColors(flagCoverLit,:) = coverColors(flagCoverLit,:);
-                baseAlpha(flagCoverLit) = max(baseAlpha(flagCoverLit), 0.55);
-            end
-        end
+        flagCoverLit = litNow.FlagLit & lampSetup.FaceCoverUnit > 0;
+        baseColors(flagCoverLit,:) = litNow.Colors(flagCoverLit,:);
+        baseAlpha(flagCoverLit) = max(baseAlpha(flagCoverLit), 0.55);
         if strcmp(currentKey, 'all')
             faceColors = baseColors;
             faceAlpha = baseAlpha;
@@ -1376,7 +1460,7 @@ end
     function settings = getView()
         % The view now: the camera, the label shown, the labels hidden,
         % the colors, and the photo
-        settings = struct('MeshFile', meshFile, 'Camera', [], 'Label', currentKey, 'Hidden', {hiddenKeys}, ...
+        settings = struct('MeshFile', viewSource, 'Camera', [], 'Label', currentKey, 'Hidden', {hiddenKeys}, ...
             'Colors', colorsMode, 'PhotoAngle', getPhotoAngle(), 'SeeThrough', bodySeeThrough, ...
             'MeshBoundaries', flagBoundaries, 'NightView', flagNight, 'NightLights', nightStates, ...
             'PhotoHeight', photoHeight);
@@ -1632,6 +1716,8 @@ end
 
     function onModelViewChanged()
         % If the model was rotated, move the arrow (and the photo) with it
+        % (and the sun/moon button kept in its corner, which a hidden
+        % window's resize does not do by itself)
         if isempty(axesHandle) || ~isvalid(axesHandle) || ~isvalid(figureHandle)
             % (the window is gone: the timer stops itself, so it cannot
             % keep running in the background; one was found running on
@@ -1646,6 +1732,7 @@ end
         if flagSyncingView || flagDialDragging || ~flagBuilt
             return;   % (not while the window is still being built: see the end of the build)
         end
+        placeDayNight();
         % (the window resized: the photo fitted to the room there is, then
         % the vehicle kept in view, at the same zoom)
         if fitPhotoToWindow()
@@ -1697,8 +1784,13 @@ end
 
     function stopTimer()
         if ~isempty(viewTimer) && isvalid(viewTimer)
-            stop(viewTimer);
-            delete(viewTimer);
+            try
+                stop(viewTimer);
+                delete(viewTimer);
+            catch
+                % (deleted meanwhile: a window closed while the timer ran;
+                % "Invalid timer object" from a patch's DeleteFcn, 2026-11-26)
+            end
         end
         viewTimer = [];
     end
@@ -1790,6 +1882,7 @@ end
     function placePhoto()
         % The photo filling its box, its name at the top right, the
         % handle at the bottom left
+        placeDayNight();   % (the sun/moon button too: this runs at every layout change, and a hidden window does not call the model panel's SizeChangedFcn)
         if isempty(photoPanel) || ~isvalid(photoPanel)
             return;
         end
@@ -1815,7 +1908,106 @@ end
         else
             leaveNight();
         end
+        markDayNight();
         refreshOwn();   % (Colors? and see-through: by day only; the status line)
+        if ~isempty(options.OnNight)
+            options.OnNight(flagNight);   % (a host's own panels follow)
+        end
+    end
+
+    %% Hooks for the lamp-functions window (fcn_CarMesh3D_editLampFunctions)
+    function setLampFunctions(tableIn)
+        % The lamp-to-function matrix the lamps light by (the window's,
+        % as it is edited): the lamps drawn again with it
+        data.Mesh.LampFunctions = tableIn;
+        if flagNight
+            buildNight();
+        else
+            redraw();
+        end
+    end
+
+    function setLampSignals(signalsIn)
+        % The lamps lit by these signals, each 0 to 1 (fields named as
+        % fcn_CarMesh3D_lampSignals; missing ones off), Parking and Brake
+        % included: every other lamp off
+        amountOf = @(name) isfield(signalsIn, name) && double(signalsIn.(name)) > 0;
+        statesNew = struct('LowBeam', amountOf('LowBeam'), 'HighBeam', amountOf('HighBeam'), ...
+            'Running', amountOf('Running'), 'TurnLeft', amountOf('TurnLeft'), 'TurnRight', amountOf('TurnRight'), ...
+            'Tail', 'off', 'Backup', amountOf('Backup'), 'FogLights', amountOf('FogLights'), 'Hazards', false, ...
+            'Reflectors', double(amountOf('Reflectors')), 'Parking', amountOf('Parking'), 'Brake', amountOf('Brake'));
+        if amountOf('Tail')
+            statesNew.Tail = 'on';
+        end
+        statesNew.Hazards = statesNew.TurnLeft && statesNew.TurnRight;
+        nightStates = statesNew;
+        flagLampsSet = true;
+        showNightLights();
+    end
+
+    function outlineFaces(faces)
+        % These faces outlined in cyan (the lamps the edited signal
+        % lights); [] for none
+        delete(findobj(axesHandle, 'Tag', 'lampOutline'));
+        if isempty(faces) || isempty(axesHandle) || ~isvalid(axesHandle)
+            return;
+        end
+        patch(axesHandle, 'Faces', data.Mesh.Faces(faces(:),:), 'Vertices', data.Mesh.Vertices, ...
+            'FaceColor', 'none', 'EdgeColor', [0 1 1], 'LineWidth', 1.5, 'HitTest', 'off', 'Clipping', 'off', ...
+            'Tag', 'lampOutline');
+    end
+
+    function lampSetup = currentLampSetup()
+        % The lamp units and matrix of the mesh shown
+        % (fcn_CarMesh3D_lampSetup), made again only when its lamp labels,
+        % covers or matrix change (a tenth of a second, not every redraw)
+        lampKey = {size(data.Mesh.Faces,1), [], [], []};
+        if isfield(data.Mesh, 'FaceLightType')
+            lampKey{2} = data.Mesh.FaceLightType(:);
+        end
+        if isfield(data.Mesh, 'FaceCoverLamp')
+            lampKey{3} = data.Mesh.FaceCoverLamp(:);
+        end
+        if isfield(data.Mesh, 'LampFunctions')
+            lampKey{4} = data.Mesh.LampFunctions;
+        end
+        if isempty(lampSetupCache) || ~isequal(lampKey, lampSetupKey)
+            lampSetupCache = fcn_CarMesh3D_lampSetup(data.Mesh, FigNum=-1);
+            lampSetupKey = lampKey;
+        end
+        lampSetup = lampSetupCache;
+    end
+
+    function toggleDayNight()
+        % The sun/moon button: day to night, or night to day
+        setNightView(~flagNight);
+    end
+
+    function placeDayNight()
+        % The sun/moon button in the model's top right corner
+        if isempty(dayNightButton) || ~isvalid(dayNightButton)
+            return;
+        end
+        holderSize = modelHolder.InnerPosition(3:4);
+        buttonSize = 36;
+        newPosition = [max(1, holderSize(1) - buttonSize - 8), max(1, holderSize(2) - buttonSize - 8), buttonSize, buttonSize];
+        if ~isequal(dayNightButton.Position, newPosition)
+            dayNightButton.Position = newPosition;
+        end
+    end
+
+    function markDayNight()
+        % The button shows the sun by day, the moon at night
+        if isempty(dayNightButton) || ~isvalid(dayNightButton)
+            return;
+        end
+        if flagNight
+            set(dayNightButton, 'Text', char(9790), 'BackgroundColor', [0.12 0.14 0.22], 'FontColor', [0.95 0.93 0.75], ...
+                'Tooltip', 'Night (click for day)');
+        else
+            set(dayNightButton, 'Text', char(9728), 'BackgroundColor', [1 1 1], 'FontColor', [0.85 0.55 0.05], ...
+                'Tooltip', 'Day (click for night)');
+        end
     end
 
     function enterNight()
@@ -2632,6 +2824,55 @@ while toc(startTime) < 3 && isvalid(figureHandle) && isvalid(probe)
 end
 end % Ends fcn_INTERNAL_waitForLayout
 
+%% fcn_INTERNAL_warnIfStale
+function flagStale = fcn_INTERNAL_warnIfStale(vehicleMesh)
+% Warns if a vehicle's mesh, given as a variable, has labels that differ
+% from the vehicle's latest (its mesh with its saved label fixes): a
+% variable loaded before the painter saved (Q85 (A)). Meshes that are not
+% a vehicle's, or whose faces differ (a detail level), are passed over.
+flagStale = false;
+% (the vehicle's ID: from the script that built the mesh, else its name)
+vehicleID = '';
+if isfield(vehicleMesh, 'BuildInfo') && isstruct(vehicleMesh.BuildInfo) && isfield(vehicleMesh.BuildInfo, 'Script')
+    [~, scriptName] = fileparts(char(vehicleMesh.BuildInfo.Script));
+    vehicleID = regexprep(scriptName, '^script_CarMesh3D_vehicle_', '');
+    if strcmp(vehicleID, scriptName)
+        vehicleID = '';
+    end
+end
+if isempty(vehicleID) && isfield(vehicleMesh, 'Name') && ~isempty(vehicleMesh.Name)
+    vehicleID = strrep(strtrim(char(vehicleMesh.Name)), ' ', '_');
+end
+if isempty(vehicleID)
+    return;
+end
+try
+    vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
+    if ~(vehicleFiles.Found && vehicleFiles.HasMesh)
+        return;
+    end
+    latestMesh = fcn_CarMesh3D_meshWithLabelEdits(vehicleFiles.Folder, OrientFaces=false, LampFunctions=false, FigNum=-1);
+catch
+    return;
+end
+if size(latestMesh.Faces,1) ~= size(vehicleMesh.Faces,1)
+    return;
+end
+labelFields = {'FacePartIndex', 'FaceLightType'};
+for ith_field = 1:numel(labelFields)
+    thisField = labelFields{ith_field};
+    if isfield(vehicleMesh, thisField) && isfield(latestMesh, thisField) ...
+            && ~isequal(vehicleMesh.(thisField)(:), latestMesh.(thisField)(:))
+        flagStale = true;
+    end
+end
+if flagStale
+    warning('CarMesh3D:staleMesh', ['This mesh of %s has labels that differ from the vehicle''s latest (label ' ...
+        'fixes saved since it was loaded?). To view the latest: fcn_CarMesh3D_viewLabels(''%s'')'], ...
+        vehicleFiles.Name, vehicleFiles.ID);
+end
+end % Ends fcn_INTERNAL_warnIfStale
+
 %% fcn_INTERNAL_loadMesh
 function vehicleMesh = fcn_INTERNAL_loadMesh(meshFile)
 % The mesh in a .mat file: the variable vehicleMesh, else the first
@@ -2774,95 +3015,6 @@ for name = fieldnames(vehicleMesh)'
     if startsWith(name{1}, 'Face') && (isnumeric(value) || islogical(value)) && size(value,1) == numFaces
         shownMesh.(name{1}) = value(flagKeep,:);
     end
-end
-end
-
-function [flagLit, litColors] = fcn_INTERNAL_litColors(vehicleMesh, lampStates)
-% The lamp faces lit by these lamp states (the lamp list's), in the
-% colors fcn_CarMesh3D_plotVehicle glows them in: low beams warm white,
-% high beams white (a vehicle with no high beam lamps lights its
-% headlights white for them), turn signals amber (each side its own),
-% running lights white, tail lights dark red (brake: red), backup
-% white. A lamp with several functions takes the first one on of turn
-% signal, tail, high beam, low beam, running, backup; a turn signal that
-% is also a tail light is red.
-numFaces = size(vehicleMesh.Faces,1);
-flagLit = false(numFaces,1);
-litColors = zeros(numFaces,3);
-if ~isfield(vehicleMesh,'FaceLightType') || isempty(vehicleMesh.FaceLightType) || ~isfield(vehicleMesh,'LightTypeNames')
-    return;
-end
-typeNames = cellstr(vehicleMesh.LightTypeNames);
-faceType = double(vehicleMesh.FaceLightType(:));
-functions = false(numFaces, numel(typeNames));
-flagTyped = faceType > 0;
-functions(sub2ind(size(functions), find(flagTyped), faceType(flagTyped))) = true;
-if isfield(vehicleMesh,'FaceLightFunctions') && isequal(size(vehicleMesh.FaceLightFunctions), [numFaces numel(typeNames)])
-    functions = functions | logical(vehicleMesh.FaceLightFunctions);
-end
-has = @(name) fcn_INTERNAL_typeColumn(functions, typeNames, name);
-faceY = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),2) + vehicleMesh.Vertices(vehicleMesh.Faces(:,2),2) + ...
-    vehicleMesh.Vertices(vehicleMesh.Faces(:,3),2))/3;
-isOn = @(value) ~isempty(value) && ((islogical(value) || isnumeric(value)) && any(value(:)));
-flagHighLamps = any(has('highbeam'));
-tailState = lower(char(string(lampStates.Tail)));
-tailColor = [];
-if strcmp(tailState, 'on'), tailColor = [0.70 0.04 0.04]; end
-if strcmp(tailState, 'brake'), tailColor = [1.00 0.12 0.08]; end
-headColor = [];
-if isOn(lampStates.LowBeam), headColor = [1.00 0.96 0.78]; end
-if isOn(lampStates.HighBeam) && ~flagHighLamps, headColor = [1.00 1.00 1.00]; end
-% (the newer lamp states, missing from older view settings: off)
-for newField = {'FogLights', 'Hazards', 'Reflectors'}
-    if ~isfield(lampStates, newField{1})
-        lampStates.(newField{1}) = false;
-    end
-end
-% (reflectors, marker lamps and warning lamps glow in their own colors,
-% made brighter; marker with the running lights, the license plate lamp
-% with the tail lights, warning lamps with the hazards: Sean, task 8)
-ownColors = 0.5*ones(numFaces,3);
-if isfield(vehicleMesh,'FaceColors') && size(vehicleMesh.FaceColors,1) == numFaces
-    ownColors = vehicleMesh.FaceColors;
-end
-brightest = ownColors ./ max(max(ownColors,[],2), eps);
-reflectorAmount = min(1, max(0, double(lampStates.Reflectors(1))));
-% (lowest priority first: later ones win)
-layers = {has('reflector'), reflectorAmount > 0, ownColors + reflectorAmount*(brightest - ownColors);
-    has('backup'), isOn(lampStates.Backup), [1.00 1.00 1.00];
-    has('licenseplate'), ~isempty(tailColor), [1.00 1.00 0.95];
-    has('marker'), isOn(lampStates.Running), brightest;
-    has('running'), isOn(lampStates.Running), [1.00 0.98 0.90];
-    has('fog'), isOn(lampStates.FogLights), [1.00 0.97 0.85];
-    has('headlight'), ~isempty(headColor), headColor;
-    has('highbeam'), isOn(lampStates.HighBeam), [1.00 1.00 1.00];
-    has('tail'), ~isempty(tailColor), tailColor;
-    has('turnsignal') & faceY > 0, isOn(lampStates.TurnLeft), [1.00 0.55 0.00];
-    has('turnsignal') & faceY <= 0, isOn(lampStates.TurnRight), [1.00 0.55 0.00];
-    has('warning'), isOn(lampStates.Hazards), brightest};
-for ith_layer = 1:size(layers,1)
-    if layers{ith_layer,2}
-        flagThese = layers{ith_layer,1};
-        theseColors = layers{ith_layer,3};
-        if size(theseColors,1) == numFaces   % (each face its own color)
-            litColors(flagThese,:) = theseColors(flagThese,:);
-        else
-            litColors(flagThese,:) = repmat(theseColors, nnz(flagThese), 1);
-        end
-        flagLit = flagLit | flagThese;
-    end
-end
-% (a turn signal flashing on a tail light: red)
-flagRedTurn = has('turnsignal') & has('tail') & ((faceY > 0 & isOn(lampStates.TurnLeft)) | (faceY <= 0 & isOn(lampStates.TurnRight)));
-litColors(flagRedTurn,:) = repmat([1.00 0.12 0.08], nnz(flagRedTurn), 1);
-end
-
-function flagType = fcn_INTERNAL_typeColumn(functions, typeNames, name)
-column = find(strcmp(typeNames, name), 1);
-if isempty(column)
-    flagType = false(size(functions,1),1);
-else
-    flagType = functions(:,column);
 end
 end
 

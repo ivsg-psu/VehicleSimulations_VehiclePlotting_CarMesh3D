@@ -9,6 +9,10 @@
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_loadDetailLevels
 %   % * First write of the code (drafted with Claude)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_loadDetailLevels
+%   % * OrientFaces (Q87 (A))
 
 % TO-DO:
 %
@@ -145,6 +149,24 @@ warning(warningState);
 assert(strcmp(warningID,'CarMesh3D:oldDetailLevels'));
 assert(strcmp(remadeLevels.Source, 'remade'), 'Older levels are made again (Q73 (B))');
 assert(isequal([remadeLevels.Levels.Faces], [madeLevels.Levels.Faces]), 'The same mesh: the same levels');
+
+%% TEST case: OrientFaces (Q87 (A), 2026-11-26): each level's faces turned, as on loading the full mesh
+figNum = 20004;
+fprintf(1,'Figure %.0f: TEST case: OrientFaces\n', figNum);
+warningState = warning('off','CarMesh3D:oldDetailLevels');
+asSaved = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData, OrientFaces=false);
+turned = fcn_CarMesh3D_loadDetailLevels('2013_Toyota_Prius_Four', DataFolder=testData);
+warning(warningState);
+assert(all(asSaved.FacesTurned == 0) && numel(turned.FacesTurned) == numel(turned.Levels));
+for ith_level = 1:numel(turned.Levels)
+    if turned.Levels(ith_level).IsBox
+        assert(turned.FacesTurned(ith_level) == 0, 'The box is left as it is');
+        continue;
+    end
+    expected = fcn_CarMesh3D_orientFaces(asSaved.Levels(ith_level).Mesh, FigNum=-1);
+    assert(isequal(turned.Levels(ith_level).Mesh.Faces, expected.Faces), 'Level %d: the faces after fcn_CarMesh3D_orientFaces', ith_level);
+    assert(isequal(sort(turned.Levels(ith_level).Mesh.Faces, 2), sort(asSaved.Levels(ith_level).Mesh.Faces, 2)), 'Only the corners'' order changes');
+end
 
 %% Fast Mode Tests
 

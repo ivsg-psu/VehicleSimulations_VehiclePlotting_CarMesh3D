@@ -12,7 +12,8 @@ function fcn_CarMesh3D_addCadMouse(axesHandle, options)
 % rotate, pan and zoom modes. Several axes in one figure are given in one
 % call: a drag moves the axes it starts on, and the wheel zooms the axes
 % under the pointer (or the last one dragged). Drags that start outside
-% the given axes are ignored. Axes whose cameras are linked (linkprop)
+% the given axes are ignored. On axes marked flat (setappdata(axes,
+% 'mouse2D', true): a view from above), any drag pans. Axes whose cameras are linked (linkprop)
 % follow along.
 %
 % FORMAT:
@@ -53,6 +54,9 @@ function fcn_CarMesh3D_addCadMouse(axesHandle, options)
 %   %   % honestly horrible in 3D"): the mouse handling of
 %   %   % fcn_CarMesh3D_viewOrientation, as one function any figure can use
 %   %   % Several axes in one figure (Sean, 03:01: a 2x2 view)
+%   % * Axes marked with the appdata 'mouse2D' (a flat view, from above):
+%   %   % any drag pans. The viewers use this function for their mouse
+%   %   % (viewOrientation, viewOutline, viewDetailLevels)
 
 % TO-DO:
 %
@@ -172,8 +176,8 @@ set(figureHandle, 'WindowButtonDownFcn', @(~,~) onDown(), 'WindowButtonMotionFcn
             return;
         end
         activeAxes = clickedAxes;
-        if strcmp(figureHandle.SelectionType, 'alt')
-            mouseMode = 'pan';
+        if strcmp(figureHandle.SelectionType, 'alt') || isappdata(clickedAxes, 'mouse2D')
+            mouseMode = 'pan';   % (right-drag; or any drag on a flat view, marked with appdata 'mouse2D')
         else
             mouseMode = 'rotate';
         end

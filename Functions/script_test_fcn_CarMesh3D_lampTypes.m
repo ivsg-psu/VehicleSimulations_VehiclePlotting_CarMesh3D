@@ -7,6 +7,12 @@
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_lampTypes
 %   % * First write of the test script (Sean, task 8)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_lampTypes
+%   % * The lamps light by the lamp-to-function matrix's defaults: markers
+%   %   % with the running and tail lights, a warning lamp with no signal
+%   %   % (drafted with Claude)
 
 %% Set up the workspace
 close all;
@@ -61,18 +67,21 @@ for ith_type = 1:numel(newTypes)
     assert(isfield(plotHandles.LightPatches, newTypes{ith_type}) && ~isempty(plotHandles.LightPatches.(newTypes{ith_type})), ...
         'plotVehicle makes a switchable patch for %s', newTypes{ith_type});
 end
-% (each state lights its lamp, and only its lamp)
-checks = {struct('FogLights', true), 'fog';
-          struct('Reflectors', 1), 'reflector';
-          struct('Tail', 'on'), 'licenseplate';
-          struct('Running', true), 'marker';
-          struct('Hazards', true), 'warning'};
+% (each state lights its lamps, and only those, as the lamp-to-function
+% matrix's defaults say: the marker lamps light with the running lights
+% and the tail lights; a warning lamp (beacon) answers no signal by
+% default, it is switched by the user's own loop)
+checks = {struct('FogLights', true), {'fog'};
+          struct('Reflectors', 1), {'reflector'};
+          struct('Tail', 'on'), {'licenseplate','marker'};
+          struct('Running', true), {'marker'};
+          struct('Hazards', true), {}};
 for ith_check = 1:size(checks,1)
     fcn_CarMesh3D_plotVehicle(labeledMesh, PlotHandles=plotHandles, LightStates=checks{ith_check,1});
     for ith_type = 1:numel(newTypes)
         thisPatch = plotHandles.LightPatches.(newTypes{ith_type});
         flagLit = strcmp(thisPatch(1).FaceLighting, 'none');
-        assert(flagLit == strcmp(newTypes{ith_type}, checks{ith_check,2}), ...
+        assert(flagLit == any(strcmp(newTypes{ith_type}, checks{ith_check,2})), ...
             'With %s, the %s lamp is %s', strjoin(fieldnames(checks{ith_check,1})', ','), newTypes{ith_type}, ...
             char(string(flagLit)));
     end
@@ -86,7 +95,8 @@ for turnName = {'turnLeft','turnRight'}
 end
 % (the reflector glows in its own color, as bright as the outside light)
 reflectorPatch = plotHandles.LightPatches.reflector(1);
-offColor = plotHandles.LightOffColors.reflector{1}(1,:);
+reflectorUnit = plotHandles.LightGroupNames{find(strcmp(plotHandles.GroupKindNames, 'reflector'), 1)};   % (lamps are drawn by unit)
+offColor = plotHandles.LightOffColors.(reflectorUnit){1}(1,:);
 fcn_CarMesh3D_plotVehicle(labeledMesh, PlotHandles=plotHandles, LightStates=struct('Reflectors', 0.5));
 halfColor = reflectorPatch.FaceVertexCData(1,:);
 fcn_CarMesh3D_plotVehicle(labeledMesh, PlotHandles=plotHandles, LightStates=struct('Reflectors', 1));

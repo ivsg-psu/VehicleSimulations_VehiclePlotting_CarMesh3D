@@ -33,6 +33,12 @@
 % - In script_test_fcn_CarMesh3D_viewLabels
 %   % * Exit is the ☰ Menu's last line (Q62 (A))
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_viewLabels
+%   % * A vehicle by its ID, and a warning for a mesh variable whose
+%   %   % labels are not the vehicle's latest (Q85 (A)) (drafted with Claude)
+%   % * Lamps To Display's lamps are checkboxes
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -269,6 +275,43 @@ alphaData = viewer.Patch.FaceVertexAlphaData;
 assert(all(alphaData(someFaces) > 0), 'Shown when "hidden" is ticked');
 viewer.Close();
 
+%% TEST case: A vehicle by its ID (its latest labels); a mesh variable that is out of date warns (Q85 (A))
+fprintf(1,'TEST case: a vehicle by its ID; an out-of-date mesh variable warns\n');
+guiID = '2026_CarMesh3D_Sample_GUITestVehicle';
+guiFiles = fcn_CarMesh3D_findVehicleFiles(guiID, FigNum=-1);
+latestMesh = fcn_CarMesh3D_meshWithLabelEdits(guiID, FigNum=-1);
+[viewSettings, viewer] = fcn_CarMesh3D_viewLabels(guiID, Visible=false, Wait=false);
+assert(size(viewer.Patch.Faces,1) == size(latestMesh.Faces,1), 'Opened by ID: the vehicle''s mesh');
+assert(strcmp(viewSettings.MeshFile, guiFiles.ID), 'The view settings reopen it by ID');
+viewer.Close();
+% (the latest, as a variable: no warning)
+lastwarn('');
+[~, viewer] = fcn_CarMesh3D_viewLabels(latestMesh, Visible=false, Wait=false);
+viewer.Close();
+[~, warningID] = lastwarn;
+assert(~strcmp(warningID, 'CarMesh3D:staleMesh'), 'The latest mesh gives no warning');
+% (one face relabeled, as if loaded before the painter saved: a warning)
+staleMesh = latestMesh;
+staleMesh.FacePartIndex(1) = mod(staleMesh.FacePartIndex(1), numel(staleMesh.PartNames)) + 1;
+lastwarn('');
+[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, Visible=false, Wait=false);
+viewer.Close();
+[warningText, warningID] = lastwarn;
+assert(strcmp(warningID, 'CarMesh3D:staleMesh') && contains(warningText, guiID), 'An out-of-date mesh warns, naming the ID');
+% (and not when asked not to)
+lastwarn('');
+[~, viewer] = fcn_CarMesh3D_viewLabels(staleMesh, CheckStale=false, Visible=false, Wait=false);
+viewer.Close();
+[~, warningID] = lastwarn;
+assert(~strcmp(warningID, 'CarMesh3D:staleMesh'));
+% (an ID that is not a vehicle)
+try
+    fcn_CarMesh3D_viewLabels('no_such_vehicle_ID', Visible=false);
+    error('test:noError', 'An unknown ID was not refused');
+catch err
+    assert(contains(err.message, 'not a mesh file, nor the ID of a vehicle'));
+end
+
 %% TEST case: A file that holds no mesh
 fprintf(1,'TEST case: a file that holds no mesh\n');
 emptyFile = [tempname '.mat'];
@@ -334,9 +377,9 @@ coloredGlass = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'colored_p
 assert(isequal(coloredGlass.SelectedObject.UserData, false), 'One label alone: the others Colored? No');
 viewer.ShowLabel('all');
 % (Lamps To Display: Left turn On, then Hazards Off: both turn signals off)
-fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'lamp_TurnLeft'), true);
+fcn_INTERNAL_tick(findall(viewer.Figure, 'Type', 'uicheckbox', 'Tag', 'lamp_TurnLeft'), true);
 assert(viewer.NightLights().TurnLeft, 'Left turn signal on');
-fcn_INTERNAL_pickRadio(findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'lamp_Hazards'), false);
+fcn_INTERNAL_tick(findall(viewer.Figure, 'Type', 'uicheckbox', 'Tag', 'lamp_Hazards'), false);
 assert(~viewer.NightLights().TurnLeft && ~viewer.NightLights().TurnRight, 'Hazards Off: both off');
 % (the ground: shown by day by default; Show ground? Off hides it, at night too)
 viewer.SetGround(true);
@@ -369,6 +412,25 @@ end
 viewer.SetNightView(false);
 assert(strcmp(dayGround.Visible, 'on'), 'The day ground back by day');
 assert(all(strcmp({colorsGroup.Children.Enable}, 'on')), 'Colors? back by day');
+% (the sun/moon button over the model, pressed as a person would: one
+% click to night, one back to day; Overall Display's Nighttime view?
+% follows; Q89 (A), Sean 2026-11-26)
+dayNightButton = findall(viewer.Figure, 'Type', 'uibutton', 'Tag', 'dayNightButton');
+assert(isscalar(dayNightButton) && strcmp(dayNightButton.Text, char(9728)), 'The sun/moon button, showing the sun by day');
+nightRow = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallNight');
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(viewer.NightView() && strcmp(dayNightButton.Text, char(9790)), 'One click: night, and the moon shows');
+if isscalar(nightRow)
+    assert(isequal(nightRow.SelectedObject.UserData, true), 'Nighttime view? follows the button');
+end
+dayNightButton.ButtonPushedFcn(dayNightButton, []);
+assert(~viewer.NightView() && strcmp(dayNightButton.Text, char(9728)), 'Another click: day, and the sun shows');
+if isscalar(nightRow)
+    assert(isequal(nightRow.SelectedObject.UserData, false), 'Nighttime view? follows back');
+end
+holderPosition = getpixelposition(dayNightButton.Parent);
+assert(dayNightButton.Position(1) > holderPosition(3)/2 && dayNightButton.Position(2) > holderPosition(4)/2, ...
+    'The button is in the model''s top right corner');
 % (Sean's T7: the camera's angles and distance in Overall Display)
 camera = viewer.CameraInfo();
 assert(all(isfield(camera, {'DialAngle','DownAngle','Distance'})) && camera.Distance > 0, 'CameraInfo');
@@ -754,6 +816,13 @@ function fcn_INTERNAL_tickBoundaries(viewer, flagOn)
 group = findall(viewer.Figure, 'Type', 'uibuttongroup', 'Tag', 'overallBoundaries');
 fcn_INTERNAL_pickRadio(group, logical(flagOn));
 end % Ends fcn_INTERNAL_tickBoundaries
+
+function fcn_INTERNAL_tick(box, value)
+% A checkbox ticked or unticked, as a click does (its callback runs)
+assert(isscalar(box), 'The checkbox');
+box.Value = value;
+box.ValueChangedFcn(box, struct('Value', value));
+end % Ends fcn_INTERNAL_tick
 
 function fcn_INTERNAL_pickRadio(group, value)
 % Picks the radio button of this value in a button group, as a click

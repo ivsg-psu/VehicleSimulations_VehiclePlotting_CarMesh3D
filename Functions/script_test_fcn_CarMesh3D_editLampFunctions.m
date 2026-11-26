@@ -1,0 +1,132 @@
+% script_test_fcn_CarMesh3D_editLampFunctions.m
+% Tests: fcn_CarMesh3D_editLampFunctions (the lamp-to-function matrix
+% window). It runs on a temporary demo copy of the GUI test vehicle, so
+% saving never changes a real vehicle; the window is built hidden and
+% worked through its own functions (editor) and controls.
+
+% REVISION HISTORY:
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_editLampFunctions
+%   % * First write (drafted with Claude)
+
+% TO-DO:
+%
+% (none)
+
+%% Set up the workspace
+close all
+vehicleID = '2026_CarMesh3D_Sample_GUITestVehicle';
+demoFolder = tempname;
+copyFiles = fcn_CarMesh3D_makeDemoCopy(vehicleID, DemoFolder=demoFolder, FigNum=-1);
+cleanupDemo = onCleanup(@() rmdir(demoFolder, 's'));
+functionsFile = fullfile(copyFiles.Folder, sprintf('lampFunctions_%s.csv', vehicleID));
+if isfile(functionsFile)
+    delete(functionsFile);   % (the copy starts with the defaults)
+end
+
+%% DEMO case: the window on its own, with its viewer
+fprintf(1, 'DEMO case: the window, with its viewer\n');
+[startMatrix, editor] = fcn_CarMesh3D_editLampFunctions(copyFiles.Folder, Who='ZZT', Visible=false);
+assert(istable(startMatrix) && height(startMatrix) == numel(editor.Units()));
+assert(isgraphics(editor.Figure) && isstruct(editor.Viewer));
+assert(strcmp(editor.Signal(), 'LowBeam') && strcmp(editor.Mode(), 'table'));
+assert(~isempty(findall(editor.Figure, 'Tag', 'lampTable')), 'The table is drawn');
+assert(editor.Viewer.NightView(), 'The view is at night while the matrix is edited');
+outline = findall(editor.Figure, 'Tag', 'lampOutline');
+units = editor.Units();
+lowBeamUnits = find(startMatrix.LowBeam > 0);
+assert(~isempty(lowBeamUnits) && isscalar(outline) && size(outline.Faces, 1) == numel(vertcat(units(lowBeamUnits).Faces)), ...
+    'The lamps the edited signal lights are outlined in cyan');
+
+%% TEST case: also on, as chips; Hazards
+fprintf(1, 'TEST case: also on\n');
+editor.AddAlsoOn('Brake');
+assert(isequal(editor.AlsoOn(), {'Brake'}) && ~isempty(findall(editor.Figure, 'Tag', 'lampChip_Brake')));
+nightLamps = editor.Viewer.NightLights();
+assert(nightLamps.LowBeam && isfield(nightLamps, 'Brake') && nightLamps.Brake, 'The view lights both signals');
+chip = findall(editor.Figure, 'Tag', 'lampChip_Brake');
+chip.ButtonPushedFcn(chip, []);
+assert(isempty(editor.AlsoOn()) && isempty(findall(editor.Figure, 'Tag', 'lampChip_Brake')), 'A click on a chip takes it off');
+editor.Hazards();
+assert(isequal(sort(editor.AlsoOn()), {'TurnLeft', 'TurnRight'}), 'Hazards: both turn signals also on');
+editor.Hazards();
+assert(isempty(editor.AlsoOn()));
+editor.AddAlsoOn('LowBeam');
+assert(isempty(editor.AlsoOn()), 'The edited signal is never also on');
+
+%% TEST case: a cell set; its row edited; the checks
+fprintf(1, 'TEST case: values and checks\n');
+fogRow = find(strcmp(startMatrix.Kind, 'fog'), 1);
+targetUnit = lowBeamUnits(1);
+editor.SetValue(targetUnit, 'Running', 0.33);
+matrixNow = editor.Table();
+assert(abs(matrixNow.Running(targetUnit) - 0.35) < 1e-12, 'Steps of 0.05');
+assert(strcmp(matrixNow.Default{targetUnit}, 'edited') && contains(matrixNow.Source{targetUnit}, 'ZZT'), 'Marked edited, with who');
+checks = editor.Checks();
+assert(iscellstr(checks) && any(contains(checks, 'lights the')), 'A lamp lit on one side only is a check');
+% (a double-click switches a cell; a click makes its signal the edited one)
+editor.ClickCell(targetUnit, 'Brake', false);
+assert(strcmp(editor.Signal(), 'Brake'), 'A click edits its signal');
+editor.ClickCell(targetUnit, 'Brake', true);
+assert(editor.Table().Brake(targetUnit) == 1, 'A double-click switches it on');
+assert(any(contains(editor.Checks(), 'both ends')), 'Brakes lit at the front: a check');
+editor.ClickCell(targetUnit, 'Brake', true);
+assert(editor.Table().Brake(targetUnit) == 0, 'And off');
+if ~isempty(fogRow)
+    editor.SetSignal('FogLights');
+end
+
+%% TEST case: the tuner, and the filters
+fprintf(1, 'TEST case: tuner and filters\n');
+editor.SetSignal('LowBeam');
+editor.SetMode('tuner');
+sliders = findall(editor.Figure, '-regexp', 'Tag', '^lampSlider_');
+assert(numel(sliders) == numel(editor.ShownUnits()) && all(strcmp({sliders.Orientation}, 'vertical')), 'One vertical slider per lamp');
+slider = findall(editor.Figure, 'Tag', sprintf('lampSlider_%d', targetUnit));
+slider.Value = 0.62;
+slider.ValueChangedFcn(slider, struct('Value', 0.62));
+assert(abs(editor.Table().LowBeam(targetUnit) - 0.6) < 1e-12, 'The slider sets the cell, in steps of 0.05');
+editor.AddAlsoOn('Running');
+alsoLabel = findall(editor.Figure, 'Tag', sprintf('lampAlso_%d', targetUnit));
+assert(contains(alsoLabel.Text, '0.35'), 'Under each slider, what the also-on signals light it to');
+editor.SetOnlyLit(true);
+assert(all(editor.Table().LowBeam(editor.ShownUnits()) > 0), 'Only the lamps the signal lights');
+editor.SetOnlyLit(false);
+editor.SetGroups({'Rear'});
+shown = editor.ShownUnits();
+assert(all(startsWith({units(shown).Position}, 'rear')), 'Only the rear group');
+editor.SetGroups({'Front', 'Side', 'Rear'});
+editor.SetMode('table');
+
+%% TEST case: Save writes the vehicle's file, with the edited rows; Revert
+fprintf(1, 'TEST case: save and revert\n');
+editor.Save();
+assert(isfile(functionsFile), 'Saved');
+[readBack, ~, readInfo] = fcn_CarMesh3D_lampFunctions(copyFiles.Folder, FigNum=-1);
+assert(readInfo.FromFile && abs(readBack.Running(targetUnit) - 0.35) < 1e-12 && abs(readBack.LowBeam(targetUnit) - 0.6) < 1e-12, ...
+    'The file holds the edited row');
+editor.SetValue(targetUnit, 'Backup', 1);
+editor.Revert();
+assert(editor.Table().Backup(targetUnit) == readBack.Backup(targetUnit), 'Revert goes back to the save');
+editor.Close();
+assert(~isvalid(editor.Figure));
+
+%% TEST case: a mesh given as a variable: nothing to save
+fprintf(1, 'TEST case: a mesh variable\n');
+meshOnly = fcn_CarMesh3D_meshWithLabelEdits(vehicleID, FigNum=-1);
+[~, editor] = fcn_CarMesh3D_editLampFunctions(meshOnly, Visible=false);
+assert(strcmp(findall(editor.Figure, 'Tag', 'lampSave').Enable, 'off'));
+editor.Close();
+
+%% Testing errors
+fprintf(1, 'Testing errors\n');
+try
+    fcn_CarMesh3D_editLampFunctions(42);
+    error('should have failed');
+catch inputError
+    assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'));
+end
+
+clear cleanupDemo;
+fprintf(1, 'All tests of fcn_CarMesh3D_editLampFunctions passed.\n');

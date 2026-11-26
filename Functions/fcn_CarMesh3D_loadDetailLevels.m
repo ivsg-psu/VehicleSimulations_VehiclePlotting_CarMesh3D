@@ -35,6 +35,18 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %      SaveIfMade: save the levels made that way to the vehicle's folder.
 %      Default false.
 %
+%      OrientFaces: true (default) to turn each level's faces to point the
+%      same way as their neighbors (fcn_CarMesh3D_orientFaces), as
+%      fcn_CarMesh3D_meshWithLabelEdits does for the full mesh, so levels
+%      saved before that fix show no faces pointing the wrong way (Q87
+%      (A)); false for the faces as saved.
+%
+%      (Each level's mesh also gets the vehicle's lamp-to-function matrix,
+%      the field LampFunctions, from fcn_CarMesh3D_lampFunctions: its file
+%      lampFunctions_<ID>.csv, else the defaults, so a level's lamps light
+%      as the vehicle's file says; a lamp a level has lost to
+%      simplification lights as its default.)
+%
 %      FigNum: a figure number to show the levels (as
 %      fcn_CarMesh3D_makeDetailLevels does). Empty (default) for no
 %      figure; -1 for fast mode (no input checks).
@@ -49,12 +61,15 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %      again from the mesh with its fixes). Levels are always made from
 %      fcn_CarMesh3D_meshWithLabelEdits, so painted fixes made since the
 %      last build show (AnimateCar3D, 2026-11-25: Sean's "flow" of
-%      vehicles out of CarMesh3D into the animator).
+%      vehicles out of CarMesh3D into the animator). FacesTurned: the
+%      faces fcn_CarMesh3D_orientFaces turned in each level (0 for the
+%      box, and with OrientFaces=false).
 %
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_makeDetailLevels,
-%      fcn_CarMesh3D_meshWithLabelEdits
+%      fcn_CarMesh3D_meshWithLabelEdits, fcn_CarMesh3D_orientFaces,
+%      fcn_CarMesh3D_lampFunctions
 %
 % EXAMPLES:
 %
@@ -80,6 +95,16 @@ function detailLevels = fcn_CarMesh3D_loadDetailLevels(vehicleID, options)
 %   %   % again (Source 'remade'), not only warned about; levels are made
 %   %   % from the mesh with its fixes (fcn_CarMesh3D_meshWithLabelEdits),
 %   %   % so AnimateCar3D shows painted fixes (Sean, Q73 (B))
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_loadDetailLevels
+%   % * OrientFaces (default true): each level's faces turned to agree with
+%   %   % their neighbors (fcn_CarMesh3D_orientFaces), as the full mesh is
+%   %   % on loading (Q87 (A)); the 2009 Fit's levels, remade by its script
+%   %   % from the faces as saved, showed grey patches in the animator
+%   % * Each level's mesh carries the vehicle's lamp-to-function matrix
+%   %   % (LampFunctions), so the animator lights lamps as the vehicle's
+%   %   % file says (the lamp-functions plan, item 7)
 
 % TO-DO:
 %
@@ -100,6 +125,7 @@ arguments
     options.DataFolder = []           % the Data folder; [] for the one next to Functions
     options.MakeIfMissing = true      % make the levels if there is no levels file
     options.SaveIfMade = false        % save levels made that way
+    options.OrientFaces = true        % turn each level's faces to agree with their neighbors
     options.FigNum = []               % figure to show the levels; -1 for fast mode
 end
 
@@ -234,6 +260,37 @@ else
     error('%s has no detail levels file (%s).', vehicleFiles.ID, vehicleFiles.LevelsFile);
 end
 detailLevels.VehicleID = vehicleFiles.ID;
+
+% The vehicle's lamp-to-function matrix, on each level's mesh
+lampTable = [];
+if vehicleFiles.HasMesh
+    try
+        lampTable = fcn_CarMesh3D_lampFunctions(vehicleFiles.Folder, FigNum=-1);
+    catch lampError
+        warning('CarMesh3D:levelsNoLampFunctions', '%s: no lamp-to-function matrix for the detail levels (%s); their lamps light by the defaults.', ...
+            vehicleFiles.ID, lampError.message);
+    end
+end
+for ith_level = 1:numel(detailLevels.Levels)
+    if ~isempty(lampTable) && isstruct(detailLevels.Levels(ith_level).Mesh)
+        detailLevels.Levels(ith_level).Mesh.LampFunctions = lampTable;
+    end
+end
+
+% Each level's faces turned to point the same way as their neighbors (a
+% few hundredths of a second for all of them; Q87 (A))
+detailLevels.FacesTurned = zeros(1, numel(detailLevels.Levels));
+if options.OrientFaces
+    for ith_level = 1:numel(detailLevels.Levels)
+        thisLevel = detailLevels.Levels(ith_level);
+        if (isfield(thisLevel, 'IsBox') && thisLevel.IsBox) || ~isstruct(thisLevel.Mesh) ...
+                || ~all(isfield(thisLevel.Mesh, {'Vertices', 'Faces'})) || size(thisLevel.Mesh.Faces, 2) ~= 3
+            continue;
+        end
+        [detailLevels.Levels(ith_level).Mesh, orientInfo] = fcn_CarMesh3D_orientFaces(thisLevel.Mesh, FigNum=-1);
+        detailLevels.FacesTurned(ith_level) = orientInfo.NumFlipped;
+    end
+end
 
 %% Plot the results (for debugging)?
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

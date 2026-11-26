@@ -13,8 +13,8 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %                      within interior, lights, visibility), each with a
 %                      colored box and Colored? and Shown? (Yes / No), and
 %                      an "All labels" row
-%   Lamps To Display   each lamp Off or On (the tail lights also Brake),
-%                      Hazards, and "All lamps"
+%   Lamps To Display   each lamp On (a checkbox: one click; the tail
+%                      lights Off, On or Brake), Hazards, and "All lamps"
 %
 % The panels drive the viewer (fcn_CarMesh3D_viewLabels) only through its
 % hooks (SetColors, SetBoundaries, SetNightView, SetSeeThrough,
@@ -126,6 +126,12 @@ function panels = fcn_CarMesh3D_makeDisplayPanels(viewer, options)
 %   % * Labels To Display: the lamp group is "Lamps", its rows named for
 %   %   % what each lamp is ("headlamp", "fog lamp"; Q83 (A)), from
 %   %   % fcn_CarMesh3D_lampTypes' new labels (rule P6, Sean 00:46)
+%   % * Lamps To Display: a checkbox per lamp, one click on or off, in
+%   %   % place of Off/On radio pairs (Sean's Fit feedback: "MUCH faster";
+%   %   % the tail lights keep Off/On/Brake)
+%   % * The column headings of Labels To Display and Lamps To Display stay
+%   %   % at the top: only the rows scroll (Sean: the headings were cut off
+%   %   % when scrolled, even full screen)
 
 % TO-DO:
 %
@@ -567,23 +573,29 @@ end
             groups(end+1,:) = {'Other labels', extra, extraNames};
         end
         numLabelRows = numel([groups{:,2}]);
-        numRows = 3 + size(groups,1) + numLabelRows + 2 + 1;   % (headings, All, groups, labels, visibility and hidden, note)
-        grid = uigridlayout(options.Labels, [numRows 4], 'RowHeight', [repmat({22}, 1, numRows-1), {36}], ...
-            'ColumnWidth', {16, '1x', 62, 62}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
+        numRows = 1 + size(groups,1) + numLabelRows + 2 + 1;   % (All, groups, labels, visibility and hidden, note)
+        % (the column headings in a grid of their own above the rows, so
+        % they stay in view when the rows scroll)
+        outer = uigridlayout(options.Labels, [2 1], 'RowHeight', {50, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 0, ...
+            'BackgroundColor', band);
+        header = uigridlayout(outer, [2 4], 'RowHeight', {22, 22}, 'ColumnWidth', {16, '1x', 62, 62}, ...
+            'Padding', [8 4 8 0], 'RowSpacing', 2, 'ColumnSpacing', 4, 'BackgroundColor', band, 'Tag', 'labelsHeadings');
+        fcn_INTERNAL_gridText(header, 1, 3, 'Colored?', 'bold', 'Yes: drawn in its label color. No: plain gray, so the others stand out.');
+        fcn_INTERNAL_gridText(header, 1, 4, 'Shown?', 'bold', 'No: taken out of view (not out of the mesh), to reach the faces under it');
+        fcn_INTERNAL_gridText(header, 2, 3, 'Yes  No', 'normal', '');
+        fcn_INTERNAL_gridText(header, 2, 4, 'Yes  No', 'normal', '');
+        grid = uigridlayout(outer, [numRows 4], 'RowHeight', [repmat({22}, 1, numRows-1), {36}], ...
+            'ColumnWidth', {16, '1x', 62, 62}, 'Padding', [8 4 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
             'BackgroundColor', band, 'Scrollable', 'on');
-        fcn_INTERNAL_gridText(grid, 1, 3, 'Colored?', 'bold', 'Yes: drawn in its label color. No: plain gray, so the others stand out.');
-        fcn_INTERNAL_gridText(grid, 1, 4, 'Shown?', 'bold', 'No: taken out of view (not out of the mesh), to reach the faces under it');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Yes  No', 'normal', '');
-        fcn_INTERNAL_gridText(grid, 2, 4, 'Yes  No', 'normal', '');
         labelRows = struct('Key', {}, 'Colored', {}, 'Shown', {});
         % (All labels: sets every row)
-        fcn_INTERNAL_gridText(grid, 3, 2, 'All labels', 'bold', 'Sets every label''s row at once');
+        fcn_INTERNAL_gridText(grid, 1, 2, 'All labels', 'bold', 'Sets every label''s row at once');
         allColored = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setColoredKey('all', value), 'allColored', true);
-        fcn_INTERNAL_place(allColored, 3, 3);
+        fcn_INTERNAL_place(allColored, 1, 3);
         allShown = fcn_INTERNAL_radioRow(grid, {'', ''}, {true, false}, 30, @(value) setShownKey('all', value), 'allShown', true);
-        fcn_INTERNAL_place(allShown, 3, 4);
+        fcn_INTERNAL_place(allShown, 1, 4);
         labelRows(1) = struct('Key', 'all', 'Colored', allColored, 'Shown', allShown);
-        row = 3;
+        row = 1;
         for ith_group = 1:size(groups,1)
             row = row + 1;
             heading = fcn_INTERNAL_gridText(grid, row, 1, groups{ith_group,1}, 'bold', '');
@@ -733,21 +745,26 @@ end
             'TurnRight', 'Right turn signal', 'turnsignal', 'turnsignal'; 'Hazards', 'Hazards', 'turnsignal', 'turnsignal'; ...
             'Tail', 'Tail lights', 'tail', 'tail'; 'Backup', 'Backup lights', 'backup', 'backup'; ...
             'FogLights', 'Fog lamps', 'fog', 'fog'; 'Reflectors', 'Reflectors lit', 'reflector', 'reflector'};
-        numRows = size(rows,1) + 4;
-        grid = uigridlayout(options.Lamps, [numRows 3], 'RowHeight', [repmat({22}, 1, numRows-1), {64}], ...
-            'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
+        numRows = size(rows,1) + 2;
+        % (the heading in a grid of its own above the rows, so it stays in
+        % view when the rows scroll)
+        outer = uigridlayout(options.Lamps, [2 1], 'RowHeight', {28, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 0, ...
+            'BackgroundColor', band);
+        header = uigridlayout(outer, [1 3], 'RowHeight', {22}, 'ColumnWidth', {16, 120, '1x'}, ...
+            'Padding', [8 4 8 0], 'ColumnSpacing', 4, 'BackgroundColor', band, 'Tag', 'lampsHeadings');
+        fcn_INTERNAL_gridText(header, 1, 3, 'On?  (one click)', 'bold', 'Which lamps are switched on: tick to switch on, untick to switch off');
+        grid = uigridlayout(outer, [numRows 3], 'RowHeight', [repmat({22}, 1, numRows-1), {64}], ...
+            'ColumnWidth', {16, 120, '1x'}, 'Padding', [8 4 8 8], 'RowSpacing', 6, 'ColumnSpacing', 4, ...
             'BackgroundColor', band, 'Scrollable', 'on');
-        fcn_INTERNAL_gridText(grid, 1, 3, 'Status?', 'bold', 'Which lamps are switched on');
-        fcn_INTERNAL_gridText(grid, 2, 3, 'Off     On     Brake', 'normal', '');
         lampGroups = struct();
         for ith_row = 1:size(rows,1)
-            row = ith_row + 2;
+            row = ith_row;
             lampName = rows{ith_row,1};
             box = uipanel(grid, 'BackgroundColor', labelColor(rows{ith_row,4}), 'BorderType', 'line');
             fcn_INTERNAL_place(box, row, 1);
             nameLabel = fcn_INTERNAL_gridText(grid, row, 2, rows{ith_row,2}, 'normal', '');
             if strcmp(lampName, 'Hazards')
-                nameLabel.Tooltip = 'Both turn signals at once, and the warning lamps';
+                nameLabel.Tooltip = 'Both turn signals at once';
             elseif strcmp(lampName, 'Reflectors')
                 nameLabel.Tooltip = 'The reflectors as another car''s headlights light them (outside light)';
             end
@@ -756,21 +773,23 @@ end
                     'Tooltip', 'No faces have this lamp yet; its light still shows at night');
             end
             if strcmp(lampName, 'Tail')
-                group = fcn_INTERNAL_radioRow(grid, {'', '', 'Brake'}, {'off', 'on', 'brake'}, 36, ...
+                group = fcn_INTERNAL_radioRow(grid, {'Off', 'On', 'Brake'}, {'off', 'on', 'brake'}, 36, ...
                     @(value) setLamp('Tail', value), 'lamp_Tail');
             else
-                group = fcn_INTERNAL_radioRow(grid, {'', ''}, {false, true}, 36, @(value) setLamp(lampName, value), ['lamp_' lampName]);
+                group = uicheckbox(grid, 'Text', '', 'Value', false, 'Tag', ['lamp_' lampName], ...
+                    'ValueChangedFcn', @(source,~) setLamp(lampName, source.Value));
             end
             fcn_INTERNAL_place(group, row, 3);
             lampGroups.(lampName) = group;
         end
-        row = size(rows,1) + 3;
-        fcn_INTERNAL_gridText(grid, row, 2, 'All lamps', 'bold', 'Every lamp off, or on');
-        lampGroups.All = fcn_INTERNAL_radioRow(grid, {'', ''}, {false, true}, 36, @(value) setLamp('All', value), 'lamp_All', true);
+        row = size(rows,1) + 1;
+        fcn_INTERNAL_gridText(grid, row, 2, 'All lamps', 'bold', 'Every lamp on (ticked when all are on), or off');
+        lampGroups.All = uicheckbox(grid, 'Text', '', 'Value', false, 'Tag', 'lamp_All', ...
+            'ValueChangedFcn', @(source,~) setLamp('All', source.Value));
         fcn_INTERNAL_place(lampGroups.All, row, 3);
         note = fcn_INTERNAL_gridText(grid, numRows, 1, ['Lit on the model by day; at night, with their light too. ' ...
-            'Marker lamps light with the running lights, the license plate lamp with the tail lights, warning lamps ' ...
-            'with the hazards. Gray names: no faces have this lamp yet; its light still shows.'], 'normal', '');
+            'Which lamps each switch lights is the vehicle''s lamp-to-function matrix: by default, marker lamps light with ' ...
+            'the running and tail lights, the license plate lamp with the tail lights. Gray names: no faces have this lamp yet.'], 'normal', '');
         set(note, 'FontColor', [0.4 0.4 0.4], 'FontSize', 11, 'WordWrap', 'on', 'VerticalAlignment', 'top');
         note.Layout.Column = [1 3];
         markLamps(viewer.NightLights());
@@ -792,17 +811,17 @@ end
         end
         for lampField = {'LowBeam', 'HighBeam', 'Running', 'TurnLeft', 'TurnRight', 'Backup', 'FogLights'}
             if isfield(states, lampField{1})
-                fcn_INTERNAL_selectRadio(lampGroups.(lampField{1}), logical(states.(lampField{1})));
+                lampGroups.(lampField{1}).Value = logical(states.(lampField{1}));
             end
         end
         reflectorsOn = isfield(states, 'Reflectors') && states.Reflectors > 0;
         fogOn = isfield(states, 'FogLights') && logical(states.FogLights);
-        fcn_INTERNAL_selectRadio(lampGroups.Reflectors, reflectorsOn);
-        fcn_INTERNAL_selectRadio(lampGroups.Hazards, logical(states.TurnLeft) && logical(states.TurnRight));
+        lampGroups.Reflectors.Value = reflectorsOn;
+        lampGroups.Hazards.Value = logical(states.TurnLeft) && logical(states.TurnRight);
         fcn_INTERNAL_selectRadio(lampGroups.Tail, lower(char(states.Tail)));
         flagsOn = [states.LowBeam, states.HighBeam, states.Running, states.TurnLeft, states.TurnRight, ...
             ~strcmpi(states.Tail, 'off'), states.Backup, fogOn, reflectorsOn];
-        fcn_INTERNAL_selectRadio(lampGroups.All, fcn_INTERNAL_common(logical(flagsOn)));
+        lampGroups.All.Value = all(logical(flagsOn));   % (ticked only when every lamp is on)
     end
 
 end % Ends main function

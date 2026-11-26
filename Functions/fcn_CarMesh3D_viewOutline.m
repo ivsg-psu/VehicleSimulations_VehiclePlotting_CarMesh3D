@@ -77,6 +77,12 @@ function viewer = fcn_CarMesh3D_viewOutline(vehicleInput, options)
 %   % * Its own window's title is this function's name, with the
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewOutline
+%   % * The mouse is fcn_CarMesh3D_addCadMouse (one copy of the CAD-style
+%   %   % mouse for every viewer; Sean, 03:15), in place of its own
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -204,8 +210,6 @@ figureHandle = [];
 hintLabel = [];
 axesHandle = [];
 flagModel3D = false;
-mouseMode = '';
-mouseLast = [0 0];
 if flagOwnWindow
     visibleText = 'on';
     if ~options.Visible
@@ -264,9 +268,14 @@ if flagOwnWindow
     hintLabel.Layout.Row = 2;
     hintLabel.Layout.Column = [1 2];
     setHint('The wheel zooms, dragging pans. Each outline should be one closed loop around its part.');
-    set(figureHandle, 'WindowButtonDownFcn', @(~,~) onOwnDown(), 'WindowButtonMotionFcn', @(~,~) onOwnMove(), ...
-        'WindowButtonUpFcn', @(~,~) onOwnUp(), 'WindowScrollWheelFcn', @onOwnScroll, ...
-        'CloseRequestFcn', @(~,~) closeViewer());
+    set(figureHandle, 'CloseRequestFcn', @(~,~) closeViewer());
+    % (the CAD mouse: left-drag turns, right-drag pans, the wheel zooms the
+    % view under the pointer; a flat view pans: fcn_CarMesh3D_addCadMouse)
+    mouseAxes = axesHandle;
+    mouseAxes = mouseAxes(arrayfun(@(h) isgraphics(h), mouseAxes));
+    if ~isempty(mouseAxes)
+        fcn_CarMesh3D_addCadMouse(mouseAxes, FigNum=-1);
+    end
 end
 
 viewer = struct('Figure', figureHandle, 'Axes', axesHandle, 'Elements', elements, ...
@@ -352,48 +361,6 @@ end
             options.OnHint(textIn);
         elseif ~isempty(hintLabel) && isvalid(hintLabel)
             hintLabel.Text = textIn;
-        end
-    end
-
-    %% Its own window: the mouse, and closing
-    function onOwnDown()
-        % Dragging pans (from above); with the 3D model, left-drag rotates
-        % and right-drag pans
-        mouseMode = '';
-        clicked = figureHandle.CurrentObject;
-        if isempty(axesHandle) || isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), axesHandle)
-            return;
-        end
-        if strcmp(figureHandle.SelectionType, 'alt') || isappdata(axesHandle, 'mouse2D')
-            mouseMode = 'pan';
-        else
-            mouseMode = 'rotate';
-        end
-        mouseLast = figureHandle.CurrentPoint;
-    end
-
-    function onOwnMove()
-        if isempty(mouseMode)
-            return;
-        end
-        point = figureHandle.CurrentPoint;
-        delta = point - mouseLast;
-        mouseLast = point;
-        if strcmp(mouseMode, 'rotate')
-            camorbit(axesHandle, -0.5*delta(1), -0.5*delta(2), 'data', [0 0 1]);
-        else
-            camdolly(axesHandle, -delta(1), -delta(2), 0, 'movetarget', 'pixels');
-        end
-        drawnow limitrate;
-    end
-
-    function onOwnUp()
-        mouseMode = '';
-    end
-
-    function onOwnScroll(~, event)
-        if ~isempty(axesHandle) && isvalid(axesHandle)
-            camzoom(axesHandle, 1.15^(-event.VerticalScrollCount));
         end
     end
 

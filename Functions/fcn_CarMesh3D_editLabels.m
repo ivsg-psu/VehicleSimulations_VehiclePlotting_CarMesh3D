@@ -217,6 +217,17 @@ function [vehicleMesh, appliedEdits] = fcn_CarMesh3D_editLabels(vehicleMesh, opt
 %   %   % FaceIndices), so layered faces (a lamp lens a few millimeters
 %   %   % over the lamp) are told apart; before, the nearest face of any
 %   %   % kind was picked and could be the wrong layer (the 2009 Fit)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLabels
+%   % * Colors of relabeled faces (Q88 (A), Sean 03:35; "a weird latent
+%   %   % bug"): with no Color in the edit, a face whose label does not
+%   %   % change keeps its color, and a face given a new part takes that
+%   %   % part's usual color on this vehicle (the most common color of the
+%   %   % part's other faces), the default only when there is none. Before,
+%   %   % every face an edit touched took the part's default color: the
+%   %   % 2009 Fit's rebuild turned 724 body faces from its blue to grey,
+%   %   % where Sean had painted body over body with the Ctrl brush
 
 % TO-DO:
 %
@@ -737,6 +748,23 @@ if isempty(partIndex)
     vehicleMesh.PartNames{end+1} = newPart;
     partIndex = numel(vehicleMesh.PartNames);
 end
+% (each face's label before the edit, and this part's usual color on this
+% vehicle: the most common color of its faces outside the edit; Q88 (A))
+oldPartIndex = vehicleMesh.FacePartIndex(selectedFaces);
+oldPartIndex = oldPartIndex(:);
+oldLightType = zeros(numel(selectedFaces),1);
+if isfield(vehicleMesh,'FaceLightType') && numel(vehicleMesh.FaceLightType) == size(vehicleMesh.Faces,1)
+    oldLightType = double(vehicleMesh.FaceLightType(selectedFaces));
+    oldLightType = oldLightType(:);
+end
+otherFaces = true(size(vehicleMesh.Faces,1),1);
+otherFaces(selectedFaces) = false;
+otherFaces = otherFaces & vehicleMesh.FacePartIndex(:) == partIndex;
+usualColor = [];
+if any(otherFaces) && isfield(vehicleMesh,'FaceColors') && size(vehicleMesh.FaceColors,1) == size(vehicleMesh.Faces,1)
+    [colorRows, ~, colorOf] = unique(round(vehicleMesh.FaceColors(otherFaces,:)*100)/100, 'rows');
+    usualColor = colorRows(mode(colorOf),:);
+end
 vehicleMesh.FacePartIndex(selectedFaces) = partIndex;
 
 % (a new label replaces the faces' other parts)
@@ -765,6 +793,9 @@ if strcmp(newPart,'light') && ~isempty(newLightType)
 else
     vehicleMesh.FaceLightType(selectedFaces) = 0;
     defaultColor = defaultPartColors(strcmp(newPart, partNames),:);
+    if ~isempty(usualColor)
+        defaultColor = usualColor;   % (this vehicle's own color for the part: Q88 (A))
+    end
 end
 
 % Wheel corner
@@ -796,6 +827,13 @@ end
 if flagNoColorGiven && isfield(vehicleMesh,'TextureColorParts') && any(strcmpi(newPart, vehicleMesh.TextureColorParts)) ...
         && isfield(vehicleMesh,'FaceTextureColors') && size(vehicleMesh.FaceTextureColors,1)==size(vehicleMesh.Faces,1)
     vehicleMesh.FaceColors(selectedFaces,:) = vehicleMesh.FaceTextureColors(selectedFaces,:);
+end
+% (a face whose label is the same as before keeps its color, unless the
+% edit gave a color: painting body over body changes nothing; Q88 (A))
+if flagNoColorGiven
+    newLightIndex = double(vehicleMesh.FaceLightType(selectedFaces));
+    flagUnchanged = oldPartIndex == partIndex & oldLightType == newLightIndex(:);
+    vehicleMesh.FaceColors(selectedFaces(flagUnchanged),:) = originalColors(flagUnchanged,:);
 end
 if strcmp(newPart,'glass')
     vehicleMesh.FaceAlpha(selectedFaces) = glassAlpha;

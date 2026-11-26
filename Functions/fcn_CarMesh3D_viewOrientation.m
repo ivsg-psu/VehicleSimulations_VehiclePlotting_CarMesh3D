@@ -65,6 +65,12 @@ function viewer = fcn_CarMesh3D_viewOrientation(vehicleInput, options)
 %   % * Its own window's title is this function's name, with the
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
+%
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewOrientation
+%   % * The mouse is fcn_CarMesh3D_addCadMouse (one copy of the CAD-style
+%   %   % mouse for every viewer; Sean, 03:15), in place of its own
+%   %   % (drafted with Claude)
 
 % TO-DO:
 %
@@ -181,8 +187,6 @@ end
 flagOwnWindow = isempty(options.Parent);
 figureHandle = [];
 hintLabel = [];
-mouseMode = '';
-mouseLast = [0 0];
 if flagOwnWindow
     visibleText = 'on';
     if ~options.Visible
@@ -226,9 +230,14 @@ if flagOwnWindow
     hintLabel = uilabel(rootGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.25 0.25 0.25]);
     hintLabel.Layout.Row = 2;
     hintLabel.Layout.Column = [1 2];
-    set(figureHandle, 'WindowButtonDownFcn', @(~,~) onOwnDown(), 'WindowButtonMotionFcn', @(~,~) onOwnMove(), ...
-        'WindowButtonUpFcn', @(~,~) onOwnUp(), 'WindowScrollWheelFcn', @onOwnScroll, ...
-        'CloseRequestFcn', @(~,~) closeViewer());
+    set(figureHandle, 'CloseRequestFcn', @(~,~) closeViewer());
+    % (the CAD mouse: left-drag turns, right-drag pans, the wheel zooms the
+    % view under the pointer; a flat view pans: fcn_CarMesh3D_addCadMouse)
+    mouseAxes = axesHandle;
+    mouseAxes = mouseAxes(arrayfun(@(h) isgraphics(h), mouseAxes));
+    if ~isempty(mouseAxes)
+        fcn_CarMesh3D_addCadMouse(mouseAxes, FigNum=-1);
+    end
 end
 setHint('Mouse: left-drag rotates, right-drag pans, the wheel zooms. Does the red arrow point to the front, and the blue one up?');
 
@@ -257,44 +266,6 @@ end
         elseif ~isempty(hintLabel) && isvalid(hintLabel)
             hintLabel.Text = textIn;
         end
-    end
-
-    %% Its own window: the mouse, CAD-style, and closing
-    function onOwnDown()
-        mouseMode = '';
-        clicked = figureHandle.CurrentObject;
-        if isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), axesHandle)
-            return;
-        end
-        if strcmp(figureHandle.SelectionType, 'alt')
-            mouseMode = 'pan';
-        else
-            mouseMode = 'rotate';
-        end
-        mouseLast = figureHandle.CurrentPoint;
-    end
-
-    function onOwnMove()
-        if isempty(mouseMode)
-            return;
-        end
-        point = figureHandle.CurrentPoint;
-        delta = point - mouseLast;
-        mouseLast = point;
-        if strcmp(mouseMode, 'rotate')
-            camorbit(axesHandle, -0.5*delta(1), -0.5*delta(2), 'data', [0 0 1]);
-        else
-            camdolly(axesHandle, -delta(1), -delta(2), 0, 'movetarget', 'pixels');
-        end
-        drawnow limitrate;
-    end
-
-    function onOwnUp()
-        mouseMode = '';
-    end
-
-    function onOwnScroll(~, event)
-        camzoom(axesHandle, 1.15^(-event.VerticalScrollCount));
     end
 
     function closeViewer()

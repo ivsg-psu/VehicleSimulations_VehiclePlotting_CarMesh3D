@@ -22,12 +22,19 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % painting behaves), and Settings (versions, reverting, the edits file).
 % Then the model, the photo dial, and the photo with its options (its
 % folder, turning the model with it, its size). Every on/off choice is a
-% pair of radio buttons. Ctrl+Z undoes, Ctrl+S saves.
+% pair of radio buttons, but the lamps (check boxes: one click). Ctrl+Z
+% undoes, Ctrl+S saves.
 %
-% PAINTING. Pick a label (Modify Labels, "Paint as"), then:
-%   * Ctrl+drag over faces paints them; Ctrl+Shift+drag erases paint
-%   * a click paints the face under it (a second click takes it off)
-%   * a double-click paints the whole connected piece
+% PAINTING. Selecting is done only with Ctrl held (Q84 (A), Sean
+% 2026-11-26 02:25); plain clicks and drags only turn, pan and zoom, so a
+% turn that barely moves never selects a face. Pick a label (Modify
+% Labels, "Paint as"), then:
+%   * Ctrl+click selects exactly the one face under the pointer, with no
+%     brush (Ctrl+click it again unselects it)
+%   * Ctrl+drag selects the faces passed over, with a brush whose size is
+%     set in Modify Labels (Fine by default, Medium, Large)
+%   * Ctrl+double-click selects the whole connected piece
+%   * Ctrl+Shift+click and Ctrl+Shift+drag unselect
 %   * "Mirror to the other side" (on by default) paints the mirror-image
 %     faces too
 %   * glass is seen through (skipped) unless the glass tool is in use
@@ -375,6 +382,21 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * Exit moved from the top bar to the ☰ Menu's last line (Q62 (A),
 %   %   % Sean 14:31; same Tag, painterExit; only in its own window)
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * The viewer's sun/moon button (Q89 (A)): Overall Display's
+%   %   % Nighttime view? follows it (the viewer's new OnNight)
+%   % * Selecting only with Ctrl (Q84 (A), Sean 02:25): Ctrl+click selects
+%   %   % exactly one face (no brush), Ctrl+drag selects with a brush,
+%   %   % Ctrl+double-click a piece, Ctrl+Shift unselects; plain clicks and
+%   %   % drags only turn, pan and zoom (a turn that barely moved selected a
+%   %   % face out of view: Sean's stray door face, 02:06; a Ctrl+click
+%   %   % sprayed a 5 cm brush, 02:07). The brush size in Modify Labels
+%   %   % (Fine by default, Medium, Large; remembered)
+%   % * A Lamp Functions panel: the lamp-to-function matrix window
+%   %   % (fcn_CarMesh3D_editLampFunctions), made when first opened, driving
+%   %   % the painter's view (the lamp-functions plan, item 5)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -482,9 +504,11 @@ versionName = '';   % (timestamped copies are named <versionName>_YYYYMMDDHHMMSS
 photoFolder = '';
 outline = [];
 vehicleName = 'mesh';
+vehicleFolder = '';     % (the vehicle's folder, when given by ID: the lamp-functions file is there)
 if ischar(vehicleInput) || isstring(vehicleInput)
     vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(vehicleInput), FigNum=-1);
     vehicleName = vehicleFiles.Name;
+    vehicleFolder = vehicleFiles.Folder;
     baseMesh = [];
     stage1File = fullfile(vehicleFiles.Folder, 'cache', 'stage1_mesh.mat');
     if isfile(stage1File)
@@ -623,15 +647,18 @@ hostMenu = options.Menu;
 flagOwnMenu = isempty(hostMenu);
 % (the panels: in its own menu, with Shared GUI settings; or in the host
 % window's menu, which has its own Shared GUI settings: Q45 (A))
-panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Shared GUI settings'};
+panelNames = {'Overall Display', 'Labels To Display', 'Lamps To Display', 'Modify Labels', 'Lamp Functions', 'Shared GUI settings'};
 blueBand = [0.93 0.95 1];     % (viewing work)
 yellowBand = [1 0.96 0.85];   % (paint work)
+violetBand = [0.95 0.93 1];   % (lamp-functions work)
 grayBand = [0.94 0.94 0.94];  % (settings)
-panelColors = {blueBand, blueBand, blueBand, yellowBand, grayBand};
+panelColors = {blueBand, blueBand, blueBand, yellowBand, violetBand, grayBand};
 if ~flagOwnMenu
-    panelNames = panelNames(1:4);
-    panelColors = panelColors(1:4);
+    panelNames = panelNames(1:5);
+    panelColors = panelColors(1:5);
 end
+lampEditor = [];        % (the lamp-functions window in its panel: made when first opened)
+lampEditorKey = [];     % (the lamp labels it was made for)
 if flagOwnWindow
     visibleText = 'on';
     if ~options.Visible
@@ -720,6 +747,18 @@ hintLabel.Layout.Row = 3;
 paintGroup = [];
 mirrorGroup = [];
 showHiddenGroup = [];
+brushGroup = [];
+% (the brush, as a fraction of the vehicle's length: Fine by default;
+% remembered between runs)
+brushSizes = struct('Name', {'Fine', 'Medium', 'Large'}, 'Fraction', {0.004, 0.012, 0.03});
+brushFraction = 0.004;
+try
+    if ispref('CarMesh3D', 'PaintBrush')
+        brushFraction = brushSizes(strcmp({brushSizes.Name}, getpref('CarMesh3D', 'PaintBrush'))).Fraction;
+    end
+catch
+end
+mouseErase = false;   % (Ctrl+Shift held as the button went down)
 hideNameField = [];
 saveVersionButton = [];
 displayPanels = [];   % (Overall Display, Labels To Display, Lamps To Display: fcn_CarMesh3D_makeDisplayPanels, shared with the viewer's own window; Q33 (A))
@@ -736,7 +775,7 @@ if ischar(vehicleInput) || isstring(vehicleInput)
 end
 [~, labelViewer] = fcn_CarMesh3D_viewLabels(baseMesh, Parent=viewerHolder, ShowTools=false, ...
     PhotoFolder=photoFolder, Outline=outline, OnHint=@setHint, ColorFilter=@paintedColors, ...
-    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, FigNum=-1);
+    HiddenFaces=@hiddenFaces, History=meshHistory, PhotoOptions=false, OnLamps=@markLamps, OnView=@markCamera, OnNight=@markNight, FigNum=-1);
 % (the photo options are in Overall Display now: Sean's viewLabels T8, 2026-11-24)
 labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
@@ -798,7 +837,7 @@ labelViewer.PlacePhoto();   % (the photo filling its box, now the layout is sett
 % Saved edits
 loadEdits();
 showPaint();
-setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. To relabel: select faces (Ctrl+drag, or click), pick a label in Modify Labels (' char(9776) ' Menu), then Apply. ' ...
+setHint(['Mouse: left-drag rotates, right-drag pans, the wheel zooms. To relabel: select faces with Ctrl held (Ctrl+click one face, Ctrl+drag with the brush), pick a label in Modify Labels (' char(9776) ' Menu), then Apply. ' ...
     'Photos: drag the red arrow around the vehicle (or click on the dial).']);
 
 painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch, 'EditsFile', editsFile, ...
@@ -818,7 +857,7 @@ painter = struct('Figure', figureHandle, 'Axes', labelAxes, 'Patch', labelPatch,
     'OpenPanel', @pickPanel, 'Panel', @getOpenPanel, 'OpenNames', @getOpenNames, 'OpenPanels', @openPanels, ...
     'SetMirror', @setMirror, 'Mirror', @mirrorOn, ...
     'SetVersions', @setVersions, 'Versions', @versionsOn, 'SetShowHidden', @setShowHidden, 'ShowHidden', @showHiddenOn, ...
-    'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter);
+    'ClearPending', @clearPending, 'Stop', @stopTimer, 'Close', @closePainter, 'LampEditor', @getLampEditor);
 flagBuilding = false;
 if flagOwnWindow && isvalid(figureHandle)
     figureHandle.UserData = painter;
@@ -985,6 +1024,28 @@ end
             displayPanels.MarkAll();
         end
         markPaintButtons();
+        if any(strcmp(names, 'Lamp Functions'))
+            buildLampEditor();
+        end
+    end
+
+    function buildLampEditor()
+        % The lamp-to-function matrix window (fcn_CarMesh3D_editLampFunctions)
+        % in its panel, driving the painter's view; made again when the
+        % lamp labels have changed since (the lamp units come from them)
+        meshNow = getWorkingMesh();
+        keyNow = meshNow.FaceLightType(:);
+        if ~isempty(lampEditor) && isequal(keyNow, lampEditorKey)
+            return;
+        end
+        lampPanel = panelHandles(strcmp(panelNames, 'Lamp Functions'));
+        vehicleSource = meshNow;
+        if ~isempty(vehicleFolder)
+            vehicleSource = vehicleFolder;
+        end
+        [~, lampEditor] = fcn_CarMesh3D_editLampFunctions(vehicleSource, Mesh=meshNow, Viewer=labelViewer, ...
+            Parent=lampPanel, FigNum=-1);
+        lampEditorKey = keyNow;
     end
 
     function toggleMenu()
@@ -1070,6 +1131,14 @@ end
         end
     end
 
+    function markNight(~)
+        % (the viewer's sun/moon button switched day or night: Overall
+        % Display's Nighttime view? follows; Q89 (A), 2026-11-26)
+        if ~isempty(displayPanels)
+            displayPanels.MarkOverall();
+        end
+    end
+
     function markLamps(states)
         % (the viewer calls this with the lamp states, as its OnLamps)
         if ~isempty(displayPanels)
@@ -1089,7 +1158,7 @@ end
         rowHeight = 24;
         numRows = 1 + sum(cellfun(@(names) numel(names) + 1, groups(:,2)));
         groupHeight = numRows*rowHeight + 8;
-        outer = uigridlayout(panelHandle, [10 1], 'RowHeight', {groupHeight, 22, 24, 24, 30, 100, 22, 28, 28, 'fit'}, 'Padding', [8 8 8 8], ...
+        outer = uigridlayout(panelHandle, [11 1], 'RowHeight', {groupHeight, 22, 24, 24, 24, 30, 112, 22, 28, 28, 'fit'}, 'Padding', [8 8 8 8], ...
             'RowSpacing', 6, 'BackgroundColor', yellowBand, 'Scrollable', 'on');
         paintGroup = uibuttongroup(outer, 'BorderType', 'none', 'BackgroundColor', yellowBand, 'Tag', 'paintAs', ...
             'SelectionChangedFcn', @(~,event) pickTool(event.NewValue.UserData));
@@ -1131,10 +1200,16 @@ end
         uilabel(rowGrid, 'Text', 'Show hidden faces', ...
             'Tooltip', 'Show the hidden faces (magenta), to unhide them; they cannot be painted while out of view');
         showHiddenGroup = fcn_INTERNAL_radioRow(rowGrid, {'Off', 'On'}, {false, true}, 52, @(value) setShowHidden(value), 'showHidden');
+        rowGrid = uigridlayout(outer, [1 2], 'ColumnWidth', {60, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', yellowBand);
+        uilabel(rowGrid, 'Text', 'Brush', ...
+            'Tooltip', 'How wide a Ctrl+drag selects: Fine (about 2 cm on a car), Medium (5 cm), Large (12 cm). A Ctrl+click always selects one face.');
+        brushGroup = fcn_INTERNAL_radioRow(rowGrid, {'Fine', 'Medium', 'Large'}, {brushSizes.Fraction}, 60, @(value) setBrush(value), 'paintBrush');   % (not 'brush': the axes toolbar's brush buttons have that Tag)
+        fcn_INTERNAL_selectRadio(brushGroup, brushFraction);
         uibutton(outer, 'Text', 'Apply', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applyEdits(), 'Tag', 'paintApply', ...
             'Tooltip', 'Put the label picked on the selected faces, in the working mesh (hidden faces go out of view and reach)');
-        uilabel(outer, 'Text', ['How to label: select faces (Ctrl+drag; Ctrl+Shift+drag unselects; a click selects one face, ' ...
-            'click again to unselect; a double-click a whole piece), pick a label, then Apply (or Save). The selection (yellow edges) ' ...
+        uilabel(outer, 'Text', ['How to label: select faces, always with Ctrl held (Ctrl+click: one face, again to unselect; ' ...
+            'Ctrl+drag: the faces passed over, with the brush; Ctrl+double-click: a whole piece; Ctrl+Shift unselects; ' ...
+            'plain clicks and drags only turn the model), pick a label, then Apply (or Save). The selection (yellow edges) ' ...
             'shows the label picked, but the faces keep their own until Apply. "original" puts back the label as downloaded. ' ...
             'Hiding takes faces out of view, never out of the mesh. To reach faces under others, set their label to ' ...
             'Shown? No (Labels To Display).'], 'WordWrap', 'on', 'FontSize', 11, 'FontColor', [0.45 0.3 0], 'Tag', 'paintHowTo', ...
@@ -1143,7 +1218,7 @@ end
         % edits file; moved here from the painter's old Settings panel, now
         % Shared GUI settings: the shared-panels design file, section 4)
         heading = uilabel(outer, 'Text', 'Saving', 'FontWeight', 'bold', 'FontColor', [0.45 0.3 0]);
-        heading.Layout.Row = 7;
+        heading.Layout.Row = 8;
         saveVersionButton = uibutton(outer, 'Text', 'Save as version', 'ButtonPushedFcn', @(~,~) saveVersion(), 'Tag', 'saveVersion', ...
             'Tooltip', ['Save, and also keep a timestamped copy (<mesh name>_YYYYMMDDHHMMSS.mat: the edits and the edited mesh, ' ...
             'in the folder set in Shared GUI settings)']);
@@ -1165,7 +1240,7 @@ end
         if isempty(paintTool)
             setHint('No label picked: the selected faces keep their labels; pick one, then Apply.');
         else
-            setHint(sprintf('Label <b>%s</b>: shown on the selected faces; Apply puts it on them. Ctrl+drag selects, Ctrl+Shift+drag unselects, a click selects one face, a double-click a piece.', ...
+            setHint(sprintf('Label <b>%s</b>: shown on the selected faces; Apply puts it on them. Ctrl+click selects one face, Ctrl+drag selects with the brush, Ctrl+double-click a piece, Ctrl+Shift unselects.', ...
                 fcn_INTERNAL_paintText(paintTool)));
         end
     end
@@ -1181,6 +1256,20 @@ end
 
     function flagOn = showHiddenOn()
         flagOn = ~isempty(showHiddenGroup) && isvalid(showHiddenGroup) && isequal(showHiddenGroup.SelectedObject.UserData, true);
+    end
+
+    function setBrush(fraction)
+        % The brush of a Ctrl+drag (a fraction of the vehicle's length);
+        % remembered for the next run
+        if isempty(fraction) || isnan(fraction)
+            return;
+        end
+        brushFraction = fraction;
+        fcn_INTERNAL_selectRadio(brushGroup, fraction);
+        try
+            setpref('CarMesh3D', 'PaintBrush', brushSizes([brushSizes.Fraction] == fraction).Name);
+        catch
+        end
     end
 
     function flagOn = mirrorOn()
@@ -1362,7 +1451,7 @@ end
         hitPoint = ray(1,:) + firstHit*direction;
         centers = fcn_INTERNAL_faceCenters(data.Mesh);
         vehicleLength = data.Geometry.Max(1) - data.Geometry.Min(1);
-        brush = 0.012*vehicleLength;
+        brush = brushFraction*vehicleLength;   % (Modify Labels' Brush: Fine, Medium or Large)
         nearHit = candidates(vecnorm(centers(candidates,:) - hitPoint, 2, 2) < brush & ...
             (centers(candidates,:) - ray(1,:))*direction' < firstHit + 0.05);
         faces = unique([hitFace; nearHit(:)]);
@@ -1881,6 +1970,10 @@ end
         fileOut = lastVersionFile;
     end
 
+    function editorOut = getLampEditor()
+        editorOut = lampEditor;
+    end
+
     function meshOut = getWorkingMesh()
         % (the working mesh, the base with the saved edits taken in, and its
         % label colors: what the view shows)
@@ -2075,11 +2168,15 @@ end
         mouseUpAt(target);
     end
 
-    function doubleClickAt(target)
-        % (as the system sends it: a click, then a press called 'open')
-        mouseDownAt(target, {}, 'normal');
+    function doubleClickAt(target, modifiers)
+        % (as the system sends it: a click, then a press called 'open';
+        % with Ctrl held, the way it selects a piece)
+        if nargin < 2
+            modifiers = {};
+        end
+        mouseDownAt(target, modifiers);
         mouseUpAt(target);
-        mouseDownAt(target, {}, 'open');
+        mouseDownAt(target, modifiers, 'open');
         mouseUpAt(target);
     end
 
@@ -2145,9 +2242,10 @@ end
 
     %% Its own window: the label list, the mouse, closing
     function onOwnDown(~, ~)
-        % CAD-style: left-drag rotates, right-drag pans; Ctrl+drag paints
-        % (Ctrl+Shift+drag erases); a click with no drag paints a face, a
-        % double-click a piece
+        % CAD-style: left-drag rotates, right-drag pans. Selecting only
+        % with Ctrl (Q84 (A)): Ctrl+click one face, Ctrl+drag with the
+        % brush, Ctrl+double-click a piece; Ctrl+Shift unselects. Plain
+        % clicks select nothing
         mouseMode = '';
         % (the photo's corner pressed: the viewer resizes the photo)
         if isfield(labelViewer, 'GripDown') && labelViewer.GripDown()
@@ -2159,11 +2257,11 @@ end
         end
         selection = figureHandle.SelectionType;
         modifiers = mouseModifiers();
-        if any(strcmp(modifiers, 'control'))
-            mouseMode = 'stroke';
-            strokeStart(any(strcmp(modifiers, 'shift')));
-        elseif strcmp(selection, 'open')
+        mouseErase = any(strcmp(modifiers, 'shift'));
+        if any(strcmp(modifiers, 'control')) && strcmp(selection, 'open')
             mouseMode = 'piece';
+        elseif any(strcmp(modifiers, 'control'))
+            mouseMode = 'ctrl';   % (a click or a stroke: told apart by whether it moves)
         elseif strcmp(selection, 'alt')
             mouseMode = 'pan';
         else
@@ -2187,6 +2285,15 @@ end
             return;   % (a click, so far)
         end
         mouseMoved = true;
+        if strcmp(mouseMode, 'ctrl')
+            % (a Ctrl press that moves: a stroke, from where it began)
+            mouseMode = 'stroke';
+            strokeStart(mouseErase);
+            strokeLastPixel = mouseStart;
+            paintAlongStroke();
+            drawnow limitrate;
+            return;
+        end
         delta = point - mouseLast;
         mouseLast = point;
         if strcmp(mouseMode, 'rotate')
@@ -2199,8 +2306,15 @@ end
 
     function MouseUpOwn()
         flagUsed = mouseUp();
-        if ~flagUsed && ~mouseMoved && any(strcmp(mouseMode, {'rotate', 'piece'}))
-            click(strcmp(mouseMode, 'piece'));
+        if ~flagUsed && ~mouseMoved && strcmp(mouseMode, 'ctrl')
+            if mouseErase
+                paintFaces(facesUnderMouse(true, true), true);   % (Ctrl+Shift+click: that one face unselected)
+                notifyPaint();
+            else
+                click(false);   % (Ctrl+click: exactly the one face, no brush)
+            end
+        elseif ~flagUsed && ~mouseMoved && strcmp(mouseMode, 'piece')
+            click(true);
         end
         mouseMode = '';
     end

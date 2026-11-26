@@ -77,16 +77,19 @@ In the lamp-to-function matrix (L2F), rows are labeled lamps (right-front fog li
 
 | Kind | Default signals |
 |---|---|
-| headlamp | Low beam 1, High beam 1 (High beam only when the vehicle also has high-beam lamps) |
+| headlamp | Low beam 1; High beam 1 too, unless the vehicle has high-beam lamps of its own on that side |
 | high-beam lamp | High beam 1 |
 | turn-signal lamp | Left turn (left side) or Right turn (right side) 1 |
 | running lamp (DRL) | Running 1 |
 | marker lamp | Running 1, Parking 1, Tail 1 |
-| tail/brake lamp | Parking 1 (at the tail brightness), Tail 0.4, Brake 1; a rear turn signal too when the vehicle has no separate rear turn lamps (US red rear turns) |
+| tail/brake lamp | Parking 0.4 (the tail brightness), Tail 0.4, Brake 1; a rear turn signal too when the vehicle has no separate rear turn lamps (US red rear turns) |
 | backup lamp | Backup 1 |
 | fog lamp | Fog 1 |
 | license-plate lamp | Parking 1, Tail 1 |
 | reflector | Reflectors (the outside light) |
+| warning lamp (beacon) | none: switched by the user's own loop |
+
+- **Colors** (`fcn_CarMesh3D_lampColors`) follow the kind and the signal that lights a unit most; when two signals light it equally, the later column wins (high beams on with the low beams: white). `Headlights='high'` in the light states is the low and the high beams together, as it always was.
 
 ## 5. Where it lives, and who reads it
 
@@ -97,15 +100,24 @@ In the lamp-to-function matrix (L2F), rows are labeled lamps (right-front fog li
 
 ## 6. The window (`fcn_CarMesh3D_editLampFunctions`)
 
-- **The matrix as checkboxes:** a row per unit, a column per signal, one click to switch a cell. A dimmed cell shows its brightness ("0.3") and is set from the cell's right-click menu, so the usual on/off stays one click.
-- **Row click:** the unit's faces are outlined on the model, so it is clear which part a row is referring to. The row is highlighted in the matrix to avoid user entry error.
-- **Column click:** that signal is switched on in the view, to see what it lights. The column is highlighted as well. The overlap of row/column is highlighted in a background color that matches the the label color (or slight variant as needed for readability).
-- **Pop out:** the matrix opens in a window of its own when it is too wide for the panel (about 15 units by 10 signals).
-- **Hosted by the painter** as a panel in its ☰ Menu (as the painter hosts the viewer), and also opened alone from the demo menu or the library browser (the tree rule).
-- **"Add a lamp kind"**, for a kind the list lacks: it goes into the one list (`fcn_CarMesh3D_lampTypes`), with a default row of section 4.
+*Chosen by Sean, 2026-11-26 03:58 to 04:35, from mockups: five first ideas (A to E), five variations on the two he kept (C, the whole matrix; B, one signal with sliders), then one merged mockup tried by hand. The mockups are Claude's tools `zzN_l2fMockups2` and `zzN_l2fMockups3` (not in the repo).*
 
-Default lighting is switched to "nighttime" if not already in this mode, when in-window click is made. If view is not already nighttime mode, user is warned that nighttime view is required for this panel.
-(ASIDE to Claude: we need a persistent day/night swich on/off icon in each of the model viewers, basically a clickable (sunIcon)/(moonIcon) somewhere out of the way, where clicking on icon simply switches the day/night state. This lets us also migrate the setting out of panel, other than the default "Day/night setting starts at? ", which is GUI setting (not sure if we expose this already). See image pasted into chat.)
+**What it is:** the helper panel that opens from the L2F panel's function-settings button, where the matrix's values (each lamp unit by each signal, 0 to 1) are set. The rest of the L2F panel (the units, their names and covers) is plain.
+
+**Layout: a tall column at the left, as every panel in the GUIs** (Sean, 04:27); the live view is the vehicle in the viewer itself, at the right, so the panel holds no picture of its own. From the top:
+
+1. **Editing: [signal ▾]**, the one signal being edited, and a **Table | Tuner** switch (Sean, 04:25: "I like the ability to toggle table view / tuner view").
+2. **Also on: [+ add a signal... ▾]**: other signals lit at the same time, to see together and never edited, such as the brake lamps with a turn signal (Sean, 04:25: "the easiest one to show ... brake light activation WITH turn signal lights"). Each signal added shows as a **chip** under it ("Signal 4 ×"); a click on a chip turns it off (Sean, 04:35, Q-less choice between chips and a hide-after-choosing list). The same kind of entry as Editing (a dropdown), and it takes two short rows however many signals there are (20 or more).
+3. **Filters:** "Only lamps this signal lights", and the groups shown (Front, Side, Rear; the rows are grouped so, each group able to fold away) for vehicles with many lamps (a tractor-trailer).
+4. **Table** (option 5's bar cells): a row per lamp unit (grouped), a column per signal; each cell draws its brightness as a bar (empty is off), so the matrix reads like a chart and no number is typed (Sean, 04:25: "number entry is a bad way to do UIs - too error prone"). The column being edited has a cyan edge. **A click on a cell** makes its signal the one edited and marks its lamp; **a double-click** switches the cell on (1) or off (0).
+5. **Tuner** (option B): one **vertical slider per lamp, up is brighter** (Sean, 04:25: "More light is usually an upslider moving up on household lights"), for the signal being edited, in steps of 0.05; under each lamp, in grey, what the "also on" signals already light it to.
+6. **Checks**, in words, as the matrix changes (option 4; Sean, 04:25: "really like the idea of the 'Checks' box with prompts to help user"): a signal that lights no lamp; a lamp no signal lights; a signal lighting lamps at both ends of the vehicle, or on one side only where its twin on the other side is off. They warn, never block: odd vehicles (a police cruiser, a tractor-trailer) are allowed.
+
+**In the view (the vehicle in the viewer):** at night (the window switches the view to night when used, as before), lamps light with the signal being edited and the "also on" signals together, each at its brightest; **the lamps the edited signal lights are outlined in cyan**, so it is always clear which signal is being edited while others are lit (Sean, 04:25: "showing multiple signals at the same time makes the one we are editing very unclear"). A click on a row outlines that lamp as well.
+
+**Not chosen, and why** (Sean, 04:07 and 04:25): MATLAB's Variables Editor (no 0-1 checks as one types, no lamp shown on the model, away from the model); checkboxes with brightness on a right-click (easy to make an error); one lamp at a time picked on the model (too hard to carry across vehicle types: passenger cars, police cruisers, tractor-trailers); the matrix and the sliders side by side (too much for a slide-out panel); numbers typed in cells (error prone).
+
+**Hosted by the painter** as a panel in its ☰ Menu (as the painter hosts the viewer), and also opened alone from the demo menu or the library browser (the tree rule). **"Add a lamp kind"**, for a kind the list lacks: it goes into the one list (`fcn_CarMesh3D_lampTypes`), with a default row of section 4. The day/night button on the view (plan item 9) is built (2026-11-26, Q89 (A)).
 
 ## 7. What the downloads name (2026-11-26)
 
@@ -126,14 +138,14 @@ So the downloads already say what and where (layers 1 and 2), not what switches 
 ## 9. Plan
 
 1. DONE (01:35): Sean's review (T78 (B), with edits); Q79 (A), Q80 (A), Q78 (A): the saved lamp keys are renamed to lamp names (what each lamp is) with this work, by one migration.
-2. `fcn_CarMesh3D_lampUnits`: units from a mesh, with their names and covers; tested on the Fit and the GUI test vehicle.
-3. The matrix: defaults (section 4), read and write `lampFunctions_<ID>.csv`, and the migration from `FaceLightFunctions` and `LampSwitching`.
-4. `plotVehicle` lights lamps from the matrix; the viewer and painter draw lamps through it (their own lamp rules removed). The Fit's fog-with-high-beams bug as a test.
-5. The window (section 6), hosted in the painter.
-6. The Fit: its matrix (DRL from the headlamps, dimmed, with Honda as the source); Sean re-checks the Headlights question in the V&V GUI.
-7. AnimateCar3D: `LampFaults`, and its contract check.
-8. The library: every vehicle migrated and checked (face counts per lamp before and after), the saved lamp keys renamed to lamp names (Q78 (A)).
-9. Before the window: a day/night icon (sun and moon, Sean's picture, 2026-11-26 01:26) in every model view, out of the way, switching day and night with one click; the window switches to night when it is used (section 6). The start setting stays in Shared GUI settings ("Day or night at start").
+2. DONE (2026-11-26 03:27): `fcn_CarMesh3D_lampUnits`: units from a mesh, with their names and covers; tested on the Fit and the GUI test vehicle.
+3. DONE (2026-11-26 04:54): The matrix: defaults (section 4), read and write `lampFunctions_<ID>.csv`, and the migration from `FaceLightFunctions` and `LampSwitching`.
+4. DONE (2026-11-26 05:30; `fcn_CarMesh3D_lampSetup`, `fcn_CarMesh3D_lampColors`): `plotVehicle` lights lamps from the matrix; the viewer and painter draw lamps through it (their own lamp rules removed). The Fit's fog-with-high-beams bug as a test.
+5. BUILT, for Sean's look (2026-11-26 06:05; `fcn_CarMesh3D_editLampFunctions`, T79 to T82): the window (section 6, as chosen 2026-11-26 04:35), on its own (with a viewer beside it) and as the painter's Lamp Functions panel. Not yet: "Add a lamp kind".
+6. The Fit: its matrix (DONE: DRL from the headlamps, dimmed, with Honda as the source); Sean re-checks the Headlights question in the V&V GUI.
+7. DONE (2026-11-26 05:17): AnimateCar3D: `LampFaults` (per object in the display list, passed by the scene player), and its contract check.
+8. The library: every vehicle migrated and checked (face counts per lamp before and after) (DONE 2026-11-26 06:45: each vehicle's lampFunctions_<ID>.csv written; in every vehicle each lamp face is in exactly one unit; only the Fit had rows to migrate), the saved lamp keys renamed to lamp names (Q78 (A); waits for Q92, the names).
+9. DONE (2026-11-26, Q89 (A), Sean 03:52): a sun/moon button in the viewer's model view (so the painter has it too), top right, switching day and night with one click; the window switches to night when it is used (section 6). The start setting stays in Shared GUI settings ("Day or night at start"). The other viewers have no night view.
 
 ## Tests for Sean
 
@@ -147,7 +159,17 @@ Key:
 - Each step is separated by a blank line.
 - A finished round moves to the change log, with the results.
 
-(none yet: nothing is built)
+T79. The window on its own: the Fit's matrix as bar cells, the view at night with the low beams lit and outlined in cyan. Is the layout what you chose (Editing and Table | Tuner, Also on with chips, the filters, the table, Checks, Save / Revert / Hazards)? Is the table easy to read?
+`close all; clear functions; clc; fcn_CarMesh3D_editLampFunctions('2009_Honda_Fit_Sport');`
+
+T80. Also on: add Brake, then Left turn; click a chip to take one off; press Hazards. Do the lamps light together, with only the edited signal's lamps outlined in cyan? (Nothing is saved unless you press Save.)
+`close all; clear functions; clc; fcn_CarMesh3D_editLampFunctions('2009_Honda_Fit_Sport');`
+
+T81. The Tuner: switch to Tuner and move a headlamp's slider up and down. Does "up is brighter" feel right, with the grey "also" numbers under each slider? Is a double-click on a table cell (on/off) and a single click (pick that signal and lamp) clear?
+`close all; clear functions; clc; fcn_CarMesh3D_editLampFunctions('2009_Honda_Fit_Sport');`
+
+T82. In the painter: open the ☰ Menu's Lamp Functions panel. Is the narrow column usable beside the model, and is it clear that it lights the painter's view?
+`close all; clear functions; clc; fcn_CarMesh3D_paintLabels('2009_Honda_Fit_Sport');`
 
 ## Open questions
 
@@ -174,3 +196,7 @@ Key:
   - **Q80 (A)**: Hazards is not a column: "Hazards, in implementation, are simply a signal change in time. Time-axis events are animator choices, not part of this rep." The rule "time is not part of the mesh" (section 4; README; rule P6). Someday: fades in time and space (section 8).
   - **Q78 (A)**: the saved lamp keys are renamed to bulb names, with this work (plan items 1 and 8).
 - 2026-11-26 01:47, Sean: edits to sections 3 and 4 (L2F named; rows are labeled lamps), and the style guide: "bias toward the word 'lamp' rather than 'bulb' - in physical lighting, a lamp is an entire device (bulb, covering, etc) being lit up, but bulb refers to the part holding the filament." Claude: the whole file in those terms (a Terms note at the top; "headlamp", "marker lamp", "tail/brake lamp" ...; "bulb" kept only for the light source itself).
+- 2026-11-26 04:50, Claude (Sean 03:58 to 04:35, from mockups): section 6 rewritten as chosen: a tall column at the left; Editing and Table | Tuner; "Also on" signals as chips; filters and groups; the Table as bar cells (click picks, double-click on/off); the Tuner as vertical sliders, up is brighter; Checks in words; the edited signal's lamps outlined in cyan in the view. What was not chosen, and why. Plan item 9 (the day/night button) done.
+- 2026-11-26 05:35, Claude: plan items 2, 3, 4 and 7 done; item 6's matrix done. In section 4: a headlamp's High beam default is left out when the vehicle has high-beam lamps of its own on that side (found by plotVehicle's test, whose sample has separate high beams); the tail/brake lamp's Parking default written as it is (0.4); the warning lamp's default (none); how colors are chosen, and `Headlights='high'` kept as both beams. plotVehicle draws lamps by unit, so its test changed with it: the sample's tail lamps light with the turn signals (it has no turn lamps of its own), and a ground pool lights only from a lamp that is lit (no backup pool for a vehicle with no backup lamps).
+- 2026-11-26 06:05, Claude: plan item 5 built (`fcn_CarMesh3D_editLampFunctions`, with its test, and the painter's Lamp Functions panel); the viewer has three new hooks for it (SetLampFunctions, SetLampSignals, OutlineFaces); `fcn_CarMesh3D_lampFunctions` takes `Table=` to save the window's matrix. T79 to T82 for Sean.
+- 2026-11-26 06:47, Claude: plan item 8's matrix part done (a CSV for each of the 25 library vehicles; the samples and body-style generics have none). The key rename waits for Q92 (which names).
