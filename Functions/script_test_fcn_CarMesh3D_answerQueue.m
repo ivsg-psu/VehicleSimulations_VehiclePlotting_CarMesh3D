@@ -143,8 +143,9 @@ fprintf(1, 'Done\n');
 doneButton = findall(figureHandle, 'Tag', 'aqDone');
 doneButton.ButtonPushedFcn(doneButton, []);
 assert(contains(findall(figureHandle, 'Tag', 'aqStatus').Text, 'Copied 2 answers'));
-doneText = hooks.Done();   % (a second Done: nothing new since)
-assert(contains(doneText, 'ANSWERS') && contains(doneText, ', 0:'));
+doneText = hooks.Done();   % (a second Done: nothing new since: the last Done's text again)
+assert(contains(doneText, 'Nothing new since the last Done') && contains(doneText, 'ANSWERS') && ~contains(doneText, ', 0:'), ...
+    'A second Done copies the last Done again, never an empty list');
 pause(1.1);   % (When is to the second)
 hooks.Show('Q91');
 fcn_INTERNAL_pick(figureHandle, 'C');

@@ -37,6 +37,24 @@ assert(~isempty(findall(editor.Figure, 'Tag', 'lampTable')), 'The table is drawn
 zzBar = findall(editor.Figure, 'Tag', 'lampTopBar');
 assert(isscalar(zzBar) && isscalar(findall(zzBar, 'Tag', 'dayNightButton')) && isscalar(findall(zzBar, 'Tag', 'meshToggle')) ...
     && isscalar(findall(zzBar, 'Tag', 'groundToggle')), 'The top bar has Mesh, Grid and the sun/moon');
+% (the lamp names stay while the signals' columns scroll sideways; picking a
+% signal brings its column to the middle: Sean, T89 BUG)
+assert(~isempty(findall(editor.Figure, 'Tag', 'lampTableNames')), 'The lamp names have a column of their own');
+editor.SetSignal('Reflectors');
+drawnow;
+zzView = editor.ColumnView();
+zzCenter = (find(strcmp({fcn_CarMesh3D_lampSignals().Name}, 'Reflectors')) - 0.5)*26;
+assert(zzCenter >= zzView.Offset && zzCenter <= zzView.Offset + zzView.Width, 'The Reflectors column is in view once picked');
+editor.SetSignal('LowBeam');
+drawnow;
+zzView = editor.ColumnView();
+assert(13 >= zzView.Offset && 13 <= zzView.Offset + zzView.Width, 'The LowBeam column is in view once picked');
+if zzView.Sideways
+    editor.SetColumnOffset(40);
+    zzTableAxes = findall(editor.Figure, 'Tag', 'lampTable');
+    assert(abs(zzTableAxes(1).XLim(1) - 40) < 1e-9 && strcmp(findall(editor.Figure, 'Tag', 'lampColumnScroll').Visible, 'on'), ...
+        'The slider scrolls the columns, not the names');
+end
 % (readable at any number of lamps: T80, T81 BUG; names at 11 pt, rows of
 % at least 20 px, however short the panel)
 zzNames = findall(editor.Figure, 'Tag', 'lampRowName');

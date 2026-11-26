@@ -145,6 +145,9 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % hooks PastePicture (a picture may be given, for the tests),
 %   %   % RemovePicture, Pictures; Answers has a Pictures column
 %   %   % (drafted with Claude)
+%   % * Done with nothing new since the last Done copies that Done's text
+%   %   % again (kept in lastDoneText.txt), so a double press never loses
+%   %   % the answers (Sean's 13:02 Done said 0 over five answers)
 
 
 % TO-DO:
@@ -643,6 +646,17 @@ end
         if ~isempty(lastDoneTime)
             answered = answered(answered.When > string(lastDoneTime), :);
         end
+        % (nothing new since the last Done, as after a second press: the
+        % last Done's text again, so a double press never loses it; Sean's
+        % Done of 2026-11-26 13:02 copied "0" over five answers)
+        doneTextFile = fullfile(queueFolder, 'lastDoneText.txt');
+        if height(answered) == 0 && isfile(doneTextFile)
+            textOut = sprintf('(Nothing new since the last Done, %s; this is that Done again.)\n%s', ...
+                lastDoneTime, fileread(doneTextFile));
+            copyText(textOut);
+            statusLabel.Text = 'Nothing new since the last Done: its answers copied again.';
+            return;
+        end
         lines = {sprintf('ANSWERS (fcn_CarMesh3D_answerQueue, %s), %d:', answersFile, height(answered))};
         for ith_row = 1:height(answered)
             line = sprintf('%s %s', answered.ID(ith_row), fcn_INTERNAL_choiceText(answered.Choice(ith_row)));
@@ -656,6 +670,11 @@ end
         end
         textOut = strjoin(lines, newline);
         lastDoneTime = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+        fileID = fopen(doneTextFile, 'w', 'n', 'UTF-8');
+        if fileID >= 0
+            fprintf(fileID, '%s', textOut);
+            fclose(fileID);
+        end
         fileID = fopen(doneFile, 'w');
         if fileID >= 0
             fprintf(fileID, '%s', lastDoneTime);

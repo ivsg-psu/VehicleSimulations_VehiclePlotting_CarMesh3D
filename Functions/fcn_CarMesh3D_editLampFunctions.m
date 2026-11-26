@@ -105,6 +105,11 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   % * A top bar in its own window, as the viewer's and the painter's: its
 %   %   % name, and the Mesh, Grid and sun/moon buttons at the right (Sean,
 %   %   % 10:41, in place of Q94 (A))
+%   % * The lamp names a column of their own that stays put; the signals'
+%   %   % columns scroll sideways with a slider shown when they do not all
+%   %   % fit, and picking a signal brings its column to the middle (Sean,
+%   %   % T89 BUG, 12:59: the Reflectors column was cut off). New hooks
+%   %   % ColumnView, SetColumnOffset
 
 % TO-DO:
 %
@@ -188,6 +193,9 @@ mode = 'table';
 flagOnlyLit = false;
 groupsShown = {'Front', 'Side', 'Rear'};
 markedUnit = 0;
+flagCenterColumn = true;
+columnOffset = 0;   % (the table's columns scrolled sideways, in pixels: T89)
+columnSlider = [];
 flagChanged = false;
 
 % The window: the column, and the viewer beside it when on its own
@@ -217,7 +225,7 @@ else
 end
 band = [0.95 0.93 1];   % (pale violet: the lamp-functions work)
 
-columnGrid = uigridlayout(columnPanel, [7 1], 'RowHeight', {30, 30, 'fit', 30, 160, 96, 30}, ...
+columnGrid = uigridlayout(columnPanel, [8 1], 'RowHeight', {30, 30, 'fit', 30, 0, 160, 96, 30}, ...
     'Padding', [8 8 8 8], 'RowSpacing', 6, 'BackgroundColor', band, 'Scrollable', 'on');   % (scrolls when short: under another panel in the painter)
 % 1. Editing, and Table | Tuner
 rowGrid = uigridlayout(columnGrid, [1 3], 'ColumnWidth', {60, '1x', 130}, 'Padding', [0 0 0 0], 'BackgroundColor', band);
@@ -252,13 +260,20 @@ for ith_group = 1:3
     groupBoxes(ith_group) = uicheckbox(rowGrid, 'Text', groupNames{ith_group}, 'Value', true, ...
         'Tag', ['lampGroup' groupNames{ith_group}], 'ValueChangedFcn', @(~,~) setGroups(groupNames([groupBoxes.Value])));
 end
-% 5. The table or the tuner
+% 5. The table's columns, scrolled sideways when they do not all fit
+% (the lamp names stay: Sean, T89 BUG, 2026-11-26 12:59: "Need a horizontal
+% scroll capability ... the scroll should only move the matrix portion, not
+% the labels"); shown only when needed
+columnSlider = uislider(columnGrid, 'Limits', [0 1], 'Value', 0, 'MajorTicks', [], 'MinorTicks', [], ...
+    'Tag', 'lampColumnScroll', 'Tooltip', 'Scroll the signals sideways (the lamp names stay)', ...
+    'ValueChangingFcn', @(~,event) setColumnOffset(event.Value), 'ValueChangedFcn', @(source,~) setColumnOffset(source.Value));
+% 6. The table or the tuner
 contentPanel = uipanel(columnGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'lampContent', ...
     'AutoResizeChildren', 'off', 'SizeChangedFcn', @(~,~) drawContent());
-% 6. Checks
+% 7. Checks
 checksArea = uitextarea(columnGrid, 'Editable', 'off', 'Tag', 'lampChecks', 'FontSize', 11, ...
     'Tooltip', 'Things to look at: warnings only, never blocking (odd vehicles are allowed)');
-% 7. Save, Revert, Hazards
+% 8. Save, Revert, Hazards
 rowGrid = uigridlayout(columnGrid, [1 3], 'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', band);
 saveButton = uibutton(rowGrid, 'Text', 'Save', 'Tag', 'lampSave', 'FontWeight', 'bold', ...
     'Tooltip', 'Write the matrix to the vehicle''s lampFunctions_<ID>.csv (changed rows marked edited, with you as the source)', ...
@@ -283,7 +298,8 @@ editor = struct('Table', @getTable, 'SetSignal', @setSignal, 'Signal', @getSigna
     'Mode', @getMode, 'SetValue', @setValue, 'ClickCell', @clickCell, 'SetOnlyLit', @setOnlyLit, ...
     'SetGroups', @setGroups, 'ShownUnits', @shownUnits, 'Checks', @getChecks, 'Save', @saveMatrix, ...
     'Revert', @revertMatrix, 'Hazards', @hazards, 'Units', @getUnits, 'Figure', figureHandle, ...
-    'Viewer', viewer, 'Column', columnGrid, 'Close', @closeEditor);
+    'Viewer', viewer, 'Column', columnGrid, 'Close', @closeEditor, ...
+    'ColumnView', @getColumnView, 'SetColumnOffset', @setColumnOffset);
 refreshAll(true);
 if ~isempty(figureHandle)
     figureHandle.UserData = editor;
@@ -316,10 +332,10 @@ end
             return;
         end
         panelSize = getpixelposition(columnPanel);
-        fixedHeight = 30 + 30 + 28 + 30 + 96 + 30 + 6*6 + 16;   % (the other rows, the spacing and the padding)
+        fixedHeight = 30 + 30 + 28 + 30 + columnGrid.RowHeight{5} + 96 + 30 + 7*6 + 16;   % (the other rows, the spacing and the padding)
         newHeight = max(160, floor(panelSize(4) - fixedHeight));
-        if ~isequal(columnGrid.RowHeight{5}, newHeight)
-            columnGrid.RowHeight{5} = newHeight;
+        if ~isequal(columnGrid.RowHeight{6}, newHeight)
+            columnGrid.RowHeight{6} = newHeight;
         end
     end
 
@@ -339,6 +355,7 @@ end
         editSignal = char(name);
         signalDropdown.Value = editSignal;
         alsoOn = setdiff(alsoOn, {editSignal}, 'stable');   % (the edited signal is lit anyway)
+        flagCenterColumn = true;   % (its column brought to the middle of the view: T89)
         refreshAll(true);
     end
 
@@ -478,9 +495,11 @@ end
         % Bar cells: a row per lamp unit, a column per signal; the edited
         % column edged in cyan; no numbers typed. Laid out in pixels (rows
         % of 22 px, names at 11 pt), so the table stays readable however
-        % many lamps there are: the panel scrolls instead of the rows
-        % shrinking (Sean, T80 and T81 BUG, 2026-11-26 09:51: "lamp labels
-        % on matrix too small to see clearly")
+        % many lamps there are: the panel scrolls up and down instead of
+        % the rows shrinking (T80, T81). The lamp names are a column of
+        % their own that stays put; the signals' columns scroll sideways
+        % with the slider above, and the edited signal's column is brought
+        % to the middle when it is picked (Sean, T89 BUG, 12:59)
         indices = shownUnits();
         numShown = numel(indices);
         numSignals = numel(signalNames);
@@ -489,40 +508,69 @@ end
         headerPx = 96;   % (the signals' names, turned 60 degrees)
         namePx = 8 + 7*max([12, cellfun(@numel, unitNames(indices))]);   % (about 7 px a character at 11 pt)
         panelSize = getpixelposition(contentPanel);
-        tableWidth = namePx + numSignals*cellPx + 8;
         tableHeight = headerPx + max(numShown, 1)*rowPx + 6;
-        widthPx = max(tableWidth, panelSize(3) - 4);
         heightPx = max(tableHeight, panelSize(4) - 4);
+        scrollbarPx = 18 * (tableHeight > panelSize(4) - 4);   % (room for the up-down scroll bar)
+        matrixWidth = numSignals*cellPx + 60;   % (the columns, and room for the last signal's turned name)
+        viewWidth = max(60, panelSize(3) - 4 - scrollbarPx - namePx);
+        flagSideways = matrixWidth > viewWidth;
+        shownWidth = min(matrixWidth, viewWidth);
+        % (the slider: shown only when the columns do not all fit)
+        maxOffset = max(0, matrixWidth - shownWidth);
+        editColumn = find(strcmp(signalNames, editSignal));
+        if flagCenterColumn
+            columnOffset = (editColumn - 0.5)*cellPx - shownWidth/2;
+            flagCenterColumn = false;
+        end
+        columnOffset = min(max(0, columnOffset), maxOffset);
+        newRow = 24*flagSideways;
+        if ~isequal(columnGrid.RowHeight{5}, newRow)
+            columnGrid.RowHeight{5} = newRow;
+            fitContent();
+        end
+        columnSlider.Visible = matlab.lang.OnOffSwitchState(flagSideways);
+        columnSlider.Limits = [0, max(maxOffset, 1)];
+        columnSlider.Value = columnOffset;
         contentPanel.Scrollable = 'on';
+        % (the lamp names: an axes of their own, left)
+        nameAxes = uiaxes(contentPanel, 'Units', 'pixels', 'Tag', 'lampTableNames');
+        nameAxes.PositionConstraint = 'innerposition';
+        nameAxes.InnerPosition = [1, 1, namePx, heightPx];
+        % (the matrix: its own axes, right, showing the columns from
+        % columnOffset on)
         axesHandle = uiaxes(contentPanel, 'Units', 'pixels', 'Tag', 'lampTable');
         axesHandle.PositionConstraint = 'innerposition';
-        axesHandle.InnerPosition = [1, 1, widthPx, heightPx];
-        disableDefaultInteractivity(axesHandle);
-        axesHandle.Toolbar.Visible = 'off';
-        hold(axesHandle, 'on');
-        axis(axesHandle, 'off');
-        axesHandle.YDir = 'reverse';
-        % (data units are pixels, from the top left)
-        xlim(axesHandle, [0, widthPx]);
-        ylim(axesHandle, [0, heightPx]);
+        axesHandle.InnerPosition = [namePx + 1, 1, shownWidth, heightPx];
+        for thisAxes = [nameAxes, axesHandle]
+            disableDefaultInteractivity(thisAxes);
+            thisAxes.Toolbar.Visible = 'off';
+            hold(thisAxes, 'on');
+            axis(thisAxes, 'off');
+            thisAxes.YDir = 'reverse';
+            ylim(thisAxes, [0, heightPx]);   % (data units are pixels, from the top)
+        end
+        xlim(nameAxes, [0, namePx]);
+        xlim(axesHandle, columnOffset + [0, shownWidth]);
         for ith_signal = 1:numSignals
-            text(axesHandle, namePx + (ith_signal - 0.5)*cellPx, headerPx - 4, signalLabels{ith_signal}, 'Rotation', 60, ...
+            text(axesHandle, (ith_signal - 0.5)*cellPx, headerPx - 4, signalLabels{ith_signal}, 'Rotation', 60, ...
                 'FontSize', 10, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Interpreter', 'none', ...
-                'FontWeight', fcn_INTERNAL_weight(strcmp(signalNames{ith_signal}, editSignal)), 'Tag', 'lampColumnName');
+                'Clipping', 'on', 'FontWeight', fcn_INTERNAL_weight(strcmp(signalNames{ith_signal}, editSignal)), 'Tag', 'lampColumnName');
         end
         for ith_row = 1:numShown
             unit = indices(ith_row);
             y0 = headerPx + (ith_row - 1)*rowPx;
             if mod(ith_row, 2) == 0   % (every other row shaded, to follow a row across)
-                rectangle(axesHandle, 'Position', [0, y0, namePx + numSignals*cellPx, rowPx], 'FaceColor', [0.95 0.96 0.99], ...
+                rectangle(nameAxes, 'Position', [0, y0, namePx, rowPx], 'FaceColor', [0.95 0.96 0.99], ...
+                    'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampRowShade');
+                rectangle(axesHandle, 'Position', [0, y0, numSignals*cellPx, rowPx], 'FaceColor', [0.95 0.96 0.99], ...
                     'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampRowShade');
             end
-            text(axesHandle, 4, y0 + rowPx/2, unitNames{unit}, 'FontSize', 11, 'Interpreter', 'none', ...
+            text(nameAxes, 4, y0 + rowPx/2, unitNames{unit}, 'FontSize', 11, 'Interpreter', 'none', ...
                 'VerticalAlignment', 'middle', 'FontWeight', fcn_INTERNAL_weight(unit == markedUnit), 'Tag', 'lampRowName');
             for ith_signal = 1:numSignals
                 signalName = signalNames{ith_signal};
                 value = matrixNow.(signalName)(unit);
-                x0 = namePx + (ith_signal - 1)*cellPx;
+                x0 = (ith_signal - 1)*cellPx;
                 rectangle(axesHandle, 'Position', [x0 + 2, y0 + 2, cellPx - 4, rowPx - 4], 'FaceColor', [0.96 0.96 0.96], ...
                     'EdgeColor', [0.75 0.75 0.75], 'Tag', 'lampCell', 'UserData', [unit ith_signal], ...
                     'ButtonDownFcn', @(source,~) onCellDown(source));
@@ -534,13 +582,30 @@ end
             end
         end
         % (the edited column's cyan edge)
-        editColumn = find(strcmp(signalNames, editSignal));
-        rectangle(axesHandle, 'Position', [namePx + (editColumn - 1)*cellPx, headerPx, cellPx, max(numShown, 1)*rowPx], ...
+        rectangle(axesHandle, 'Position', [(editColumn - 1)*cellPx, headerPx, cellPx, max(numShown, 1)*rowPx], ...
             'EdgeColor', [0 0.8 0.9], 'LineWidth', 2, 'HitTest', 'off', 'Tag', 'lampEditedColumn');
         if numShown == 0
-            text(axesHandle, 8, headerPx + rowPx/2, 'No lamps to show (see the filters)', 'Color', [0.4 0.4 0.4], 'FontSize', 11);
+            text(nameAxes, 8, headerPx + rowPx/2, 'No lamps to show (see the filters)', 'Color', [0.4 0.4 0.4], 'FontSize', 11);
         end
         scroll(contentPanel, 'top');
+    end
+
+    function setColumnOffset(value)
+        % (the slider moved: the columns scrolled sideways, the names stay)
+        columnOffset = value;
+        tableAxes = findobj(contentPanel, 'Tag', 'lampTable');
+        if ~isempty(tableAxes) && isvalid(tableAxes(1))
+            tableAxes(1).XLim = value + [0, diff(tableAxes(1).XLim)];
+        end
+    end
+
+    function value = getColumnView()
+        % (the signals' columns in view now: for the tests)
+        value = struct('Offset', columnOffset, 'Width', NaN, 'Sideways', strcmp(columnSlider.Visible, 'on'));
+        tableAxes = findobj(contentPanel, 'Tag', 'lampTable');
+        if ~isempty(tableAxes)
+            value.Width = diff(tableAxes(1).XLim);
+        end
     end
 
     function onCellDown(source)
@@ -564,6 +629,11 @@ end
             return;
         end
         contentPanel.Scrollable = 'off';   % (the tuner's own grid scrolls)
+        columnSlider.Visible = 'off';
+        if columnGrid.RowHeight{5} ~= 0
+            columnGrid.RowHeight{5} = 0;
+            fitContent();
+        end
         grid = uigridlayout(contentPanel, [3 numShown], 'RowHeight', {'1x', 64, 20}, ...
             'ColumnWidth', repmat({84}, 1, numShown), 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
             'BackgroundColor', [1 1 1], 'Scrollable', 'on', 'Tag', 'lampTuner');
