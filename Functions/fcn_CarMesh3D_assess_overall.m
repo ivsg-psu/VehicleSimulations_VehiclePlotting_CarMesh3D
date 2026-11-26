@@ -41,7 +41,8 @@ function result = fcn_CarMesh3D_assess_overall(vehicleInput, options)
 % OUTPUTS:
 %
 %      result: a structure (one element per question in describe mode)
-%      with Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey,
+%      with Key, Title, Question, Detail (a second line of guidance under
+%      the question), Answers, ProblemAnswers, Help, GroupKey,
 %      GroupTitle, GroupHelp; and, in the other modes, Fingerprint, Skip
 %      ('' or why it cannot be asked for this vehicle) and Note.
 %
@@ -66,6 +67,10 @@ function result = fcn_CarMesh3D_assess_overall(vehicleInput, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assess_overall
 %   % * First write (the V&V design file, section 5, order 1)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assess_overall
+%   % * Detail: a second line of guidance under the question (Sean, T62)
 
 % TO-DO:
 %
@@ -86,6 +91,7 @@ described = struct('Key', 'overall', 'Title', 'Overall', ...
     'Help', ['A few seconds, before anything else: No if something is plainly wrong, such as the wrong vehicle, ' ...
     'missing parts, a scrambled or inside-out mesh, or far too few faces to be usable. No ends the review here ' ...
     'when "Stop at the first No?" is on.'], ...
+    'Detail', 'If unsure, select No and look the mesh over in the viewer (fcn_CarMesh3D_viewLabels). Do not select Yes if unsure.', ...
     'GroupKey', 'overall', 'GroupTitle', 'Overall', ...
     'GroupHelp', 'A first glance at the whole vehicle: worth reviewing further?');
 if strcmpi(options.Mode, 'describe')

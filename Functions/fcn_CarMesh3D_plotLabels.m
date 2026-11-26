@@ -1,4 +1,4 @@
-function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
+function [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 % fcn_CarMesh3D_plotLabels
 
 % Colors a finished mesh by its labels (each part and light type in its
@@ -18,7 +18,7 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %
 % FORMAT:
 %
-%       labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh,...
+%       [labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(vehicleMesh,...
 %           (Title=text), (ColorBy=mode), (FigNum=figNum))
 %
 % INPUTS:
@@ -45,6 +45,11 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 %      labelMesh: the mesh with FaceColors set to the label colors and
 %      FaceAlpha set to 1 (0.6 for glass), ready for
 %      fcn_CarMesh3D_plotVehicle.
+%
+%      legendEntries: the label colors this mesh uses, for a legend: a
+%      structure array with Name (as a person reads it: 'turn signal'),
+%      Color and Faces (how many faces show it), parts first, then lamp
+%      types; empty with ColorBy='material'. Made in fast mode too.
 %
 % DEPENDENCIES:
 %
@@ -93,6 +98,11 @@ function labelMesh = fcn_CarMesh3D_plotLabels(vehicleMesh, options)
 % - In fcn_CarMesh3D_plotLabels
 %   % * Label colors for the newer lamp types (fog, reflector, licenseplate,
 %   %   % marker, warning) from fcn_CarMesh3D_lampTypes (Sean, task 8)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_plotLabels
+%   % * A second output, legendEntries: the label colors the mesh uses,
+%   %   % for a legend in the V&V GUI's label pictures (Sean, T62)
 
 % TO-DO:
 %
@@ -249,6 +259,38 @@ if flagByMaterial
 end
 labelMesh.FaceColors = faceColors;
 labelMesh.FaceAlpha = ones(Nfaces,1);
+
+% The legend: each label color the mesh shows, with its face count (a
+% part's faces that show a lamp type's color are counted for the lamp)
+legendEntries = struct('Name', {}, 'Color', {}, 'Faces', {});
+if ~flagByMaterial
+    flagLampColor = false(Nfaces,1);
+    typeEntries = legendEntries;
+    if isfield(vehicleMesh,'FaceLightType') && isfield(vehicleMesh,'LightTypeNames')
+        for ith_type = 1:length(vehicleMesh.LightTypeNames)
+            thisName = vehicleMesh.LightTypeNames{ith_type};
+            flagType = vehicleMesh.FaceLightType(:)==ith_type;
+            if isfield(lightColors, thisName) && any(flagType)
+                flagLampColor = flagLampColor | flagType;
+                typeEntries(end+1) = struct('Name', fcn_INTERNAL_readableName(thisName), ...
+                    'Color', lightColors.(thisName), 'Faces', sum(flagType)); %#ok<AGROW>
+            end
+        end
+    end
+    for ith_part = 1:length(vehicleMesh.PartNames)
+        thisName = vehicleMesh.PartNames{ith_part};
+        numFaces = sum(vehicleMesh.FacePartIndex(:)==ith_part & ~flagLampColor);
+        if isfield(partColors, thisName) && numFaces > 0
+            if strcmp(thisName, 'light')
+                readable = 'lamp, no type';
+            else
+                readable = fcn_INTERNAL_readableName(thisName);
+            end
+            legendEntries(end+1) = struct('Name', readable, 'Color', partColors.(thisName), 'Faces', numFaces); %#ok<AGROW>
+        end
+    end
+    legendEntries = [legendEntries, typeEntries];
+end
 glassIndex = find(strcmp(vehicleMesh.PartNames,'glass'));
 labelMesh.FaceAlpha(vehicleMesh.FacePartIndex==glassIndex) = 0.6;
 % (a light that is also glass, a lamp's clear cover, is see-through too,
@@ -317,6 +359,18 @@ end
 
 end % Ends main function
 
+
+%% fcn_INTERNAL_readableName
+function readable = fcn_INTERNAL_readableName(name)
+% A label's name as a person reads it: 'turnsignal' to 'turn signal'
+known = struct('turnsignal', 'turn signal', 'highbeam', 'high beam', 'licenseplate', 'license plate', ...
+    'backup', 'backup', 'running', 'running');
+if isfield(known, name)
+    readable = known.(name);
+else
+    readable = regexprep(char(name), '([a-z])([A-Z])', '$1 ${lower($2)}');
+end
+end % Ends fcn_INTERNAL_readableName
 
 %% fcn_INTERNAL_distinctColors
 function colors = fcn_INTERNAL_distinctColors(numColors)

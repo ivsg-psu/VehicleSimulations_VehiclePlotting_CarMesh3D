@@ -6,8 +6,8 @@
 
 ## Review now (for Sean)
 
-1. Nothing to test now (T69 passed, 14:24).
-2. Next in the plan (section 10): a second line of guidance under each question, a label-color legend, and headlight beams on the ground.
+1. T74, T75 and T76 (below, and in the answer queue): the second line under each question, the label-color legend, and the headlight beams on the ground.
+2. Next in the plan (section 10): work real vehicles through the first round.
 
 ## 1. What the V&V GUI is for
 
@@ -55,6 +55,7 @@ result = fcn_CarMesh3D_assess_<name>(vehicle, Mode='fingerprint')  % the fingerp
 | `Answers` | The allowed answers, as radio buttons: `{'Yes', 'No'}`, or `{'Higher', 'Equal', 'Lower'}` for a comparison. **A No always means a problem** (Q53 (A), Sean 2026-11-25 01:32): questions are worded so, since "Stop at the first No?" relies on it. For a comparison, the function also names which answers count as a problem ("Lower") |
 | `ProblemAnswers` | The answers that mean a problem: `{'No'}`, or `{'Lower'}` for a comparison |
 | `Help` | What to look at (the question's tooltip) |
+| `Detail` | (optional) A second line under the question, smaller and not bold: what to do when unsure (Sean, T62: "Do not select Yes if unsure"). An assessment without one shows no second line |
 | `GroupKey`, `GroupTitle`, `GroupHelp` | The function's own key (its name after `fcn_CarMesh3D_assess_`), title and tooltip, for the list and Shared GUI settings |
 | `Fingerprint` | (not in describe mode) The fingerprint of the data it draws (section 4) |
 | `Skip` | (not in describe mode) '' or why the question cannot be asked for this vehicle (realism with no exemplar): recorded as skipped, with the reason |
@@ -135,8 +136,8 @@ As built (2026-11-25), under the rules (G1 pancake, G2 sparse):
   - *the question row:* Previous and Next (the questions; Next after the last one is the Summary), Summary (on the Summary page it reads Questions, back to the first question not answered, else the first), and the progress ("Question 2 of 6 · 1 answered (0 a problem), 5 not answered, 0 skipped, 0 error(s)");
   - ☰ Menu at the left, the height of both rows; its last line is Exit (Q62 (A), Sean 2026-11-25 14:31: "put the Exit button as option (last) in Menu - this cleans up visuals"; the window's own X closes it too).
   The pictures come from `fcn_CarMesh3D_icons` (rule G41, a goal: pictures before words).
-- **The assessment's title** as a heading, and its **pictures**, filling the window.
-- **The question,** its radio answers and a comment box.
+- **The assessment's title** as a heading, and its **pictures**, filling the window. The two label pictures (Labels, Patchy labels) have a **legend** under them: a bordered square of each label color the mesh uses, then its name (`fcn_CarMesh3D_plotLabels`' second output, drawn by `fcn_CarMesh3D_assessAxes`' `Legend=`; Sean, T62).
+- **The question,** with a second line under it, smaller and not bold, of guidance from the assessment's `Detail` (on the Summary: approve only if every answer is right; if unsure, Reject and say why); its radio answers and a comment box.
 - **A status line:** the function's note, then who answered and when, or that the mesh changed since. Not the drawing time (Q61 (A), Sean 12:42; it stays in the saved record, `Seconds`).
 - **The ☰ Menu** holds Shared GUI settings (You and Review) and Questions (every question with a mark: ✓ answered, ✗ a problem, ? not answered, - skipped, ! error; click to go there).
 - **The last page is the Summary:** the counts, a table of every answer (with each one's note), and Approve or Reject with a comment.
@@ -170,9 +171,9 @@ NOTE: this section notes planned current and future steps. If all are done, or a
 3. DONE (02:45): the window (section 7); the test that this file's table matches the code (Q52 (A), in `script_test_fcn_CarMesh3D_reviewChecks`); then the T-list for Sean (T60 to T68: passed 12:16, with changes asked, in the change log).
 4. DONE (12:22): the two-row top bar, the Summary and back (Sean, 12:16), with `fcn_CarMesh3D_icons`.
 5. DONE (12:55): the status line without the drawing time (Q61 (A)).
-6. Next: a second line under each question, smaller and not bold, with guidance (Sean, T62: for the label questions, "If unsure or the mesh needs to be rotated, etc. select "No" and use the viewer GUI to check, painter GUI to edit. Do not select "Yes" if unsure."). It comes from each function's describe mode, as a new field (`Detail`).
-7. Next: a simple legend of the label colors in the label pictures (Sean, T62).
-8. Next: the headlights' beams drawn on a ground plane in front of the vehicle, so the light cones show (Sean, T63).
+6. DONE (17:20): a second line under each question, smaller and not bold, with guidance (Sean, T62), from each function's describe mode as a new field, `Detail` (section 3); the tests check every listed assessment has one, and that the host shows it.
+7. DONE (17:26): a simple legend of the label colors under the label pictures (Sean, T62): only the colors the mesh uses, parts then lamp types (section 7).
+8. DONE (17:30): the headlights' beams on a dark ground plane in front of the vehicle (plotVehicle's light pools, `LightEffects=true`), seen from above the front left and zoomed so the vehicle stays large (Sean, T63). The body is still lit as by day (the scene lights): T76 asks whether it should be darker.
 9. Then: work real vehicles through the first round; add the later assessments (section 5, orders 7 to 15) one at a time.
 
 
@@ -198,7 +199,29 @@ Key:
 
 *Pressing the real buttons found a bug the hooks had hidden: Previous and Next went only to questions 1 and 2 (their callbacks kept the page they were made with). This is what Sean met in T65 ("I cannot figure out how to advance"). Fixed 2026-11-25 13:21.*
 
-(none open: T60 to T69 and their results are in the change log)
+- *the legend: only the label colors the mesh uses, each square in its color (`script_test_fcn_CarMesh3D_plotLabels.m`, `script_test_fcn_CarMesh3D_assessAxes.m`);*
+- *the second line: the assessment's Detail shown under the question, and none for an assessment without one; every listed assessment has a Detail (`script_test_fcn_CarMesh3D_reviewChecks.m`).*
+
+T74. The second line under each question (Sean, T62). Step through the six questions and the Summary. Is the second line readable at a glance, set apart from the question, and is its advice right for each question? Expected: (A) yes; (B) yes, with wording changes (comment, naming the question).
+```matlab
+close all force; clear functions; clc
+demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
+fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
+```
+
+T76. The headlight beams on the ground (Sean, T63). Go to the Headlights question. Do the three pictures (off, low, high) make the beams easy to tell apart, with the vehicle still large enough to judge its lamps? Should the body be darker (it is lit as by day)? Expected: (A) yes; (B) yes, with changes (comment).
+```matlab
+close all force; clear functions; clc
+demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
+fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
+```
+
+T75. The label-color legend (Sean, T62). Go to the Labels and Patchy labels questions. Is the legend under the pictures easy to read, and does each square match the color on the vehicle? Expected: (A) yes; (B) yes, with changes (comment).
+```matlab
+close all force; clear functions; clc
+demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
+fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
+```
 
 ## Open questions
 
@@ -238,3 +261,6 @@ When a question is answered, its content moves into the right section above, and
 - 2026-11-25 12:45 to 12:55 (Claude, Q60 (A)): this file laid out by `Documentation_CarMesh3D_template.md` (rule G42): the bottom sections named "Tests for Sean", "Open questions", "Change log"; the answered questions moved into the sections above (Q47 to section 1, Q48 to section 2, Q57 to section 8, Q58 to section 5; Q56 is rule G40); section citations fixed after Sean's removal of the old section 9 (the old 10, Later, is 9; the old 11, Plan, is 10). Q61 (A) built (section 7).
 - 2026-11-25 13:21 (Claude, Sean 13:15: "Only leave tests for me regarding look/feel ... or other human-specific items"): T70 to T72 (the Summary and back, a batch, the status line) became code tests, and T69 asks only whether the top bar is clear. The code tests press the real buttons, and found that Previous and Next went only to questions 1 and 2 (the cause of Sean's T65); fixed.
 - 2026-11-25 14:24 (Sean, in this file): **T69 (A)**: the two-row top bar is clear at a glance. Round closed.
+- 2026-11-25 17:20 (Claude, while Sean was away; Q69 (A)): plan item 6 built: the second line of guidance (`Detail`) in each first-round assessment and in the host; T74 asks Sean to judge it.
+- 2026-11-25 17:26 (Claude, while Sean was away): plan item 7 built: the label-color legend (first tried as HTML in a label, which draws no color squares; now small bordered panels); T75 asks Sean to judge it.
+- 2026-11-25 17:30 (Claude, while Sean was away): plan item 8 built: the headlight beams on a dark ground (first try: 9 m of ground made the vehicle too small to judge; now 5 m, zoomed); the Labels and Patchy labels tests updated for the legend; T76 asks Sean to judge it.

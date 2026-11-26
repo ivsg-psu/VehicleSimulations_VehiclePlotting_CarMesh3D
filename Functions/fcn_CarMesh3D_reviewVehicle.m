@@ -142,6 +142,9 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %   % * BUG fixed: Previous and Next went only to questions 1 and 2 (their
 %   %   % callbacks kept the page they were made with; Sean's T65, 12:16:
 %   %   % "I cannot figure out how to advance")
+%   % * A second line under each question, smaller and not bold: guidance
+%   %   % from the assessment's Detail (Sean, T62; the V&V design file,
+%   %   % Plan item 6)
 
 % TO-DO:
 %
@@ -265,20 +268,31 @@ progressLabel.Layout.Column = 5;
 bodyGrid = uigridlayout(mainGrid, [1 2], 'ColumnWidth', {0, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6, ...
     'BackgroundColor', [1 1 1]);
 menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
-pageGrid = uigridlayout(bodyGrid, [4 1], 'RowHeight', {40, '1x', 110, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 4, ...
+pageGrid = uigridlayout(bodyGrid, [4 1], 'RowHeight', {40, '1x', 140, 22}, 'Padding', [0 0 0 0], 'RowSpacing', 4, ...
     'BackgroundColor', [1 1 1]);
 headingLabel = uilabel(pageGrid, 'Text', '', 'FontSize', 22, 'FontWeight', 'bold', 'FontColor', [1 1 1], ...
     'BackgroundColor', [0.15 0.25 0.45], 'Tag', 'vvHeading');
 drawPanel = uipanel(pageGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1], 'Tag', 'vvDrawPanel', ...
     'AutoResizeChildren', 'off');
-questionGrid = uigridlayout(pageGrid, [2 2], 'RowHeight', {34, '1x'}, 'ColumnWidth', {420, '1x'}, ...
+questionGrid = uigridlayout(pageGrid, [3 2], 'RowHeight', {30, 20, '1x'}, 'ColumnWidth', {420, '1x'}, ...
     'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 questionLabel = uilabel(questionGrid, 'Text', '', 'FontSize', 18, 'FontWeight', 'bold', 'Tag', 'vvQuestion');
+questionLabel.Layout.Row = 1;
 questionLabel.Layout.Column = [1 2];
+% (the second line: guidance, smaller and not bold, from the assessment's
+% Detail; Sean, T62: "Do not select Yes if unsure")
+detailLabel = uilabel(questionGrid, 'Text', '', 'FontSize', 12, 'FontColor', [0.25 0.25 0.25], 'Tag', 'vvDetail', ...
+    'WordWrap', 'off');
+detailLabel.Layout.Row = 2;
+detailLabel.Layout.Column = [1 2];
 answerGroup = uibuttongroup(questionGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'vvAnswers', ...
     'SelectionChangedFcn', @(~,event) onAnswerPicked(event));
+answerGroup.Layout.Row = 3;
+answerGroup.Layout.Column = 1;
 commentArea = uitextarea(questionGrid, 'Placeholder', 'Comment (optional): what you saw', 'Tag', 'vvComment', ...
     'ValueChangedFcn', @(~,~) onCommentChanged());
+commentArea.Layout.Row = 3;
+commentArea.Layout.Column = 2;
 statusLabel = uilabel(pageGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'Tag', 'vvStatus');
 
 % The ☰ Menu: Shared GUI settings, and the list of questions
@@ -454,6 +468,8 @@ end
         headingLabel.Tooltip = page.GroupHelp;
         questionLabel.Text = page.Question;
         questionLabel.Tooltip = page.Help;
+        detailLabel.Text = page.Detail;
+        detailLabel.Tooltip = page.Detail;
         if ~page.On
             setAnswers({}, '', false);
             fcn_INTERNAL_message(drawPanel, sprintf('%s is turned off in Shared GUI settings (Review): recorded as turned off.', page.Title));
@@ -544,6 +560,8 @@ end
         headingLabel.Text = '  Summary';
         headingLabel.Tooltip = 'Every answer, and the decision for this mesh';
         questionLabel.Text = 'Approve this mesh?';
+        detailLabel.Text = 'Approve only if every answer is Yes (or not a problem) and none is stale; if unsure, Reject and say why.';
+        detailLabel.Tooltip = detailLabel.Text;
         questionLabel.Tooltip = ['Your decision records what it rested on: each answer, and the data it was given. ' ...
             'Stale or missing answers are listed in it.'];
         grid = uigridlayout(drawPanel, [2 1], 'RowHeight', {30, '1x'}, 'BackgroundColor', [1 1 1]);
@@ -887,7 +905,7 @@ function pages = fcn_INTERNAL_pages(checkList)
 % One page per question: each assessment function's questions, from its
 % describe mode, in the list's order
 pages = struct('Function', {}, 'FKey', {}, 'QKey', {}, 'Title', {}, 'Question', {}, 'Answers', {}, ...
-    'ProblemAnswers', {}, 'Help', {}, 'GroupTitle', {}, 'GroupHelp', {}, 'On', {}, 'Built', {});
+    'ProblemAnswers', {}, 'Help', {}, 'Detail', {}, 'GroupTitle', {}, 'GroupHelp', {}, 'On', {}, 'Built', {});
 for ith_row = 1:height(checkList)
     described = checkList.Questions{ith_row};
     functionHandle = checkList.Function{ith_row};
@@ -899,10 +917,14 @@ for ith_row = 1:height(checkList)
     end
     for ith_question = 1:numel(described)
         question = described(ith_question);
+        detail = '';   % (Detail is optional: an assessment without one shows no second line)
+        if isfield(question, 'Detail') && ~isempty(question.Detail)
+            detail = char(question.Detail);
+        end
         pages(end+1) = struct('Function', functionHandle, 'FKey', string(checkList.Key(ith_row)), ...
             'QKey', char(question.Key), 'Title', char(question.Title), 'Question', char(question.Question), ...
             'Answers', {cellstr(question.Answers)}, 'ProblemAnswers', {cellstr(question.ProblemAnswers)}, ...
-            'Help', char(question.Help), 'GroupTitle', char(question.GroupTitle), 'GroupHelp', char(question.GroupHelp), ...
+            'Help', char(question.Help), 'Detail', detail, 'GroupTitle', char(question.GroupTitle), 'GroupHelp', char(question.GroupHelp), ...
             'On', checkList.On(ith_row), 'Built', checkList.Built(ith_row)); %#ok<AGROW>
     end
 end

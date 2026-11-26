@@ -47,6 +47,10 @@ for ith_row = 1:height(checkList)
     assert(strcmp(checkList.Title(ith_row), described(1).GroupTitle), 'The title: %s', checkList.Key(ith_row));
     assert(strcmp(checkList.Description(ith_row), described(1).GroupHelp), 'The tooltip: %s', checkList.Key(ith_row));
     assert(isequal(checkList.Questions{ith_row}, described), 'The questions: %s', checkList.Key(ith_row));
+    for ith_question = 1:numel(described)
+        assert(isfield(described, 'Detail') && strlength(string(described(ith_question).Detail)) > 20, ...
+            'The second line of guidance (Detail; Sean, T62): %s', checkList.Key(ith_row));
+    end
 end
 
 %% TEST case: the design file's table matches the code (Q52 (A), rule G39)

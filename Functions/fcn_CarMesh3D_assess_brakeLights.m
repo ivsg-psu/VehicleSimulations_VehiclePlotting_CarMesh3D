@@ -40,7 +40,8 @@ function result = fcn_CarMesh3D_assess_brakeLights(vehicleInput, options)
 % OUTPUTS:
 %
 %      result: a structure (one element per question in describe mode)
-%      with Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey,
+%      with Key, Title, Question, Detail (a second line of guidance under
+%      the question), Answers, ProblemAnswers, Help, GroupKey,
 %      GroupTitle, GroupHelp; and, in the other modes, Fingerprint, Skip
 %      ('' or why it cannot be asked for this vehicle) and Note.
 %
@@ -65,6 +66,10 @@ function result = fcn_CarMesh3D_assess_brakeLights(vehicleInput, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assess_brakeLights
 %   % * First write (the V&V design file, section 5, order 5)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assess_brakeLights
+%   % * Detail: a second line of guidance under the question (Sean, T62)
 
 % TO-DO:
 %
@@ -85,6 +90,7 @@ described = struct('Key', 'brakeLights', 'Title', 'Brake lights', ...
     'Help', ['The rear at night, three times: lamps off, tail lamps on, braking. Tail and brake lamps often ' ...
     'share a housing, so this catches one labeled as the other. No if the brake lamps do not light, ' ...
     'the wrong part lights, or braking looks no brighter than the tail lamps alone.'], ...
+    'Detail', 'If unsure, select No and check the Nighttime view in the viewer (fcn_CarMesh3D_viewLabels); fix in the painter (fcn_CarMesh3D_paintLabels). Do not select Yes if unsure.', ...
     'GroupKey', 'brakeLights', 'GroupTitle', 'Brake lights', ...
     'GroupHelp', 'The brake lights: the most important light signal');
 if strcmpi(options.Mode, 'describe')

@@ -70,8 +70,11 @@ assert(contains(findall(figureHandle, 'Tag', 'aqProgress').Text, 'Item 1 of 3'))
 assert(strcmp(getpref('CarMesh3D', 'AnswerQueueFolder'), queueFolder));
 
 % (the answers: lettered, recommended marked, and Later; no BUG for a question)
-assert(contains(findall(figureHandle, 'Tag', 'aqAnswer_A').Text, '(recommended)'));
-assert(~contains(findall(figureHandle, 'Tag', 'aqAnswer_B').Text, '(recommended)'));
+answerA = findall(figureHandle, 'Tag', 'aqAnswer_A');
+assert(startsWith(answerA.Text, '(A, recommended) this one') && strcmp(answerA.FontWeight, 'bold'), ...
+    'The mark right after the letter, where it is never cut off (Sean, 17:10)');
+answerB = findall(figureHandle, 'Tag', 'aqAnswer_B');
+assert(startsWith(answerB.Text, '(B) that one') && strcmp(answerB.FontWeight, 'normal'));
 assert(~isempty(findall(figureHandle, 'Tag', 'aqAnswer_Later')) && isempty(findall(figureHandle, 'Tag', 'aqAnswer_BUG')));
 
 %% Previous and Next: the real buttons
@@ -198,6 +201,8 @@ delete(figureHandle);
 hooks = figureHandle.UserData;
 assert(height(answers) == 3);
 assert(isequal(cellstr(answers.Choice)', {'A', 'C', 'BUG'}));
+doneText = hooks.Done();
+assert(~contains(doneText, 'Q90') && contains(doneText, 'T90 BUG'), 'Done: only what is new since the last Done in any window');
 assert(strcmp(hooks.Current().ID, 'Q90'), 'Every item answered: it opens at the first');
 % (a broken line in the file is passed over)
 fileID = fopen(answersFile, 'a');

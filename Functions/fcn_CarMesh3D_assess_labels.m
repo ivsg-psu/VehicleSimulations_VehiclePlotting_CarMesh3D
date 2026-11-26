@@ -40,7 +40,8 @@ function result = fcn_CarMesh3D_assess_labels(vehicleInput, options)
 % OUTPUTS:
 %
 %      result: a structure (one element per question in describe mode)
-%      with Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey,
+%      with Key, Title, Question, Detail (a second line of guidance under
+%      the question), Answers, ProblemAnswers, Help, GroupKey,
 %      GroupTitle, GroupHelp; and, in the other modes, Fingerprint, Skip
 %      ('' or why it cannot be asked for this vehicle) and Note.
 %
@@ -65,6 +66,11 @@ function result = fcn_CarMesh3D_assess_labels(vehicleInput, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assess_labels
 %   % * First write (the V&V design file, section 5, order 2)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assess_labels
+%   % * Detail: a second line of guidance under the question (Sean, T62)
+%   % * A legend of the label colors under the pictures (Sean, T62)
 
 % TO-DO:
 %
@@ -86,6 +92,7 @@ described = struct('Key', 'labels', 'Title', 'Labels', ...
     'dark gray; lamps by type: headlight yellow, turn signal orange, running cyan, tail red, backup ' ...
     'green, a lamp with no type magenta. No if a part has the wrong color, such as a lamp in body ' ...
     'gray or a window in trim.'], ...
+    'Detail', 'If unsure, or the mesh needs turning to see it, select No and check in the viewer (fcn_CarMesh3D_viewLabels); fix in the painter (fcn_CarMesh3D_paintLabels). Do not select Yes if unsure.', ...
     'GroupKey', 'labels', 'GroupTitle', 'Labels', ...
     'GroupHelp', 'The labels: which part each face belongs to, by color');
 if strcmpi(options.Mode, 'describe')
@@ -105,9 +112,9 @@ if strcmpi(options.Mode, 'fingerprint')
 end
 
 % The pictures: the label colors, front and rear
-labelMesh = fcn_CarMesh3D_plotLabels(mesh, FigNum=-1);
+[labelMesh, legendEntries] = fcn_CarMesh3D_plotLabels(mesh, FigNum=-1);
 captions = {'Labels, from the front left', 'Labels, from the rear right'};
-axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 2, FigNum=options.FigNum);
+axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 2, Legend=legendEntries, FigNum=options.FigNum);   % (with a legend of the label colors: Sean, T62)
 views = [145 20; -35 20];   % (azimuth, elevation: front left, rear right; +x forward, +y left)
 for ith_view = 1:2
     fcn_CarMesh3D_plotVehicle(labelMesh, AxesHandle=axesHandles(ith_view), FigNum=-1);

@@ -39,7 +39,8 @@ function result = fcn_CarMesh3D_assess_headlights(vehicleInput, options)
 % OUTPUTS:
 %
 %      result: a structure (one element per question in describe mode)
-%      with Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey,
+%      with Key, Title, Question, Detail (a second line of guidance under
+%      the question), Answers, ProblemAnswers, Help, GroupKey,
 %      GroupTitle, GroupHelp; and, in the other modes, Fingerprint, Skip
 %      ('' or why it cannot be asked for this vehicle) and Note.
 %
@@ -64,6 +65,12 @@ function result = fcn_CarMesh3D_assess_headlights(vehicleInput, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assess_headlights
 %   % * First write (the V&V design file, section 5, order 4)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assess_headlights
+%   % * Detail: a second line of guidance under the question (Sean, T62)
+%   % * The beams on a ground plane ahead, so the light cones show (Sean,
+%   %   % T63): plotVehicle's LightEffects, on a dark ground
 
 % TO-DO:
 %
@@ -81,9 +88,11 @@ end
 described = struct('Key', 'headlights', 'Title', 'Headlights', ...
     'Question', 'Do the headlights go off, low, high as expected in these three pictures?', ...
     'Answers', {{'Yes', 'No'}}, 'ProblemAnswers', {{'No'}}, ...
-    'Help', ['The front at night, three times: headlights off, on low beam, on high beam. No if a headlight ' ...
+    'Help', ['The front at night, three times: headlights off, on low beam, on high beam, with the beams on ' ...
+    'the ground ahead (short and wide for low; long and narrow added for high). No if a headlight ' ...
     'does not light, the wrong part lights (such as the grille), or a lamp lights when it should be ' ...
     'off.'], ...
+    'Detail', 'If unsure, select No and check the Nighttime view in the viewer (fcn_CarMesh3D_viewLabels); fix in the painter (fcn_CarMesh3D_paintLabels). Do not select Yes if unsure.', ...
     'GroupKey', 'headlights', 'GroupTitle', 'Headlights', ...
     'GroupHelp', 'The headlights: off, low beam, high beam');
 if strcmpi(options.Mode, 'describe')
@@ -110,11 +119,26 @@ end
 states = {'off', 'low', 'high'};
 captions = {'Headlights off', 'Low beam', 'High beam'};
 axesHandles = fcn_CarMesh3D_assessAxes(options.Parent, 3, Dark=true, FigNum=options.FigNum);
+% (the beams: plotVehicle's light pools, on a dark ground that reaches
+% groundAhead meters in front of the vehicle, seen from above the front
+% left so the cones show; Sean, T63)
+groundAhead = 5;    % [m] ground shown ahead of the front
+groundSide = 2.2;   % [m] ground shown to each side of the center line
+meshLow = min(mesh.Vertices, [], 1);
+meshHigh = max(mesh.Vertices, [], 1);
+groundX = [meshLow(1) - 0.5, meshHigh(1) + groundAhead];
 for ith_view = 1:3
     fcn_CarMesh3D_plotVehicle(mesh, AxesHandle=axesHandles(ith_view), ...
-        LightStates=struct('Headlights', states{ith_view}), FigNum=-1);
-    view(axesHandles(ith_view), 115, 12);   % (the front, a little from the left)
+        LightStates=struct('Headlights', states{ith_view}), LightEffects=true, FigNum=-1);
+    patch(axesHandles(ith_view), 'XData', groundX([1 2 2 1]), 'YData', groundSide*[-1 -1 1 1], ...
+        'ZData', -0.003*[1 1 1 1], 'FaceColor', [0.16 0.16 0.19], 'EdgeColor', 'none', 'FaceLighting', 'none', ...
+        'HitTest', 'off', 'Tag', 'assessGround');
+    view(axesHandles(ith_view), 128, 20);   % (the front, from the left and above: the beams ahead show)
     axis(axesHandles(ith_view), 'equal', 'off');
+    xlim(axesHandles(ith_view), groundX);
+    ylim(axesHandles(ith_view), groundSide*[-1 1]);
+    zlim(axesHandles(ith_view), [-0.01, meshHigh(3) + 0.1]);
+    camzoom(axesHandles(ith_view), 1.35);   % (the vehicle as large as the beams allow)
     title(axesHandles(ith_view), captions{ith_view}, 'FontWeight', 'normal', 'FontSize', 11, 'Color', [0.9 0.9 0.9]);
     axesHandles(ith_view).Title.Visible = 'on';
 end

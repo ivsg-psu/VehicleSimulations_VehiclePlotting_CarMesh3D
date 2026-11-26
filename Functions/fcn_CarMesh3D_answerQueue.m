@@ -110,6 +110,12 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % test of the queue, run from the queue, closed the person's own
 %   %   % queue window; now no answer-queue window is closed, and the
 %   %   % status is not written to a window that has gone
+%   % * The recommended answer marked right after its letter, in bold, and
+%   %   % the answers across the full width (Sean, 17:10: the mark at the
+%   %   % end was cut off)
+%   % * Done remembers its time in the queue folder (lastDone.txt), so a
+%   %   % new window's Done copies only what is new (Sean, 17:10: an old
+%   %   % answer came again)
 
 % TO-DO:
 %
@@ -155,7 +161,11 @@ currentIndex = 1;
 flagShowing = false;
 lastError = '';
 lastOutput = '';
+doneFile = fullfile(queueFolder, 'lastDone.txt');   % (when Done was last pressed, in any window: Sean, 17:10)
 lastDoneTime = '';
+if isfile(doneFile)
+    lastDoneTime = strtrim(fileread(doneFile));
+end
 
 %% The window
 % (HandleVisibility off: "close all", at the top of most test scripts, then
@@ -204,7 +214,7 @@ runButton = uibutton(runGrid, 'Text', 'Run the commands', 'Tag', 'aqRun', 'Butto
 codeTestsButton = uibutton(runGrid, 'Text', 'Run the code tests', 'Tag', 'aqRunCodeTests', ...
     'ButtonPushedFcn', @(~,~) doRunCodeTests(), 'Tooltip', 'Runs the test scripts this item names, and says PASS or FAIL');
 runStatus = uilabel(runGrid, 'Text', '', 'Tag', 'aqRunStatus');
-answerGrid = uigridlayout(pageGrid, [1 2], 'ColumnWidth', {560, '1x'}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
+answerGrid = uigridlayout(pageGrid, [1 2], 'ColumnWidth', {'2x', '1x'}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 answerGroup = uibuttongroup(answerGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'aqAnswers', ...
     'SelectionChangedFcn', @(~,event) onPicked(event));
 commentArea = uitextarea(answerGrid, 'Placeholder', 'Comment (optional)', 'Tag', 'aqComment', ...
@@ -316,18 +326,28 @@ end
         flagShowing = true;
         delete(answerGroup.Children);
         blank = uiradiobutton(answerGroup, 'Text', '', 'Visible', 'off', 'Position', [1 1 1 1], 'UserData', '');
+        % (three to a column, the columns sharing the area's full width; the
+        % recommended answer says so right after its letter, in bold, so the
+        % mark is never the part cut off: Sean, 17:10)
         numPerColumn = 3;
-        columnWidth = 550/max(2, ceil(numel(keys)/numPerColumn));
+        groupWidth = answerGroup.InnerPosition(3);
+        if groupWidth < 100
+            groupWidth = 680;   % (not laid out yet)
+        end
+        columnWidth = (groupWidth - 8)/max(1, ceil(numel(keys)/numPerColumn));
         for ith_key = 1:numel(keys)
             column = floor((ith_key - 1)/numPerColumn);
             row = mod(ith_key - 1, numPerColumn);
             text = labels{ith_key};
             if recommended(ith_key)
-                text = [text '   (recommended)'];
+                text = regexprep(text, '^\((\w+)\)', '($1, recommended)', 'once');
             end
             button = uiradiobutton(answerGroup, 'Text', text, 'UserData', keys{ith_key}, 'FontSize', 13, ...
                 'Position', [6 + columnWidth*column, 42 - 20*row, columnWidth - 5, 20], 'Tag', ['aqAnswer_' keys{ith_key}], ...
-                'Tooltip', labels{ith_key});
+                'Tooltip', text);
+            if recommended(ith_key)
+                button.FontWeight = 'bold';
+            end
             if strcmp(keys{ith_key}, 'BUG')
                 button.FontColor = [0.75 0 0];
             end
@@ -459,8 +479,8 @@ end
 
     %% The clipboard: Done and NOW
     function textOut = doDone()
-        % (the answers since the last Done in this window, or all, one line
-        % each, ready to paste into the chat)
+        % (the answers since the last Done, in this window or an earlier
+        % one, one line each, ready to paste into the chat)
         answered = latestTable();
         if ~isempty(lastDoneTime)
             answered = answered(answered.When > string(lastDoneTime), :);
@@ -475,6 +495,11 @@ end
         end
         textOut = strjoin(lines, newline);
         lastDoneTime = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+        fileID = fopen(doneFile, 'w');
+        if fileID >= 0
+            fprintf(fileID, '%s', lastDoneTime);
+            fclose(fileID);
+        end
         copyText(textOut);
         statusLabel.Text = sprintf('Copied %d answers to the clipboard: paste them into the chat.', height(answered));
     end

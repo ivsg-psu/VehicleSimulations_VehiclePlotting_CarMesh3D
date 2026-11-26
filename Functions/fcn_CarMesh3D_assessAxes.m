@@ -10,7 +10,7 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 % FORMAT:
 %
 %       axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews,...
-%           (Captions=captions), (Dark=flag), (FigNum=figNum))
+%           (Captions=captions), (Dark=flag), (Legend=entries), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -26,6 +26,11 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 %
 %      Dark: true for a dark background (night, for lit lamps); default
 %      false (white).
+%
+%      Legend: color swatches with names, in one line under the pictures:
+%      a structure array with Name and Color (such as the second output
+%      of fcn_CarMesh3D_plotLabels); default none (Sean, T62: a simple
+%      legend of the label colors).
 %
 %      FigNum: the figure to use when parent is [] (cleared first); []
 %      (default) for a new figure. -1: fast mode (no input checks), a new
@@ -56,6 +61,11 @@ function axesHandles = fcn_CarMesh3D_assessAxes(parent, numViews, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assessAxes
 %   % * First write (the V&V design file, section 3)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assessAxes
+%   % * Legend=: a line of label-color swatches under the pictures (Sean,
+%   %   % T62)
 
 % TO-DO:
 %
@@ -66,6 +76,7 @@ arguments
     numViews            % How many pictures (1 to 4)
     options.Captions = {}   % A caption under each picture
     options.Dark = false    % Dark background
+    options.Legend = []     % Swatches under the pictures: struct array with Name, Color
     options.FigNum = []     % The figure when parent is []; -1 fast mode
 end
 
@@ -89,6 +100,9 @@ if 0==flag_max_speed && flag_check_inputs
     if ~isnumeric(numViews) || ~isscalar(numViews) || numViews < 1 || numViews > 4 || numViews ~= round(numViews)
         error('CarMesh3D:badInput', 'numViews must be 1, 2, 3 or 4.');
     end
+    if ~isempty(options.Legend) && ~(isstruct(options.Legend) && all(isfield(options.Legend, {'Name', 'Color'})))
+        error('CarMesh3D:badInput', 'Legend must be a structure array with Name and Color.');
+    end
 end
 
 %% Main code
@@ -99,6 +113,7 @@ if options.Dark
     textColor = [0.9 0.9 0.9];
 end
 axesHandles = gobjects(1, numViews);
+flagLegend = ~isempty(options.Legend);
 
 if isempty(parent)
     % (by itself at the prompt: a figure of its own)
@@ -113,10 +128,24 @@ if isempty(parent)
     for ith_view = 1:numViews
         axesHandles(ith_view) = nexttile(layout);
     end
+    if flagLegend
+        % (TeX: a colored square and the name for each)
+        layout.XLabel.String = fcn_INTERNAL_texLegend(options.Legend, textColor);
+        layout.XLabel.Interpreter = 'tex';
+        layout.XLabel.FontSize = 11;
+        layout.XLabel.Color = textColor;
+    end
 else
     delete(parent.Children);
     parent.BackgroundColor = background;
-    grid = uigridlayout(parent, [1 numViews], 'Padding', [4 4 4 4], 'ColumnSpacing', 4, 'BackgroundColor', background);
+    grid = uigridlayout(parent, [1 + flagLegend, numViews], 'Padding', [4 4 4 4], 'ColumnSpacing', 4, ...
+        'RowSpacing', 2, 'BackgroundColor', background);
+    if flagLegend
+        grid.RowHeight = {'1x', 22};
+        legendGrid = fcn_INTERNAL_legendRow(grid, options.Legend, background, textColor);
+        legendGrid.Layout.Row = 2;
+        legendGrid.Layout.Column = [1 numViews];
+    end
     for ith_view = 1:numViews
         axesHandles(ith_view) = uiaxes(grid);
         axesHandles(ith_view).Layout.Row = 1;
@@ -137,3 +166,37 @@ for ith_view = 1:numViews
 end
 
 end % Ends main function
+
+%% Functions follow
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_legendRow
+function legendGrid = fcn_INTERNAL_legendRow(parent, entries, background, textColor)
+% One centered row: a small bordered square in each color, then its name
+% (bordered so the near-white body shows on white). Real panels, not HTML:
+% a uilabel's HTML draws no background colors (found 2026-11-25)
+numEntries = numel(entries);
+widths = [{'1x'}, repmat({14, 'fit'}, 1, numEntries), {'1x'}];
+legendGrid = uigridlayout(parent, [1 numel(widths)], 'ColumnWidth', widths, 'RowHeight', {14}, ...
+    'Padding', [0 4 0 4], 'ColumnSpacing', 5, 'BackgroundColor', background, 'Tag', 'assessLegend');
+for ith_entry = 1:numEntries
+    swatch = uipanel(legendGrid, 'BorderType', 'line', 'BackgroundColor', entries(ith_entry).Color, ...
+        'HighlightColor', [0.45 0.45 0.45], 'Tag', 'assessLegendSwatch', 'UserData', entries(ith_entry).Name);
+    swatch.Layout.Column = 2*ith_entry;
+    nameLabel = uilabel(legendGrid, 'Text', [entries(ith_entry).Name '  '], 'FontSize', 12, 'FontColor', textColor, ...
+        'Tag', 'assessLegendName');
+    nameLabel.Layout.Column = 2*ith_entry + 1;
+end
+end % Ends fcn_INTERNAL_legendRow
+
+%% fcn_INTERNAL_texLegend
+function tex = fcn_INTERNAL_texLegend(entries, textColor)
+% The same for a figure of its own (TeX: a colored square, then the name)
+parts = cell(1, numel(entries));
+for ith_entry = 1:numel(entries)
+    parts{ith_entry} = sprintf('\\color[rgb]{%.2f %.2f %.2f}%s\\color[rgb]{%.2f %.2f %.2f} %s', ...
+        entries(ith_entry).Color, char(9632), textColor, entries(ith_entry).Name);
+end
+tex = strjoin(parts, '    ');
+end % Ends fcn_INTERNAL_texLegend
+

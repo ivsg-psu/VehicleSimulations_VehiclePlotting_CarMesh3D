@@ -42,7 +42,8 @@ function result = fcn_CarMesh3D_assess_realism(vehicleInput, options)
 % OUTPUTS:
 %
 %      result: a structure (one element per question in describe mode)
-%      with Key, Title, Question, Answers, ProblemAnswers, Help, GroupKey,
+%      with Key, Title, Question, Detail (a second line of guidance under
+%      the question), Answers, ProblemAnswers, Help, GroupKey,
 %      GroupTitle, GroupHelp; and, in the other modes, Fingerprint, Skip
 %      ('' or why it cannot be asked for this vehicle) and Note.
 %
@@ -67,6 +68,10 @@ function result = fcn_CarMesh3D_assess_realism(vehicleInput, options)
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_assess_realism
 %   % * First write (the V&V design file, section 5, order 6)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_assess_realism
+%   % * Detail: a second line of guidance under the question (Sean, T62)
 
 % TO-DO:
 %
@@ -87,6 +92,7 @@ described = struct('Key', 'realism', 'Title', 'Realism', ...
     'Help', ['Fig 1 (left): this mesh. Fig 2 (right): the approved exemplar of its body style, the standard a ' ...
     'mesh should meet. Lower if this mesh looks clearly worse (blockier, missing details, wrong ' ...
     'colors); Higher if it is good enough to be an exemplar itself.'], ...
+    'Detail', 'If unsure, compare the two in the viewer (fcn_CarMesh3D_viewLabels). Do not select Higher or Equal if unsure.', ...
     'GroupKey', 'realism', 'GroupTitle', 'Realism', ...
     'GroupHelp', 'This mesh beside its body style''s approved exemplar');
 if strcmpi(options.Mode, 'describe')

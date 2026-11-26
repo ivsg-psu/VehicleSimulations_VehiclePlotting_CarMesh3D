@@ -26,6 +26,8 @@
 %   %   % kept; the format the library browser reads; batches
 %   % * The two-row top bar (Sean, 12:16): vehicle buttons as pictures,
 %   %   % greyed when there is none; Previous vehicle; Summary and back
+%   % * The second line under the question: the assessment's Detail
+%   %   % (Sean, T62)
 
 % TO-DO:
 %
@@ -80,6 +82,10 @@ assert(strcmp(current.Key, 'drawsA'));   % (the first unanswered question)
 drawPanel = findall(figureHandle, 'Tag', 'vvDrawPanel');
 assert(~isempty(findall(drawPanel, 'Type', 'axes')));   % (the assessment drew in the host's panel)
 assert(strcmp(findall(figureHandle, 'Tag', 'vvQuestion').Text, 'Is the first test picture right?'));
+assert(strcmp(findall(figureHandle, 'Tag', 'vvDetail').Text, 'A test detail line'), ...
+    'The second line: the assessment''s Detail (Sean, T62)');
+allPages = hooks.Pages();   % (zzFails gives no Detail: its page has no second line)
+assert(isempty(allPages(3).Detail) && strcmp(allPages(3).QKey, 'fails'), 'An assessment without a Detail');
 assert(isfile(reviewFile));   % (saved at once)
 % (the top bar's two rows: one vehicle, so both vehicle buttons greyed,
 % with greyed pictures; the question row's Previous greyed on the first)
@@ -425,6 +431,7 @@ end
 described = struct('Key', {'drawsA', 'drawsB'}, 'Title', {'First picture', 'Second picture'}, ...
     'Question', {'Is the first test picture right?', 'Is the second test picture right?'}, ...
     'Answers', {{'Yes', 'No'}}, 'ProblemAnswers', {{'No'}}, 'Help', 'A test question', ...
+    'Detail', 'A test detail line', ...
     'GroupKey', 'zzDraws', 'GroupTitle', 'Test pictures', 'GroupHelp', 'Test assessment: draws');
 result = fcn_INTERNAL_testResult(described, vehicleInput, options);
 if strcmpi(options.Mode, 'draw')

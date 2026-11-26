@@ -6,6 +6,10 @@
 % 2026_11_21 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_plotLabels
 %   % * First write
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In script_test_fcn_CarMesh3D_plotLabels
+%   % * The legend output (Sean, T62)
 
 % TO-DO:
 %
@@ -38,6 +42,17 @@ assert(isequal(labelMesh.FaceColors(3,:),[0.55 0.80 1.00]));   % glass
 assert(isequal(labelMesh.FaceColors(7,:),[1.00 0.90 0.10]));   % headlight
 assert(isequal(labelMesh.FaceColors(11,:),[0.90 0.00 0.00]));  % tail
 assert(labelMesh.FaceAlpha(3)==0.6 && labelMesh.FaceAlpha(1)==1);
+
+%% The legend: the label colors this mesh uses, parts then lamp types
+[~, legendEntries] = fcn_CarMesh3D_plotLabels(testMesh, FigNum=-1);
+assert(isequal({legendEntries.Name}, {'body', 'glass', 'headlight', 'tail'}), ...
+    'Only what the mesh shows: the light part''s faces all show a lamp type');
+assert(isequal([legendEntries.Faces], [6 2 2 2]));
+assert(isequal(legendEntries(3).Color, [1.00 0.90 0.10]));
+untypedMesh = testMesh;
+untypedMesh.FaceLightType(7:8) = 0;   % (a lamp with no type)
+[~, legendEntries] = fcn_CarMesh3D_plotLabels(untypedMesh, FigNum=-1);
+assert(any(strcmp({legendEntries.Name}, 'lamp, no type')));
 
 %% A plot, left open
 figNum = 10001;

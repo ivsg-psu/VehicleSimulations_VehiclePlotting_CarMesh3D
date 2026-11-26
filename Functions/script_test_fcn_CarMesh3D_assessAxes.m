@@ -9,6 +9,7 @@
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_assessAxes
 %   % * First write (drafted with Claude)
+%   % * Legend= (Sean, T62)
 
 % TO-DO:
 %
@@ -44,6 +45,34 @@ assert(strcmp(axesHandles(3).Title.String, 'c'));
 fcn_CarMesh3D_assessAxes(panel, 1);
 assert(isscalar(findall(panel, 'Type', 'axes')));
 delete(figureHandle);
+
+%% A legend under the pictures (Sean, T62)
+fprintf(1, 'A legend\n');
+entries = struct('Name', {'body', 'turn signal'}, 'Color', {[0.97 0.97 0.97], [1 0.5 0]});
+figureHandle = uifigure('Visible', 'off');
+panel = uipanel(figureHandle);
+fcn_CarMesh3D_assessAxes(panel, 2, Legend=entries);
+assert(isscalar(findall(panel, 'Tag', 'assessLegend')));
+swatches = findall(panel, 'Tag', 'assessLegendSwatch');
+names = findall(panel, 'Tag', 'assessLegendName');
+assert(numel(swatches) == 2 && numel(names) == 2);
+assert(isequal(sort(strtrim({names.Text})), {'body', 'turn signal'}));
+turnSwatch = findobj(swatches, 'UserData', 'turn signal');
+assert(isequal(turnSwatch.BackgroundColor, [1 0.5 0]) && strcmp(turnSwatch.BorderType, 'line'));
+fcn_CarMesh3D_assessAxes(panel, 2);   % (none asked: none drawn)
+assert(isempty(findall(panel, 'Tag', 'assessLegend')));
+delete(figureHandle);
+figNum = 1002;
+fcn_CarMesh3D_assessAxes([], 2, Legend=entries, FigNum=figNum);
+layout = findall(figure(figNum), 'Type', 'tiledlayout');
+assert(contains(layout.XLabel.String, 'turn signal') && contains(layout.XLabel.String, '\color[rgb]{1.00 0.50 0.00}'));
+close(figure(figNum));
+try
+    fcn_CarMesh3D_assessAxes([], 1, Legend=struct('Name', 'x'));
+    error('should have failed');
+catch inputError
+    assert(strcmp(inputError.identifier, 'CarMesh3D:badInput'));
+end
 
 %% Fast mode
 fprintf(1, 'Fast mode\n');

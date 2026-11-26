@@ -10,6 +10,10 @@
 % 2026_11_25 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_assess_patchyLabels
 %   % * First write (drafted with Claude)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In script_test_fcn_CarMesh3D_assess_patchyLabels
+%   % * The legend under the pictures (Sean, T62)
 
 % TO-DO:
 %
@@ -69,7 +73,9 @@ panel = uipanel(figureHandle, 'Position', [0 0 1000 500]);
 uilabel(panel, 'Text', 'left from before');   % (cleared by the function)
 result = fcn_CarMesh3D_assess_patchyLabels(vehicle, Parent=panel, FigNum=-1);
 if isempty(result.Skip)
-    assert(isempty(findall(panel, 'Type', 'uilabel')));
+    labels = findall(panel, 'Type', 'uilabel');
+    assert(~any(strcmp({labels.Text}, 'left from before')), 'The panel cleared');
+    assert(isscalar(findall(panel, 'Tag', 'assessLegend')), 'The legend of the label colors (Sean, T62)');
     assert(numel(findall(panel, 'Type', 'axes')) == 2);
 end
 delete(figureHandle);
