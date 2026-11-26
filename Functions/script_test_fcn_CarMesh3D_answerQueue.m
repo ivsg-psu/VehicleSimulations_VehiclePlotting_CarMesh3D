@@ -16,6 +16,7 @@
 %   %   % the comment; the last answer wins; Done and NOW; Run the
 %   %   % commands (kept from closing the window) and the code tests
 %   % * BUG case (T73, Sean 17:03): Run keeps every queue window open
+%   % * The answers across the full width (Sean, 22:57); Watch (23:17)
 
 % TO-DO:
 %
@@ -218,6 +219,45 @@ fcn_INTERNAL_writeItems(queueFolder, items);
 [~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false);
 assert(strcmp(figureHandle.UserData.Current().ID, 'Q92'), 'The first item not answered');
 delete(figureHandle);
+
+%% The answers use the area's full width (Sean, 22:57)
+fprintf(1, 'The answers across the full width\n');
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Watch=false);
+figureHandle.UserData.Show('T90');   % (a test: five answers, two columns)
+drawnow;
+answerGroup = findall(figureHandle, 'Tag', 'aqAnswers');
+groupWidth = answerGroup.InnerPosition(3);
+answerBug = findall(figureHandle, 'Tag', 'aqAnswer_BUG');
+assert(answerBug.Position(3) > (groupWidth - 8)/2 - 10, 'Each column half the area: %.0f of %.0f', answerBug.Position(3), groupWidth);
+figureHandle.Position(3) = figureHandle.Position(3) + 300;   % (wider: the answers follow)
+drawnow;
+answerGroup.SizeChangedFcn(answerGroup, []);
+assert(answerBug.Position(3) > (answerGroup.InnerPosition(3) - 8)/2 - 10);
+delete(figureHandle);
+
+%% Watch: new items load while the window stays open (Sean, 23:17)
+fprintf(1, 'Watch\n');
+[~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false, Watch=true);
+assert(~isempty(timerfindall('Tag', 'answerQueueWatch')), 'Watching');
+figureHandle.UserData.Show('T90');
+commentArea = findall(figureHandle, 'Tag', 'aqComment');
+commentArea.Value = 'being typed';
+figureHandle.UserData.CheckItems();   % (nothing changed: nothing happens)
+assert(strcmp(figureHandle.UserData.Current().ID, 'T90'));
+pause(1.1);   % (the file's time, to the second on some disks)
+newItems = items;
+newItems(end+1) = newItems(1);
+newItems(end).ID = 'Q93';
+newItems(end).Title = 'A new question';
+fcn_INTERNAL_writeItems(queueFolder, newItems);
+figureHandle.UserData.CheckItems();
+assert(numel(figureHandle.UserData.Items()) == numel(items) + 1, 'The new item loaded');
+assert(strcmp(figureHandle.UserData.Current().ID, 'T90'), 'The item shown is kept');
+assert(strcmp(strjoin(cellstr(commentArea.Value), ''), 'being typed'), 'A comment being typed is kept');
+assert(contains(findall(figureHandle, 'Tag', 'aqStatus').Text, 'New items loaded'));
+delete(figureHandle);
+assert(isempty(timerfindall('Tag', 'answerQueueWatch')), 'The watch stops with the window');
+fcn_INTERNAL_writeItems(queueFolder, items);
 
 %% Exit: the menu's last line
 [~, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, Who='ZZT', Clipboard=false, Visible=false);

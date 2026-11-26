@@ -8,7 +8,7 @@
 
 ## Review now (for Sean)
 
-*Nothing to test now. Q62 (A) (Exit, last in the ☰ Menu of every GUI) is being built; Q63 (A): the menu bar is a Someday item (section 7).*
+*Nothing to test now. Q71 (A) (section 7): read-only GUIs may open many windows; the painter and V&V GUI one per vehicle; the menu bar moves up the Someday list.*
 
 ---
 
@@ -94,6 +94,8 @@ As built in `fcn_CarMesh3D_reviewChecks` (its EDIT HERE block is the one place t
 
   *Claude's weighing (14:25), agreed by Sean:* about half a day, mostly in one shared function (`fcn_CarMesh3D_makePanelMenu`), plus each GUI's top bar and tests, and a look-and-feel round. Gains: the usual places for File, View and Help in any desktop program, whatever language the user reads; a cleaner top bar; keyboard shortcuts; panels of a hosted GUI added to the host's bar. Costs: in R2025b menu items are small words only (no pictures, no larger text), which works against rule G41 (pictures before words); a small "View" is harder to find than a large ☰ button; another round of review for every GUI. Look again once the icon work has shown how far pictures go.
 - **Several GUIs open at once** (Sean, 16:16): a Someday item in the work queue; needs live settings (a later change to Q46), a guard against two windows editing one vehicle, and remembered window sizes and positions. Q45 (A) fits it: each open window is its own top window.
+- **Several windows of one GUI (Q71 (A), Sean 2026-11-25 23:27):** GUIs that only read (the viewer, the browser) may be open many times, such as two vehicles side by side; GUIs that write a vehicle's files (the painter, the V&V GUI) allow one window per vehicle: a second call on the same vehicle brings the open window to the front and says so in its status line. The answer queue only adds to its file, so any number is safe. Sean's note: "Being able to open up multiple instances increases pressure to clean up the visual space and move menu items into actual menu, etc. (the Someday task) since students may have dozens of these open at the same time." So the menu bar above moves up the Someday list.
+- **Offline test, later (Sean, 23:27):** can the renderer keep up with five or more meshes in view at once (several windows, or several vehicles in one)? A timing test for the offline list.
 
 ## 8. What was built (2026-11-24, 16:25 to 21:00)
 
@@ -175,3 +177,4 @@ When a question is answered, its content moves into the right section above, and
 - 2026-11-25 13:25 (Claude, Sean 13:15): T53 to T56 left Sean's list (tested by code, named in "Tests for Sean"); T57 and T58 retired (the old reviewer is now the V&V GUI); T59, a look, stays.
 - 2026-11-25 14:24 (Sean, in this file): **T59**: "Looks and behaves well overall. Main comment: when made small, the buttons Menu and Exit become a main focus. Let's put the Exit button as option (last) in Menu - this cleans up visuals. The menu button being a menu is odd - in a window, seems like this function should actually be a menu, as in a built-in one. Let's also put on Someday list moving even the menu button into an actual menu within the window (e.g. normal meaning of "menu")." Round closed. Claude weighed the menu bar before it goes to Someday (in the chat, 14:25): Q62 and Q63.
 - 2026-11-25 14:31 (Sean): **Q62 (A)** (asked by Claude in the chat after T59: where Exit goes): Exit becomes the last item of the ☰ Menu in every GUI, named the same everywhere (the V&V GUI's Close becomes Exit). **Q63 (A)** (asked with it: a real menu bar now or later): Someday, written up in section 7 with Sean's Help sub-menus (License, Build info).
+- 2026-11-25 23:27 (Sean, in the answer queue, on Claude's Q71 after his Q68 note that a second viewer opened): **Q71 (A)**: read-only GUIs may open many windows; the painter and the V&V GUI one per vehicle. With the note that many windows raise the menu bar's priority, and a later offline test of five or more meshes in view (section 7).

@@ -27,7 +27,7 @@
 %   % * The two-row top bar (Sean, 12:16): vehicle buttons as pictures,
 %   %   % greyed when there is none; Previous vehicle; Summary and back
 %   % * The second line under the question: the assessment's Detail
-%   %   % (Sean, T62)
+%   %   % (Sean, T62); the "Show the commands" link (Sean, T74)
 
 % TO-DO:
 %
@@ -84,6 +84,11 @@ assert(~isempty(findall(drawPanel, 'Type', 'axes')));   % (the assessment drew i
 assert(strcmp(findall(figureHandle, 'Tag', 'vvQuestion').Text, 'Is the first test picture right?'));
 assert(strcmp(findall(figureHandle, 'Tag', 'vvDetail').Text, 'A test detail line'), ...
     'The second line: the assessment''s Detail (Sean, T62)');
+commandsLink = findall(figureHandle, 'Tag', 'vvCommandsLink');   % (the link: the real control, Sean T74)
+printed = evalc('commandsLink.HyperlinkClickedFcn(commandsLink, [])');
+assert(contains(printed, 'fcn_CarMesh3D_viewLabels(vehicleMesh);') && contains(printed, 'fcn_CarMesh3D_paintLabels('''), ...
+    'Show the commands prints the viewer and painter commands');
+assert(contains(findall(figureHandle, 'Tag', 'vvStatus').Text, 'Command Window'));
 allPages = hooks.Pages();   % (zzFails gives no Detail: its page has no second line)
 assert(isempty(allPages(3).Detail) && strcmp(allPages(3).QKey, 'fails'), 'An assessment without a Detail');
 assert(isfile(reviewFile));   % (saved at once)

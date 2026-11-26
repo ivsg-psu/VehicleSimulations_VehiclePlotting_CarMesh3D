@@ -195,7 +195,7 @@ The night scene of the animator's lights check (`fcn_CarMesh3D_animateChecks`): 
 | `History` | [] (the file's) | The mesh's history for the fine print; false for none. |
 | `PhotoOptions` | false | The photo options under the photo (the painter sets true). |
 | `OnLamps` | [] | Function called with the lamp states each time they change (the painter's lamp panel). |
-| `Wait` | true in its own visible window | Wait until closed and return the settings then. |
+| `Wait` | false (Q68 (A)) | true: wait until closed and return the settings then. By default the viewer returns at once and the prompt stays free. |
 | `Visible` | true | false builds it hidden (tests). |
 | `FigNum` | [] | -1: fast mode, no input checks. |
 
@@ -578,3 +578,4 @@ When a question is answered, its content moves into the right section above, and
   * PASS: very clear. 
   )
 - 2026-11-24 16:25 (Claude, Sean 16:20 to 16:23): section 2 now points to `Documentation_CarMesh3D_GUIdesign_rules.md` for the general rules; V1 to V8 stay here (this window only).
+- 2026-11-25 23:15 (Sean, in the answer queue, on Claude's Q68 after Sean's 17:02 aside that the GUIs block the prompt): **Q68 (A)**: the viewer returns at once by default (`Wait=false`); `Wait=true` still waits and returns the closing view. Built 23:24; the demo menu's viewer examples pass `Wait=true`. Sean's note, that a second viewer window opened, became Q71 (`Documentation_CarMesh3D_GUIdesign_sharedPanels.md`, section 7).

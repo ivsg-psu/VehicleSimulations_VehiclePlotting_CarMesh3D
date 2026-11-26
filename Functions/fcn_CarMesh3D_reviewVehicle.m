@@ -145,6 +145,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %   % * A second line under each question, smaller and not bold: guidance
 %   %   % from the assessment's Detail (Sean, T62; the V&V design file,
 %   %   % Plan item 6)
+%   % * "Show the commands" beside the second line: prints the commands to
+%   %   % open the vehicle in the viewer and the painter (Sean, T74)
 
 % TO-DO:
 %
@@ -281,10 +283,18 @@ questionLabel.Layout.Row = 1;
 questionLabel.Layout.Column = [1 2];
 % (the second line: guidance, smaller and not bold, from the assessment's
 % Detail; Sean, T62: "Do not select Yes if unsure")
-detailLabel = uilabel(questionGrid, 'Text', '', 'FontSize', 12, 'FontColor', [0.25 0.25 0.25], 'Tag', 'vvDetail', ...
+detailGrid = uigridlayout(questionGrid, [1 3], 'ColumnWidth', {'fit', 'fit', '1x'}, 'Padding', [0 0 0 0], ...
+    'ColumnSpacing', 8, 'BackgroundColor', questionGrid.BackgroundColor);
+detailGrid.Layout.Row = 2;
+detailGrid.Layout.Column = [1 2];
+detailLabel = uilabel(detailGrid, 'Text', '', 'FontSize', 12, 'FontColor', [0.25 0.25 0.25], 'Tag', 'vvDetail', ...
     'WordWrap', 'off');
-detailLabel.Layout.Row = 2;
-detailLabel.Layout.Column = [1 2];
+% (a link that prints, in the Command Window, the commands to open this
+% vehicle in the viewer and the painter: Sean, T74, in place of function
+% names in the guidance)
+commandsLink = uihyperlink(detailGrid, 'Text', 'Show the commands', 'FontSize', 12, 'Tag', 'vvCommandsLink', ...
+    'Tooltip', 'Prints, in the Command Window, the commands to open this vehicle in the viewer (to look) and the painter (to fix)', ...
+    'HyperlinkClickedFcn', @(~,~) printCommands());
 answerGroup = uibuttongroup(questionGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'vvAnswers', ...
     'SelectionChangedFcn', @(~,event) onAnswerPicked(event));
 answerGroup.Layout.Row = 3;
@@ -312,7 +322,7 @@ figureHandle.UserData = struct('Show', @testShow, 'Answer', @testAnswer, 'Decide
     'Retry', @testRetry, 'SkipError', @skipError, 'LastError', @getLastError, ...
     'NextVehicle', @nextVehicle, 'PreviousVehicle', @previousVehicle, 'ToggleSummary', @toggleSummary, ...
     'ReviewFile', @getReviewFile, 'ReportFile', @getReportFile, ...
-    'Menu', reviewMenu, 'Settings', sharedSettings);
+    'Menu', reviewMenu, 'Settings', sharedSettings, 'Commands', @printCommands);
 if options.Visible
     figureHandle.Visible = 'on';
 end
@@ -875,6 +885,18 @@ end
 
     function testRetry()
         showPage(currentPage);
+    end
+
+    function textOut = printCommands()
+        % (the commands to open the vehicle under review in the viewer and
+        % the painter, printed in the Command Window to copy or run)
+        folder = vehicle.Files.Folder;
+        textOut = sprintf(['%% %s: look in the viewer, fix in the painter\n' ...
+            'vehicleMesh = fcn_CarMesh3D_meshWithLabelEdits(''%s'');\n' ...
+            'fcn_CarMesh3D_viewLabels(vehicleMesh);\n' ...
+            'fcn_CarMesh3D_paintLabels(''%s'');\n'], vehicle.Name, folder, folder);
+        fprintf(1, '\n%s\n', textOut);
+        statusLabel.Text = 'The commands are printed in the Command Window.';
     end
 
     function current = getCurrent()

@@ -53,7 +53,7 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 % FORMAT:
 %
 %       [answers, figureHandle] = fcn_CarMesh3D_answerQueue((queueFolder),...
-%           (Who=initials), (Clipboard=flag), (Visible=flag), (FigNum=figNum))
+%           (Who=initials), (Clipboard=flag), (Visible=flag), (Watch=flag), (FigNum=figNum))
 %
 % INPUTS:
 %
@@ -70,6 +70,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %      clipboard; false for tests (they read it from the hooks).
 %
 %      Visible: true (default); false builds the window hidden (tests).
+%
+%      Watch: true to check openItems.json every 3 s and load new items
+%      while the window stays open, keeping the item shown (Sean, 23:17:
+%      "can I just leave it open?"). Default: on when Visible.
 %
 %      FigNum: not used (a window); -1 skips input checks.
 %
@@ -116,6 +120,12 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   % * Done remembers its time in the queue folder (lastDone.txt), so a
 %   %   % new window's Done copies only what is new (Sean, 17:10: an old
 %   %   % answer came again)
+%   % * The answers laid out again whenever their area changes size, so
+%   %   % they use its full width (Sean, 22:57: cut off, with space to spare;
+%   %   % the width was read before the window was laid out)
+%   % * Done copies comments whole (they were cut at 160 characters)
+%   % * Watch: new items in openItems.json load while the window stays
+%   %   % open (Sean, 23:17)
 
 % TO-DO:
 %
@@ -126,6 +136,7 @@ arguments
     options.Who = ''          % Initials; '' for yours
     options.Clipboard = true  % false: Done and NOW only return their text (tests)
     options.Visible = true    % false: built hidden (tests)
+    options.Watch = []        % Check openItems.json for new items every few seconds; [] = when Visible
     options.FigNum = []       % Not used; -1 skips input checks
 end
 
@@ -162,6 +173,9 @@ flagShowing = false;
 lastError = '';
 lastOutput = '';
 doneFile = fullfile(queueFolder, 'lastDone.txt');   % (when Done was last pressed, in any window: Sean, 17:10)
+answerButtons = gobjects(0);   % (the answers shown, in order: placeAnswers lays them out)
+itemsStamp = 0;                % (openItems.json's time when loaded: Watch reloads when it changes)
+watchTimer = [];
 lastDoneTime = '';
 if isfile(doneFile)
     lastDoneTime = strtrim(fileread(doneFile));
@@ -216,7 +230,8 @@ codeTestsButton = uibutton(runGrid, 'Text', 'Run the code tests', 'Tag', 'aqRunC
 runStatus = uilabel(runGrid, 'Text', '', 'Tag', 'aqRunStatus');
 answerGrid = uigridlayout(pageGrid, [1 2], 'ColumnWidth', {'2x', '1x'}, 'Padding', [6 4 6 4], 'BackgroundColor', [0.93 0.96 1]);
 answerGroup = uibuttongroup(answerGrid, 'BorderType', 'none', 'BackgroundColor', [0.93 0.96 1], 'Tag', 'aqAnswers', ...
-    'SelectionChangedFcn', @(~,event) onPicked(event));
+    'SelectionChangedFcn', @(~,event) onPicked(event), 'AutoResizeChildren', 'off', ...
+    'SizeChangedFcn', @(~,~) placeAnswers());
 commentArea = uitextarea(answerGrid, 'Placeholder', 'Comment (optional)', 'Tag', 'aqComment', ...
     'ValueChangedFcn', @(~,~) onComment());
 statusLabel = uilabel(pageGrid, 'Text', '', 'FontColor', [0.35 0.35 0.35], 'Tag', 'aqStatus');
@@ -230,15 +245,26 @@ loadItems();
 answers = latestTable();
 figureHandle.UserData = struct('Show', @showItem, 'Answer', @testAnswer, 'Done', @doDone, 'Now', @doNow, ...
     'Run', @doRun, 'RunCodeTests', @doRunCodeTests, 'Items', @getItems, 'Answers', @latestTable, ...
-    'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu);
+    'Current', @getCurrent, 'Reload', @loadItems, 'Menu', answerMenu, 'CheckItems', @checkItems);
+flagWatch = options.Visible;
+if ~isempty(options.Watch)
+    flagWatch = logical(options.Watch);
+end
+if flagWatch
+    watchTimer = timer('ExecutionMode', 'fixedSpacing', 'Period', 3, 'BusyMode', 'drop', ...
+        'TimerFcn', @(~,~) checkItems(), 'Name', 'answerQueueWatch', 'Tag', 'answerQueueWatch');
+    figureHandle.DeleteFcn = @(~,~) stopWatch();
+    start(watchTimer);
+end
 if options.Visible
     figureHandle.Visible = 'on';
 end
 
 %% Nested functions (they share the window's state above)
 
-    function loadItems()
+    function loadItems(keepID)
         loaded = jsondecode(fileread(itemsFile));
+        itemsStamp = java.io.File(itemsFile).lastModified();
         items = fcn_INTERNAL_items(loaded);
         itemsWritten = '';
         if isfield(loaded, 'Written')
@@ -253,6 +279,9 @@ end
                 currentIndex = ith_item;
                 break;
             end
+        end
+        if nargin >= 1 && ~isempty(items) && any(strcmp({items.ID}, keepID))
+            currentIndex = find(strcmp({items.ID}, keepID), 1);   % (a reload keeps the item shown)
         end
         if ~isempty(items)
             showItem(currentIndex);
@@ -329,22 +358,15 @@ end
         % (three to a column, the columns sharing the area's full width; the
         % recommended answer says so right after its letter, in bold, so the
         % mark is never the part cut off: Sean, 17:10)
-        numPerColumn = 3;
-        groupWidth = answerGroup.InnerPosition(3);
-        if groupWidth < 100
-            groupWidth = 680;   % (not laid out yet)
-        end
-        columnWidth = (groupWidth - 8)/max(1, ceil(numel(keys)/numPerColumn));
+        answerButtons = gobjects(1, numel(keys));
         for ith_key = 1:numel(keys)
-            column = floor((ith_key - 1)/numPerColumn);
-            row = mod(ith_key - 1, numPerColumn);
             text = labels{ith_key};
             if recommended(ith_key)
                 text = regexprep(text, '^\((\w+)\)', '($1, recommended)', 'once');
             end
             button = uiradiobutton(answerGroup, 'Text', text, 'UserData', keys{ith_key}, 'FontSize', 13, ...
-                'Position', [6 + columnWidth*column, 42 - 20*row, columnWidth - 5, 20], 'Tag', ['aqAnswer_' keys{ith_key}], ...
-                'Tooltip', text);
+                'Position', [6, 2, 200, 20], 'Tag', ['aqAnswer_' keys{ith_key}], 'Tooltip', text);
+            answerButtons(ith_key) = button;
             if recommended(ith_key)
                 button.FontWeight = 'bold';
             end
@@ -358,8 +380,31 @@ end
         if isempty(selected)
             answerGroup.SelectedObject = blank;
         end
+        placeAnswers();
         drawnow limitrate;
         flagShowing = false;
+    end
+
+    function placeAnswers()
+        % (three to a column, the columns sharing the area's full width; run
+        % again whenever the area changes size, since its width is not known
+        % until the window is laid out: Sean, 22:57)
+        answerButtons = answerButtons(isvalid(answerButtons));
+        numKeys = numel(answerButtons);
+        if numKeys == 0
+            return;
+        end
+        numPerColumn = 3;
+        groupWidth = answerGroup.InnerPosition(3);
+        if groupWidth < 100
+            groupWidth = 680;   % (not laid out yet: placed again when it is)
+        end
+        columnWidth = (groupWidth - 8)/max(1, ceil(numKeys/numPerColumn));
+        for ith_key = 1:numKeys
+            column = floor((ith_key - 1)/numPerColumn);
+            row = mod(ith_key - 1, numPerColumn);
+            answerButtons(ith_key).Position = [6 + columnWidth*column, 42 - 20*row, columnWidth - 5, 20];
+        end
     end
 
     function onPicked(event)
@@ -393,6 +438,39 @@ end
         latest = fcn_INTERNAL_readAnswers(answersFile);
         refreshStatus();
         refreshList();
+    end
+
+    function checkItems()
+        % (Watch: when openItems.json has changed, load it, keeping the item
+        % shown and its comment as typed)
+        if ~isvalid(figureHandle) || ~isfile(itemsFile)
+            return;
+        end
+        if java.io.File(itemsFile).lastModified() == itemsStamp
+            return;
+        end
+        try
+            keepID = '';
+            typedComment = commentArea.Value;
+            if ~isempty(items)
+                keepID = items(currentIndex).ID;
+            end
+            loadItems(keepID);
+            if ~isempty(items) && strcmp(items(currentIndex).ID, keepID)
+                commentArea.Value = typedComment;   % (a comment being typed is kept)
+            end
+            statusLabel.Text = sprintf('New items loaded (%s): %d items.', ...
+                char(datetime('now', 'Format', 'HH:mm')), numel(items));
+        catch loadError
+            statusLabel.Text = ['openItems.json could not be read (it may be being written): ' loadError.message];
+        end
+    end
+
+    function stopWatch()
+        if ~isempty(watchTimer) && isvalid(watchTimer)
+            stop(watchTimer);
+            delete(watchTimer);
+        end
     end
 
     function goPrevious()
@@ -489,7 +567,7 @@ end
         for ith_row = 1:height(answered)
             line = sprintf('%s %s', answered.ID(ith_row), fcn_INTERNAL_choiceText(answered.Choice(ith_row)));
             if strlength(answered.Comment(ith_row)) > 0
-                line = sprintf('%s: %s', line, fcn_INTERNAL_short(answered.Comment(ith_row), 160));
+                line = sprintf('%s: %s', line, fcn_INTERNAL_short(answered.Comment(ith_row), 4000));
             end
             lines{end+1} = line; %#ok<AGROW>
         end

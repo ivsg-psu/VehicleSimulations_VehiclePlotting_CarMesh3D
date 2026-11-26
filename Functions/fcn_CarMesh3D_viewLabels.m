@@ -112,9 +112,10 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %      Overall Display). Default [] (none).
 %
 %      Wait: true to wait until the window is closed and return the view
-%      settings then. Default: true in a window of its own on screen,
-%      false otherwise (the settings when it opened are returned; the
-%      viewer's GetView gives them later).
+%      settings then. Default false: return at once, so the prompt stays
+%      free, as the other GUIs do (Q68 (A), Sean 2026-11-25); the settings
+%      when it opened are returned, and the viewer's GetView gives them
+%      later.
 %
 %      Visible: false to build the window hidden (for tests). Default true.
 %
@@ -390,6 +391,8 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 % - In fcn_CarMesh3D_viewLabels
 %   % * Exit moved from the top bar to the ☰ Menu's last line (Q62 (A),
 %   %   % Sean 14:31; same Tag, viewerExit)
+%   % * Wait defaults to false: the viewer returns at once and the prompt
+%   %   % stays free (Q68 (A), Sean 23:15)
 
 % TO-DO:
 %
@@ -660,7 +663,7 @@ flagBuilt = false;   % (true once the window is built: the view timer refits the
 flagOwnWindow = isempty(options.Parent);
 flagWait = options.Wait;
 if isempty(flagWait)
-    flagWait = flagOwnWindow && options.Visible;
+    flagWait = false;   % (Q68 (A): never wait unless asked)
 end
 if flagOwnWindow
     visibleText = 'on';

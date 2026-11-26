@@ -99,6 +99,12 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 % - In fcn_CarMesh3D_runDemoExample
 %   % * The reviewer example is the V&V GUI now (its title, description
 %   %   % and outputs)
+%
+% 2026_11_25 by Sean Brennan, sbrennan@psu.edu (drafted with Claude)
+% - In fcn_CarMesh3D_runDemoExample
+%   % * The viewer examples pass Wait=true, so they still return the view
+%   %   % settings when the window closes (the viewer no longer waits by
+%   %   % default: Q68 (A))
 
 % TO-DO:
 %
@@ -310,9 +316,9 @@ examples(end).Description = ['The mesh, each label in its own color, beside the 
     'When the window is closed, its view settings are returned (viewSettings).'];
 examples(end).DemoCommands = [copyLines; {
     '% Opens the viewer; it returns the view settings when it is closed'
-    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, Wait=true)'}];
 examples(end).VehicleCommands = [vehicleLines; {
-    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, Wait=true)'}];
 examples(end).SavesChanges = false;
 
 % The viewer, at a shared view
@@ -324,10 +330,10 @@ examples(end).Description = ['A view is shared by sending its settings: the view
 examples(end).DemoCommands = [copyLines; {
     '% The view sent: the tail lights alone, seen from behind'
     'sharedView = struct(''Label'', ''light_tail'', ''PhotoAngle'', 180);'
-    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(demoFiles.MeshFile, Outline=demoFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
 examples(end).VehicleCommands = [vehicleLines; {
     'sharedView = struct(''Label'', ''light_tail'', ''PhotoAngle'', 180);'
-    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView)'}];
+    'viewSettings = fcn_CarMesh3D_viewLabels(vehicleFiles.MeshFile, Outline=vehicleFiles.OutlineFile, ViewSettings=sharedView, Wait=true)'}];
 examples(end).SavesChanges = false;
 
 % The mesh editor: on the GUI test vehicle (every feature), then on the

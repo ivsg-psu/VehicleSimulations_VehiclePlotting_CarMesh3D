@@ -6,8 +6,8 @@
 
 ## Review now (for Sean)
 
-1. T74, T75 and T76 (below, and in the answer queue): the second line under each question, the label-color legend, and the headlight beams on the ground.
-2. Next in the plan (section 10): work real vehicles through the first round.
+1. Nothing to judge now (T74 to T77 answered 23:09 to 23:27; in the change log).
+2. Next in the plan (section 10): the Headlights and Brake lights pictures as 2 x 3, far views over close-ups of the left lamp (T76 (B)); a Start option (Q70 (A)); one window per vehicle (Q71 (A)).
 
 ## 1. What the V&V GUI is for
 
@@ -174,7 +174,11 @@ NOTE: this section notes planned current and future steps. If all are done, or a
 6. DONE (17:20): a second line under each question, smaller and not bold, with guidance (Sean, T62), from each function's describe mode as a new field, `Detail` (section 3); the tests check every listed assessment has one, and that the host shows it.
 7. DONE (17:26): a simple legend of the label colors under the label pictures (Sean, T62): only the colors the mesh uses, parts then lamp types (section 7).
 8. DONE (17:30): the headlights' beams on a dark ground plane in front of the vehicle (plotVehicle's light pools, `LightEffects=true`), seen from above the front left and zoomed so the vehicle stays large (Sean, T63). The body is still lit as by day (the scene lights): T76 asks whether it should be darker.
-9. Then: work real vehicles through the first round; add the later assessments (section 5, orders 7 to 15) one at a time.
+9. DONE (23:22): the second line shorter, with no function names, and a "Show the commands" link beside it that prints, in the Command Window, the commands to open the vehicle in the viewer and the painter (Sean, T74: "a mouse-click detection that triggers an fprintf command"; T77 (A)).
+10. Next: the Headlights and Brake lights pictures as a 2 x 3 grid: the far views on top (side label "Far view"), close-ups of the left (driver's side) lamp below ("Close-up of left headlight", "Close-up of left tail light") (Sean, T74 note, moved to T76 (B)).
+11. Next: `Start=` (Q70 (A)): open at a given question, such as `Start='labels'`, so test commands go straight to what is judged.
+12. Next: one V&V window per vehicle (Q71 (A)): a second call on the same vehicle brings the open window to the front.
+13. Then: work real vehicles through the first round, starting with the Fit (Sean: at or near pass; the Transit Connect has many errors); add the later assessments (section 5, orders 7 to 15) one at a time.
 
 
 
@@ -200,28 +204,10 @@ Key:
 *Pressing the real buttons found a bug the hooks had hidden: Previous and Next went only to questions 1 and 2 (their callbacks kept the page they were made with). This is what Sean met in T65 ("I cannot figure out how to advance"). Fixed 2026-11-25 13:21.*
 
 - *the legend: only the label colors the mesh uses, each square in its color (`script_test_fcn_CarMesh3D_plotLabels.m`, `script_test_fcn_CarMesh3D_assessAxes.m`);*
-- *the second line: the assessment's Detail shown under the question, and none for an assessment without one; every listed assessment has a Detail (`script_test_fcn_CarMesh3D_reviewChecks.m`).*
+- *the second line: the assessment's Detail shown under the question, and none for an assessment without one; every listed assessment has a Detail (`script_test_fcn_CarMesh3D_reviewChecks.m`);*
+- *"Show the commands": the real link pressed, and the viewer and painter commands printed.*
 
-T74. The second line under each question (Sean, T62). Step through the six questions and the Summary. Is the second line readable at a glance, set apart from the question, and is its advice right for each question? Expected: (A) yes; (B) yes, with wording changes (comment, naming the question).
-```matlab
-close all force; clear functions; clc
-demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
-fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
-```
-
-T76. The headlight beams on the ground (Sean, T63). Go to the Headlights question. Do the three pictures (off, low, high) make the beams easy to tell apart, with the vehicle still large enough to judge its lamps? Should the body be darker (it is lit as by day)? Expected: (A) yes; (B) yes, with changes (comment).
-```matlab
-close all force; clear functions; clc
-demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
-fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
-```
-
-T75. The label-color legend (Sean, T62). Go to the Labels and Patchy labels questions. Is the legend under the pictures easy to read, and does each square match the color on the vehicle? Expected: (A) yes; (B) yes, with changes (comment).
-```matlab
-close all force; clear functions; clc
-demoFiles = fcn_CarMesh3D_makeDemoCopy(fcn_CarMesh3D_demoVehicle);
-fcn_CarMesh3D_reviewVehicle(demoFiles.Folder);
-```
+(none open: T74 to T77 and their results are in the change log)
 
 ## Open questions
 
@@ -264,3 +250,8 @@ When a question is answered, its content moves into the right section above, and
 - 2026-11-25 17:20 (Claude, while Sean was away; Q69 (A)): plan item 6 built: the second line of guidance (`Detail`) in each first-round assessment and in the host; T74 asks Sean to judge it.
 - 2026-11-25 17:26 (Claude, while Sean was away): plan item 7 built: the label-color legend (first tried as HTML in a label, which draws no color squares; now small bordered panels); T75 asks Sean to judge it.
 - 2026-11-25 17:30 (Claude, while Sean was away): plan item 8 built: the headlight beams on a dark ground (first try: 9 m of ground made the vehicle too small to judge; now 5 m, zoomed); the Labels and Patchy labels tests updated for the legend; T76 asks Sean to judge it.
+- 2026-11-25 23:09 to 23:27, Sean, in the answer queue (first real use of it on V&V items; development):
+  - **T74 ???**: replace the function names in the small print with a click that prints the commands, for the current vehicle, in the Command Window. Built 23:22 (plan item 9). Also asked (moved to T76): Headlights and Brake lights as 2 x 3, with close-ups of the left lamp below; and debug with the Fit. **Mistake (Claude):** T74 to T76's commands used `fcn_CarMesh3D_demoVehicle`, which gives Sean's chosen demo vehicle (the Transit Connect, with many mesh errors), not the Fit, against rule G34 (name the vehicle by its ID). Commands now name `2009_Honda_Fit_Sport`.
+  - **T75 (A)**: the legend is right.
+  - **T76 (B)**: see T74's note (the 2 x 3 grid: plan item 10).
+  - **T77 (A)**: the shorter line and "Show the commands": "Works great, very nice feature. Fit opened up this time."
