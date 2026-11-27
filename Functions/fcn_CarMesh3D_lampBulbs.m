@@ -40,11 +40,13 @@ function [lampBulbs, brightness] = fcn_CarMesh3D_lampBulbs(options)
 %           Name: the type ('H4', 'HB2', 'W21/5W', ...)
 %           OtherNames: US trade numbers of the same bulb ('9003', '7443');
 %               only exact equivalents (the US 194 is not a W5W: it is
-%               about 3.8 W, and dimmer)
+%               about 3.8 W, and dimmer; it has a row of its own)
 %           Filaments: the filaments' names ({'high','low'}; {'main'}
 %               for a one-filament bulb)
-%           Lumens: each filament's light, in the same order
-%           Watts: each filament's rated power, in the same order
+%           Lumens: each filament's light, in the same order (for the
+%               LED fallbacks, such as 'LED-StopTail', relative intensities)
+%           Watts: each filament's rated power, in the same order (NaN for
+%               the LED fallbacks)
 %           Color: 'white', 'amber' or 'red' (the bulb's own glass)
 %           Tolerance: the stated tolerance, as text ('±15%')
 %           Source: where the lumens were found (a link)
@@ -76,15 +78,21 @@ function [lampBulbs, brightness] = fcn_CarMesh3D_lampBulbs(options)
 %   % * First write (the 2009 Fit's bulbs, from Honda's bulb table, and
 %   %   % their lumens from the bulb makers' data sheets and ECE R37)
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_lampBulbs
+%   % * The US 194 wedge (the Fit's 3.8 W parking/side-marker bulb): 2
+%   %   % mean spherical candlepower, so 4*pi*2 = 25 lumens (step 4A of the
+%   %   % plan of 2026-11-27)
+%   % * Accessed is per bulb (the date its source was read)
+%   % * 'LED-StopTail': the fallback for a combined LED stop and tail lamp,
+%   %   % which has no bulb rating: the legal ratio near the lamp's center,
+%   %   % stop at least 5 times the tail (SAE J586 5.1.5.3, through FMVSS
+%   %   % 108), so the tail is (1/5)^(1/3) = 0.58 (step 4B)
+
 % TO-DO:
 %
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_lampBulbs
-%   % * The US 194-family wedge (the Fit's 3.8 W amber parking/side
-%   %   % marker): its lumens not found yet
-%   % * LED lamps have no bulb rating: their values stay the defaults, or
-%   %   % come from the legal ratios (a stop lamp at least 3 times its tail
-%   %   % lamp, 5 times near the center: SAE J586 in FMVSS 108)
 
 arguments
     options.Bulb = ''        % A bulb type, for one filament's brightness
@@ -102,6 +110,8 @@ urlOsram921 = 'https://osram.us/ecat/Lamps%20with%20glass%20wedge%20bases-Signal
 urlPhilipsP215 = 'https://www.documents.philips.com/assets/20230217/3c3414ba4c4f48eabf2fafac00a18059.pdf';
 urlPhilipsPY21 = 'https://www.documents.philips.com/assets/20230215/4c2a75aa8bc6463ca554afaa006a0a5a.pdf';
 urlECE_R5W = 'https://digitallibrary.un.org/record/470392/files/%5BE_ECE_%5DTRANS_WP.29_GRE_2002_36-EN.pdf';
+url194 = 'https://static.datasheets.com/doc/6505846-cec-industries-194-ds.pdf';
+urlStopTailRatio = 'https://www.nhtsa.gov/node/41651';
 
 % EDIT HERE: one row per bulb type. Lumens and Watts in the order of the
 % filaments, brightest first.
@@ -119,11 +129,18 @@ bulbList = {
     'W5W',      {},                    {'main'},             50,           5,         'white', '±20%',    urlOsramWedge,  'Osram 2825 (W5W) data sheet'
     'R5W',      {},                    {'main'},             50,           5,         'white', '±20%',    urlECE_R5W,     'ECE R37 sheet R5W (objective luminous flux)'
     'W3W',      {},                    {'main'},             22,           3,         'white', '±30%',    urlOsramWedge,  'Osram 2821 (W3W) data sheet'
+    '194',      {},                    {'main'},             25,           3.78,      'white', '',        url194,         ['CEC Industries 194 data sheet: 14 V, 0.27 A, 2 MSCP; lumens = 4*pi*MSCP = 25 (Eiko lists 25 lm). ' ...
+                                                                                                                           'Amber versions (194A, 194NA) give less; their lumens were not found']
+    'LED-StopTail', {},                {'stop','tail'},      [5 1],        [NaN NaN], 'red',   'a minimum', urlStopTailRatio, ['Not a bulb: the fallback for a combined LED stop and tail lamp, which has no rating. ' ...
+                                                                                                                           'Relative intensities, not lumens: the legal minimum near the lamp''s center, stop 5 times the tail ' ...
+                                                                                                                           '(SAE J586 5.1.5.3 in FMVSS 108; 3 times at the other test points), as NHTSA''s interpretation quotes it']
     };
+% (the date each row's source was read, in the same order)
+accessedList = [repmat({accessed}, 12, 1); {'2026-11-27'}; {'2026-11-27'}];
 
 lampBulbs = struct('Name', bulbList(:,1), 'OtherNames', bulbList(:,2), 'Filaments', bulbList(:,3), ...
     'Lumens', bulbList(:,4), 'Watts', bulbList(:,5), 'Color', bulbList(:,6), 'Tolerance', bulbList(:,7), ...
-    'Source', bulbList(:,8), 'Accessed', accessed, 'Note', bulbList(:,9));
+    'Source', bulbList(:,8), 'Accessed', accessedList, 'Note', bulbList(:,9));
 
 brightness = NaN;
 bulbName = char(options.Bulb);

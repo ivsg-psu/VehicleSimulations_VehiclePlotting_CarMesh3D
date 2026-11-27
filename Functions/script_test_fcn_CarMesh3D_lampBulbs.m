@@ -6,6 +6,11 @@
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_lampBulbs
 %   % * First write (drafted with Claude)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_lampBulbs
+%   % * The 194 bulb, the LED stop/tail fallback, and the accessed date
+%   %   % per bulb
 
 % TO-DO:
 %
@@ -29,7 +34,9 @@ for thisBulb = lampBulbs'
 end
 otherNames = [lampBulbs.OtherNames];
 assert(numel(unique(otherNames)) == numel(otherNames), 'A trade number names one bulb only');
-assert(all(ismember({'H4', 'HB2', 'H11', 'W21/5W', 'W16W', 'WY21W'}, names)), 'The 2009 Fit''s bulbs');
+assert(all(ismember({'H4', 'HB2', 'H11', 'W21/5W', 'W16W', 'WY21W', '194'}, names)), 'The 2009 Fit''s bulbs');
+assert(abs(lampBulbs(strcmp(names, '194')).Lumens - 4*pi*2) < 0.2, 'The 194: 2 MSCP, about 25 lumens');
+assert(numel(unique({lampBulbs.Accessed})) >= 2, 'Each bulb its own accessed date');
 
 %% TEST case: the cube-root rule
 [~, tailValue] = fcn_CarMesh3D_lampBulbs(Bulb='W21/5W', Filament='tail', FigNum=-1);
@@ -40,6 +47,8 @@ assert(stopValue == 1, 'The brightest filament is 1');
 assert(abs(lowValue - (980/1590)^(1/3)) < 1e-12, 'By its trade number: 9003 is the HB2');
 [~, oneValue] = fcn_CarMesh3D_lampBulbs(Bulb='W16W', FigNum=-1);
 assert(oneValue == 1, 'A one-filament bulb, no filament named');
+[~, ledTail] = fcn_CarMesh3D_lampBulbs(Bulb='LED-StopTail', Filament='tail', FigNum=-1);
+assert(abs(ledTail - (1/5)^(1/3)) < 1e-12, 'The LED fallback: the tail at the legal 1:5 ratio, 0.58');
 [~, unknownValue] = fcn_CarMesh3D_lampBulbs(Bulb='not a bulb', FigNum=-1);
 assert(isnan(unknownValue), 'An unknown bulb: NaN');
 [~, unknownValue] = fcn_CarMesh3D_lampBulbs(Bulb='H4', Filament='fog', FigNum=-1);
