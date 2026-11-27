@@ -195,7 +195,7 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_viewLabels, fcn_CarMesh3D_meshHistory, fcn_CarMesh3D_plotLabels,
-%      fcn_CarMesh3D_editLabels
+%      fcn_CarMesh3D_editLabels, fcn_CarMesh3D_meshPickTools
 %
 % EXAMPLES:
 %
@@ -416,6 +416,10 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % either side whatever the face's direction (before, the copy was
 %   %   % lifted along the stored normal only, so on a backward face it
 %   %   % sank behind the surface)
+%   % * Picking, the brush, the highlight, pieces and mirror faces are now
+%   %   % shared with the face-direction window, in
+%   %   % fcn_CarMesh3D_meshPickTools (step 1D); the painter's behavior is
+%   %   % unchanged
 
 % TO-DO:
 %
@@ -1464,36 +1468,14 @@ end
 
     function faces = facesOnRay(ray, flagSingle, flagErase, candidates)
         % (the faces facesUnderMouse finds, for a given line; candidates:
-        % the faces that can be picked, if already known)
-        faces = [];
-        direction = ray(2,:) - ray(1,:);
-        direction = direction/norm(direction);
+        % the faces that can be picked, if already known. The picking and
+        % the brush are shared with the face-direction window:
+        % fcn_CarMesh3D_meshPickTools, step 1D)
         if nargin < 4
             candidates = pickableFaces(flagErase);
         end
-        if isempty(candidates)
-            return;
-        end
-        hitDistance = fcn_INTERNAL_rayHits(ray(1,:), direction, data.Mesh.Vertices, data.Mesh.Faces(candidates,:));
-        [firstHit, hitIndex] = min(hitDistance);
-        if isinf(firstHit)
-            return;   % (the line misses the vehicle)
-        end
-        hitFace = candidates(hitIndex);
-        if flagSingle
-            faces = hitFace;
-            return;
-        end
-        % (the brush: faces whose centers lie near the point hit, on the
-        % near side of the vehicle. Its radius is brushPixels on the screen,
-        % turned into meters at the point hit, so the brush is a cone from
-        % the eye: the same on screen at any zoom, T86)
-        hitPoint = ray(1,:) + firstHit*direction;
-        centers = fcn_INTERNAL_faceCenters(data.Mesh);
-        brush = brushPixels*fcn_INTERNAL_metersPerPixel(labelAxes, hitPoint);   % (Modify Labels' Brush: Fine, Medium or Large)
-        nearHit = candidates(vecnorm(centers(candidates,:) - hitPoint, 2, 2) < brush & ...
-            (centers(candidates,:) - ray(1,:))*direction' < firstHit + 0.05);
-        faces = unique([hitFace; nearHit(:)]);
+        pick = fcn_INTERNAL_pick();
+        faces = pick.FacesOnRay(data.Mesh.Vertices, data.Mesh.Faces, candidates, ray, labelAxes, brushPixels, flagSingle);
     end
 
     function candidates = pickableFaces(flagErase)
@@ -2531,72 +2513,39 @@ elseif startsWith(labelKey, 'light_')
 end
 end % Ends fcn_INTERNAL_labelFaces
 
+%% fcn_INTERNAL_pick
+function tools = fcn_INTERNAL_pick()
+% The shared picking, brush and highlight helpers (made once)
+persistent pickTools
+if isempty(pickTools)
+    pickTools = fcn_CarMesh3D_meshPickTools(FigNum=-1);
+end
+tools = pickTools;
+end % Ends fcn_INTERNAL_pick
+
 %% fcn_INTERNAL_liftedFaces
 function [liftedVertices, liftedFaces] = fcn_INTERNAL_liftedFaces(vehicleMesh, faceList, lift)
-% Two copies of the listed faces, each with its own three corners moved
-% lift meters off the face: the first numel(faceList) copies along the
-% face's normal, the next numel(faceList) against it. One of the two is
-% always in front of the surface, whichever way the face points and from
-% whichever side it is seen (step 1C: a backward face's highlight sank
-% behind the surface)
-liftedVertices = zeros(0,3);
-liftedFaces = zeros(0,3);
-if isempty(faceList)
-    return;
-end
-faceList = faceList(:);
-corners = vehicleMesh.Faces(faceList,:);
-corner1 = vehicleMesh.Vertices(corners(:,1),:);
-corner2 = vehicleMesh.Vertices(corners(:,2),:);
-corner3 = vehicleMesh.Vertices(corners(:,3),:);
-if isfield(vehicleMesh,'FaceNormals') && size(vehicleMesh.FaceNormals,1)==size(vehicleMesh.Faces,1)
-    normals = vehicleMesh.FaceNormals(faceList,:);
-else
-    normals = cross(corner2 - corner1, corner3 - corner1, 2);
-end
-normals = normals./max(vecnorm(normals,2,2), eps);
-numFaces = numel(faceList);
-liftedVertices = zeros(6*numFaces,3);
-for ith_side = 1:2
-    sideLift = lift*(3 - 2*ith_side);   % (+lift, then -lift)
-    firstRow = 3*numFaces*(ith_side - 1);
-    liftedVertices(firstRow + (1:3:3*numFaces),:) = corner1 + sideLift*normals;
-    liftedVertices(firstRow + (2:3:3*numFaces),:) = corner2 + sideLift*normals;
-    liftedVertices(firstRow + (3:3:3*numFaces),:) = corner3 + sideLift*normals;
-end
-liftedFaces = reshape(1:6*numFaces, 3, [])';
+% Two copies of the listed faces, lift meters off them, one on each side,
+% so the highlight shows whichever way a face points (step 1C; shared with
+% the face-direction window: fcn_CarMesh3D_meshPickTools, step 1D)
+pick = fcn_INTERNAL_pick();
+[liftedVertices, liftedFaces] = pick.LiftedFaces(vehicleMesh.Vertices, vehicleMesh.Faces, faceList, lift);
 end % Ends fcn_INTERNAL_liftedFaces
 
 %% fcn_INTERNAL_rayHits
 function hitDistance = fcn_INTERNAL_rayHits(origin, direction, vertices, faces)
-% How far along the line (origin + t*direction) it hits each triangle; Inf
-% where it misses (the Moller-Trumbore test, for all triangles at once)
-numFaces = size(faces,1);
-corner1 = vertices(faces(:,1),:);
-edge1 = vertices(faces(:,2),:) - corner1;
-edge2 = vertices(faces(:,3),:) - corner1;
-directions = repmat(direction, numFaces, 1);
-pVector = cross(directions, edge2, 2);
-determinant = sum(edge1.*pVector, 2);
-flagValid = abs(determinant) > 1e-12;
-inverse = 1./determinant;
-tVector = origin - corner1;
-u = sum(tVector.*pVector, 2).*inverse;
-qVector = cross(tVector, edge1, 2);
-v = sum(directions.*qVector, 2).*inverse;
-hitDistance = sum(edge2.*qVector, 2).*inverse;
-flagHit = flagValid & u >= -1e-9 & v >= -1e-9 & u + v <= 1 + 1e-9 & hitDistance > 0;
-hitDistance(~flagHit) = Inf;
+% How far along the line it hits each triangle; Inf where it misses
+% (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+hitDistance = pick.RayHits(origin, direction, vertices, faces);
 end % Ends fcn_INTERNAL_rayHits
 
 %% fcn_INTERNAL_mirrorFaces
 function mirrorFace = fcn_INTERNAL_mirrorFaces(vehicleMesh)
-% Each face's mirror image across the centerline (y to -y): the face whose
-% center is nearest the mirrored center, within 2 cm (0 if none)
-centers = fcn_INTERNAL_faceCenters(vehicleMesh);
-mirrored = centers.*[1 -1 1];
-[mirrorFace, distance] = fcn_INTERNAL_nearest(centers, mirrored);
-mirrorFace(distance > 0.02) = 0;
+% Each face's mirror image across the centerline (y to -y), within 2 cm
+% (0 if none) (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+mirrorFace = pick.MirrorFaces(vehicleMesh.Vertices, vehicleMesh.Faces, 0.02);
 end % Ends fcn_INTERNAL_mirrorFaces
 
 %% fcn_INTERNAL_paintEdits
@@ -2679,40 +2628,9 @@ end % Ends fcn_INTERNAL_paintTooltip
 %% fcn_INTERNAL_meshPieces
 function pieceIndex = fcn_INTERNAL_meshPieces(vehicleMesh)
 % Each face's piece: faces with the same label that share a corner are in
-% one piece (a lamp, a window, a wiper arm)
-faces = vehicleMesh.Faces;
-Nfaces = size(faces,1);
-labelCode = fcn_INTERNAL_labelCode(vehicleMesh);
-parent = 1:Nfaces;
-    function root = findRoot(index)
-        root = index;
-        while parent(root) ~= root
-            parent(root) = parent(parent(root));
-            root = parent(root);
-        end
-    end
-% (faces meeting at each vertex, joined when their labels match)
-faceList = repmat((1:Nfaces)', 3, 1);
-vertexList = faces(:);
-[vertexList, order] = sort(vertexList);
-faceList = faceList(order);
-for ith_entry = 2:numel(vertexList)
-    if vertexList(ith_entry) == vertexList(ith_entry-1)
-        faceA = faceList(ith_entry);
-        faceB = faceList(ith_entry-1);
-        if labelCode(faceA) == labelCode(faceB)
-            rootA = findRoot(faceA);
-            rootB = findRoot(faceB);
-            if rootA ~= rootB
-                parent(rootA) = rootB;
-            end
-        end
-    end
-end
-pieceIndex = zeros(Nfaces,1);
-for ith_face = 1:Nfaces
-    pieceIndex(ith_face) = findRoot(ith_face);
-end
+% one piece (a lamp, a window, a wiper arm) (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+pieceIndex = pick.MeshPieces(vehicleMesh.Faces, fcn_INTERNAL_labelCode(vehicleMesh));
 end % Ends fcn_INTERNAL_meshPieces
 
 %% fcn_INTERNAL_labelCode
@@ -2727,29 +2645,15 @@ end % Ends fcn_INTERNAL_labelCode
 
 %% fcn_INTERNAL_faceCenters
 function centers = fcn_INTERNAL_faceCenters(vehicleMesh)
-vertices = vehicleMesh.Vertices;
-faces = vehicleMesh.Faces;
-centers = (vertices(faces(:,1),:) + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
+pick = fcn_INTERNAL_pick();
+centers = pick.FaceCenters(vehicleMesh.Vertices, vehicleMesh.Faces);
 end % Ends fcn_INTERNAL_faceCenters
 
 %% fcn_INTERNAL_nearest
 function [nearestIndex, nearestDistance] = fcn_INTERNAL_nearest(points, queries)
-% The nearest of points to each query (knnsearch if there, else in blocks)
-if exist('knnsearch', 'file') == 2
-    [nearestIndex, nearestDistance] = knnsearch(points, queries);
-    return;
-end
-Nqueries = size(queries,1);
-nearestIndex = zeros(Nqueries,1);
-nearestDistance = zeros(Nqueries,1);
-blockSize = 500;
-for first = 1:blockSize:Nqueries
-    rows = first:min(Nqueries, first+blockSize-1);
-    squaredDistance = sum(queries(rows,:).^2,2) + sum(points.^2,2)' - 2*queries(rows,:)*points';
-    [minimum, index] = min(squaredDistance, [], 2);
-    nearestIndex(rows) = index;
-    nearestDistance(rows) = sqrt(max(minimum,0));
-end
+% The nearest of points to each query (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+[nearestIndex, nearestDistance] = pick.Nearest(points, queries);
 end % Ends fcn_INTERNAL_nearest
 
 %% fcn_INTERNAL_versionFolder
@@ -2855,62 +2759,24 @@ end % Ends fcn_INTERNAL_keptEdits
 
 %% fcn_INTERNAL_pixelOf
 function pixel = fcn_INTERNAL_pixelOf(axesHandle, point)
-% Where a 3D point is drawn in the window, in pixels (as the window's
-% CurrentPoint gives the mouse); for an orthographic camera
-box = getpixelposition(axesHandle, true);
-viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
-distance = norm(viewDirection);
-viewDirection = viewDirection/distance;
-rightward = cross(viewDirection, axesHandle.CameraUpVector);
-rightward = rightward/norm(rightward);
-upward = cross(rightward, viewDirection);
-halfSpan = distance*tand(axesHandle.CameraViewAngle/2);
-pixelsPerMeter = min(box(3), box(4))/(2*max(halfSpan, eps));
-offset = point - axesHandle.CameraTarget;
-pixel = box(1:2) + box(3:4)/2 + pixelsPerMeter*[dot(offset, rightward), dot(offset, upward)];
+% Where a 3D point is drawn in the window, in pixels
+% (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+pixel = pick.PixelOf(axesHandle, point);
 end % Ends fcn_INTERNAL_pixelOf
 
 %% fcn_INTERNAL_rayAtPixel
 function ray = fcn_INTERNAL_rayAtPixel(axesHandle, pixel, geometry)
-% The line under a pixel of the window (as its CurrentPoint gives the
-% mouse), through the model's axes: 2 x 3, its front (nearest the camera)
-% and back. The camera's view angle spans the shorter side of the axes'
-% box (checked against real clicks, 2026-11-24).
-box = getpixelposition(axesHandle, true);
-viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
-distance = norm(viewDirection);
-viewDirection = viewDirection/distance;
-rightward = cross(viewDirection, axesHandle.CameraUpVector);
-rightward = rightward/norm(rightward);
-upward = cross(rightward, viewDirection);
-halfSpan = distance*tand(axesHandle.CameraViewAngle/2);
-pixelsPerMeter = min(box(3), box(4))/(2*max(halfSpan, eps));
-offset = (pixel(:)' - (box(1:2) + box(3:4)/2))/pixelsPerMeter;
-pointOnTarget = axesHandle.CameraTarget + offset(1)*rightward + offset(2)*upward;
-reach = 10*max(norm(geometry.Max - geometry.Min), 1) + distance;
-if strcmp(axesHandle.Projection, 'perspective')
-    direction = pointOnTarget - axesHandle.CameraPosition;
-    direction = direction/norm(direction);
-    ray = [axesHandle.CameraPosition; axesHandle.CameraPosition + reach*direction];
-else
-    ray = [pointOnTarget - reach*viewDirection; pointOnTarget + reach*viewDirection];
-end
+% The line under a pixel of the window: 2 x 3, its front and back
+% (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+ray = pick.RayAtPixel(axesHandle, pixel, norm(geometry.Max - geometry.Min));
 end % Ends fcn_INTERNAL_rayAtPixel
 
 %% fcn_INTERNAL_metersPerPixel
 function metersPerPixel = fcn_INTERNAL_metersPerPixel(axesHandle, point)
-% How many meters one screen pixel spans at a point in the model's axes:
-% the brush's cone (T86). Perspective: grows with the point's distance from
-% the camera; orthographic: the same everywhere. The camera's view angle
-% spans the shorter side of the axes' box, as in fcn_INTERNAL_rayAtPixel.
-box = getpixelposition(axesHandle, true);
-viewDirection = axesHandle.CameraTarget - axesHandle.CameraPosition;
-distance = norm(viewDirection);
-viewDirection = viewDirection/max(distance, eps);
-if strcmp(axesHandle.Projection, 'perspective')
-    depth = max((point - axesHandle.CameraPosition)*viewDirection', eps);
-else
-    depth = distance;
-end
-metersPerPixel = 2*depth*tand(axesHandle.CameraViewAngle/2)/max(min(box(3), box(4)), 1);
+% How many meters one screen pixel spans at a point (the brush's cone,
+% T86) (fcn_CarMesh3D_meshPickTools)
+pick = fcn_INTERNAL_pick();
+metersPerPixel = pick.MetersPerPixel(axesHandle, point);
 end % Ends fcn_INTERNAL_metersPerPixel
