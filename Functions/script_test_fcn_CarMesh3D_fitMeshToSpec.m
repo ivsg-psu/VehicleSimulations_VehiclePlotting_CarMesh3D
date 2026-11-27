@@ -17,6 +17,12 @@
 % - In script_test_fcn_CarMesh3D_fitMeshToSpec
 %   % * Tests different front and rear tires
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_fitMeshToSpec
+%   % * The one-sided spike test expects the height measured to the roof
+%   %   % (the fit's 2026-11-22 change), not to the spike's tip: it failed
+%   %   % since then (step 10A of the plan of 2026-11-27)
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -217,9 +223,15 @@ rightBody = bodyVertexIndices(spikedMesh.Vertices(bodyVertexIndices,2) < -0.2);
 roofTop = max(spikedMesh.Vertices(:,3));
 spikedMesh.Vertices(rightBody(highest),3) = roofTop + 0.1;
 
-% Not symmetric (the default): the spike's tip is at the overall height
+% Not symmetric (the default): the height is measured to the roof,
+% leaving the thin spike out (published heights exclude antennas; the fit
+% has done this since 2026-11-22), so the roof is at the overall height
+% and the spike's tip stands above it
 plainMesh = fcn_CarMesh3D_fitMeshToSpec(spikedMesh, vehicleSpec);
-assert(abs(max(plainMesh.Vertices(:,3)) - vehicleSpec.OverallHeight) < 1e-9);
+spikeVertex = rightBody(highest);
+otherVertices = setdiff(1:size(plainMesh.Vertices,1), spikeVertex);
+assert(abs(max(plainMesh.Vertices(otherVertices,3)) - vehicleSpec.OverallHeight) < 1e-9);
+assert(plainMesh.Vertices(spikeVertex,3) > vehicleSpec.OverallHeight + 0.05);
 
 % Symmetric: the left half's roof is at the overall height (the spike
 % stands above it, and the mirroring later removes it)

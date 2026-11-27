@@ -10,6 +10,13 @@
 % - In script_test_fcn_CarMesh3D_makeOutline2D
 %   % * First write of the code (drafted with Claude)
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_makeOutline2D
+%   % * The 'interior' part test uses a copy of the Prius without its
+%   %   % interior objects (they are outlined in its place since
+%   %   % 2026-11-24, so the test failed); the objects are checked too
+%   %   % (step 10A of the plan of 2026-11-27)
+
 % TO-DO:
 %
 % 2026_11_20 by Sean Brennan, sbrennan@psu.edu
@@ -197,8 +204,14 @@ fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 warningState = warning('off', 'CarMesh3D:asymmetricOutline');
-plainOutline = fcn_CarMesh3D_makeOutline2D(priusMesh);
-interiorMesh = fcn_CarMesh3D_labelInterior(priusMesh, FigNum=-1);
+% (the Prius as built has interior OBJECTS (LabelFaceInterior), and those
+% are what is outlined; the older 'interior' part's pieces are outlined
+% only for a mesh without objects, so they are tested on a copy without
+% them: the test failed since the objects were added, 2026-11-24)
+objectOutline = fcn_CarMesh3D_makeOutline2D(priusMesh);
+noObjects = rmfield(priusMesh, intersect({'LabelFaceInterior','LabelInteriorNames','InteriorObjects'}, fieldnames(priusMesh)));
+plainOutline = fcn_CarMesh3D_makeOutline2D(noObjects);
+interiorMesh = fcn_CarMesh3D_labelInterior(noObjects, FigNum=-1);
 interiorOutline = fcn_CarMesh3D_makeOutline2D(interiorMesh);
 % (one interior piece on the left only: it must not get a mirrored twin)
 oneSided = interiorMesh;
@@ -217,7 +230,8 @@ oneSidedOutline = fcn_CarMesh3D_makeOutline2D(oneSided);
 warning(warningState);
 
 % Check variable values
-assert(isempty(plainOutline.Interior));                       % (no interior part)
+assert(isempty(plainOutline.Interior));                       % (no interior part, no objects)
+assert(~isempty(objectOutline.Interior));                     % (the Prius's own objects)
 assert(numel(oneSidedOutline.Interior) == numel(interiorOutline.Interior) + 1);
 bodyShape = polyshape(interiorOutline.Body(1:end-1,:));
 for ith_piece = 1:numel(interiorOutline.Interior)
