@@ -176,6 +176,12 @@
 %   %   % file in this folder) are replayed right after the automatic
 %   %   % direction fixes, before the overlays and lamp covers (step 1F of
 %   %   % the plan of 2026-11-27); a new save of them rebuilds stage 1
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_TEMPLATE
+%   % * A copy of a vehicle's folder named by its ID (the main GUI's working
+%   %   % model, Working\<ID>\, or a demo copy) builds in place, into the copy,
+%   %   % from the vehicle's own download (Q111 (A))
 
 % TO-DO:
 %
@@ -317,8 +323,16 @@ addpath(fullfile(rootFolder,'Functions'));
 setappdata(groot, 'CarMesh3D_saveFigs', logical(flagSaveFigs));   % (read by fcn_INTERNAL_saveFig)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID);
 if ~strcmpi(vehicleFiles.Folder, thisFolder)
-    error(['vehicleID (%s) does not match this script''s folder (%s). Was the script copied ' ...
-        'without changing vehicleID?'], vehicleID, thisFolder);
+    % (a copy of this vehicle's folder, named by its ID: the main GUI's
+    % working model, CarMesh3D\Working\<ID>\, or a demo copy. It builds in
+    % place, into the copy, reading the download from the vehicle's own
+    % folder; Q111 (A), 2026-11-27)
+    [~, folderName] = fileparts(thisFolder);
+    if ~strcmp(folderName, vehicleID)
+        error(['vehicleID (%s) does not match this script''s folder (%s). Was the script copied ' ...
+            'without changing vehicleID?'], vehicleID, thisFolder);
+    end
+    vehicleFiles = fcn_CarMesh3D_findVehicleFiles(thisFolder);
 end
 if ~isfolder(vehicleFiles.ChecksFolder)
     mkdir(vehicleFiles.ChecksFolder);

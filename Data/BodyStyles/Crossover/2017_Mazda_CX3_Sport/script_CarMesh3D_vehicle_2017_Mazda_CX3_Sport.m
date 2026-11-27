@@ -167,6 +167,11 @@
 %   %   % faceFlips_<ID>.mat, fcn_CarMesh3D_applyFaceFlips), lamp covers
 %   %   % and overlays found without trusting face directions
 %   %   % (fcn_CarMesh3D_outwardSides)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2017_Mazda_CX3_Sport
+%   % * Regenerated from the template (drafted by Claude): builds in a copy
+%   %   % of its folder (the main GUI's working model, Q111 (A))
 
 % TO-DO:
 %
@@ -321,8 +326,16 @@ addpath(fullfile(rootFolder,'Functions'));
 setappdata(groot, 'CarMesh3D_saveFigs', logical(flagSaveFigs));   % (read by fcn_INTERNAL_saveFig)
 vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID);
 if ~strcmpi(vehicleFiles.Folder, thisFolder)
-    error(['vehicleID (%s) does not match this script''s folder (%s). Was the script copied ' ...
-        'without changing vehicleID?'], vehicleID, thisFolder);
+    % (a copy of this vehicle's folder, named by its ID: the main GUI's
+    % working model, CarMesh3D\Working\<ID>\, or a demo copy. It builds in
+    % place, into the copy, reading the download from the vehicle's own
+    % folder; Q111 (A), 2026-11-27)
+    [~, folderName] = fileparts(thisFolder);
+    if ~strcmp(folderName, vehicleID)
+        error(['vehicleID (%s) does not match this script''s folder (%s). Was the script copied ' ...
+            'without changing vehicleID?'], vehicleID, thisFolder);
+    end
+    vehicleFiles = fcn_CarMesh3D_findVehicleFiles(thisFolder);
 end
 if ~isfolder(vehicleFiles.ChecksFolder)
     mkdir(vehicleFiles.ChecksFolder);
