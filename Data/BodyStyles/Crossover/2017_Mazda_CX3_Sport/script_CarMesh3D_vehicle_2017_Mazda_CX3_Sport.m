@@ -158,6 +158,15 @@
 %   %   % files), and the download is used as it is: targetFaces
 %   %   % = [] (no reduction, no mirroring), the floor panel only
 %   %   % above 10% open (see README.md, "Mesh families")
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2017_Mazda_CX3_Sport
+%   % * Regenerated from the template (drafted by Claude; Q105 (A), the
+%   %   % second good vehicle): the face directions are fixed after the
+%   %   % flipped-face repair (saved hand flips replayed from
+%   %   % faceFlips_<ID>.mat, fcn_CarMesh3D_applyFaceFlips), lamp covers
+%   %   % and overlays found without trusting face directions
+%   %   % (fcn_CarMesh3D_outwardSides)
 
 % TO-DO:
 %
@@ -174,7 +183,7 @@
 %   %   % vehicleParameters_sources.md). A small crossover
 
 
-% Vehicle settings (the only part to change for a new vehicle)
+%% Vehicle settings (the only part to change for a new vehicle)
 vehicleID = '2017_Mazda_CX3_Sport';   % Must match this folder's name
 
 % The downloaded 3D model, relative to this folder
@@ -382,7 +391,14 @@ stage1Functions = {'fcn_CarMesh3D_loadVehicleSpec.m', 'fcn_CarMesh3D_fillBodySty
     'fcn_CarMesh3D_transferTextureColors.m', 'fcn_CarMesh3D_normalizeMesh.m', 'fcn_CarMesh3D_labelParts.m', ...
     'fcn_CarMesh3D_editLabels.m', 'fcn_CarMesh3D_fitMeshToSpec.m', 'fcn_CarMesh3D_simplifyMesh.m', ...
     'fcn_CarMesh3D_fixFlippedFaces.m', 'fcn_CarMesh3D_separateOverlays.m', 'fcn_CarMesh3D_addFloorPanel.m', ...
-    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_labelInterior.m', 'fcn_CarMesh3D_findInteriorObjects.m'};
+    'fcn_CarMesh3D_restoreGroundClearance.m', 'fcn_CarMesh3D_labelInterior.m', 'fcn_CarMesh3D_findInteriorObjects.m', ...
+    'fcn_CarMesh3D_applyFaceFlips.m', 'fcn_CarMesh3D_outwardSides.m', 'fcn_CarMesh3D_findLampCovers.m'};
+% (the faces turned by hand in the face-direction window, if any: replayed
+% below, so a new save of them builds stage 1 again)
+faceFlipsFile = fullfile(vehicleFiles.Folder, sprintf('faceFlips_%s.mat', vehicleID));
+if isfile(faceFlipsFile)
+    stage1Files{end+1} = faceFlipsFile;
+end
 stage1Inputs = struct('MeshVersion',meshVersion, 'Script',fcn_INTERNAL_scriptForCache([mfilename('fullpath') '.m']), ...
     'FirstLook',logical(flagFirstLook), 'Compare',logical(flagCompareToOriginal), 'VehicleSpec',vehicleSpec, ...
     'Files',fcn_CarMesh3D_fileStamps(stage1Files, FigNum=-1), 'Functions',fcn_CarMesh3D_fileStamps(stage1Functions, FigNum=-1));
@@ -585,6 +601,15 @@ else
         % a few seconds, so first looks show the panels the right way out)
         [vehicleMesh, numFlipped, numRemoved] = fcn_CarMesh3D_fixFlippedFaces(vehicleMesh, FigNum=-1);
         fprintf(1,'Flipped %d faces that were seen mostly from behind; removed %d inner-skin faces of double layers\n', numFlipped, numRemoved);
+        % (faces turned by hand in the face-direction window,
+        % fcn_CarMesh3D_fixFaceDirections, saved by position in this folder's
+        % faceFlips file: replayed after the automatic fixes and before the
+        % overlays are lifted and the lamp covers found again, the order
+        % agreed on 2026-11-27: labels, directions, then what comes from them)
+        [vehicleMesh, flipsInfo] = fcn_CarMesh3D_applyFaceFlips(vehicleMesh, faceFlipsFile, FigNum=-1);
+        if flipsInfo.NumSaved > 0
+            fprintf(1,'Hand flips: %d saved, %d matched, %d faces turned\n', flipsInfo.NumSaved, flipsInfo.NumMatched, flipsInfo.NumTurned);
+        end
         % (overlays lying on another part's surface, such as a black bumper insert
         % on the paint, are lifted 2 mm, so they do not flicker or vanish; the
         % download used in the comparison gets the same treatment)
