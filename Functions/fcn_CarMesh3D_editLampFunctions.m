@@ -116,6 +116,10 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
 %   % * It is closed once the window is built, whether or not the
 %   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
+%   % * Shorter lamp names in the matrix and under the sliders ("FR
+%   %   % puddle/courtesy" for "front-right puddle / courtesy lamp": the
+%   %   % longest took half the window's width); the full names stay in
+%   %   % the tooltips and messages (step 4C of the plan of 2026-11-27)
 
 % TO-DO:
 %
@@ -191,6 +195,10 @@ signalKinds = fcn_CarMesh3D_lampSignals();
 signalNames = {signalKinds.Name};
 signalLabels = {signalKinds.Label};
 unitNames = {units.Name};
+% (the names as shown in the matrix and under the sliders: short, so the
+% matrix keeps its width ("FR puddle/courtesy" for "front-right puddle /
+% courtesy lamp"); the full name stays in tooltips and messages; step 4C)
+shortNames = cellfun(@fcn_INTERNAL_shortName, unitNames, 'UniformOutput', false);
 numUnits = numel(units);
 groupOf = cell(1, numUnits);   % (Front, Side or Rear, from the position)
 for ith_position = 1:numUnits
@@ -573,7 +581,7 @@ loading.Close();   % (built: closed here, since the nested functions keep onClea
         rowPx = 22;
         cellPx = 26;
         headerPx = 96;   % (the signals' names, turned 60 degrees)
-        namePx = 8 + 7*max([12, cellfun(@numel, unitNames(indices))]);   % (about 7 px a character at 11 pt)
+        namePx = 8 + 7*max([12, cellfun(@numel, shortNames(indices))]);   % (about 7 px a character at 11 pt)
         panelSize = getpixelposition(contentPanel);
         tableHeight = headerPx + max(numShown, 1)*rowPx + 6;
         heightPx = max(tableHeight, panelSize(4) - 4);
@@ -667,7 +675,7 @@ loading.Close();   % (built: closed here, since the nested functions keep onClea
                 rectangle(axesHandle, 'Position', [0, y0, numSignals*cellPx, rowPx], 'FaceColor', [0.95 0.96 0.99], ...
                     'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampRowShade');
             end
-            text(nameAxes, 4, y0 + rowPx/2, unitNames{unit}, 'FontSize', 11, 'Interpreter', 'none', ...
+            text(nameAxes, 4, y0 + rowPx/2, shortNames{unit}, 'FontSize', 11, 'Interpreter', 'none', ...
                 'VerticalAlignment', 'middle', 'FontWeight', fcn_INTERNAL_weight(unit == markedUnit), 'Tag', 'lampRowName');
             for ith_signal = 1:numSignals
                 signalName = signalNames{ith_signal};
@@ -768,7 +776,7 @@ loading.Close();   % (built: closed here, since the nested functions keep onClea
             slider.Layout.Column = ith;
             % (11 pt, and the underscores as spaces so the name wraps:
             % T81 BUG, the 9 pt names were too small to read)
-            nameLabel = uilabel(grid, 'Text', strrep(unitNames{unit}, '_', ' '), 'WordWrap', 'on', 'FontSize', 11, ...
+            nameLabel = uilabel(grid, 'Text', strrep(shortNames{unit}, '_', ' '), 'WordWrap', 'on', 'FontSize', 11, ...
                 'HorizontalAlignment', 'center', 'Tooltip', unitNames{unit});
             nameLabel.Layout.Row = 2;
             nameLabel.Layout.Column = ith;
@@ -1030,3 +1038,22 @@ else
     weight = 'normal';
 end
 end % Ends fcn_INTERNAL_weight
+
+%% fcn_INTERNAL_shortName
+function shortName = fcn_INTERNAL_shortName(unitName)
+% A lamp unit's name, shortened for the matrix: its position as letters
+% (FL front-left, FC front-center, FR front-right, RL, RC, RR for the rear;
+% SL, SR for the sides), " / " as "/", and no "lamp" at the end:
+% "front-right puddle / courtesy lamp" is "FR puddle/courtesy"
+shortName = char(unitName);
+positionWords = {'front-left ', 'FL '; 'front-center ', 'FC '; 'front-right ', 'FR '; ...
+    'rear-left ', 'RL '; 'rear-center ', 'RC '; 'rear-right ', 'RR '; 'side-left ', 'SL '; 'side-right ', 'SR '};
+for ith_word = 1:size(positionWords,1)
+    if startsWith(shortName, positionWords{ith_word,1})
+        shortName = [positionWords{ith_word,2} shortName(numel(positionWords{ith_word,1})+1:end)];
+        break;
+    end
+end
+shortName = strrep(shortName, ' / ', '/');
+shortName = regexprep(shortName, ' lamp( \d+)?$', '$1');
+end % Ends fcn_INTERNAL_shortName
