@@ -154,6 +154,13 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   % * Done with nothing new since the last Done copies that Done's text
 %   %   % again (kept in lastDoneText.txt), so a double press never loses
 %   %   % the answers (Sean's 13:02 Done said 0 over five answers)
+%   % * Run the commands runs them just after the button's own callback
+%   %   % has ended (a one-shot timer), and keeps what they print with diary,
+%   %   % not evalc: a window the commands open (the painter, which waits
+%   %   % until it is closed) drew stretched and ignored its buttons when
+%   %   % started inside this window's callback and evalc; from the prompt
+%   %   % it was fine (T88 BUG, Sean 23:15 and 23:27). The Run hook still
+%   %   % runs at once, for the tests' hidden windows
 
 
 % TO-DO:
@@ -272,7 +279,7 @@ commandsArea = uitextarea(commandsGrid, 'Editable', 'off', 'FontName', 'Consolas
 outputArea = uitextarea(commandsGrid, 'Editable', 'off', 'FontName', 'Consolas', 'Tag', 'aqOutput', ...
     'Placeholder', 'What the commands and the code tests print');
 runGrid = uigridlayout(pageGrid, [1 3], 'ColumnWidth', {190, 190, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', [1 1 1]);
-runButton = uibutton(runGrid, 'Text', 'Run the commands', 'Tag', 'aqRun', 'ButtonPushedFcn', @(~,~) doRun(), ...
+runButton = uibutton(runGrid, 'Text', 'Run the commands', 'Tag', 'aqRun', 'ButtonPushedFcn', @(~,~) startRun(), ...
     'Tooltip', 'Runs the commands above, as typed at the prompt (closes other figures first; keeps this window)');
 codeTestsButton = uibutton(runGrid, 'Text', 'Run the code tests', 'Tag', 'aqRunCodeTests', ...
     'ButtonPushedFcn', @(~,~) doRunCodeTests(), 'Tooltip', 'Runs the test scripts this item names, and says PASS or FAIL');
@@ -589,9 +596,29 @@ end
     end
 
     %% Running
-    function outputText = doRun()
+    function startRun()
+        % (the button: the commands run just after this callback ends, by
+        % a one-shot timer, so a window they open, and wait on, is not
+        % held inside this window's callback; T88 BUG, Sean 23:27: "it
+        % works as expected if I run from the command line directly")
+        runStatus.Text = 'Running...';
+        runStatus.FontColor = [0 0 0];
+        runButton.Enable = 'off';
+        drawnow;
+        runTimer = timer('StartDelay', 0.1, 'ExecutionMode', 'singleShot', 'Tag', 'answerQueueRun', ...
+            'TimerFcn', @(~,~) doRun(true), 'StopFcn', @(source,~) delete(source));
+        start(runTimer);
+    end
+
+    function outputText = doRun(flagDiary)
         % (the commands, as typed at the prompt; "close all force" closes
-        % the other figures, never this one, and "clear functions" is left out)
+        % the other figures, never this one, and "clear functions" is left
+        % out. With flagDiary, what they print is kept by diary, not evalc:
+        % a GUI opened inside evalc drew wrongly; the Run hook, for the
+        % tests, keeps evalc)
+        if nargin < 1
+            flagDiary = false;
+        end
         item = items(currentIndex);
         commands = item.Commands;
         commands = regexprep(commands, 'clear\s+functions\s*;?', '');
@@ -600,20 +627,36 @@ end
         closeOthers();
         runStatus.Text = 'Running...';
         drawnow;
+        diaryFile = '';
         try
-            outputText = evalin('base', sprintf('evalc(%s)', fcn_INTERNAL_quote(commands)));
+            if flagDiary
+                diaryFile = [tempname '.txt'];
+                diary(diaryFile);
+                evalin('base', commands);
+                diary('off');
+                outputText = fileread(diaryFile);
+            else
+                outputText = evalin('base', sprintf('evalc(%s)', fcn_INTERNAL_quote(commands)));
+            end
             statusText = 'Ran without an error.';
             statusColor = [0 0.45 0];
         catch runError
+            if ~isempty(diaryFile)
+                diary('off');
+            end
             outputText = getReport(runError, 'extended', 'hyperlinks', 'off');
             lastError = sprintf('%s: %s', item.ID, runError.message);
             statusText = ['Error: ' runError.message];
             statusColor = [0.75 0 0];
         end
+        if ~isempty(diaryFile) && isfile(diaryFile)
+            delete(diaryFile);
+        end
         lastOutput = outputText;
         if ~isvalid(figureHandle)
             return;   % (the commands closed this window)
         end
+        runButton.Enable = matlab.lang.OnOffSwitchState(~isempty(strtrim(items(currentIndex).Commands)));
         runStatus.Text = statusText;
         runStatus.FontColor = statusColor;
         outputArea.Value = splitlines(string(outputText));

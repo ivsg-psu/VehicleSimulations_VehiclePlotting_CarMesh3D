@@ -197,19 +197,29 @@ otherFigure = figure('Visible', 'off');
 runButton = findall(figureHandle, 'Tag', 'aqRun');
 assert(strcmp(runButton.Enable, 'on'));
 runButton.ButtonPushedFcn(runButton, []);
+% (the button runs the commands just after its own callback, by a timer:
+% T88 BUG, 2026-11-26 23:27; wait for it)
+fcn_INTERNAL_waitRun(figureHandle);
 assert(isvalid(figureHandle), '"close all force" must not close this window');
 assert(~isvalid(otherFigure), 'Other figures are closed');
 assert(evalin('base', 'zzAQ_value') == 42);
 evalin('base', 'clear zzAQ_value');
-assert(contains(hooks.Current().Output, '42'));
+% (the button keeps what the commands print with diary, which sees nothing
+% when the test itself runs inside evalc, as the quiet test runner does:
+% so the printing is checked through the Run hook, which uses evalc)
 assert(contains(findall(figureHandle, 'Tag', 'aqRunStatus').Text, 'without an error'));
+hooks.Run();
+assert(contains(hooks.Current().Output, '42'), 'What the commands print is shown');
+evalin('base', 'clear zzAQ_value');
 % (an error: shown, and kept for NOW)
 items(3).Commands = 'error(''zzAQ:test'', ''a test error'')';
 fcn_INTERNAL_writeItems(queueFolder, items);
 hooks.Reload();
 hooks.Show('T90');
 runButton.ButtonPushedFcn(runButton, []);
+fcn_INTERNAL_waitRun(figureHandle);
 assert(contains(findall(figureHandle, 'Tag', 'aqRunStatus').Text, 'a test error'));
+assert(strcmp(runButton.Enable, 'on'), 'Run is on again after a run');
 assert(contains(hooks.Now(), 'Last error: T90: a test error'));
 % (no commands: Run is greyed)
 hooks.Show('Q90');
@@ -323,6 +333,7 @@ otherFigure = figure('Visible', 'off');
 figureHandle.UserData.Show('T90');
 runButton = findall(figureHandle, 'Tag', 'aqRun');
 runButton.ButtonPushedFcn(runButton, []);
+fcn_INTERNAL_waitRun(figureHandle);
 assert(isvalid(personalWindow), 'The other queue window was closed');
 assert(~isvalid(otherFigure));
 codeTestsButton = findall(figureHandle, 'Tag', 'aqRunCodeTests');
@@ -376,3 +387,15 @@ else
     setpref('CarMesh3D', 'AnswerQueueFolder', folderBefore);
 end
 end
+
+%% fcn_INTERNAL_waitRun
+function fcn_INTERNAL_waitRun(figureHandle)
+% (waits, up to 30 s, until the Run button's timer has run the commands)
+statusLabel = findall(figureHandle, 'Tag', 'aqRunStatus');
+startTime = tic;
+while toc(startTime) < 30 && (strcmp(statusLabel.Text, 'Running...') || ~isempty(timerfindall('Tag', 'answerQueueRun')))
+    pause(0.1);
+end
+assert(~strcmp(statusLabel.Text, 'Running...'), 'The commands ran within 30 s');
+end % Ends fcn_INTERNAL_waitRun
+
