@@ -85,7 +85,7 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %           Undo(), Save(); Selected(), Flipped(), Suggested(), Status(),
 %           LastPick(), FixedMesh(),
 %           FaceFlips(), Sides() (fcn_CarMesh3D_outwardSides' answer);
-%           SetColorBy('direction' or 'labels'), SetBrush(name);
+%           SetColorBy('direction', 'labels' or 'normals'), SetBrush(name);
 %           SetSize(width, height); Close().
 %
 % DEPENDENCIES:
@@ -124,6 +124,9 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %   %   % the figure's CurrentObject is in them; the overlays cannot be
 %   %   % clicked (T96: clicks on some faces did nothing)
 %   % * The hint line names the face each click picked (T96)
+%   % * "Not saved" first in the status, in the buttons' font size; a
+%   %   % third coloring, Normals (each face's unit normal as its red,
+%   %   % green and blue) (T96b, Sean 15:04)
 
 % TO-DO:
 %
@@ -293,7 +296,9 @@ uibutton(topGrid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) revertToS
     'Tooltip', 'Go back to the flips as they were when this window opened (asks first; Undo takes it back). The file changes only when you Save.');
 uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveFlips(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], ...
     'Tag', 'facesSave', 'Tooltip', 'Save the flips (by face position) to the vehicle''s faceFlips file, for its build to replay. Ctrl+S.');
-statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'facesStatus');
+% (the status in the buttons' font size: "Not saved" is an important
+% message, easy to miss in small type; T96b, Sean 15:04)
+statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 12, 'Tag', 'facesStatus');
 bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {320, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
 menuColumn = uipanel(bodyGrid, 'BorderType', 'none');
 panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) setMenuWidth(width), ...
@@ -337,8 +342,12 @@ uilabel(panelGrid, 'Interpreter', 'html', 'WordWrap', 'on', 'Tag', 'facesLegend'
     '<font color="#e6b800">&#9632;</font> selected (Apply flips it)<br>' ...
     '<i>The suggestions are hints, from one line out of each face: a face in a narrow gap can be suggested wrongly. Look before flipping them all.</i>']);
 uilabel(panelGrid, 'Text', 'Color the model by?', 'FontWeight', 'bold');
-colorGroup = fcn_INTERNAL_radioRow(panelGrid, {'Direction', 'Labels'}, {'direction', 'labels'}, @(value) setColorBy(value), ...
-    'facesColorBy', 'Direction: green out, red in, gray cannot tell. Labels: the mesh''s own colors.');
+colorGroup = fcn_INTERNAL_radioRow(panelGrid, {'Direction', 'Labels', 'Normals'}, {'direction', 'labels', 'normals'}, @(value) setColorBy(value), ...
+    'facesColorBy', ['Direction: green out, red in, gray cannot tell. Labels: the mesh''s own colors. ' ...
+    'Normals: each face is colored by the way it points now (its unit normal, from its corner order): ' ...
+    'the normal''s x, y and z, each from -1 to 1, set its red, green and blue, each from 0 to 1 ' ...
+    '(red = (x+1)/2, and so on). Faces pointing forward are reddish, to the left greenish, up bluish; ' ...
+    'a face pointing the opposite way to its neighbors shows in a clearly different color. Flipping a face changes its color.']);
 uilabel(panelGrid, 'Text', 'Brush size (Ctrl+drag)?', 'FontWeight', 'bold');
 brushGroup = fcn_INTERNAL_radioRow(panelGrid, {brushSizes.Name}, {brushSizes.Name}, @(value) setBrush(value), ...
     'facesBrush', 'How much a Ctrl+drag selects: a circle this size on the screen, at any zoom.');
@@ -416,6 +425,10 @@ fixedMesh = getFixedMesh();
             flagOut = currentlyOut();
             colors(flagKnown & flagOut,:) = repmat([0.12 0.62 0.23], nnz(flagKnown & flagOut), 1);
             colors(flagKnown & ~flagOut,:) = repmat([0.83 0.13 0.13], nnz(flagKnown & ~flagOut), 1);
+        elseif strcmp(colorBy, 'normals')
+            % (T96b, Sean 15:04: the unit normal's x, y, z as red, green,
+            % blue, from -1..1 to 0..1)
+            colors = (fcn_INTERNAL_normals(baseMesh.Vertices, faces) + 1)/2;
         else
             colors = labelColors;
         end
@@ -443,11 +456,11 @@ fixedMesh = getFixedMesh();
             return;
         end
         if isUnsaved()
-            statusLabel.Text = sprintf('<font color="#b05000">%d faces flipped: not saved</font>', nnz(flipped));
+            statusLabel.Text = sprintf('<font color="#b05000"><b>Not saved:</b> %d faces flipped</font>', nnz(flipped));
         elseif isempty(flipsFile)
-            statusLabel.Text = sprintf('%d faces flipped (no flips file: kept in the window only)', nnz(flipped));
+            statusLabel.Text = sprintf('Kept in the window only (no flips file): %d faces flipped', nnz(flipped));
         else
-            statusLabel.Text = sprintf('%d faces flipped: saved', nnz(flipped));
+            statusLabel.Text = sprintf('Saved: %d faces flipped', nnz(flipped));
         end
     end
 

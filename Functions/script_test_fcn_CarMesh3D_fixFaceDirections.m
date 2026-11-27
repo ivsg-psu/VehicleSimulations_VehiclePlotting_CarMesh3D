@@ -155,9 +155,15 @@ window.Close();
 fprintf(1,'TEST case: color by labels, tags, close\n');
 window.SetColorBy('labels');
 assert(isequal(window.Patch.FaceVertexCData, testMesh.FaceColors));
+window.SetColorBy('normals');
+normalColors = window.Patch.FaceVertexCData;
+assert(all(normalColors(:) >= 0 & normalColors(:) <= 1));
+bottomFaces = find(sideOfFace == 2);   % (the bottom: its normal points down, z = -1, so no blue)
+assert(all(abs(normalColors(bottomFaces,3)) < 1e-9));
 window.SetColorBy('direction');
 assert(~isequal(window.Patch.FaceVertexCData, testMesh.FaceColors));
 assert(strcmp(window.Status().ColorBy, 'direction'));
+assert(contains(findall(window.Figure, 'Tag', 'facesStatus').Text, 'Not saved') || ~window.Status().Unsaved);
 for tag = {'facesMenu', 'facesUndo', 'facesRevert', 'facesSave', 'facesStatus', 'facesSelectSuggested', 'facesApply', ...
         'facesClearSelection', 'facesSelection', 'facesColorBy', 'facesBrush', 'facesHint'}
     assert(~isempty(findall(window.Figure, 'Tag', tag{1})), 'no control tagged %s', tag{1});
