@@ -9,6 +9,11 @@
 % - In script_test_fcn_CarMesh3D_findLampCovers
 %   % * First write of the code (drafted with Claude)
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_findLampCovers
+%   % * Stored FaceNormals pointing away from the lamp now still find it
+%   %   % (step 1A: covers do not depend on face direction)
+
 % TO-DO:
 %
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
@@ -178,25 +183,26 @@ assert(isequal(rmfield(plainCovered,'LabelFaceCoverLamp'), plainMesh));
 figHandles = get(groot, 'Children');
 assert(~any(figHandles==figNum));
 
-%% TEST case: Outward FaceNormals are used; without them, both sides of the glass are searched
+%% TEST case: The glass's direction does not matter (both sides are always searched)
 figNum = 20004;
-titleString = sprintf('TEST case: Outward FaceNormals are used; without them, both sides are searched');
+titleString = sprintf('TEST case: The glass''s direction does not matter (both sides are always searched)');
 fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
 figure(figNum); close(figNum);
 
 % (the glass faces turned around: their right-hand-rule normals point
-% at the lamp; found without FaceNormals...)
+% at the lamp; still found...)
 flippedMesh = testMesh;
 flippedMesh.Faces(faceInfo.headCover,:) = flippedMesh.Faces(faceInfo.headCover,[1 3 2]);
 flippedCovered = fcn_CarMesh3D_findLampCovers(flippedMesh);
 assert(all(flippedCovered.LabelFaceCoverLamp(faceInfo.headCover)==headType));
-% (...and, with outward FaceNormals given, along minus the normal only:
-% normals pointing into the car find the lamp; pointing away, they do not)
+% (...and stored FaceNormals, right or wrong, do not change the result:
+% since 2026-11-27 they are not trusted, as the direction fixes come
+% after labeling; before, normals pointing away from the lamp missed it)
 normalsMesh = testMesh;
 normalsMesh.FaceNormals = repmat([1 0 0], Nfaces, 1);
 assert(all(fcn_CarMesh3D_findLampCovers(normalsMesh).LabelFaceCoverLamp(faceInfo.headCover)==headType));
 normalsMesh.FaceNormals = repmat([-1 0 0], Nfaces, 1);
-assert(all(fcn_CarMesh3D_findLampCovers(normalsMesh).LabelFaceCoverLamp(faceInfo.headCover)==0));
+assert(all(fcn_CarMesh3D_findLampCovers(normalsMesh).LabelFaceCoverLamp(faceInfo.headCover)==headType));
 
 % Make sure plot did NOT open up
 figHandles = get(groot, 'Children');

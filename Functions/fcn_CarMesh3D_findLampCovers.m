@@ -13,12 +13,18 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 %
 % How a cover is found: from each glass face (and each light face that is
 % also glass, LabelFaceAlsoParts, the way fcn_CarMesh3D_labelParts marked
-% lamp covers before), the function looks straight behind the face,
-% along its inward normal (minus FaceNormals), for a lamp face (a light
-% face with a light type) within Distance. Four lines are tried per face:
-% from its center, and from halfway between its center and each corner.
-% The nearest lamp face hit is the lamp the face covers. Then, within
-% each connected piece of glass (faces that share corners):
+% lamp covers before), the function looks straight in from the face, on
+% the side away from the outside, for a lamp face (a light face with a
+% light type) within Distance, including a lamp lying right in the
+% glass's plane. Which side is outside comes from
+% fcn_CarMesh3D_outwardSides, not from the face's direction, which cannot
+% be trusted at this step (downloads often have glass facing the wrong
+% way, and the direction fixes come after labeling; Sean, 2026-11-27).
+% Where the outside could not be told, a face that finds no lamp on the
+% side it was given also looks on its other side. Four lines are tried per side
+% of a face: from its center, and from halfway between its center and
+% each corner. The nearest lamp face hit is the lamp the face covers.
+% Then, within each connected piece of glass (faces that share corners):
 %       - a light face that is also glass is a cover when any face of its
 %         piece found a lamp behind it (the cover's edges often lie over
 %         the lamp's housing, not the lamp itself), and
@@ -81,6 +87,7 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 %
 % DEPENDENCIES:
 %
+%      fcn_CarMesh3D_outwardSides
 %      fcn_CarMesh3D_plotVehicle (only if plotting)
 %
 % EXAMPLES:
@@ -101,6 +108,17 @@ function vehicleMesh = fcn_CarMesh3D_findLampCovers(vehicleMesh, options)
 %   %   % glass, recorded as a cover of that lamp (LabelFaceCoverLamp), and is
 %   %   % tinted by fcn_CarMesh3D_plotVehicle while its lamp is lit
 %   %   % (Sean, 15:23, option A)
+
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findLampCovers
+%   % * Works whatever way faces point (step 1A of the plan of
+%   %   % 2026-11-27): the lamp is looked for on the inner side of each
+%   %   % glass face as fcn_CarMesh3D_outwardSides tells it (both sides
+%   %   % where it cannot tell), stored FaceNormals are no longer
+%   %   % trusted for this, and glass lying right on its lamp (zero
+%   %   % distance) is found. Before, flipped glass, the inner skin of
+%   %   % thick glass, and coincident glass were missed
+%   %   % (script_test_fcn_CarMesh3D_glassOverLamps)
 
 % TO-DO:
 %
@@ -267,10 +285,20 @@ if ~isempty(glassIndex) && ~isempty(lightIndex) && Nfaces > 0
         candidateFaces = find(flagCandidate);
         lampFaces = find(flagLamp);
 
-        % Look behind each candidate face for the nearest lamp face
-        [faceNormals, flagBothWays] = fcn_INTERNAL_faceNormals(vehicleMesh);
-        hitLamp = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces, lampFaces, faceNormals, ...
-            options.Distance, flagBothWays);
+        % Look in from each candidate face (away from the outside) for the
+        % nearest lamp face; faces whose outside could not be told, and that
+        % find none, also look the other way (the face's direction is not
+        % used: step 1A of the plan of 2026-11-27)
+        faceNormals = fcn_INTERNAL_faceNormals(vehicleMesh);
+        [outwardSign, sidesInfo] = fcn_CarMesh3D_outwardSides(vehicleMesh, FaceList=candidateFaces, FigNum=-1);
+        inwardDirections = -faceNormals(candidateFaces,:).*outwardSign;
+        hitLamp = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces, lampFaces, inwardDirections, ...
+            options.Distance);
+        flagNone = hitLamp == 0 & sidesInfo.Rule ~= 1;
+        if any(flagNone)
+            hitLamp(flagNone) = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces(flagNone), lampFaces, ...
+                -inwardDirections(flagNone,:), options.Distance);
+        end
         hitType = zeros(numel(candidateFaces),1);
         hitType(hitLamp>0) = labelFaceLamp(lampFaces(hitLamp(hitLamp>0)));
 
@@ -382,33 +410,23 @@ end % Ends main function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% fcn_INTERNAL_faceNormals
-function [faceNormals, flagBothWays] = fcn_INTERNAL_faceNormals(vehicleMesh)
-% The outward unit normal of each face: the mesh's own FaceNormals (from
-% fcn_CarMesh3D_simplifyMesh) when it has them. Otherwise the normals
-% from the right-hand rule, which may point either way on a mesh that
-% has not been simplified yet, so then the lamp is looked for on both
-% sides of the face (flagBothWays)
-Nfaces = size(vehicleMesh.Faces,1);
-if isfield(vehicleMesh,'FaceNormals') && isequal(size(vehicleMesh.FaceNormals),[Nfaces 3]) ...
-        && all(isfinite(vehicleMesh.FaceNormals(:)))
-    faceNormals = vehicleMesh.FaceNormals;
-    flagBothWays = false;
-else
-    vertices = vehicleMesh.Vertices;
-    faces = vehicleMesh.Faces;
-    faceNormals = cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
-        vertices(faces(:,3),:) - vertices(faces(:,1),:), 2);
-    flagBothWays = true;
-end
+function faceNormals = fcn_INTERNAL_faceNormals(vehicleMesh)
+% A unit normal of each face, from its corners (the right-hand rule); which
+% way is in comes from fcn_CarMesh3D_outwardSides
+vertices = vehicleMesh.Vertices;
+faces = vehicleMesh.Faces;
+faceNormals = cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), ...
+    vertices(faces(:,3),:) - vertices(faces(:,1),:), 2);
 faceNormals = faceNormals ./ max(vecnorm(faceNormals,2,2), eps);
 end % Ends fcn_INTERNAL_faceNormals
 
 %% fcn_INTERNAL_lampBehind
-function hitLamp = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces, lampFaces, faceNormals, maxDistance, flagBothWays)
+function hitLamp = fcn_INTERNAL_lampBehind(vehicleMesh, candidateFaces, lampFaces, lookDirections, maxDistance)
 % For each candidate face, the lamp face (an index into lampFaces) nearest
-% behind it, along its inward normal, within maxDistance; 0 for none.
-% Four straight lines ("rays") are cast per face: from its center, and
-% from halfway between its center and each corner.
+% to it along its look direction (one unit vector per candidate face),
+% within maxDistance (0 included: a lamp in the glass's own plane); 0 for
+% none. Four straight lines ("rays") are cast per face: from its center,
+% and from halfway between its center and each corner.
 vertices = vehicleMesh.Vertices;
 faces = vehicleMesh.Faces;
 Ncandidates = numel(candidateFaces);
@@ -419,13 +437,8 @@ corner2 = vertices(faces(candidateFaces,2),:);
 corner3 = vertices(faces(candidateFaces,3),:);
 centers = (corner1 + corner2 + corner3)/3;
 rayStarts = [centers; (centers + corner1)/2; (centers + corner2)/2; (centers + corner3)/2];
-rayDirections = repmat(-faceNormals(candidateFaces,:), 4, 1);
+rayDirections = repmat(lookDirections, 4, 1);
 rayOwner = repmat((1:Ncandidates)', 4, 1);
-if flagBothWays
-    rayStarts = [rayStarts; rayStarts];
-    rayDirections = [rayDirections; -rayDirections];
-    rayOwner = [rayOwner; rayOwner];
-end
 
 % The lamp triangles: a corner and two edges each, and a box around each
 lampCorner = vertices(faces(lampFaces,1),:);
@@ -472,7 +485,8 @@ function [hitDistance, hitTriangle] = fcn_INTERNAL_rayHits(rayStarts, rayDirecti
 % Where each ray first crosses any of the triangles (the Moller-Trumbore
 % test, for every ray and triangle at once): the distance along the ray,
 % and the triangle's number (0 if no triangle is crossed within
-% maxDistance). Rows are rays, columns are triangles.
+% maxDistance). A triangle the ray starts on counts, at distance 0 (glass
+% lying right on its lamp). Rows are rays, columns are triangles.
 dx = rayDirections(:,1); dy = rayDirections(:,2); dz = rayDirections(:,3);
 e1x = edges1(:,1)'; e1y = edges1(:,2)'; e1z = edges1(:,3)';
 e2x = edges2(:,1)'; e2y = edges2(:,2)'; e2z = edges2(:,3)';
@@ -496,7 +510,8 @@ v = (dx.*qx + dy.*qy + dz.*qz).*inverse;
 distance = (e2x.*qx + e2y.*qy + e2z.*qz).*inverse;
 tolerance = 1e-9;
 flagHit = ~flagParallel & u >= -tolerance & v >= -tolerance & (u + v) <= 1 + tolerance ...
-    & distance > 1e-6 & distance <= maxDistance;
+    & distance > -1e-7 & distance <= maxDistance;
+distance = max(distance, 0);
 distance(~flagHit) = inf;
 [hitDistance, hitTriangle] = min(distance, [], 2);
 hitTriangle(~isfinite(hitDistance)) = 0;

@@ -10,13 +10,16 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 % the faces are reordered (as the simplification does).
 %
 % Each pair of overlapping faces of different parts (one face's center
-% within Distance of the other's plane and inside it, both facing the
-% same way) is found, and the face of the part drawn on top is moved
-% Offset outward along its normal. Parts on top, first to last: light,
-% glass, trim, body (a lamp lens over its housing; the glass over the
-% black trim behind it, since glass is always the outermost surface of a
-% window; a black insert over the paint; the glass over the body skin).
-% Wheels are left alone.
+% within Distance of the other's plane and inside it, the two parallel,
+% facing either way) is found, and the face of the part drawn on top is
+% moved Offset outward. Parts on top, first to last: glass, light, trim,
+% body (the glass over the lamp it covers and over the black trim behind
+% it, since glass is always the outermost surface; a lamp lens over its
+% housing; a black insert over the paint). Wheels are left alone.
+%
+% Which way is outward comes from fcn_CarMesh3D_outwardSides (the side
+% seen from outside the vehicle), not from the face's corner order, which
+% a download often has wrong (Sean, 2026-11-27).
 %
 % FORMAT:
 %
@@ -45,13 +48,14 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 %      vehicleMesh: the mesh with the overlays' corners moved outward
 %      (corners shared with other faces move too, by the same small
 %      amount). FaceNormals, if present, is unchanged (the faces keep
-%      their directions).
+%      their directions, right or wrong: fixing them is another step).
 %
 %      numLifted: how many faces were moved.
 %
 % DEPENDENCIES:
 %
 %      knnsearch (Statistics and Machine Learning Toolbox)
+%      fcn_CarMesh3D_outwardSides
 %
 % EXAMPLES:
 %
@@ -78,6 +82,17 @@ function [vehicleMesh, numLifted] = fcn_CarMesh3D_separateOverlays(vehicleMesh, 
 %   %   % trim behind the 2009 Honda Fit's rear quarter windows and rear
 %   %   % window was lifted in front of the glass, the worst 8 spots of
 %   %   % its comparison. Glass is always the outermost surface
+
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_separateOverlays
+%   % * Works whatever way faces point (step 1A of the plan of
+%   %   % 2026-11-27): overlapping faces pair when parallel, facing either
+%   %   % way; the outward side is the side seen from outside
+%   %   % (fcn_CarMesh3D_outwardSides), not the face's corner order. Glass now ranks above
+%   %   % light, so a lamp is never lifted out through the glass over it.
+%   %   % Before, a lamp 1 mm under glass was lifted 2 mm, out through the
+%   %   % glass, and a flipped face was moved inward
+%   %   % (script_test_fcn_CarMesh3D_glassOverLamps)
 
 % TO-DO:
 %
@@ -183,7 +198,7 @@ facePart = vehicleMesh.LabelFacePart(:);
 
 % Which part is drawn on top: a higher rank wins (wheels: never moved)
 partRank = zeros(numel(vehicleMesh.LabelPartNames),1);
-rankOrder = {'body',1; 'trim',2; 'glass',3; 'light',4};   % (higher is on top: glass over trim)
+rankOrder = {'body',1; 'trim',2; 'light',3; 'glass',4};   % (higher is on top: glass over the lamp and the trim)
 for ith_rank = 1:size(rankOrder,1)
     partRank(strcmp(vehicleMesh.LabelPartNames, rankOrder{ith_rank,1})) = rankOrder{ith_rank,2};
 end
@@ -197,7 +212,7 @@ faceNormals = faceNormals./max(faceAreas2, eps);
 faceCenters = (corner1 + vertices(faces(:,2),:) + vertices(faces(:,3),:))/3;
 
 % Overlapping pairs: this face's center lies on a nearby face of another
-% part, facing the same way
+% part, parallel to it (facing either way)
 flagLift = false(numFaces,1);
 numNeighbors = min(16, numFaces);
 if numFaces > 1
@@ -205,7 +220,7 @@ if numFaces > 1
     for ith_neighbor = 2:numNeighbors
         other = neighbors(:,ith_neighbor);
         flagCandidate = faceRank > 0 & faceRank(other) > 0 & faceRank ~= faceRank(other) & ...
-            sum(faceNormals.*faceNormals(other,:), 2) > 0.9 & faceAreas2 > 0 & faceAreas2(other) > 0;
+            abs(sum(faceNormals.*faceNormals(other,:), 2)) > 0.9 & faceAreas2 > 0 & faceAreas2(other) > 0;
         otherCorner1 = vertices(faces(other,1),:);
         edge1 = vertices(faces(other,2),:) - otherCorner1;
         edge2 = vertices(faces(other,3),:) - otherCorner1;
@@ -227,12 +242,13 @@ if numFaces > 1
     end
 end
 
-% Move the lifted faces' corners outward (along the mean normal of the
-% lifted faces at each corner)
+% Move the lifted faces' corners outward (along the mean outward normal of
+% the lifted faces at each corner; outward is the side seen from outside)
 numLifted = sum(flagLift);
 if numLifted > 0 && options.Offset > 0
     liftedFaces = faces(flagLift,:);
-    liftedNormals = faceNormals(flagLift,:);
+    outwardSign = fcn_CarMesh3D_outwardSides(vehicleMesh, FaceList=find(flagLift), NearDistance=options.Distance, FigNum=-1);
+    liftedNormals = faceNormals(flagLift,:).*outwardSign;
     cornerNormals = zeros(size(vertices));
     for ith_corner = 1:3
         cornerNormals = cornerNormals + accumarray([repmat(liftedFaces(:,ith_corner),3,1), kron((1:3)',ones(numLifted,1))], ...
