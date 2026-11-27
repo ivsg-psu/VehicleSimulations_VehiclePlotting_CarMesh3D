@@ -17,8 +17,17 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   ID        "Q66" or "T73" (the running numbers of the design files)
 %   Kind      "question" or "test"
 %   Title     a few words
-%   Text      the question, or what to look at and judge
-%   Context   (optional) why it is asked: where it came up, what it affects
+%   Purpose   the item's purpose as one short question, shown in the list
+%             after the ID and when it was posted
+%   Summary   what changed and why a person is needed, in plain words
+%   Needed    a list: what to judge, one question per entry
+%   Steps     a list: what to do, in order
+%   Context   a list, shown last: where it came up, what it is tied to
+%   Text      (older items) the question as one text, shown as it is
+%   How to write one (Sean, 2026-11-27 01:12): plain words, no code
+%   details; one question per bullet, never a run of questions; only what a
+%   person must see or judge (what a script can check goes in a test); the
+%   chat referred to only in Context, at the end.
 %   File      (optional) the design file it belongs to, and Section
 %   Options   the lettered answers: Key ("A"), Text, and Recommended (true
 %             for one); a test's options are its expected outcomes
@@ -154,6 +163,11 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   % * Done with nothing new since the last Done copies that Done's text
 %   %   % again (kept in lastDoneText.txt), so a double press never loses
 %   %   % the answers (Sean's 13:02 Done said 0 over five answers)
+%   % * The list shows mark, ID, when posted, then the item's purpose as
+%   %   % a short question (field Purpose); an item's page is in sections:
+%   %   % Summary, What is needed, Steps, Context (fields Summary, Needed,
+%   %   % Steps, Context; lists shown as bullets), with the older Text
+%   %   % still shown (Sean, 2026-11-27 01:12)
 %   % * Run the commands runs them just after the button's own callback
 %   %   % has ended (a one-shot timer), and keeps what they print with diary,
 %   %   % not evalc: a window the commands open (the painter, which waits
@@ -382,18 +396,7 @@ end
         currentIndex = index;
         item = items(index);
         headingLabel.Text = sprintf('  %s.  %s', item.ID, item.Title);
-        lines = {item.Text};
-        if ~isempty(item.Context)
-            lines = [lines, {'', ['Context: ' item.Context]}];
-        end
-        if ~isempty(item.File)
-            where = item.File;
-            if ~isempty(item.Section)
-                where = sprintf('%s, %s', where, item.Section);
-            end
-            lines = [lines, {'', ['In: ' where]}];
-        end
-        textArea.Value = lines;
+        textArea.Value = fcn_INTERNAL_itemLines(item);
         flagTest = strcmp(item.Kind, 'test');
         commandsArea.Value = splitlines(item.Commands);
         outputArea.Value = {''};
@@ -922,8 +925,14 @@ end
             if ~isempty(record) && ~isempty(record.Choice) && ~isempty(record.When)
                 answeredText = sprintf('  (answered on: %s)', fcn_INTERNAL_stampText(record.When));
             end
-            labels{ith_item} = sprintf('%s  (posted on: %s)  %s  %s%s', fcn_INTERNAL_mark(latestChoice(items(ith_item).ID)), ...
-                fcn_INTERNAL_stampText(posted), items(ith_item).ID, items(ith_item).Title, answeredText);
+            % (mark, ID, when posted, then the item's purpose as a short
+            % question: Sean, 2026-11-27 01:12)
+            purpose = items(ith_item).Purpose;
+            if isempty(purpose)
+                purpose = items(ith_item).Title;
+            end
+            labels{ith_item} = sprintf('%s  %s  (posted on: %s) : %s%s', fcn_INTERNAL_mark(latestChoice(items(ith_item).ID)), ...
+                items(ith_item).ID, fcn_INTERNAL_stampText(posted), purpose, answeredText);
         end
         itemList.Items = labels;
         itemList.ItemsData = 1:numel(items);
@@ -1025,8 +1034,8 @@ end % Ends fcn_INTERNAL_defaultFolder
 %% fcn_INTERNAL_items
 function items = fcn_INTERNAL_items(loaded)
 % The items, each with every field (blank when not given)
-items = struct('ID', {}, 'Kind', {}, 'Title', {}, 'Text', {}, 'Context', {}, 'File', {}, 'Section', {}, ...
-    'Options', {}, 'Commands', {}, 'CodeTests', {}, 'Posted', {});
+items = struct('ID', {}, 'Kind', {}, 'Title', {}, 'Purpose', {}, 'Summary', {}, 'Text', {}, 'Needed', {}, ...
+    'Steps', {}, 'Context', {}, 'File', {}, 'Section', {}, 'Options', {}, 'Commands', {}, 'CodeTests', {}, 'Posted', {});
 if ~isfield(loaded, 'Items') || isempty(loaded.Items)
     return;
 end
@@ -1037,7 +1046,7 @@ end
 for ith_item = 1:numel(raw)
     source = raw{ith_item};
     item = struct();
-    for name = {'ID', 'Kind', 'Title', 'Text', 'Context', 'File', 'Section', 'Commands', 'Posted'}
+    for name = {'ID', 'Kind', 'Title', 'Purpose', 'Summary', 'Text', 'File', 'Section', 'Commands', 'Posted'}
         value = '';
         if isfield(source, name{1}) && ~isempty(source.(name{1}))
             value = source.(name{1});
@@ -1046,6 +1055,15 @@ for ith_item = 1:numel(raw)
             end
         end
         item.(name{1}) = char(value);
+    end
+    % (the lists, each shown as bullets: what is needed, the steps, and the
+    % context, last; Sean, 2026-11-27 01:12)
+    for name = {'Needed', 'Steps', 'Context'}
+        value = {};
+        if isfield(source, name{1}) && ~isempty(source.(name{1}))
+            value = cellstr(source.(name{1}));
+        end
+        item.(name{1}) = reshape(value, 1, []);
     end
     if isempty(item.Kind)
         item.Kind = 'question';
@@ -1109,6 +1127,39 @@ for ith_line = 1:numel(lines)
     latest(record.ID) = record;
 end
 end % Ends fcn_INTERNAL_readAnswers
+
+%% fcn_INTERNAL_itemLines
+function lines = fcn_INTERNAL_itemLines(item)
+% (an item's page, in sections, each list as bullets, the context last:
+% Summary, What is needed, Steps, Context, In; Sean, 2026-11-27 01:12. An
+% item written the older way, as one Text, is shown as it is)
+lines = {};
+bullet = [' ' char(8226) ' '];
+if ~isempty(item.Summary)
+    lines = [lines, {['Summary: ' item.Summary], ''}];
+end
+if ~isempty(item.Text) && isempty(item.Needed)
+    lines = [lines, splitlines(item.Text)', {''}];
+end
+sections = {'What is needed:', item.Needed; 'Steps:', item.Steps; 'Context:', item.Context};
+for ith_section = 1:size(sections,1)
+    entries = sections{ith_section, 2};
+    if ith_section == 3 && ~isempty(item.File)
+        where = item.File;
+        if ~isempty(item.Section)
+            where = sprintf('%s, %s', where, item.Section);
+        end
+        entries = [entries, {['Also written in: ' where]}]; %#ok<AGROW>
+    end
+    if isempty(entries)
+        continue;
+    end
+    lines = [lines, sections(ith_section, 1), strcat({bullet}, entries), {''}]; %#ok<AGROW>
+end
+if ~isempty(lines) && isempty(lines{end})
+    lines(end) = [];
+end
+end % Ends fcn_INTERNAL_itemLines
 
 %% fcn_INTERNAL_stampText
 function textOut = fcn_INTERNAL_stampText(textIn)

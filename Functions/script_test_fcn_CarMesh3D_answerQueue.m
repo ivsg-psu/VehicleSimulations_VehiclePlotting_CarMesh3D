@@ -66,12 +66,14 @@ assert(numel(hooks.Items()) == 3);
 assert(strcmp(hooks.Current().ID, 'Q90'), 'The first item not answered');
 assert(contains(findall(figureHandle, 'Tag', 'aqHeading').Text, 'Q90.  First question'));
 textShown = strjoin(findall(figureHandle, 'Tag', 'aqText').Value, ' ');
-assert(contains(textShown, 'Which is better?') && contains(textShown, 'Context: Came up in the test') && ...
-    contains(textShown, 'In: Documentation_X.md, 3. Plan'));
+assert(contains(textShown, 'Which is better?') && contains(textShown, 'Context:') && contains(textShown, 'Came up in the test') && ...
+    contains(textShown, 'Also written in: Documentation_X.md, 3. Plan'));
 assert(contains(findall(figureHandle, 'Tag', 'aqProgress').Text, 'Item 1 of 3'));
 % (each list entry: its mark, then when it was posted: Sean, 15:50)
 listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
-assert(startsWith(listItems{1}, '?  (posted on: 2026_11_25, 17:00:00)  Q90'), 'The list shows when each item was posted');
+% (since 2026-11-27 01:12: mark, ID, when posted, then the purpose, or the
+% title when there is none)
+assert(startsWith(listItems{1}, '?  Q90  (posted on: 2026_11_25, 17:00:00) : First question'), 'The list shows when each item was posted');
 % (the divider between the list and the page: the list widened and narrowed)
 hooks.SetListWidth(400);
 assert(hooks.ListWidth() == 400, 'The list widened');
@@ -189,6 +191,38 @@ assert(contains(findall(figureHandle, 'Tag', 'aqStatus').Text, 'NOW message copi
 nowText = hooks.Now();
 assert(startsWith(nowText, 'NOW: Q90 (First question): (A): that one, because'));
 assert(~contains(nowText, 'Last error'));
+
+%% An item in sections: Summary, What is needed, Steps, Context (Sean, 2026-11-27 01:12)
+fprintf(1, 'An item in sections\n');
+written = struct('Items', {{}});
+for ith = 1:numel(items)
+    written.Items{end+1} = items(ith);
+end
+written.Items{end+1} = struct('ID', 'T91', 'Kind', 'test', 'Title', 'Sectioned test', ...
+    'Purpose', 'Does the new layout read clearly?', 'Summary', 'The page is now in sections.', ...
+    'Needed', {{'Is it easy to read?', 'Are the bullets clear?'}}, 'Steps', {{'Open the item.'}}, ...
+    'Context', {{'Seen before in a test', 'May be tied to the pause'}}, 'File', 'Documentation_X.md', 'Section', 'Tests');
+fileID = fopen(fullfile(queueFolder, 'openItems.json'), 'w', 'n', 'UTF-8');
+fprintf(fileID, '%s', jsonencode(struct('Written', '2026-11-25 17:00', 'Items', {written.Items})));
+fclose(fileID);
+hooks.Reload();
+hooks.Show('T91');
+pageLines = findall(figureHandle, 'Tag', 'aqText').Value;
+bulletText = [' ' char(8226) ' '];
+assert(strcmp(pageLines{1}, 'Summary: The page is now in sections.'), 'Summary first');
+neededAt = find(strcmp(pageLines, 'What is needed:'));
+stepsAt = find(strcmp(pageLines, 'Steps:'));
+contextAt = find(strcmp(pageLines, 'Context:'));
+assert(isscalar(neededAt) && isscalar(stepsAt) && isscalar(contextAt) && neededAt < stepsAt && stepsAt < contextAt, ...
+    'The sections in order, the context last');
+assert(strcmp(pageLines{neededAt+1}, [bulletText 'Is it easy to read?']) && strcmp(pageLines{neededAt+2}, [bulletText 'Are the bullets clear?']), ...
+    'Each question its own bullet');
+assert(strcmp(pageLines{end}, [bulletText 'Also written in: Documentation_X.md, Tests']), 'Where it is written: last');
+listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
+assert(any(contains(listItems, 'T91  (posted on:') & contains(listItems, ') : Does the new layout read clearly?')), ...
+    'The list shows the purpose');
+fcn_INTERNAL_writeItems(queueFolder, items);
+hooks.Reload();
 
 %% Run the commands: in the base workspace; this window stays open
 fprintf(1, 'Run the commands\n');
