@@ -192,6 +192,24 @@ nowText = hooks.Now();
 assert(startsWith(nowText, 'NOW: Q90 (First question): (A): that one, because'));
 assert(~contains(nowText, 'Last error'));
 
+%% A reposted item shows ? again (Sean, 2026-11-27 02:44)
+fprintf(1, 'A reposted item\n');
+listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
+answeredAt = find(~startsWith(listItems, '?'), 1);
+assert(~isempty(answeredAt), 'The test needs an answered item here');
+reposted = items;
+[reposted.Posted] = deal('');
+reposted(answeredAt).Posted = char(datetime('now', 'Format', 'yyyy_MM_dd, HH:mm:ss') + minutes(5));
+fcn_INTERNAL_writeItems(queueFolder, reposted);
+hooks.Reload();
+listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
+assert(startsWith(listItems{answeredAt}, '?') && ~contains(listItems{answeredAt}, 'answered on'), ...
+    'Posted again after its answer: ? again');
+fcn_INTERNAL_writeItems(queueFolder, items);
+hooks.Reload();
+listItems = findall(figureHandle, 'Tag', 'aqItemList').Items;
+assert(~startsWith(listItems{answeredAt}, '?'), 'Its answer counts again once the repost is gone');
+
 %% An item in sections: Summary, What is needed, Steps, Context (Sean, 2026-11-27 01:12)
 fprintf(1, 'An item in sections\n');
 written = struct('Items', {{}});
@@ -223,6 +241,23 @@ assert(any(contains(listItems, 'T91  (posted on:') & contains(listItems, ') : Do
     'The list shows the purpose');
 fcn_INTERNAL_writeItems(queueFolder, items);
 hooks.Reload();
+
+%% No items: the page is cleared (Sean, 2026-11-27 02:53)
+fprintf(1, 'No items\n');
+fileID = fopen(fullfile(queueFolder, 'openItems.json'), 'w', 'n', 'UTF-8');
+fprintf(fileID, '%s', jsonencode(struct('Written', '2026-11-25 17:00', 'Items', {{}})));
+fclose(fileID);
+hooks.Reload();
+assert(contains(findall(figureHandle, 'Tag', 'aqHeading').Text, 'Nothing to answer'));
+assert(isempty(findall(findall(figureHandle, 'Tag', 'aqAnswers'), 'Type', 'uiradiobutton', 'Visible', 'on')), 'No answers shown');
+assert(isempty(strjoin(findall(figureHandle, 'Tag', 'aqCommands').Value, '')) && ...
+    isempty(strjoin(cellstr(findall(figureHandle, 'Tag', 'aqComment').Value), '')), 'No commands, no comment');
+assert(strcmp(findall(figureHandle, 'Tag', 'aqPictureThumb').Visible, 'off') && ...
+    isempty(findall(figureHandle, 'Tag', 'aqPictureCount').Text), 'No picture');
+assert(strcmp(findall(figureHandle, 'Tag', 'aqRun').Enable, 'off') && strcmp(findall(figureHandle, 'Tag', 'aqPastePicture').Enable, 'off'));
+fcn_INTERNAL_writeItems(queueFolder, items);
+hooks.Reload();
+assert(strcmp(findall(figureHandle, 'Tag', 'aqPastePicture').Enable, 'on'), 'Items again: Paste picture on');
 
 %% Run the commands: in the base workspace; this window stays open
 fprintf(1, 'Run the commands\n');

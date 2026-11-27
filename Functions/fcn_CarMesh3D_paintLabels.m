@@ -408,6 +408,8 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_paintLabels
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
+%   % * It is closed once the window is built, whether or not the
+%   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
 
 % TO-DO:
 %
@@ -887,6 +889,7 @@ if flagOwnWindow && isvalid(figureHandle)
     end
 end
 
+loading.Close();   % (built: closed here, since the nested functions keep onCleanup from running while the window is open; T95 BUG, Sean 2026-11-27 02:39)
 if flagOwnWindow && options.FlagWait && options.FlagVisible && isvalid(figureHandle)
     loading.Close();   % (the window is ready)
     uiwait(figureHandle);

@@ -181,6 +181,8 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_reviewVehicle
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
+%   % * It is closed once the window is built, whether or not the
+%   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
 
 % TO-DO:
 %
@@ -412,6 +414,7 @@ if options.FlagVisible
     figureHandle.Visible = 'on';
 end
 
+loading.Close();   % (built: closed here, since the nested functions keep onCleanup from running while the window is open; T95 BUG, Sean 2026-11-27 02:39)
 %% Nested functions (they share the window's state above)
 
     %% A vehicle

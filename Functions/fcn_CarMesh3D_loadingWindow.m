@@ -2,7 +2,7 @@ function loading = fcn_CarMesh3D_loadingWindow(messageText, options)
 % fcn_CarMesh3D_loadingWindow
 
 % A small window, shown at once, that says a CarMesh3D window is being
-% opened, with a moving bar, so a window that takes a few seconds to open
+% opened (words only: "... please wait"), so a window that takes a few seconds to open
 % does not look broken (Sean, 2026-11-26 23:28: "If there's a known delay
 % there, we have to put up a loading screen for the user"; Q99 (A), and
 % GUI rule G43). The window that is opening closes it when it is ready.
@@ -66,6 +66,8 @@ function loading = fcn_CarMesh3D_loadingWindow(messageText, options)
 %   % * First write (Q99 (A))
 %   % * Kept in front (WindowStyle alwaysontop): the window being built
 %   %   % covered it and it could not be read (T95 BUG, Sean 02:02)
+%   % * Words only, "... please wait", and a short pause so they are drawn
+%   %   % (the moving bar never showed: T95 BUG, Sean 02:39)
 
 % TO-DO:
 %
@@ -103,15 +105,16 @@ figureHandle = uifigure('Name', 'CarMesh3D', 'Tag', 'carMesh3DLoading', 'Resize'
     'Position', [round((screenSize(3:4) - windowSize)/2), windowSize], 'HandleVisibility', 'off', ...
     'WindowStyle', 'alwaysontop', ...   % (stays in front of the window being built: T95 BUG, Sean 2026-11-27 02:02)
     'Visible', matlab.lang.OnOffSwitchState(~options.FlagBuildHidden));
-figureHandle.UserData = [char(messageText) ' ...'];
-if ~options.FlagBuildHidden
-    % (a moving bar over the window; uiprogressdlg needs a window that is
-    % shown, so a window built hidden, for the tests, gets the words only)
-    uiprogressdlg(figureHandle, 'Title', 'Loading', 'Message', figureHandle.UserData, 'Indeterminate', 'on');
-else
-    uilabel(figureHandle, 'Text', figureHandle.UserData, 'Position', [20 50 420 30], 'Tag', 'carMesh3DLoadingText');
-end
+figureHandle.UserData = [char(messageText) ' ... please wait'];
+% (words only, no moving bar: the bar never showed, as MATLAB is busy
+% building the other window; Sean, T95, 02:39: "Suggest the text option
+% for simplicity")
+uilabel(figureHandle, 'Text', figureHandle.UserData, 'Position', [15 35 430 60], 'Tag', 'carMesh3DLoadingText', ...
+    'FontSize', 14, 'WordWrap', 'on', 'HorizontalAlignment', 'center');
 drawnow;
+if ~options.FlagBuildHidden
+    pause(0.3);   % (time for the new window to be drawn on screen before MATLAB gets busy)
+end
 loading.Figure = figureHandle;
 loading.Close = @() fcn_INTERNAL_close(figureHandle);
 

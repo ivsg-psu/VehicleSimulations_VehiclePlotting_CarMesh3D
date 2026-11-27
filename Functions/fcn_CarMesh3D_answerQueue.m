@@ -168,6 +168,10 @@ function [answers, figureHandle] = fcn_CarMesh3D_answerQueue(queueFolder, option
 %   %   % Summary, What is needed, Steps, Context (fields Summary, Needed,
 %   %   % Steps, Context; lists shown as bullets), with the older Text
 %   %   % still shown (Sean, 2026-11-27 01:12)
+%   % * With no items, the page is cleared: text, commands, output,
+%   %   % answers, comment, pictures (Sean, 2026-11-27 02:53)
+%   % * An answer given before an item was posted again no longer counts:
+%   %   % the reposted item shows ? (Sean, 2026-11-27 02:44)
 %   % * Run the commands runs them just after the button's own callback
 %   %   % has ended (a one-shot timer), and keeps what they print with diary,
 %   %   % not evalc: a window the commands open (the painter, which waits
@@ -383,10 +387,30 @@ end
         if ~isempty(items)
             showItem(currentIndex);
         else
-            headingLabel.Text = '  Nothing to answer';
-            textArea.Value = {'openItems.json lists no items.'};
-            refreshList();
+            showNothing();
         end
+    end
+
+    function showNothing()
+        % (no items: the page is cleared, so nothing of an answered item
+        % stays on it: its text, commands, output, answers, comment and
+        % pictures; Sean, 2026-11-27 02:53)
+        headingLabel.Text = '  Nothing to answer';
+        textArea.Value = {'Nothing is waiting for an answer.'};
+        commandsArea.Value = {''};
+        outputArea.Value = {''};
+        runStatus.Text = '';
+        commentArea.Value = '';
+        delete(answerGroup.Children);
+        answerButtons = gobjects(0);
+        pictureImage.Visible = 'off';
+        pictureImage.ImageSource = '';
+        removePictureButton.Visible = 'off';
+        pictureCount.Text = '';
+        statusLabel.Text = '';
+        progressLabel.Text = 'No items';
+        set([runButton, codeTestsButton, pasteButton, previousButton, nextButton], 'Enable', 'off');
+        refreshList();
     end
 
     function showItem(index)
@@ -403,6 +427,7 @@ end
         runStatus.Text = '';
         runButton.Enable = matlab.lang.OnOffSwitchState(~isempty(strtrim(item.Commands)));
         codeTestsButton.Enable = matlab.lang.OnOffSwitchState(~isempty(item.CodeTests));
+        pasteButton.Enable = 'on';   % (off while there were no items)
         if flagTest || ~isempty(strtrim(item.Commands))
             pageGrid.RowHeight{3} = 150;
             pageGrid.RowHeight{4} = 32;
@@ -864,9 +889,20 @@ end
 
     %% The record
     function found = latestRecord(id)
+        % (the latest answer to an item; one given before the item was
+        % posted again does not count, so a reposted item shows ? again:
+        % Sean, 2026-11-27 02:44)
         found = [];
         if ~isempty(latest) && isKey(latest, id)
             found = latest(id);
+            itemIndex = find(strcmp({items.ID}, id), 1);
+            if ~isempty(itemIndex) && ~isempty(items(itemIndex).Posted)
+                postedTime = fcn_INTERNAL_stampTime(items(itemIndex).Posted);
+                answerTime = fcn_INTERNAL_stampTime(found.When);
+                if ~isnat(postedTime) && ~isnat(answerTime) && answerTime < postedTime
+                    found = [];
+                end
+            end
         end
     end
 
@@ -1160,6 +1196,20 @@ if ~isempty(lines) && isempty(lines{end})
     lines(end) = [];
 end
 end % Ends fcn_INTERNAL_itemLines
+
+%% fcn_INTERNAL_stampTime
+function stamp = fcn_INTERNAL_stampTime(textIn)
+% (a time the queue writes, as a datetime; NaT when it cannot be read)
+stamp = NaT;
+textIn = char(textIn);
+for formatIn = {'yyyy-MM-dd HH:mm:ss', 'yyyy-MM-dd HH:mm', 'yyyy_MM_dd, HH:mm:ss', 'yyyy-MM-dd''T''HH:mm:ss'}
+    try
+        stamp = datetime(textIn, 'InputFormat', formatIn{1});
+        return;
+    catch
+    end
+end
+end % Ends fcn_INTERNAL_stampTime
 
 %% fcn_INTERNAL_stampText
 function textOut = fcn_INTERNAL_stampText(textIn)

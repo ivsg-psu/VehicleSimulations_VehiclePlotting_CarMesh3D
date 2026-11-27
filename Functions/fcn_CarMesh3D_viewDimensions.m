@@ -87,6 +87,8 @@ function viewer = fcn_CarMesh3D_viewDimensions(vehicleInput, options)
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_viewDimensions
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
+%   % * It is closed once the window is built, whether or not the
+%   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
 
 % TO-DO:
 %
@@ -279,6 +281,7 @@ if flagOwnWindow
     figureHandle.UserData = viewer;
 end
 
+loading.Close();   % (built: closed here, since the nested functions keep onCleanup from running while the window is open; T95 BUG, Sean 2026-11-27 02:39)
 if flag_do_debug
     fprintf(1,'ENDING function: %s, in file: %s\n\n',st(1).name,st(1).file);
 end
