@@ -410,6 +410,12 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
 %   % * It is closed once the window is built, whether or not the
 %   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
+%   % * The painted and selected faces' highlight shows on faces that
+%   %   % point the wrong way (step 1C of the plan of 2026-11-27): each
+%   %   % face's copy is drawn on both sides of it, so it shows from
+%   %   % either side whatever the face's direction (before, the copy was
+%   %   % lifted along the stored normal only, so on a backward face it
+%   %   % sank behind the surface)
 
 % TO-DO:
 %
@@ -802,7 +808,8 @@ labelAxes = labelViewer.Axes;
 labelPatch = labelViewer.Patch;
 labelPatch.UserData = 'reduced';
 % (the painted faces: pending ones filled and outlined in yellow, applied
-% ones filled; each a copy lifted a hair off the surface, so it shows)
+% ones filled; each as two copies lifted a hair off the surface, one on
+% each side, so it shows whichever way the face points)
 paintEdges = patch(labelAxes, 'Faces', zeros(0,3), 'Vertices', zeros(0,3), 'FaceColor', 'flat', ...
     'FaceVertexCData', zeros(0,3), 'FaceAlpha', 'flat', 'FaceVertexAlphaData', zeros(0,1), 'AlphaDataMapping', 'none', ...
     'FaceLighting', 'none', 'EdgeColor', [1 0.75 0], 'EdgeAlpha', 0.8, 'LineWidth', 0.5, 'HitTest', 'off', 'Clipping', 'off', 'Tag', 'paintEdges');
@@ -966,6 +973,7 @@ end
             return;
         end
         [overlayVertices, overlayFaces] = fcn_INTERNAL_liftedFaces(data.Mesh, faceList, 0.0015);
+        % (two copies per face, one on each side: the colors twice)
         overlayColors = zeros(numel(faceList),3);
         overlayAlpha = ones(numel(faceList),1);
         for thisTarget = reshape(unique(targets),1,[])
@@ -978,8 +986,8 @@ end
                 overlayAlpha(flagTarget) = alpha;
             end
         end
-        set(patchHandle, 'Faces', overlayFaces, 'Vertices', overlayVertices, 'FaceVertexCData', overlayColors, ...
-            'FaceVertexAlphaData', max(overlayAlpha, 0.6));
+        set(patchHandle, 'Faces', overlayFaces, 'Vertices', overlayVertices, 'FaceVertexCData', [overlayColors; overlayColors], ...
+            'FaceVertexAlphaData', max([overlayAlpha; overlayAlpha], 0.6));
     end
 
     function flagHidden = hiddenFaces(hiddenKeys)
@@ -2243,7 +2251,7 @@ end
         layers = struct('Paint', paintTarget, 'Applied', appliedTarget, 'Saved', savedTarget, 'Working', workingTarget, ...
             'PendingFaces', find(selectedFaces & flagShown), 'Selected', find(selectedFaces), ...
             'AppliedFaces', find(appliedTarget ~= workingTarget & paintTarget == appliedTarget & flagShown), ...
-            'PendingDrawn', size(paintEdges.Faces,1), 'AppliedDrawn', size(appliedPatch.Faces,1), ...
+            'PendingDrawn', size(paintEdges.Faces,1)/2, 'AppliedDrawn', size(appliedPatch.Faces,1)/2, ...
             'StatusText', editStatusLabel.Text, 'KeptEdits', numel(keptEdits));
     end
 
@@ -2525,8 +2533,12 @@ end % Ends fcn_INTERNAL_labelFaces
 
 %% fcn_INTERNAL_liftedFaces
 function [liftedVertices, liftedFaces] = fcn_INTERNAL_liftedFaces(vehicleMesh, faceList, lift)
-% Copies of the listed faces, each with its own three corners moved lift
-% meters along the face's outward normal (so they draw on top of the mesh)
+% Two copies of the listed faces, each with its own three corners moved
+% lift meters off the face: the first numel(faceList) copies along the
+% face's normal, the next numel(faceList) against it. One of the two is
+% always in front of the surface, whichever way the face points and from
+% whichever side it is seen (step 1C: a backward face's highlight sank
+% behind the surface)
 liftedVertices = zeros(0,3);
 liftedFaces = zeros(0,3);
 if isempty(faceList)
@@ -2544,11 +2556,15 @@ else
 end
 normals = normals./max(vecnorm(normals,2,2), eps);
 numFaces = numel(faceList);
-liftedVertices = zeros(3*numFaces,3);
-liftedVertices(1:3:end,:) = corner1 + lift*normals;
-liftedVertices(2:3:end,:) = corner2 + lift*normals;
-liftedVertices(3:3:end,:) = corner3 + lift*normals;
-liftedFaces = reshape(1:3*numFaces, 3, [])';
+liftedVertices = zeros(6*numFaces,3);
+for ith_side = 1:2
+    sideLift = lift*(3 - 2*ith_side);   % (+lift, then -lift)
+    firstRow = 3*numFaces*(ith_side - 1);
+    liftedVertices(firstRow + (1:3:3*numFaces),:) = corner1 + sideLift*normals;
+    liftedVertices(firstRow + (2:3:3*numFaces),:) = corner2 + sideLift*normals;
+    liftedVertices(firstRow + (3:3:3*numFaces),:) = corner3 + sideLift*normals;
+end
+liftedFaces = reshape(1:6*numFaces, 3, [])';
 end % Ends fcn_INTERNAL_liftedFaces
 
 %% fcn_INTERNAL_rayHits
