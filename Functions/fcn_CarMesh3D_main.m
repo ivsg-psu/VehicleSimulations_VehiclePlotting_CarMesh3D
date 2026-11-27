@@ -118,6 +118,8 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 %   % * First write (step 1 of the design's plan): the steps and their
 %   %   % marks, the working model (resume, set aside, Commit, Discard),
 %   %   % one editor at a time, any number of viewers, the saved view
+%   % * A working copy with no changes is made fresh on opening, with
+%   %   % no question (Claude, before Sean's first look)
 
 % TO-DO:
 %
@@ -222,6 +224,11 @@ loadingCleanup = onCleanup(@() loading.Close()); %#ok<NASGU>
 %%%% The working copy (resume, set aside, or a new one)
 workFolder = fullfile(workingRoot, vehicleID);
 flagResumed = false;
+if isfolder(workFolder) && isempty(fcn_INTERNAL_changedFiles(workFolder, vehicleFiles.Folder))
+    % (a working copy with no changes: made fresh, nothing to ask; it
+    % holds nothing the vehicle's folder does not, so it is deleted)
+    rmdir(workFolder, 's');
+end
 if isfolder(workFolder)
     resumeChoice = options.Resume;
     if isempty(resumeChoice)
