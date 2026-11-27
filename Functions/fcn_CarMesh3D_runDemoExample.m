@@ -106,6 +106,14 @@ function [examples, echoText] = fcn_CarMesh3D_runDemoExample(exampleName, option
 %   %   % settings when the window closes (the viewer no longer waits by
 %   %   % default: Q68 (A))
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_runDemoExample
+%   % * 'workflow': one vehicle from the library to V&V, each window in
+%   %   % turn (browse, the import report, face directions, labels, lamp
+%   %   % functions, the reviewer; step 8 of the plan of 2026-11-27)
+%   % * Examples of their own for the import report, the face-direction
+%   %   % window and the lamp-functions window
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -289,6 +297,34 @@ vehicleLines = {
 
 examples = struct('Name', {}, 'Title', {}, 'Description', {}, 'DemoCommands', {}, 'VehicleCommands', {}, 'SavesChanges', {});
 
+% The whole path, from the library to V&V (step 8 of the plan of
+% 2026-11-27): each window in turn; close each one to go on
+workflowLines = {
+    '% 2. The import report: lamps and glass told apart? Where is the glass?'
+    '%    (on a new download it comes right after the first labels; here, on the finished mesh)'
+    'loaded = load(%s.MeshFile, ''vehicleMesh'');'
+    'importReport = fcn_CarMesh3D_importReport(loaded.vehicleMesh, FigNum=2);'
+    '% 3. Face directions: flip faces that point into the vehicle (Save writes faceFlips_<ID>.mat)'
+    '[fixedMesh, faceFlips] = fcn_CarMesh3D_fixFaceDirections(%s.Folder, FlagWait=true);'
+    '% 4. Labels: fix them by painting faces (Save writes labelEdits_<ID>.mat)'
+    '[editedMesh, labelEdits] = fcn_CarMesh3D_paintLabels(%s.Folder, FlagWait=true);'
+    '% 5. Lamp functions: which signal lights which lamp, and how brightly'
+    '[lampFunctions, lampEditor] = fcn_CarMesh3D_editLampFunctions(%s.Folder);'
+    'waitfor(lampEditor.Figure);'
+    '% 6. V&V: is the mesh right? One question at a time, then Approve or Reject'
+    '[answers, reviewWindow] = fcn_CarMesh3D_reviewVehicle(%s.Folder);'};
+examples(end+1).Name = 'workflow';
+examples(end).Title = 'The whole path for one vehicle: browse, import report, face directions, labels, lamp functions, V&V';
+examples(end).Description = ['One vehicle from the library to its V&V review, each window in turn: close one to open the next. ' ...
+    'On the demo copy, every save goes into the copy.'];
+examples(end).DemoCommands = [{
+    '% 1. Browse the library (look; close it to go on)'
+    sprintf('fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'');', vehicleID)}; copyLines; strrep(workflowLines, '%s', 'demoFiles')];
+examples(end).VehicleCommands = [{
+    '% 1. Browse the library (look; close it to go on)'
+    sprintf('fcn_CarMesh3D_browseLibrary(DefaultVehicle=''%s'');', vehicleID)}; vehicleLines; strrep(workflowLines, '%s', 'vehicleFiles')];
+examples(end).SavesChanges = true;
+
 % The library browser
 examples(end+1).Name = 'library';
 examples(end).Title = 'browseLibrary: browse the vehicle library and pick vehicles';
@@ -368,6 +404,43 @@ examples(end).VehicleCommands = [vehicleLines; {
     '% Save writes labelEdits_<ID>.mat in the VEHICLE''s folder; rerun the'
     '% vehicle''s script afterward to rebuild its mesh with the edits'
     '[editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleFiles.Folder, FlagWait=true);'}];
+examples(end).SavesChanges = true;
+
+% The import report
+examples(end+1).Name = 'importReport';
+examples(end).Title = 'importReport: are lamps and glass told apart, and where is the glass?';
+examples(end).Description = ['The report on a mesh after its first labels: the gate (lamps and glass told apart), the glass by ' ...
+    'piece (windows, over lamps, elsewhere: often a mislabel), and which lamps are under glass. Changes nothing.'];
+examples(end).DemoCommands = [copyLines; {
+    'loaded = load(demoFiles.MeshFile, ''vehicleMesh'');'
+    'importReport = fcn_CarMesh3D_importReport(loaded.vehicleMesh, FigNum=2)'}];
+examples(end).VehicleCommands = [vehicleLines; {
+    'loaded = load(vehicleFiles.MeshFile, ''vehicleMesh'');'
+    'importReport = fcn_CarMesh3D_importReport(loaded.vehicleMesh, FigNum=2)'}];
+examples(end).SavesChanges = false;
+
+% The face-direction window
+examples(end+1).Name = 'faceDirections';
+examples(end).Title = 'fixFaceDirections: flip faces that point into the vehicle';
+examples(end).Description = ['The model colored by which way each face points, seen from outside (green out, red in, gray ' ...
+    'cannot tell). Flip the suggestions at once, or by hand (Ctrl+click a region, Ctrl+drag the brush); Save writes the ' ...
+    'flips by position, for the vehicle''s build to replay. On the demo copy, Save writes only into the copy.'];
+examples(end).DemoCommands = [copyLines; {
+    '[fixedMesh, faceFlips] = fcn_CarMesh3D_fixFaceDirections(demoFiles.Folder, FlagWait=true);'}];
+examples(end).VehicleCommands = [vehicleLines; {
+    '% Save writes faceFlips_<ID>.mat in the VEHICLE''s folder; rerun its script to rebuild with them'
+    '[fixedMesh, faceFlips] = fcn_CarMesh3D_fixFaceDirections(vehicleFiles.Folder, FlagWait=true);'}];
+examples(end).SavesChanges = true;
+
+% The lamp-functions window
+examples(end+1).Name = 'lampFunctions';
+examples(end).Title = 'editLampFunctions: which signal lights which lamp, and how brightly';
+examples(end).Description = ['The lamp-to-function matrix: one row per lamp, one column per signal. Cells worked out from the ' ...
+    'maker''s information are orange until verified; click one to see its source. On the demo copy, saves go into the copy.'];
+examples(end).DemoCommands = [copyLines; {
+    '[lampFunctions, lampEditor] = fcn_CarMesh3D_editLampFunctions(demoFiles.Folder);'}];
+examples(end).VehicleCommands = [vehicleLines; {
+    '[lampFunctions, lampEditor] = fcn_CarMesh3D_editLampFunctions(vehicleFiles.Folder);'}];
 examples(end).SavesChanges = true;
 
 % The reviewer

@@ -10,6 +10,11 @@
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_runDemoExample
 %   % * The mesh editor is two examples (GUI test vehicle, demo vehicle)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_runDemoExample
+%   % * The whole path ('workflow') first; the import report, the face
+%   %   % directions and the lamp functions as examples of their own
 
 %% Set up the workspace
 close all;
@@ -17,7 +22,8 @@ testVehicleID = fcn_CarMesh3D_demoVehicle(FlagUsePreference=false, FigNum=-1);  
 
 %% The list of examples
 examples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=testVehicleID);
-expectedNames = {'library','viewer','sharedView','editorTest','editor','reviewer','animate','history','list','browse'};
+expectedNames = {'workflow','library','viewer','sharedView','editorTest','editor','importReport','faceDirections','lampFunctions', ...
+    'reviewer','animate','history','list','browse'};
 assert(isequal({examples.Name}, expectedNames));
 for ith_example = 1:numel(examples)
     assert(~isempty(examples(ith_example).Title) && ~isempty(examples(ith_example).DemoCommands) ...

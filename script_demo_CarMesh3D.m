@@ -28,6 +28,17 @@
 %   7. Validate       fcn_CarMesh3D_validateMesh   (table of target vs. measured)
 %                     fcn_CarMesh3D_plotSideImage  (outline vs. a side photo)
 %   8. Plot / animate fcn_CarMesh3D_plotVehicle    (fast pose updates)
+%
+% The windows a person uses on one vehicle, from the library to its V&V
+% review (the demo menu's first example, "The whole path for one
+% vehicle", runs them in turn on a copy of the vehicle):
+%
+%   browse            fcn_CarMesh3D_browseLibrary
+%   import report     fcn_CarMesh3D_importReport   (lamps and glass told apart?)
+%   face directions   fcn_CarMesh3D_fixFaceDirections
+%   labels            fcn_CarMesh3D_paintLabels
+%   lamp functions    fcn_CarMesh3D_editLampFunctions
+%   V&V               fcn_CarMesh3D_reviewVehicle
 
 % REVISION HISTORY:
 %
@@ -76,6 +87,13 @@
 %   %   % Each demo prints its commands, on a temporary copy of a vehicle
 %   %   % (fcn_CarMesh3D_makeDemoCopy: changes are not saved) and on the
 %   %   % actual vehicle, then runs them (fcn_CarMesh3D_runDemoExample)
+
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_demo_CarMesh3D
+%   % * The windows from browse to V&V listed at the top; the menu's first
+%   %   % example runs them in turn on a copy (step 8 of the plan of
+%   %   % 2026-11-27), and the import report, the face-direction window
+%   %   % and the lamp-functions window have examples of their own
 
 % TO-DO:
 %
