@@ -39,6 +39,11 @@
 %   %   % LabelFaceCoverLamp has its covers found when drawn, and one with no
 %   %   % covers draws as before
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In script_test_fcn_CarMesh3D_plotVehicle
+%   % * The steering wheel turns with the steer angle (step 7A), and not
+%   %   % when its face numbers do not lie around it (a reduced copy)
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -275,6 +280,41 @@ assert(movedPoint(1) > topPoint(1));
 fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, WheelLift=[0 0.1 0 0], FigNum=-1);
 assert(abs(plotHandles.WheelTransforms{2}.Matrix(3,4) - 0.1) < 1e-12);
 assert(abs(plotHandles.WheelTransforms{1}.Matrix(3,4)) < 1e-12);
+
+% Make sure plot opened up
+assert(isequal(get(gcf,'Number'),figNum));
+
+%% TEST case: The steering wheel turns with the steer angle (and only when its faces are around it)
+figNum = 20016;
+titleString = sprintf('TEST case: The steering wheel turns with the steer angle');
+fprintf(1,'Figure %.0f: %s\n',figNum, titleString);
+figure(figNum); clf;
+
+% (a "steering wheel": the body faces within 0.15 m of one body face's center)
+vehicleMesh = fcn_INTERNAL_labeledSample;
+centers = (vehicleMesh.Vertices(vehicleMesh.Faces(:,1),:) + vehicleMesh.Vertices(vehicleMesh.Faces(:,2),:) + ...
+    vehicleMesh.Vertices(vehicleMesh.Faces(:,3),:))/3;
+bodyFaces = find(vehicleMesh.LabelFacePart == find(strcmp(vehicleMesh.LabelPartNames, 'body')));
+hub = centers(bodyFaces(round(end/2)),:);
+wheelFaces = bodyFaces(vecnorm(centers(bodyFaces,:) - hub, 2, 2) < 0.15);
+axisToDriver = [-0.88 0 0.47]/norm([-0.88 0 0.47]);
+vehicleMesh.InteriorObjects = struct('SteeringWheel', struct('Found', true, 'Center', hub, 'Normal', axisToDriver, ...
+    'Radius', 0.15, 'Faces', wheelFaces));
+plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, SteerAngle=[0.12 0.08], SteeringRatio=12, FigNum=figNum);
+sgtitle(titleString, 'Interpreter','none');
+assert(isgraphics(plotHandles.SteeringTransform));
+expectedMatrix = makehgtform('translate',hub)*makehgtform('axisrotate',axisToDriver,12*0.10)*makehgtform('translate',-hub);
+assert(max(abs(plotHandles.SteeringTransform.Matrix(:) - expectedMatrix(:))) < 1e-12);
+% (its faces are drawn under the steering wheel's transform, not the body's)
+assert(sum(arrayfun(@(h) size(h.Faces,1), findall(plotHandles.SteeringTransform, 'Type', 'patch'))) == numel(wheelFaces));
+% (the fast path turns it back to straight)
+fcn_CarMesh3D_plotVehicle(vehicleMesh, PlotHandles=plotHandles, SteerAngle=0, FigNum=-1);
+assert(max(abs(plotHandles.SteeringTransform.Matrix(:) - reshape(eye(4),[],1))) < 1e-12);
+% (a reduced copy whose face numbers no longer lie around the wheel: nothing turns)
+staleMesh = vehicleMesh;
+staleMesh.InteriorObjects.SteeringWheel.Faces = bodyFaces(1:5:end);
+staleHandles = fcn_CarMesh3D_plotVehicle(staleMesh, SteerAngle=0.1, FigNum=figNum);
+assert(isempty(staleHandles.SteeringTransform));
 
 % Make sure plot opened up
 assert(isequal(get(gcf,'Number'),figNum));

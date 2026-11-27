@@ -95,7 +95,16 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %      SteerAngle: the steer angle of the front wheels, in radians, as a
 %      scalar (both) or 1 x 2 [FL FR]. Positive steers left. Default 0.
 %      For different left and right angles in a turn (the inside tire
-%      steers more), see fcn_CarMesh3D_calcAckermannSteering.
+%      steers more), see fcn_CarMesh3D_calcAckermannSteering. A mesh whose
+%      steering wheel was found (InteriorObjects.SteeringWheel, from
+%      fcn_CarMesh3D_findInteriorObjects) turns it too: by SteeringRatio
+%      times the mean of the two angles, about its own axis
+%      (fcn_CarMesh3D_turnSteeringWheel's rule).
+%
+%      SteeringRatio: steering-wheel degrees per road-wheel degree, for
+%      the steering wheel. Default []: the mesh's
+%      VehicleSpec.SteeringRatio if it has one, else 15 (the project's
+%      default).
 %
 %      WheelLift: how far each wheel is lifted off the ground, in meters,
 %      as a scalar (all four) or 1 x 4 [FL FR RL RR]. Default 0. Use it
@@ -411,6 +420,16 @@ function plotHandles = fcn_CarMesh3D_plotVehicle(vehicleMesh, options)
 %   %   % tailBrakeLamp, backupLamp, highBeamLamp, fogLamp, reflector,
 %   %   % licensePlateLamp, markerLamp, warningLamp
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_plotVehicle
+%   % * The steering wheel turns with SteerAngle (step 7A of the plan of
+%   %   % 2026-11-27): a mesh whose steering wheel was found
+%   %   % (InteriorObjects.SteeringWheel) draws it under a transform of its
+%   %   % own, turned by the steering ratio times the mean steer angle
+%   %   % about its axis; on the fast path too. New option SteeringRatio
+%   %   % (default: the mesh's VehicleSpec.SteeringRatio, else 15); new
+%   %   % handles SteeringTransform and SteeringWheel
+
 % TO-DO:
 %
 % 2026_11_18 by Sean Brennan, sbrennan@psu.edu
@@ -436,6 +455,7 @@ arguments
     options.SceneLights = 'auto'    % 'auto' (add key and fill lights) or 'none'
     options.WheelSpin = 0           % Wheel rotation angle(s) [rad], scalar or 1 x 4
     options.SteerAngle = 0          % Front wheel steer angle [rad], scalar or 1 x 2
+    options.SteeringRatio = []      % Steering-wheel turn per road-wheel turn; [] for the mesh's, else 15
     options.WheelLift = 0           % Wheel height above the ground [m], scalar or 1 x 4 [FL FR RL RR]
     options.BodyRoll = 0            % Body roll relative to the wheels [rad], + right side down
     options.BodyPitch = 0           % Body pitch relative to the wheels [rad], + nose down
@@ -572,6 +592,10 @@ if 0==flag_max_speed
         if ~isnumeric(options.SteerAngle) || ~any(numel(options.SteerAngle)==[1 2]) || any(~isfinite(options.SteerAngle))
             error('SteerAngle must be a finite scalar or a 1 x 2 vector [FL FR], in radians');
         end
+        if ~isempty(options.SteeringRatio) && ~(isnumeric(options.SteeringRatio) && isscalar(options.SteeringRatio) ...
+                && isfinite(options.SteeringRatio) && options.SteeringRatio > 0)
+            error('SteeringRatio must be a positive number (steering-wheel turn per road-wheel turn), or empty');
+        end
 
         % Check the ShowHidden input
         if ~isempty(options.LabelShowHidden) && ~(iscell(options.LabelShowHidden) || ischar(options.LabelShowHidden) ...
@@ -651,6 +675,7 @@ if flagUpdateOnly
     end
     fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
+    fcn_INTERNAL_updateSteeringWheel(plotHandles, options.SteerAngle);
     if ~isempty(options.Signals) || ~isempty(options.LampFaults)
         % (the faults and signals given before are kept with the plot, so a
         % call that changes one keeps the other)
@@ -760,8 +785,18 @@ else
     % Body (everything that is not a wheel or a switchable light), one
     % patch per alpha level: opaque first, then each transparent level
     flagBody = faceWheel==0 & faceLightGroup==0 & faceCoverGroup==0 & ~flagHidden;
-    newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody), faceColors, faceAlpha, patchStyle, bodyTransform);
+    % (the steering wheel, if found: its body faces under a transform of
+    % their own, inside the body's, which turns it with the steer angle;
+    % step 7A of the plan of 2026-11-27)
+    [flagSteeringWheel, steeringWheel] = fcn_INTERNAL_steeringWheel(vehicleMesh, flagBody, options.SteeringRatio);
+    newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagBody & ~flagSteeringWheel), faceColors, faceAlpha, patchStyle, bodyTransform);
     patchHandles = [patchHandles; newPatches];
+    steeringTransform = [];
+    if any(flagSteeringWheel)
+        steeringTransform = hgtransform('Parent', bodyTransform, 'Tag', 'steeringWheel');
+        newPatches = fcn_INTERNAL_patchesByAlpha(vehicleMesh, find(flagSteeringWheel), faceColors, faceAlpha, patchStyle, steeringTransform);
+        patchHandles = [patchHandles; newPatches];
+    end
 
     % Wheels: each under its own transform, which spins and steers it
     wheelTransforms = cell(4,1);
@@ -911,6 +946,8 @@ else
     plotHandles.Axes = axesHandle;
     plotHandles.WheelTransforms = wheelTransforms;
     plotHandles.WheelCenters = wheelCenters;
+    plotHandles.SteeringTransform = steeringTransform;   % ([] when the mesh has no steering wheel found)
+    plotHandles.SteeringWheel = steeringWheel;           % (Center, Normal, Ratio)
     plotHandles.UnitPatches = labelLampPatches;   % (one field per lamp unit)
     plotHandles.LabelLampPatches = fcn_INTERNAL_kindPatches(labelLampPatches, lightGroupNames, groupKindNames);   % (by kind: headlight, tail, turnLeft, ...)
     plotHandles.LightOffColors = lightOffColors;
@@ -937,6 +974,7 @@ else
     transformHandle.Matrix = poseMatrix;
     fcn_INTERNAL_updateBody(plotHandles, options);
     fcn_INTERNAL_updateWheels(plotHandles, options.WheelSpin, options.SteerAngle, options.WheelLift);
+    fcn_INTERNAL_updateSteeringWheel(plotHandles, options.SteerAngle);
     if ~isempty(options.Signals)
         fcn_INTERNAL_updateLights(plotHandles, options.Signals, plotHandles.LampFaults);
     end
@@ -1141,6 +1179,65 @@ for ith_wheel = 1:4
         makehgtform('translate',-center);
 end
 end % Ends fcn_INTERNAL_updateWheels
+
+%% fcn_INTERNAL_steeringWheel
+function [flagSteeringWheel, steeringWheel] = fcn_INTERNAL_steeringWheel(vehicleMesh, flagBody, steeringRatio)
+% The steering wheel's faces (among the body's) and its axis, from
+% InteriorObjects.SteeringWheel (fcn_CarMesh3D_findInteriorObjects), and
+% the ratio to turn it by
+Nfaces = size(vehicleMesh.Faces,1);
+flagSteeringWheel = false(Nfaces,1);
+steeringWheel = struct('Center', [], 'Normal', [], 'Ratio', []);
+if ~isfield(vehicleMesh, 'InteriorObjects') || ~isstruct(vehicleMesh.InteriorObjects) ...
+        || ~isfield(vehicleMesh.InteriorObjects, 'SteeringWheel')
+    return;
+end
+wheel = vehicleMesh.InteriorObjects.SteeringWheel;
+if ~isfield(wheel, 'Found') || ~wheel.Found || ~all(isfield(wheel, {'Center','Normal','Faces'})) ...
+        || isempty(wheel.Faces) || any(wheel.Faces(:) < 1 | wheel.Faces(:) > Nfaces) || norm(wheel.Normal) == 0
+    return;
+end
+% (the faces must lie around the wheel's center: a reduced copy of the
+% mesh, such as a detail level, keeps InteriorObjects but not its face
+% numbers, and must not turn faces elsewhere)
+wheelFaces = vehicleMesh.Faces(wheel.Faces(:),:);
+wheelCenters = (vehicleMesh.Vertices(wheelFaces(:,1),:) + vehicleMesh.Vertices(wheelFaces(:,2),:) + ...
+    vehicleMesh.Vertices(wheelFaces(:,3),:))/3;
+reach = 0.30;
+if isfield(wheel, 'Radius') && isnumeric(wheel.Radius) && isscalar(wheel.Radius) && wheel.Radius > 0
+    reach = 1.5*wheel.Radius + 0.02;
+end
+if max(vecnorm(wheelCenters - wheel.Center(:)', 2, 2)) > reach
+    return;
+end
+flagSteeringWheel(wheel.Faces(:)) = true;
+flagSteeringWheel = flagSteeringWheel & flagBody;
+if isempty(steeringRatio)
+    steeringRatio = 15;   % (the project's default, 2026-11-23)
+    if isfield(vehicleMesh, 'VehicleSpec') && isstruct(vehicleMesh.VehicleSpec) && isfield(vehicleMesh.VehicleSpec, 'SteeringRatio') ...
+            && isnumeric(vehicleMesh.VehicleSpec.SteeringRatio) && isscalar(vehicleMesh.VehicleSpec.SteeringRatio) ...
+            && vehicleMesh.VehicleSpec.SteeringRatio > 0
+        steeringRatio = vehicleMesh.VehicleSpec.SteeringRatio;
+    end
+end
+steeringWheel = struct('Center', wheel.Center(:)', 'Normal', wheel.Normal(:)'/norm(wheel.Normal), 'Ratio', steeringRatio);
+end % Ends fcn_INTERNAL_steeringWheel
+
+%% fcn_INTERNAL_updateSteeringWheel
+function fcn_INTERNAL_updateSteeringWheel(plotHandles, steerAngle)
+% Turns the steering wheel about its axis (pointing at the driver) by the
+% steering ratio times the mean front steer angle: positive (steering
+% left) is counterclockwise as the driver sees it, as in
+% fcn_CarMesh3D_turnSteeringWheel
+if ~isfield(plotHandles, 'SteeringTransform') || isempty(plotHandles.SteeringTransform) ...
+        || ~isgraphics(plotHandles.SteeringTransform)
+    return;
+end
+wheel = plotHandles.SteeringWheel;
+handwheelAngle = wheel.Ratio*mean(steerAngle(:));   % (radians)
+plotHandles.SteeringTransform.Matrix = makehgtform('translate', wheel.Center) * ...
+    makehgtform('axisrotate', wheel.Normal, handwheelAngle) * makehgtform('translate', -wheel.Center);
+end % Ends fcn_INTERNAL_updateSteeringWheel
 
 %% fcn_INTERNAL_updateLights
 function fcn_INTERNAL_updateLights(plotHandles, signals, lampFaults)
