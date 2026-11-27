@@ -2,7 +2,7 @@
 
 *The one window that takes a vehicle from a download to a reviewed, finished mesh, opening each of the other windows in turn and keeping the steps, their order and their status in view, so the process knowledge lives in the window and not in the user's memory. Started 2026-11-27 by Sean; written with Claude. The general GUI rules are in `Documentation_CarMesh3D_GUIdesign_rules.md`.*
 
-**Status:** design only (no builds yet).
+**Status:** step 1 of the plan BUILT 2026-11-27 17:05 (`fcn_CarMesh3D_main` and its test, passing hidden); step 2 next.
 
 ## 1. What it is for
 
@@ -129,7 +129,8 @@ This section is not expected to be understood by all users; it documents how the
 ## 6. The working model
 
 - **Where:** `CarMesh3D\Working\<ID>\` (gitignored), one per vehicle being worked on.
-- **What is copied in:** the vehicle's edit files (labels, face flips, lamp functions with their sources and review notes, the review answers) and its script; not its meshes or caches. The build writes its caches and outputs into the working folder (tens of MB at most), so the vehicle's own folder does not change until Commit.
+- **What is copied in:** the vehicle's whole folder: its edit files (labels, face flips, lamp functions with their sources and review notes, the review answers), its script, and its built mesh, levels and outline, which the viewers show before the first build (as built: the vehicle's folder is a few MB; the download, in `LargeData`, is not copied). The build writes into the working folder (Q111 (A): a copy of a vehicle's folder named by its ID builds in place, reading the download from the vehicle's own folder), so the vehicle's own folder does not change until Commit.
+- **What counts as a change:** every file of the working copy that is new or differs from the vehicle's, except its cache, its change log and the build log. (Opening V&V writes its review record, which counts.)
 - **Commit:** checks that no window has unsaved changes; copies the edit files and script back; copies the built outputs (mesh, detail levels, outline, checks) across when the working build is current, or builds the vehicle again when it is not; adds a row to the vehicle's change log ("committed from the main window by SBB: labels, face flips"); and deletes the working folder.
 - **Discard:** deletes the working folder (to the Recycle Bin), after asking.
 - **Resume:** a working folder left from before is listed when the window opens, and so are set-aside ones (`Working\<ID>_setAside_<time>\`, section 4, call 1).
@@ -188,3 +189,4 @@ Key: as in `Documentation_CarMesh3D_template.md`.
 - 2026-11-27 16:23, Sean, in this file: accepted Claude's points from 16:04 (V&V resumes at the first open question; `Resume=false` sets aside; Commit copies the working build instead of building again; the marks' source moved to section 6). Added a per-window **Unlink this view from global view settings** box beside the global "Turn all views together globally" setting, which resets every Unlink box when it is switched (section 2, "Viewers").
 - 2026-11-27 16:26, Claude: the unlink merged with three details for Sean to confirm (unlinking frees the turning, since pan and zoom are never shared; relinking a window turns it to the group; where the boxes are).
 - 2026-11-27 16:25, Sean (chat): the three details accepted; "Review now" removed.
+- 2026-11-27 17:05, Claude: step 1 built: `fcn_CarMesh3D_main` (the steps and marks, the working copy with resume, set aside, Discard and Commit, one editor at a time, any number of viewers, the saved view) and `script_test_fcn_CarMesh3D_main` (passes hidden, on a demo copy of the Fit, with a build). Q111 (A): every vehicle script builds in a copy of its folder (3cb1128). Q112 (A): the lamp-functions window and V&V needed no new option: given the working copy's folder, they save there. Q113 (A): `script_demo_CarMesh3D` starts with option m, the main window, for students; every other option is marked FOR DEVELOPERS. Section 6 corrected: the working copy is the whole vehicle folder (its meshes too, for the viewers), not only the edit files.

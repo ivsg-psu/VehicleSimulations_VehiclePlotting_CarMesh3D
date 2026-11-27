@@ -66,3 +66,8 @@ DataSomeday/**/model/
 # layout as Data and DataSomeday), kept in the IVSG large-file storage area
 # and copied in by each user (Sean, 2026-11-24; see README.md, "Large files")
 LargeData/
+
+# CarMesh3D: the main window's working copies and saved views (per computer,
+# never committed; Q110 (A), 2026-11-27; see
+# Documents/Documentation_CarMesh3D_GUIdesign_main.md)
+Working/

@@ -150,8 +150,15 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 disp('Welcome to the demo code for the CarMesh3D library!')
+disp('STUDENTS: start with option m, the main window (fcn_CarMesh3D_main). It takes a vehicle through every step.')
+disp('The numbered options are FOR DEVELOPERS: each shows what one tool does, and the commands that run it.')
 
 %% The demo menu
+% (Q113, Sean 2026-11-27: this script is for developers and coders, to see
+% quickly what each tool does; it is NOT the place for students. Students
+% use the first option, m: the main window, fcn_CarMesh3D_main, which
+% takes a vehicle through every step. Every other option is marked FOR
+% DEVELOPERS.)
 % A menu, in the command window, of what can be demonstrated: type an
 % option's number (or letter) and press Enter. Each example first prints
 % its commands, so they can be copied and pasted:
@@ -171,13 +178,19 @@ flagRunStepByStepDemo = false;           % (set by the menu's p option)
 demoExamples = fcn_CarMesh3D_runDemoExample('examples', VehicleID=demoVehicleID);
 
 clear demoMenu
+% (first: the main window, for students; Q113)
+demoMenu(1).MenuChar = 'm';
+demoMenu(1).Text = 'STUDENTS START HERE: the main window (fcn_CarMesh3D_main): a vehicle through every step, from import to V&V';
+demoMenu(1).FunctionSubmission = sprintf(['disp(''fcn_CarMesh3D_main(''''%s'''');''); fcn_CarMesh3D_main(''%s''); ' ...
+    'disp('' ''); disp(''The main window is open. Press any key to return to the menu.''); pause;'], demoVehicleID, demoVehicleID);
 for ith_example = 1:numel(demoExamples)
-    demoMenu(ith_example).MenuChar = sprintf('%.0f', ith_example); %#ok<SAGROW>
-    demoMenu(ith_example).Text = demoExamples(ith_example).Title;
+    ith_menu = ith_example + 1;
+    demoMenu(ith_menu).MenuChar = sprintf('%.0f', ith_example); %#ok<SAGROW>
+    demoMenu(ith_menu).Text = fcn_INTERNAL_developerTitle(demoExamples(ith_example).Title);
     % (runs the example, marks it shown, and waits before the menu returns)
-    demoMenu(ith_example).FunctionSubmission = sprintf(['fcn_CarMesh3D_runDemoExample(''%s'', VehicleID=''%s''); ' ...
+    demoMenu(ith_menu).FunctionSubmission = sprintf(['fcn_CarMesh3D_runDemoExample(''%s'', VehicleID=''%s''); ' ...
         'answers{%.0f} = ''shown''; disp('' ''); disp(''The commands are printed above. Press any key to return to the menu.''); pause;'], ...
-        demoExamples(ith_example).Name, demoVehicleID, ith_example);
+        demoExamples(ith_example).Name, demoVehicleID, ith_menu);
 end
 demoMenu(end+1).MenuChar = 'w';
 demoMenu(end).Text = sprintf(['WARNING: the examples use a temporary COPY of the %s. ' ...
@@ -480,6 +493,19 @@ fcn_CarMesh3D_browseVehicles(FlagInteractive=flagOpenBrowser, FigNum=14);
 %
 % See: https://patorjk.com/software/taag/#p=display&f=Big&t=Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% fcn_INTERNAL_developerTitle
+function textOut = fcn_INTERNAL_developerTitle(titleIn)
+% A demo example's menu line, marked as being for developers (Q113): a
+% title that starts with a tool's name ("browseLibrary: browse ...")
+% becomes "(FOR DEVELOPERS: Run fcn_CarMesh3D_browseLibrary) browse ..."
+tokens = regexp(titleIn, '^(\w+): (.*)$', 'tokens', 'once');
+if ~isempty(tokens)
+    textOut = sprintf('(FOR DEVELOPERS: Run fcn_CarMesh3D_%s) %s', tokens{1}, tokens{2});
+else
+    textOut = sprintf('(FOR DEVELOPERS) %s', titleIn);
+end
+end % Ends fcn_INTERNAL_developerTitle
 
 %% fcn_INTERNAL_renderSideView
 function [sideImage, wheelPixels] = fcn_INTERNAL_renderSideView(vehicleMesh)
