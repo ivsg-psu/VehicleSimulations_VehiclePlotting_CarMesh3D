@@ -1,13 +1,16 @@
 % script_test_fcn_CarMesh3D_fixFaceDirections.m
 % Tests fcn_CarMesh3D_fixFaceDirections
 % A window for fixing the direction faces point: colored by direction as
-% seen from outside, suggested flips, flips by hand, Undo, Save.
+% seen from outside; select (Ctrl+click, Ctrl+double-click, Ctrl+drag,
+% the suggested faces), Apply, Undo, Revert to start, Save.
 
 % REVISION HISTORY:
 %
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In script_test_fcn_CarMesh3D_fixFaceDirections
 %   % * First write (drafted with Claude)
+%   % * The painter's flow (T96): select, Apply, Undo, Revert to start,
+%   %   % Esc; Ctrl+double-click a region; the pick report
 
 % TO-DO:
 %
@@ -42,7 +45,8 @@ end
 
 % Check variable types and sizes
 assert(isstruct(window) && all(isfield(window, {'Figure','Axes','Patch','State','SetState','Press','Key','CheckLayout', ...
-    'ClickAt','DragAt','FaceAt','Flip','FlipSuggested','Undo','Save','Flipped','Suggested','Status','FixedMesh', ...
+    'ClickAt','DoubleClickAt','DragAt','FaceAt','Select','SelectSuggested','ClearSelection','Apply','Revert', ...
+    'Flip','FlipSuggested','Undo','Save','Selected','Flipped','Suggested','Status','LastPick','FixedMesh', ...
     'FaceFlips','Sides','SetColorBy','SetBrush','SetSize','Close'})));
 assert(isvalid(window.Figure));
 
@@ -51,37 +55,66 @@ assert(isvalid(window.Figure));
 assert(isequal(sort(window.Suggested()), find(sideOfFace == wrongSide)));
 statusNow = window.Status();
 assert(statusNow.NumUnknown == nnz(sideOfFace == 7) && statusNow.NumFlipped == 0 && ~statusNow.Unsaved);
-window.FlipSuggested();
-assert(isempty(window.Suggested()) && isequal(sort(window.Flipped()), find(sideOfFace == wrongSide)));
+% (select the suggestion: nothing flips until Apply)
+window.SelectSuggested();
+assert(isequal(sort(window.Selected()), find(sideOfFace == wrongSide)) && isempty(window.Flipped()));
+window.Apply();
+assert(isempty(window.Selected()) && isempty(window.Suggested()) && isequal(sort(window.Flipped()), find(sideOfFace == wrongSide)));
 assert(fcn_INTERNAL_allOut(window.FixedMesh(), sideOfFace));
 assert(window.Status().Unsaved);
+% (Undo takes back the Apply: the faces are selected again, not flipped;
+% Undo again takes back the selection)
 window.Undo();
-assert(isempty(window.Flipped()) && numel(window.Suggested()) == nnz(sideOfFace == wrongSide));
+assert(isempty(window.Flipped()) && isequal(sort(window.Selected()), find(sideOfFace == wrongSide)));
+window.Undo();
+assert(isempty(window.Selected()) && numel(window.Suggested()) == nnz(sideOfFace == wrongSide));
 
-%% TEST case: Ctrl+click flips the region; Ctrl+Shift+click one face; Ctrl+drag the brush; Undo takes each back
-fprintf(1,'TEST case: Ctrl+click, Ctrl+Shift+click, Ctrl+drag, Undo\n');
+%% TEST case: Ctrl+click selects one face; Ctrl+double-click the region; Ctrl+Shift unselects; Ctrl+drag the brush; Esc; Undo
+fprintf(1,'TEST case: Ctrl+click, Ctrl+double-click, Ctrl+Shift, Ctrl+drag, Esc, Undo\n');
 % (a face of the wrong side the camera sees: a click there picks it)
 wrongFaces = find(sideOfFace == wrongSide);
 visibleWrong = wrongFaces(arrayfun(@(face) isequal(window.FaceAt(face), face), wrongFaces));
 assert(~isempty(visibleWrong));
 window.ClickAt(visibleWrong(1), {'control'});
-assert(isequal(sort(window.Flipped()), wrongFaces));   % (the whole red region: the side's faces)
-window.Undo();
+assert(isequal(window.Selected(), visibleWrong(1)) && isempty(window.Flipped()));   % (one face, selected)
+pickNow = window.LastPick();
+assert(isequal(pickNow.Face, visibleWrong(1)) && contains(pickNow.Text, 'red'));
 window.ClickAt(visibleWrong(1), {'control', 'shift'});
-assert(isequal(window.Flipped(), visibleWrong(1)));    % (one face)
+assert(isempty(window.Selected()));                                                % (unselected)
+window.DoubleClickAt(visibleWrong(1), {'control'});
+assert(isequal(sort(window.Selected()), wrongFaces));   % (the whole red region: the side's faces)
+% (Esc unselects all; Undo puts them back)
+window.Key('escape');
+assert(isempty(window.Selected()));
 window.Undo();
-assert(isempty(window.Flipped()));
-% (a Ctrl+drag over the side: some of its faces, each flipped once; one Undo)
+assert(isequal(sort(window.Selected()), wrongFaces));
+window.Apply();
+assert(isequal(sort(window.Flipped()), wrongFaces) && isempty(window.Selected()));
+window.Undo();
+window.ClearSelection();
+assert(isempty(window.Flipped()) && isempty(window.Selected()));
+% (a Ctrl+drag over the side: some of its faces, each selected once; one
+% Undo takes back the stroke)
 window.SetBrush('Large');
+stepsBefore = window.Status().UndoSteps;
 window.DragAt(visibleWrong(:), {'control'});
-assert(~isempty(window.Flipped()));
+assert(~isempty(window.Selected()) && isempty(window.Flipped()));
+assert(window.Status().UndoSteps == stepsBefore + 1);
 window.Undo();
-assert(isempty(window.Flipped()));
+assert(isempty(window.Selected()));
+% (a click beside the model, outside its faces: nothing picked)
+window.ClickAt([5 5 5], {'control'});
+assert(isempty(window.Selected()));
 
-%% TEST case: Save writes the flips by position; a new window reads them back
-fprintf(1,'TEST case: Save, then read back\n');
+%% TEST case: Save writes the flips by position; Undo after Save says not saved; Revert to start; a new window reads them back
+fprintf(1,'TEST case: Save, Undo after Save, Revert to start, then read back\n');
 window.FlipSuggested();
 window.Save();
+assert(~window.Status().Unsaved);
+window.Undo();   % (takes back the Apply in the window: not saved now)
+assert(window.Status().Unsaved && isempty(window.Flipped()));
+window.Apply();  % (the faces were selected again by the Undo)
+assert(~window.Status().Unsaved);
 assert(~window.Status().Unsaved && isfile(flipsFile));
 loaded = load(flipsFile, 'faceFlips');
 assert(size(loaded.faceFlips.Points,1) == numel(wrongFaces) && loaded.faceFlips.NumFaces == size(testMesh.Faces,1));
@@ -97,6 +130,16 @@ assert(~isvalid(window.Figure));
 assert(isequal(sort(window.Flipped()), wrongFaces) && ~window.Status().Unsaved);
 assert(fcn_INTERNAL_allOut(fixedMesh, sideOfFace));
 assert(size(faceFlips.Points,1) == numel(wrongFaces));
+% (Revert to start: back to the flips read at the start, after changes;
+% Undo takes it back)
+window.Flip(wrongFaces(1:2));
+window.Select(wrongFaces(3));
+assert(window.Status().Unsaved);
+window.Revert();
+assert(isequal(sort(window.Flipped()), wrongFaces) && isempty(window.Selected()) && ~window.Status().Unsaved);
+window.Undo();
+assert(numel(window.Flipped()) == numel(wrongFaces) - 2 && isequal(window.Selected(), wrongFaces(3)));
+window.Revert();
 window.Close();
 % (opened on the mesh with the flips already replayed: nothing shows
 % flipped, and saving again keeps the saved flips)
@@ -115,7 +158,8 @@ assert(isequal(window.Patch.FaceVertexCData, testMesh.FaceColors));
 window.SetColorBy('direction');
 assert(~isequal(window.Patch.FaceVertexCData, testMesh.FaceColors));
 assert(strcmp(window.Status().ColorBy, 'direction'));
-for tag = {'facesMenu', 'facesUndo', 'facesSave', 'facesStatus', 'facesFlipSuggested', 'facesColorBy', 'facesBrush', 'facesHint'}
+for tag = {'facesMenu', 'facesUndo', 'facesRevert', 'facesSave', 'facesStatus', 'facesSelectSuggested', 'facesApply', ...
+        'facesClearSelection', 'facesSelection', 'facesColorBy', 'facesBrush', 'facesHint'}
     assert(~isempty(findall(window.Figure, 'Tag', tag{1})), 'no control tagged %s', tag{1});
 end
 window.SetSize(900, 600);

@@ -14,16 +14,30 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %       red    the face points in: a suggested flip (also outlined)
 %       gray   cannot tell from the shape (inside the body, or open to the
 %              outside on both sides); the face keeps its direction
-% The suggested flips can be made all at once, and any face can be
-% flipped by hand:
-%       Ctrl+click          flip the region under the mouse (the connected
-%                           faces of the same label and the same color)
-%       Ctrl+Shift+click    flip only the face under the mouse
-%       Ctrl+drag           flip the faces under the brush (each once)
-%       left-drag rotates, right-drag pans, the wheel zooms
-% Undo (Ctrl+Z) takes back the last flip; Save (Ctrl+S) writes the flips
-% to the vehicle's faceFlips file, by face position, for its build to
-% replay (step 1F).
+% It works as the painter does (T96, Sean 2026-11-27 13:03: click, view
+% the selection, apply it, confirm visually, save):
+%   1. Select (selected faces are filled yellow and outlined, on both
+%      sides of each face):
+%       Ctrl+click          the face under the mouse
+%       Ctrl+double-click   its region (the connected faces of the same
+%                           label and the same color)
+%       Ctrl+drag           the faces under the brush
+%       Ctrl+Shift          (with any of these) unselects instead
+%       Esc                 unselects everything
+%       "Select the suggested faces" selects every red face
+%   2. Apply (the Apply button): the selected faces are flipped, and the
+%      selection is cleared. The colors show the result.
+%   3. Undo (Ctrl+Z) takes back the last step (a selection, an Esc, an
+%      Apply, a revert), and again to go further back. Revert to start
+%      goes back to the flips as they were when the window opened.
+%   4. Save (Ctrl+S) writes the flips to the vehicle's faceFlips file, by
+%      face position, for its build to replay (step 1F). Undo after a save
+%      changes the window, not the file: the status says "not saved"
+%      until Save is pressed again.
+% left-drag rotates, right-drag pans, the wheel zooms. The light follows
+% the camera. After each Ctrl+click the hint line says which face was
+% picked and how many other faces lie within 1 cm behind it (T96: some
+% faces could not be picked).
 %
 % FORMAT:
 %
@@ -63,9 +77,13 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %      window: a structure of functions for scripts and tests (rule G32):
 %           Figure, Axes, Patch; State, SetState, Press, Key, CheckLayout
 %           (fcn_CarMesh3D_guiDriver); ClickAt(target, modifiers),
-%           DragAt(targets, modifiers), FaceAt(target) (target: a face
-%           number or a 3D point); Flip(faces), FlipSuggested(), Undo(),
-%           Save(); Flipped(), Suggested(), Status(), FixedMesh(),
+%           DoubleClickAt(target, modifiers), DragAt(targets,
+%           modifiers), FaceAt(target) (target: a face number or a 3D
+%           point); Select(faces), SelectSuggested(), ClearSelection(),
+%           Apply(), Revert(), Flip(faces) (flips at once, no selection),
+%           FlipSuggested() (selects the suggested faces and applies),
+%           Undo(), Save(); Selected(), Flipped(), Suggested(), Status(),
+%           LastPick(), FixedMesh(),
 %           FaceFlips(), Sides() (fcn_CarMesh3D_outwardSides' answer);
 %           SetColorBy('direction' or 'labels'), SetBrush(name);
 %           SetSize(width, height); Close().
@@ -96,6 +114,16 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %   % * The flips are saved with the way each face should point (Normals),
 %   %   % so replaying them is safe to repeat; flips saved before are kept
 %   %   % when saving again (step 1F)
+%   % * Rebuilt on the painter's flow (T96, Sean 13:03): select (Ctrl+
+%   %   % click one face, Ctrl+double-click a region, Ctrl+drag the brush,
+%   %   % Ctrl+Shift unselects, Esc unselects all), Apply flips the
+%   %   % selection, Undo steps back, Revert to start, Save
+%   % * The light follows the camera; more ambient light (T96: the side
+%   %   % away from the light was too dark)
+%   % * Clicks are taken anywhere over the model's axes, not only where
+%   %   % the figure's CurrentObject is in them; the overlays cannot be
+%   %   % clicked (T96: clicks on some faces did nothing)
+%   % * The hint line names the face each click picked (T96)
 
 % TO-DO:
 %
@@ -195,9 +223,16 @@ flagKnown = sidesInfo.Rule == 1;
 %%%% State
 flipped = false(numFaces,1);
 savedFlipped = false(numFaces,1);
-undoStack = {};          % (each entry: the faces one action flipped)
+selected = false(numFaces,1);
+% (each Undo step: the faces one action changed, and their flipped and
+% selected states before it)
+undoStack = struct('Faces', {}, 'Flipped', {}, 'Selected', {}, 'Text', {});
 strokeOpen = false;
 strokeFaces = zeros(0,1);
+strokeEntry = [];
+strokeErase = false;
+lastPick = struct('Face', [], 'Behind', 0, 'Text', '');
+lightHandle = [];
 colorBy = 'direction';
 brushSizes = struct('Name', {'Fine', 'Medium', 'Large'}, 'Pixels', {5, 14, 36});
 brushName = 'Medium';
@@ -206,6 +241,7 @@ mouseMode = '';
 mouseStart = [0 0];
 mouseLast = [0 0];
 mouseMoved = false;
+mouseErase = false;
 strokeLastPixel = [];
 whoName = 'SBB';
 try
@@ -235,6 +271,7 @@ if ~isempty(flipsFile) && isfile(flipsFile)
         faceFlips = loaded.faceFlips;
     end
 end
+startFlipped = flipped;   % (Revert to start comes back here)
 
 %%%% The window: a title bar; a top bar (the menu, Undo, Save, the
 %%%% status); the menu's column at the left with the Face Directions
@@ -247,11 +284,13 @@ figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_fixFaceDirections: %s', v
     'Visible', visibleText);
 contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_fixFaceDirections', Subtitle=vehicleName, FigNum=-1);
 rootGrid = uigridlayout(contentPanel, [3 1], 'RowHeight', {36, '1x', 20}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
-topGrid = uigridlayout(rootGrid, [1 4], 'ColumnWidth', {90, 80, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+topGrid = uigridlayout(rootGrid, [1 5], 'ColumnWidth', {90, 80, 110, 80, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
 menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'facesMenu', ...
     'Tooltip', 'Open a panel at the left (pick an open one again to close it)');
 uibutton(topGrid, 'Text', 'Undo', 'ButtonPushedFcn', @(~,~) undoFlip(), 'Tag', 'facesUndo', ...
-    'Tooltip', 'Take back the last flip (a click, a stroke, or the suggested flips); press again to go further back. Ctrl+Z.');
+    'Tooltip', 'Take back the last step (a selection, Esc, Apply, a revert); press again to go further back. Ctrl+Z.');
+uibutton(topGrid, 'Text', 'Revert to start', 'ButtonPushedFcn', @(~,~) revertToStart(true), 'Tag', 'facesRevert', ...
+    'Tooltip', 'Go back to the flips as they were when this window opened (asks first; Undo takes it back). The file changes only when you Save.');
 uibutton(topGrid, 'Text', 'Save', 'ButtonPushedFcn', @(~,~) saveFlips(), 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], ...
     'Tag', 'facesSave', 'Tooltip', 'Save the flips (by face position) to the vehicle''s faceFlips file, for its build to replay. Ctrl+S.');
 statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'facesStatus');
@@ -271,35 +310,49 @@ disableDefaultInteractivity(modelAxes);
 axis(modelAxes, 'equal');
 axis(modelAxes, 'off');
 modelAxes.Projection = 'perspective';
+% (back faces lit as front ones, 'reverselit', so a face pointing in is
+% as bright as one pointing out: its color says which way it points)
 modelPatch = patch(modelAxes, 'Vertices', baseMesh.Vertices, 'Faces', baseMesh.Faces, 'FaceColor', 'flat', ...
-    'FaceVertexCData', labelColors, 'EdgeColor', 'none', 'FaceLighting', 'flat', 'Tag', 'facesModel');
+    'FaceVertexCData', labelColors, 'EdgeColor', 'none', 'FaceLighting', 'flat', 'BackFaceLighting', 'reverselit', ...
+    'AmbientStrength', 0.55, 'DiffuseStrength', 0.55, 'SpecularStrength', 0.05, 'Tag', 'facesModel');
+% (the overlays cannot be clicked: clicks go to the model, T96)
 suggestedPatch = patch(modelAxes, 'Vertices', zeros(0,3), 'Faces', zeros(0,3), 'FaceColor', 'none', ...
-    'EdgeColor', [0.55 0 0], 'LineWidth', 0.75, 'HitTest', 'off', 'Clipping', 'off', 'Tag', 'facesSuggested');
+    'EdgeColor', [0.55 0 0], 'LineWidth', 0.75, 'HitTest', 'off', 'PickableParts', 'none', 'Clipping', 'off', 'Tag', 'facesSuggested');
+selectionPatch = patch(modelAxes, 'Vertices', zeros(0,3), 'Faces', zeros(0,3), 'FaceColor', [1 0.85 0.1], 'FaceAlpha', 0.55, ...
+    'EdgeColor', [1 0.7 0], 'LineWidth', 0.75, 'FaceLighting', 'none', 'HitTest', 'off', 'PickableParts', 'none', ...
+    'Clipping', 'off', 'Tag', 'facesSelection');
 view(modelAxes, -35, 20);
-camlight(modelAxes, 'headlight');
+lightHandle = camlight(modelAxes, 'headlight');
+light(modelAxes, 'Position', [0 0 1], 'Style', 'infinite', 'Color', [0.35 0.35 0.35]);   % (from above, faint)
 lighting(modelAxes, 'flat');
 
 % The Face Directions panel
-panelGrid = uigridlayout(facesPanel, [8 1], 'RowHeight', {170, 22, 26, 22, 26, 34, 60, '1x'}, 'Padding', [8 8 8 8], ...
+panelGrid = uigridlayout(facesPanel, [10 1], 'RowHeight', {170, 22, 26, 22, 26, 30, 34, 26, 60, '1x'}, 'Padding', [8 8 8 8], ...
     'RowSpacing', 4, 'Scrollable', 'on', 'BackgroundColor', yellowBand);
 uilabel(panelGrid, 'Interpreter', 'html', 'WordWrap', 'on', 'Tag', 'facesLegend', 'Text', ...
     ['<b>Colors</b> (seen from outside):<br>' ...
     '<font color="#1f9e3a">&#9632;</font> points out<br>' ...
     '<font color="#d42020">&#9632;</font> points in: a suggested flip (outlined)<br>' ...
     '<font color="#8c8c8c">&#9632;</font> cannot tell from the shape (inside the body, or open on both sides): kept as it is<br>' ...
+    '<font color="#e6b800">&#9632;</font> selected (Apply flips it)<br>' ...
     '<i>The suggestions are hints, from one line out of each face: a face in a narrow gap can be suggested wrongly. Look before flipping them all.</i>']);
 uilabel(panelGrid, 'Text', 'Color the model by?', 'FontWeight', 'bold');
 colorGroup = fcn_INTERNAL_radioRow(panelGrid, {'Direction', 'Labels'}, {'direction', 'labels'}, @(value) setColorBy(value), ...
     'facesColorBy', 'Direction: green out, red in, gray cannot tell. Labels: the mesh''s own colors.');
 uilabel(panelGrid, 'Text', 'Brush size (Ctrl+drag)?', 'FontWeight', 'bold');
 brushGroup = fcn_INTERNAL_radioRow(panelGrid, {brushSizes.Name}, {brushSizes.Name}, @(value) setBrush(value), ...
-    'facesBrush', 'How much a Ctrl+drag flips: a circle this size on the screen, at any zoom.');
-suggestButton = uibutton(panelGrid, 'Text', 'Flip the suggested faces', 'ButtonPushedFcn', @(~,~) flipSuggested(), ...
-    'Tag', 'facesFlipSuggested', 'Tooltip', 'Flip every red face (seen from outside pointing in) at once; Undo takes it back.');
+    'facesBrush', 'How much a Ctrl+drag selects: a circle this size on the screen, at any zoom.');
+suggestButton = uibutton(panelGrid, 'Text', 'Select the suggested faces', 'ButtonPushedFcn', @(~,~) selectSuggested(), ...
+    'Tag', 'facesSelectSuggested', 'Tooltip', 'Select every red face (seen from outside pointing in); look, then Apply to flip them.');
+applyButton = uibutton(panelGrid, 'Text', 'Apply: flip the selected faces', 'FontWeight', 'bold', 'ButtonPushedFcn', @(~,~) applySelection(), ...
+    'Tag', 'facesApply', 'Tooltip', 'Flip the selected (yellow) faces and clear the selection; Undo takes it back.');
+clearButton = uibutton(panelGrid, 'Text', 'Unselect all (Esc)', 'ButtonPushedFcn', @(~,~) clearSelection(), ...
+    'Tag', 'facesClearSelection', 'Tooltip', 'Unselect every selected face; Undo puts them back.');
 countsLabel = uilabel(panelGrid, 'Text', '', 'Interpreter', 'html', 'WordWrap', 'on', 'Tag', 'facesCounts');
 uilabel(panelGrid, 'Interpreter', 'html', 'WordWrap', 'on', 'VerticalAlignment', 'top', 'Text', ...
-    ['<b>Flipping by hand</b><br>Ctrl+click: the region under the mouse (same label, same color)<br>' ...
-    'Ctrl+Shift+click: one face<br>Ctrl+drag: the faces under the brush<br>' ...
+    ['<b>Selecting</b> (as in the painter)<br>Ctrl+click: one face<br>Ctrl+double-click: its region (same label, same color)<br>' ...
+    'Ctrl+drag: the faces under the brush<br>Ctrl+Shift with any of these: unselect; Esc: unselect all<br>' ...
+    '<b>Then</b> Apply flips them; look; Save.<br>' ...
     'Left-drag rotates, right-drag pans, the wheel zooms.']);
 fcn_INTERNAL_selectRadio(colorGroup, colorBy);
 fcn_INTERNAL_selectRadio(brushGroup, brushName);
@@ -309,7 +362,7 @@ set(figureHandle, 'WindowButtonDownFcn', @(~,~) onDown(), 'WindowButtonMotionFcn
     'WindowButtonUpFcn', @(~,~) onUp(), 'WindowScrollWheelFcn', @onScroll, 'WindowKeyPressFcn', @onKey, ...
     'CloseRequestFcn', @(~,~) closeWindow());
 showFaces();
-setHint('Red faces point into the vehicle as seen from outside. Flip them all (Face Directions panel), or Ctrl+click a region to flip it. Save when done.');
+setHint('Red faces point into the vehicle as seen from outside. Select them (Ctrl+click, Ctrl+double-click, Ctrl+drag, or "Select the suggested faces"), look, then Apply to flip them. Save when done.');
 
 window = struct('Figure', figureHandle, 'Axes', modelAxes, 'Patch', modelPatch, 'FlipsFile', flipsFile, ...
     'State', @() fcn_CarMesh3D_guiDriver(figureHandle, 'state'), ...
@@ -317,9 +370,11 @@ window = struct('Figure', figureHandle, 'Axes', modelAxes, 'Patch', modelPatch, 
     'Press', @(varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'press', varargin{:}), ...
     'Key', @(key, varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, 'Modifier', fcn_INTERNAL_modifiers(varargin)), ...
     'CheckLayout', @() fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout'), ...
-    'ClickAt', @clickAt, 'DragAt', @dragAt, 'FaceAt', @faceAt, ...
+    'ClickAt', @clickAt, 'DoubleClickAt', @doubleClickAt, 'DragAt', @dragAt, 'FaceAt', @faceAt, ...
+    'Select', @(faces) selectFaces(faces, true, 'select'), 'SelectSuggested', @selectSuggested, ...
+    'ClearSelection', @clearSelection, 'Apply', @applySelection, 'Revert', @() revertToStart(false), ...
     'Flip', @(faces) flipFaces(faces, true), 'FlipSuggested', @flipSuggested, 'Undo', @undoFlip, 'Save', @saveFlips, ...
-    'Flipped', @getFlipped, 'Suggested', @getSuggested, 'Status', @getStatus, ...
+    'Selected', @getSelected, 'Flipped', @getFlipped, 'Suggested', @getSuggested, 'Status', @getStatus, 'LastPick', @getLastPick, ...
     'FixedMesh', @getFixedMesh, 'FaceFlips', @getFaceFlips, 'Sides', @() struct('OutwardSign', outwardSign, 'Info', sidesInfo), ...
     'SetColorBy', @setColorBy, 'SetBrush', @setBrush, 'SetSize', @setSize, 'Close', @closeWindow);
 figureHandle.UserData = window;
@@ -369,11 +424,17 @@ fixedMesh = getFixedMesh();
         [liftedVertices, liftedFaces] = pick.LiftedFaces(baseMesh.Vertices, faces, find(flagSuggested), 0.002);
         set(suggestedPatch, 'Vertices', liftedVertices, 'Faces', liftedFaces);
         numSuggested = nnz(flagSuggested);
-        suggestButton.Text = sprintf('Flip the suggested faces (%d)', numSuggested);
-        suggestButton.Enable = matlab.lang.OnOffSwitchState(numSuggested > 0);
+        [selectedVertices, selectedFaces] = pick.LiftedFaces(baseMesh.Vertices, faces, find(selected), 0.0025);
+        set(selectionPatch, 'Vertices', selectedVertices, 'Faces', selectedFaces);
+        numSelected = nnz(selected);
+        suggestButton.Text = sprintf('Select the suggested faces (%d)', numSuggested);
+        suggestButton.Enable = matlab.lang.OnOffSwitchState(numSuggested > 0 && any(flagSuggested & ~selected));
+        applyButton.Text = sprintf('Apply: flip the selected faces (%d)', numSelected);
+        applyButton.Enable = matlab.lang.OnOffSwitchState(numSelected > 0);
+        clearButton.Enable = matlab.lang.OnOffSwitchState(numSelected > 0);
         countsLabel.Text = sprintf(['%d faces: %d point out, %d point in, %d cannot tell<br>' ...
-            '%d flipped (%d by the suggestion)'], numFaces, nnz(flagKnown & currentlyOut()), numSuggested, nnz(~flagKnown), ...
-            nnz(flipped), nnz(flipped & (outwardSign < 0) & flagKnown));
+            '%d selected; %d flipped (%d by the suggestion)'], numFaces, nnz(flagKnown & currentlyOut()), numSuggested, nnz(~flagKnown), ...
+            numSelected, nnz(flipped), nnz(flipped & (outwardSign < 0) & flagKnown));
         updateStatus();
     end
 
@@ -400,6 +461,14 @@ fixedMesh = getFixedMesh();
         faces = find(suggestedFaces());
     end
 
+    function faces = getSelected()
+        faces = find(selected);
+    end
+
+    function pickOut = getLastPick()
+        pickOut = lastPick;
+    end
+
     function flipsOut = getFaceFlips()
         flipsOut = faceFlips;
     end
@@ -410,7 +479,7 @@ fixedMesh = getFixedMesh();
 
     function statusOut = getStatus()
         statusOut = struct('NumFlipped', nnz(flipped), 'NumSuggested', nnz(suggestedFaces()), ...
-            'NumUnknown', nnz(~flagKnown), 'Unsaved', isUnsaved(), 'UndoSteps', numel(undoStack), ...
+            'NumUnknown', nnz(~flagKnown), 'NumSelected', nnz(selected), 'Unsaved', isUnsaved(), 'UndoSteps', numel(undoStack), ...
             'ColorBy', colorBy, 'Brush', brushName);
     end
 
@@ -425,32 +494,122 @@ fixedMesh = getFixedMesh();
     end
 
     %% Flips
-    function flipFaces(faces, flagRemember)
-        % Turns these faces around (each once); remembered for Undo
-        faces = unique(faces(:));
+    function faces = cleanFaces(faces)
+        faces = unique(round(double(faces(:))));
         faces = faces(faces >= 1 & faces <= numFaces);
+    end
+
+    function remember(faces, textIn)
+        % One Undo step: these faces' states before the change
+        undoStack(end+1) = struct('Faces', faces, 'Flipped', flipped(faces), 'Selected', selected(faces), 'Text', textIn);
+    end
+
+    function selectFaces(faces, flagOn, textIn)
+        % Selects (flagOn) or unselects these faces: one Undo step
+        faces = cleanFaces(faces);
+        faces = faces(selected(faces) ~= flagOn);
         if isempty(faces)
             return;
         end
-        flipped(faces) = ~flipped(faces);
-        if flagRemember
-            undoStack{end+1} = faces;
+        remember(faces, textIn);
+        selected(faces) = flagOn;
+        showFaces();
+    end
+
+    function selectSuggested()
+        faces = find(suggestedFaces());
+        selectFaces(faces, true, 'select the suggested faces');
+        setHint(sprintf('%d suggested face(s) selected (yellow). Look them over, unselect any that are wrong (Ctrl+Shift), then Apply.', numel(faces)));
+    end
+
+    function clearSelection()
+        % Esc: unselects every selected face; one Undo puts them back
+        if strokeOpen
+            closeStroke();
         end
+        faces = find(selected);
+        if isempty(faces)
+            return;
+        end
+        selectFaces(faces, false, 'unselect all');
+        setHint(sprintf('%d selected face(s) unselected (Esc). Undo puts them back.', numel(faces)));
+    end
+
+    function applySelection()
+        % Apply: the selected faces are flipped, and the selection cleared
+        faces = find(selected);
+        if isempty(faces)
+            setHint('Nothing is selected: select faces first (Ctrl+click, Ctrl+double-click, Ctrl+drag), then Apply.');
+            return;
+        end
+        remember(faces, 'apply');
+        flipped(faces) = ~flipped(faces);
+        selected(faces) = false;
+        showFaces();
+        setHint(sprintf('%d face(s) flipped. Check the colors; Undo takes it back; Save when done.', numel(faces)));
+    end
+
+    function flipFaces(faces, flagRemember)
+        % Turns these faces around (each once) without selecting them
+        % (scripts and tests); remembered for Undo
+        faces = cleanFaces(faces);
+        if isempty(faces)
+            return;
+        end
+        if flagRemember
+            remember(faces, 'flip');
+        end
+        flipped(faces) = ~flipped(faces);
         showFaces();
     end
 
     function flipSuggested()
-        flipFaces(find(suggestedFaces()), true); %#ok<FNDSB>
+        % (scripts and tests: select the suggested faces, then Apply)
+        selectSuggested();
+        applySelection();
+    end
+
+    function revertToStart(flagAsk)
+        % Back to the flips as they were when the window opened (and
+        % nothing selected): one Undo step. The file changes on Save.
+        faces = find(flipped ~= startFlipped | selected);
+        if isempty(faces)
+            setHint('Nothing to revert: the flips are as they were when the window opened.');
+            return;
+        end
+        if flagAsk && strcmp(figureHandle.Visible, 'on')
+            choice = uiconfirm(figureHandle, sprintf(['Go back to the flips as they were when this window opened? ' ...
+                '%d face(s) change. Undo takes it back; the file changes only when you Save.'], numel(faces)), ...
+                'Revert to start', 'Options', {'Revert', 'Cancel'}, 'DefaultOption', 2, 'CancelOption', 2);
+            if ~strcmp(choice, 'Revert')
+                return;
+            end
+        end
+        remember(faces, 'revert to start');
+        flipped = startFlipped;
+        selected(:) = false;
+        showFaces();
+        setHint(sprintf('Reverted to the start (%d face(s) changed). Save to write it to the file; Undo takes it back.', numel(faces)));
     end
 
     function undoFlip()
+        if strokeOpen
+            closeStroke();
+        end
         if isempty(undoStack)
+            setHint('Nothing to undo.');
             return;
         end
-        faces = undoStack{end};
+        entry = undoStack(end);
         undoStack(end) = [];
-        flipped(faces) = ~flipped(faces);
+        flipped(entry.Faces) = entry.Flipped;
+        selected(entry.Faces) = entry.Selected;
         showFaces();
+        if isUnsaved()
+            setHint(sprintf('Undone: %s. Not saved: Save writes the window''s flips to the file.', entry.Text));
+        else
+            setHint(sprintf('Undone: %s.', entry.Text));
+        end
     end
 
     function faces = regionOf(face)
@@ -527,17 +686,23 @@ fixedMesh = getFixedMesh();
     end
 
     function onDown()
+        % CAD-style, as the painter: left-drag rotates, right-drag pans;
+        % selecting only with Ctrl (Ctrl+click one face, Ctrl+drag the
+        % brush, Ctrl+double-click a region; Ctrl+Shift unselects). Any
+        % click over the model's axes counts: before T96 a click counted
+        % only where the figure's CurrentObject was in the axes
         mouseMode = '';
-        clicked = figureHandle.CurrentObject;
-        if isempty(clicked) || ~isvalid(clicked) || ~isequal(ancestor(clicked, 'axes'), modelAxes)
+        point = figureHandle.CurrentPoint;
+        box = getpixelposition(modelAxes, true);
+        if point(1) < box(1) || point(2) < box(2) || point(1) > box(1) + box(3) || point(2) > box(2) + box(4)
             return;
         end
         modifiers = mouseModifiers();
-        if any(strcmp(modifiers, 'control'))
+        mouseErase = any(strcmp(modifiers, 'shift'));
+        if any(strcmp(modifiers, 'control')) && strcmp(figureHandle.SelectionType, 'open')
+            mouseMode = 'region';
+        elseif any(strcmp(modifiers, 'control'))
             mouseMode = 'ctrl';
-            if any(strcmp(modifiers, 'shift'))
-                mouseMode = 'ctrlShift';
-            end
         elseif strcmp(figureHandle.SelectionType, 'alt')
             mouseMode = 'pan';
         else
@@ -557,10 +722,15 @@ fixedMesh = getFixedMesh();
             return;   % (a click, so far)
         end
         mouseMoved = true;
-        if any(strcmp(mouseMode, {'ctrl', 'ctrlShift'}))
+        if strcmp(mouseMode, 'region')
+            return;
+        end
+        if strcmp(mouseMode, 'ctrl')
             mouseMode = 'stroke';
             strokeOpen = true;
             strokeFaces = zeros(0,1);
+            strokeEntry = struct('Faces', zeros(0,1), 'Flipped', false(0,1), 'Selected', false(0,1), 'Text', 'a brush stroke');
+            strokeErase = mouseErase;
             strokeLastPixel = mouseStart;
         end
         if strcmp(mouseMode, 'stroke')
@@ -572,15 +742,23 @@ fixedMesh = getFixedMesh();
         mouseLast = point;
         if strcmp(mouseMode, 'rotate')
             camorbit(modelAxes, -0.5*delta(1), -0.5*delta(2), 'data', [0 0 1]);
+            moveLight();
         else
             camdolly(modelAxes, -delta(1), -delta(2), 0, 'movetarget', 'pixels');
         end
         drawnow limitrate;
     end
 
+    function moveLight()
+        % (the light follows the camera, T96: the far side was dark)
+        if ~isempty(lightHandle) && isvalid(lightHandle)
+            camlight(lightHandle, 'headlight');
+        end
+    end
+
     function strokeAlong()
         % The faces under the line from the last point to this one, each
-        % flipped once in the stroke
+        % selected (or unselected, with Shift) once in the stroke
         pixelNow = figureHandle.CurrentPoint;
         brushPixels = brushSizes(strcmp({brushSizes.Name}, brushName)).Pixels;
         numSteps = min(200, max(1, ceil(norm(pixelNow - strokeLastPixel)/max(1, min(4, brushPixels)))));
@@ -595,25 +773,68 @@ fixedMesh = getFixedMesh();
         newFaces = setdiff(unique(faces), strokeFaces);
         if ~isempty(newFaces)
             strokeFaces = [strokeFaces; newFaces];
-            flipped(newFaces) = ~flipped(newFaces);
-            showFaces();
+            newFaces = newFaces(selected(newFaces) == strokeErase);
+            if ~isempty(newFaces)
+                strokeEntry.Faces = [strokeEntry.Faces; newFaces];
+                strokeEntry.Flipped = [strokeEntry.Flipped; flipped(newFaces)];
+                strokeEntry.Selected = [strokeEntry.Selected; selected(newFaces)];
+                selected(newFaces) = ~strokeErase;
+                showFaces();
+            end
         end
+    end
+
+    function closeStroke()
+        % (one Undo step for the whole stroke)
+        if ~isempty(strokeEntry) && ~isempty(strokeEntry.Faces)
+            undoStack(end+1) = strokeEntry;
+        end
+        strokeEntry = [];
+        strokeOpen = false;
+        strokeFaces = zeros(0,1);
+    end
+
+    function notePick(face)
+        % What a click picked, in the hint line (T96: some faces could not
+        % be picked; this says what the click found)
+        if isempty(face)
+            lastPick = struct('Face', [], 'Behind', 0, 'Text', 'The click missed the model.');
+            setHint(lastPick.Text);
+            return;
+        end
+        ray = mouseRay();
+        direction = (ray(2,:) - ray(1,:))/norm(ray(2,:) - ray(1,:));
+        hits = pick.RayHits(ray(1,:), direction, baseMesh.Vertices, baseMesh.Faces);
+        numBehind = nnz(hits > hits(face) & hits <= hits(face) + 0.01);
+        colorNames = {'gray (cannot tell)', 'green (points out)', 'red (points in)'};
+        flagOut = currentlyOut();
+        status = 1 + double(flagKnown(face))*(1 + double(~flagOut(face)));
+        lastPick = struct('Face', face, 'Behind', numBehind, 'Text', sprintf('Picked face %d: %s, label %d; %d other face(s) within 1 cm behind it.', ...
+            face, colorNames{status}, labelCode(face), numBehind));
+        setHint(lastPick.Text);
     end
 
     function onUp()
         if strcmp(mouseMode, 'stroke')
-            if ~isempty(strokeFaces)
-                undoStack{end+1} = strokeFaces;
-            end
-            strokeOpen = false;
-            strokeFaces = zeros(0,1);
+            closeStroke();
         elseif ~mouseMoved && strcmp(mouseMode, 'ctrl')
             face = facesUnderMouse(true);
+            notePick(face);
+            selectFaces(face, ~mouseErase, 'a click');
+        elseif strcmp(mouseMode, 'region')
+            face = facesUnderMouse(true);
+            notePick(face);
             if ~isempty(face)
-                flipFaces(regionOf(face), true);
+                % (the first click of the double-click picked one face:
+                % the region's step replaces it)
+                region = regionOf(face);
+                selectFaces(region, ~mouseErase, 'a region');
+                actionText = 'selected';
+                if mouseErase
+                    actionText = 'unselected';
+                end
+                setHint(sprintf('%s Region: %d face(s) %s.', lastPick.Text, numel(region), actionText));
             end
-        elseif ~mouseMoved && strcmp(mouseMode, 'ctrlShift')
-            flipFaces(facesUnderMouse(true), true);
         end
         mouseMode = '';
     end
@@ -623,6 +844,10 @@ fixedMesh = getFixedMesh();
     end
 
     function onKey(~, event)
+        if strcmp(event.Key, 'escape') && isempty(event.Modifier)
+            clearSelection();
+            return;
+        end
         if any(strcmp(event.Modifier, 'control'))
             if strcmpi(event.Key, 'z')
                 undoFlip();
@@ -655,9 +880,23 @@ fixedMesh = getFixedMesh();
         end
         injectMouse(target, modifiers);
         figureHandle.SelectionType = 'normal';
-        figureHandle.CurrentObject = modelPatch;
         onDown();
         onUp();
+        mouseInjected = [];
+    end
+
+    function doubleClickAt(target, modifiers)
+        % (as a real double-click: a click, then a second one that MATLAB
+        % reports as 'open')
+        if nargin < 2
+            modifiers = {};
+        end
+        clickAt(target, modifiers);
+        injectMouse(target, modifiers);
+        figureHandle.SelectionType = 'open';
+        onDown();
+        onUp();
+        figureHandle.SelectionType = 'normal';
         mouseInjected = [];
     end
 
@@ -670,7 +909,6 @@ fixedMesh = getFixedMesh();
         end
         injectMouse(targets(1,:), modifiers);
         figureHandle.SelectionType = 'normal';
-        figureHandle.CurrentObject = modelPatch;
         onDown();
         mouseStart = mouseStart - [10 10];   % (so the first move counts as a drag)
         for ith_target = 1:size(targets,1)
