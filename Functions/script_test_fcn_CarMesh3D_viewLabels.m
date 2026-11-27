@@ -726,6 +726,7 @@ for windowSize = {[1500 860], [800 500], [640 400], [1600 1000], [1100 700]}
     viewer.Resize(windowSize{1});
     viewer.Settle();
     viewer.Press('overallResetView');
+    viewer.Settle();   % (2026-11-26: the check ran before the hidden window had laid itself out after Reset view, failing about half the time; the view timer refits within 0.25 s, as a person sees it)
     assert(fcn_INTERNAL_vehicleInView(viewer), 'Reset view at %s: the whole vehicle in view', mat2str(windowSize{1}));
     for otherSize = {[900 600], [1500 860]}
         viewer.Resize(otherSize{1});

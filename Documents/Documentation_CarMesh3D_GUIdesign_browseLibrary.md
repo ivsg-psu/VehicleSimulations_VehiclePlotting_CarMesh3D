@@ -46,7 +46,7 @@ It is called on its own, `selectedNames = fcn_CarMesh3D_browseLibrary()`, often 
   - Score: **Highest first** / Lowest first
   - Review (% approved): **Most approved first** / Least approved first
 
-  The call takes the same words (`Order=`); `Descending=` still works for old calls.
+  The call takes the same words (`Order=`). (`Descending=`, kept at first for old calls, was removed 2026-11-26; no call used it.)
 
 - B12. **No "Name" sort** (Sean, 21:54, C2S 7): the name begins with the year, so a sort by name looked random by make; Make covers it. `SortBy='name'` in old calls sorts by make. **Text sorts ignore upper and lower case.**
 - B13. **Ties are ordered by make, then name; for a text sort (Make, Class) in the order chosen, for the others A to Z** (Sean's screenshot, 22:05: sorting by Class within Class groups, Z to A, should give the coupes Honda, Ford, CarMesh3D).
@@ -209,7 +209,6 @@ Exemplar rows keep their gold-brown text, `[0.6 0.4 0]`; group rows are white on
 | `SortBy` | 'class' | 'make', 'year', 'class', 'length', 'score', 'review', 'built', 'reviewDate'. |
 | `GroupBy` | 'class' | 'class', 'make', 'year', 'review', 'exemplar', 'license', 'none'. |
 | `Order` | '' (the sort's own default) | The order within each group, in the Order? words (B11). |
-| `Descending` | [] | The older way to give the order, kept for old calls; `Order` wins. |
 | `Selected` | {} | Names ticked at the start. |
 | `DefaultVehicle` | '2009_Honda_Fit_Sport' | Copied and returned when none is selected. |
 | `FlagWait` | true when visible | Wait until closed. |

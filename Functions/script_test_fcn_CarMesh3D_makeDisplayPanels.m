@@ -53,13 +53,10 @@ assert(any(strcmp(texts, 'headlamp')) && ~any(contains(texts, 'low beams')), 'La
 lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
 rowKeys = {controls.LabelRows.Key};
 assert(all(ismember(strcat('light_', {lampTypes.Name}), rowKeys)), 'A row for every lamp type');
-% (the tier 1 lamps all have faces on the test vehicle; the tier 2 and 3
-% rows, added 2026-11-26, are gray there: it has no such lamps)
-grayTexts = cellstr(get(findall(lampsPanel, 'Type', 'uilabel', 'FontAngle', 'italic'), 'Text'));   % (never empty: the tier 2 and 3 rows)
-tierOneTexts = {'Low beams', 'High beams', 'Running lights', 'Left turn signal', 'Right turn signal', 'Hazards', ...
-    'Tail lights', 'Backup lights', 'Fog lamps', 'Reflectors lit'};
-assert(~any(ismember(grayTexts, tierOneTexts)), 'Every tier 1 lamp has faces on the test vehicle');
-assert(any(strcmp(grayTexts, 'School bus red')), 'The tier 2 and 3 rows are listed, gray when the vehicle has none');
+% (every lamp kind, the tier 2 and 3 ones too, has faces on the test
+% vehicle since 2026-11-26, so no row is gray)
+assert(isempty(findall(lampsPanel, 'Type', 'uilabel', 'FontAngle', 'italic')), 'Every lamp has faces on the test vehicle');
+assert(numel(findall(lampsPanel, 'Type', 'uicheckbox')) >= 25, 'A row for every signal (18 of them added 2026-11-26)');
 
 %% TEST case: each panel drives the viewer, and calls OnChange
 figNum = 20002;

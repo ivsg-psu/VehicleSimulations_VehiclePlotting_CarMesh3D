@@ -198,20 +198,28 @@ copyFiles = fcn_CarMesh3D_findVehicleFiles(result{1});
 assert(strcmp(copyFiles.ID, fcn_CarMesh3D_demoVehicle(FigNum=-1)) && copyFiles.HasMesh, ...
     'The default is a copy of the demo vehicle (the user''s own choice, if any)');
 
-%% Options given at the start: the order, in words or the older Descending
+%% Options given at the start: the order, in words (Descending= was removed 2026-11-26)
 [~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='length', Order='Shortest first', GroupBy='none');
 assert(strcmp(browser.SortOrder(), 'Shortest first'));
 lengths = arrayfun(@(id) vehicles(strcmp({vehicles.ID}, id{1})).Length, browser.Order());
 assert(all(diff(lengths) >= -1e-9), 'Shortest first');
 browser.Close();
-[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='name', Descending=true);
-assert(strcmp(browser.SortOrder(), 'Z to A'), 'Old calls: Descending=true still works, and SortBy=''name'' sorts by make');
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='name', Order='Z to A');
+assert(strcmp(browser.SortOrder(), 'Z to A'), 'Order=''Z to A'', and SortBy=''name'' sorts by make');
+browser.Close();
+flagRefused = false;
+try
+    fcn_CarMesh3D_browseLibrary(FlagVisible=false, Descending=true);
+catch
+    flagRefused = true;
+end
+assert(flagRefused, 'The removed option Descending= is refused');
 browser.Close();
 [~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='year');
 assert(strcmp(browser.SortOrder(), 'Newest first'), 'With no order given, the sort''s own default');
 browser.Close();
 
-[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='score', Descending=true, ...
+[selectedNames, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='score', Order='Highest first', ...
     GroupBy='make', Selected={demoID});
 assert(isequal(selectedNames, {demoID}));
 browser.Close();

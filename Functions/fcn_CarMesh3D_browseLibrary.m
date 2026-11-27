@@ -39,7 +39,6 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %
 %       [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(...
 %           (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
-%           (Descending=flag),...
 %           (Selected=names), (DefaultVehicle=id), (FlagWait=flag),...
 %           (FlagVisible=flag), (DataFolder=folder), (FigNum=figNum))
 %
@@ -77,11 +76,6 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      Default '': the sort's own default, the first of each pair (A to
 %      Z for names; newest, longest, highest and most approved first for
 %      the others). The groups always keep their own order.
-%
-%      Descending: the older way to give the order, kept so old calls
-%      work: true for Z to A, newest, longest, highest or most approved
-%      first; false for the reverse. Default []: the sort's own default.
-%      Order, when given, wins.
 %
 %      Selected: MATLAB names (vehicle IDs) ticked when the window opens.
 %      Default {}.
@@ -271,6 +265,8 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 % - In fcn_CarMesh3D_browseLibrary
 %   % * The outline's lamp colors match the new camelCase lamp keys (Q92
 %   %   % (A)) ignoring case (drafted with Claude)
+%   % * The older option Descending= is removed: Order= gives the order
+%   %   % in words (proposed 2026-11-26; no call used it)
 
 
 % TO-DO:
@@ -338,7 +334,6 @@ arguments
     options.SortBy = 'class'          % How the list is sorted
     options.GroupBy = 'class'         % How the list is grouped
     options.Order = ''                % The order within each group, in the drop-down's words; '' for the sort's default
-    options.Descending = []           % (older way) true for Z to A / newest / longest / highest first; [] for the sort's default
     options.Selected = {}             % Names ticked at the start
     options.DefaultVehicle = ''       % Returned (as a fresh copy) when none is selected; '' for the demo vehicle
     options.FlagWait = []                 % Wait for the window to close; [] for "when visible"
@@ -405,9 +400,6 @@ if 0==flag_max_speed
                 error('CarMesh3D:badInput', 'For SortBy=''%s'', Order must be ''%s'' or ''%s''.', ...
                     char(options.SortBy), orderWords{1}, orderWords{2});
             end
-        end
-        if ~isempty(options.Descending) && ~(islogical(options.Descending) || isnumeric(options.Descending))
-            error('CarMesh3D:badInput', 'Descending must be true or false.');
         end
         if ~any(strcmpi(char(options.GroupBy), groupKeys))
             error('CarMesh3D:badInput', 'GroupBy must be one of: %s', strjoin(groupKeys, ', '));
@@ -484,8 +476,6 @@ groupKey = lower(char(options.GroupBy));
 flagDescending = orderDescending(1);   % (the sort's own default)
 if ~isempty(options.Order)
     flagDescending = orderDescending(strcmpi(char(options.Order), orderWords));
-elseif ~isempty(options.Descending)
-    flagDescending = logical(options.Descending);
 end
 filterTerms = {};   % (the filters applied, in order: each narrows what is shown)
 currentOrder = 1:numVehicles;   % (indices into vehicles, as shown)

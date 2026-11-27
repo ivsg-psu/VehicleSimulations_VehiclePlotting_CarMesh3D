@@ -3110,7 +3110,7 @@ A window listing every finished vehicle in the library, one row each, in a table
 ```matlab
 [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(...
     (Vehicles=names), (SortBy=key), (GroupBy=key), (Order=words),...
-    (Descending=flag), (Selected=names), (DefaultVehicle=id), (FlagWait=flag),...
+    (Selected=names), (DefaultVehicle=id), (FlagWait=flag),...
     (FlagVisible=flag), (DataFolder=folder), (FigNum=figNum))
 ```
 
@@ -3120,7 +3120,6 @@ A window listing every finished vehicle in the library, one row each, in a table
 | `SortBy` | option | 'make', 'year', 'class' (default), 'length', 'score', 'review' (the percent of review items approved), 'built' (when the mesh was made), or 'reviewDate'. Ties are ordered by name. (Old calls with 'name' sort by make.) Default `'class'`. | char | 1 x n |
 | `GroupBy` | option | 'class' (default), 'make', 'year', 'review' (reviewed, partly reviewed, not reviewed), 'exemplar' (exemplars first), 'license', or 'none'. Default `'class'`. | char | 1 x n |
 | `Order` | option | how the vehicles are ordered within each group, in the words of the window's Order? drop-down, which depend on SortBy: 'A to Z' or 'Z to A' (make, class); 'Newest first' or 'Oldest first' (year, built, reviewDate); 'Longest first' or 'Shortest first' (length); 'Highest first' or 'Lowest first' (score); 'Most approved first' or 'Least approved first' (review). Default '': the sort's own default, the first of each pair. The groups always keep their own order. | char | 1 x n |
-| `Descending` | option | the older way to give the order, kept so old calls work: true for Z to A, newest, longest, highest or most approved first. Default []: the sort's own default. Order, when given, wins. | logical | 1 x 1 (or empty) |
 | `Selected` | option | MATLAB names (vehicle IDs) ticked when the window opens. Default {}. | cell | 1 x n |
 | `DefaultVehicle` | option | the vehicle copied and returned when none is selected. Default '2009_Honda_Fit_Sport' (the demo menu's test vehicle). | char | 1 x n |
 | `FlagWait` | option | true to wait until the window is closed, and return the selection then. Default: true when Visible, else false. | logical | 1 x 1 |

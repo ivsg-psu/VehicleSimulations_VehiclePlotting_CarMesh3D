@@ -46,6 +46,11 @@
 %   %   % markers, rear reflectors, a license plate lamp and a roof beacon
 %   %   % (warning) added, so the GUIs' tests see every lamp type
 
+% 2026_11_26 by Sean Brennan, sbrennan@psu.edu
+% - In script_CarMesh3D_vehicle_2026_CarMesh3D_Sample_GUITestVehicle
+%   % * The 20 tier 2 and 3 lamp kinds added, one small piece each,
+%   %   % floating just outside the body (so the panels show no gray rows)
+
 % TO-DO:
 %
 % 2026_11_23 by Sean Brennan, sbrennan@psu.edu
@@ -73,7 +78,7 @@ vehicleMesh = loaded.vehicleMesh;
 
 %% The standard part and lamp lists (the sample predates interior and high beams)
 standardParts = {'body';'glass';'wheel';'light';'trim';'interior'};
-% (every lamp type, from the one list: fcn_CarMesh3D_lampTypes; 11 since task 8)
+% (every lamp type, from the one list: fcn_CarMesh3D_lampTypes; 11 since task 8, 31 since 2026-11-26)
 lampTypes = fcn_CarMesh3D_lampTypes(FigNum=-1);
 standardLamps = reshape({lampTypes.Name}, [], 1);
 assert(isequal(vehicleMesh.LabelPartNames(:), standardParts(1:numel(vehicleMesh.LabelPartNames))), 'Sample part order changed');
@@ -111,7 +116,29 @@ pieces = { ...   name, box, mirrored
     'side marker',    [3.30 3.40  0.92 0.94 0.55 0.60], true
     'rear reflector', [-1.05 -1.03 0.45 0.60 0.45 0.50], true
     'plate lamp',     [-1.05 -1.03 -0.10 0.10 0.50 0.53], false
-    'roof beacon',    [0.90 1.10 -0.10 0.10 1.50 1.58], false};
+    'roof beacon',    [0.90 1.10 -0.10 0.10 1.50 1.58], false
+    ... % (the tier 2 and 3 lamp kinds, 2026-11-26: one piece each, floating
+    ... %  just outside the body so no body face is picked; every piece is
+    ... %  mirrored or crosses the centerline, so the mesh stays symmetric)
+    'cornering lamp', [3.76 3.78  0.74 0.86 0.44 0.50], true
+    'logo',           [3.76 3.78 -0.06 0.06 0.75 0.81], false
+    'emergency grille',[3.76 3.78 0.10 0.20 0.52 0.56], true
+    'beacon',         [1.30 1.45 -0.10 0.10 1.50 1.58], false
+    'light bar red blue',[1.60 1.70 0.20 0.45 1.50 1.56], true
+    'light bar amber green',[1.75 1.85 0.20 0.45 1.50 1.56], true
+    'work lamp',      [0.20 0.35  0.40 0.55 1.50 1.56], true
+    'ads marker',     [2.00 2.10  0.55 0.70 1.50 1.54], true
+    'clearance lamp', [2.15 2.20  0.75 0.85 1.50 1.54], true
+    'id lamp side',   [2.15 2.20  0.15 0.25 1.50 1.54], true
+    'id lamp center', [2.15 2.20 -0.05 0.05 1.50 1.54], false
+    'high mount stop',[-0.08 -0.04 -0.20 0.20 1.50 1.53], false
+    'rear fog',       [-1.07 -1.05 0.30 0.42 0.42 0.46], true
+    'cargo lamp',     [-0.70 -0.60 0.30 0.45 1.50 1.53], true
+    'puddle lamp',    [2.24 2.31  0.95 1.02 0.95 0.98], true
+    'charge port',    [1.60 1.70  0.94 0.96 0.80 0.88], true
+    'school amber',   [-1.07 -1.05 0.55 0.65 1.00 1.06], true
+    'school red',     [-1.07 -1.05 0.70 0.80 1.00 1.06], true
+    'stop arm',       [0.50 0.70  0.94 0.96 0.85 1.00], true};
 for ith_piece = 1:size(pieces,1)
     box = pieces{ith_piece,2};
     if box(3) < 0 && box(4) > 0
@@ -153,7 +180,28 @@ edits = {
     struct('Name','side markers', 'Region',boxOf('side marker'), 'BothSides',true, 'LightType','markerLamp', 'Color',[0.85 0.45 0.05])
     struct('Name','rear reflectors', 'Region',boxOf('rear reflector'), 'BothSides',true, 'LightType','reflector', 'Color',[0.62 0.06 0.05])
     struct('Name','license plate lamp', 'Region',boxOf('plate lamp'), 'LightType','licensePlateLamp', 'Color',[0.95 0.95 0.90])
-    struct('Name','roof beacon (warning lamp)', 'Region',boxOf('roof beacon'), 'LightType','warningLamp', 'Color',[1.00 0.55 0.00])};
+    struct('Name','roof beacon (warning lamp)', 'Region',boxOf('roof beacon'), 'LightType','warningLamp', 'Color',[1.00 0.55 0.00])
+    ... % (the tier 2 and 3 kinds; a "left only" edit leaves its mirror twin as body)
+    struct('Name','cornering lamps', 'Region',boxOf('cornering lamp'), 'BothSides',true, 'LightType','corneringLamp', 'Color',[0.95 0.95 0.90])
+    struct('Name','lit logo', 'Region',grow([3.76 3.78 -0.06 0.06 0.75 0.81]), 'LightType','logoLamp', 'Color',[0.85 0.85 0.85])
+    struct('Name','grille emergency lamps (white)', 'Region',boxOf('emergency grille'), 'BothSides',true, 'LightType','emergencyWhiteLamp', 'Color',[0.90 0.90 0.90])
+    struct('Name','amber beacon', 'Region',grow([1.30 1.45 -0.10 0.10 1.50 1.58]), 'LightType','beaconLamp', 'Color',[1.00 0.60 0.00])
+    struct('Name','light bar, red (left)', 'Region',boxOf('light bar red blue'), 'LightType','emergencyRedLamp', 'Color',[0.80 0.05 0.05])
+    struct('Name','light bar, blue (right)', 'Region',grow([1.60 1.70 -0.45 -0.20 1.50 1.56]), 'LightType','emergencyBlueLamp', 'Color',[0.10 0.20 0.85])
+    struct('Name','light bar, amber (left)', 'Region',boxOf('light bar amber green'), 'LightType','emergencyAmberLamp', 'Color',[1.00 0.60 0.00])
+    struct('Name','light bar, green (right)', 'Region',grow([1.75 1.85 -0.45 -0.20 1.50 1.56]), 'LightType','emergencyGreenLamp', 'Color',[0.10 0.70 0.20])
+    struct('Name','work lamps', 'Region',boxOf('work lamp'), 'BothSides',true, 'LightType','workLamp', 'Color',[0.92 0.92 0.92])
+    struct('Name','ADS marker lamps', 'Region',boxOf('ads marker'), 'BothSides',true, 'LightType','adsMarkerLamp', 'Color',[0.25 0.75 0.70])
+    struct('Name','clearance lamps', 'Region',boxOf('clearance lamp'), 'BothSides',true, 'LightType','clearanceLamp', 'Color',[0.85 0.50 0.10])
+    struct('Name','identification lamps (three)', 'Region',grow([2.15 2.20 -0.25 0.25 1.50 1.54]), 'LightType','identificationLamp', 'Color',[0.85 0.50 0.10])
+    struct('Name','high-mounted stop lamp', 'Region',grow([-0.08 -0.04 -0.20 0.20 1.50 1.53]), 'LightType','highMountStopLamp', 'Color',[0.60 0.05 0.05])
+    struct('Name','rear fog lamps', 'Region',boxOf('rear fog'), 'BothSides',true, 'LightType','rearFogLamp', 'Color',[0.60 0.05 0.05])
+    struct('Name','cargo lamps', 'Region',boxOf('cargo lamp'), 'BothSides',true, 'LightType','cargoLamp', 'Color',[0.92 0.92 0.90])
+    struct('Name','puddle lamps', 'Region',boxOf('puddle lamp'), 'BothSides',true, 'LightType','puddleLamp', 'Color',[0.92 0.92 0.90])
+    struct('Name','charge-port lamp (left)', 'Region',boxOf('charge port'), 'LightType','chargePortLamp', 'Color',[0.40 0.80 0.45])
+    struct('Name','school bus amber lamps', 'Region',boxOf('school amber'), 'BothSides',true, 'LightType','schoolBusAmberLamp', 'Color',[0.90 0.60 0.10])
+    struct('Name','school bus red lamps', 'Region',boxOf('school red'), 'BothSides',true, 'LightType','schoolBusRedLamp', 'Color',[0.60 0.05 0.05])
+    struct('Name','stop-arm lamps (left)', 'Region',boxOf('stop arm'), 'LightType','stopArmLamp', 'Color',[0.60 0.05 0.05])};
 vehicleMesh = fcn_CarMesh3D_editLabels(vehicleMesh, Edits=edits, FigNum=-1);
 
 %% Check that every feature is there (the point of this vehicle)

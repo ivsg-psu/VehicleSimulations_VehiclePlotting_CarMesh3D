@@ -116,6 +116,10 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_editLampFunctions
 %   % * "Add a lamp kind" (section 6), into fcn_CarMesh3D_lampTypes
+%   % * Fixed: with long lamp names the matrix could shrink to one
+%   %   % column (a just-made axes' outer box was read before it was laid
+%   %   % out); the reach past the inner box is capped, and a picked column
+%   %   % is centered again on the view actually drawn
 
 arguments
     vehicleInput                % Vehicle ID or folder, or a labeled mesh
@@ -531,6 +535,7 @@ end
         % (the slider: shown only when the columns do not all fit)
         maxOffset = max(0, matrixWidth - shownWidth);
         editColumn = find(strcmp(signalNames, editSignal));
+        flagCenteredNow = flagCenterColumn;
         if flagCenterColumn
             columnOffset = (editColumn - 0.5)*cellPx - shownWidth/2;
             flagCenterColumn = false;
@@ -558,12 +563,24 @@ end
         % the panel's right edge would give the panel a sideways scroll bar
         % that moves the names too, so the matrix is narrowed by it)
         drawnow limitrate;
-        overflow = sum(axesHandle.OuterPosition([1 3])) - (panelSize(3) - 4 - scrollbarPx);
+        % (the reach past the inner box is a few pixels; a just-made axes
+        % can still report its default outer box, which would shrink the
+        % matrix to one column: so the reach is capped at 20 px. Found
+        % 2026-11-26, when longer lamp names moved the matrix right)
+        reachPx = min(max(0, sum(axesHandle.OuterPosition([1 3])) - sum(axesHandle.InnerPosition([1 3]))), 20);
+        overflow = sum(axesHandle.InnerPosition([1 3])) + reachPx - (panelSize(3) - 4 - scrollbarPx);
         if overflow > 0
             shownWidth = max(cellPx, shownWidth - ceil(overflow));
             axesHandle.InnerPosition = [namePx + 1, 1, shownWidth, heightPx];
             maxOffset = max(0, matrixWidth - shownWidth);
             flagSideways = maxOffset > 0;
+            if flagCenteredNow
+                % (centered again on the narrower view: with long lamp
+                % names the first centering could leave the column out of
+                % view; found 2026-11-26 when the GUI test vehicle got
+                % its tier 2 and 3 lamps)
+                columnOffset = (editColumn - 0.5)*cellPx - shownWidth/2;
+            end
             columnOffset = min(max(0, columnOffset), maxOffset);
             columnSlider.Limits = [0, max(maxOffset, 1)];
             columnSlider.Value = columnOffset;
