@@ -120,6 +120,8 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   %   % column (a just-made axes' outer box was read before it was laid
 %   %   % out); the reach past the inner box is capped, and a picked column
 %   %   % is centered again on the view actually drawn
+%   % * Fixed: "Invalid or deleted object" when a resize or a close ran
+%   %   % while the matrix was being drawn
 %   % * Fixed: clicking a Front / Side / Rear box failed (its callback
 %   %   % held the boxes as they were before all three were made)
 %   % * Sourced cells (Q98 (A)): cells found online and not yet checked
@@ -600,6 +602,12 @@ end
         % the panel's right edge would give the panel a sideways scroll bar
         % that moves the names too, so the matrix is narrowed by it)
         drawnow limitrate;
+        if ~isvalid(axesHandle)
+            % (the drawnow let a resize or a close run, which drew the
+            % matrix again or closed the window: this drawing is done;
+            % Sean saw "Invalid or deleted object" here, 2026-11-26 23:23)
+            return;
+        end
         % (the reach past the inner box is a few pixels; a just-made axes
         % can still report its default outer box, which would shrink the
         % matrix to one column: so the reach is capped at 20 px. Found
