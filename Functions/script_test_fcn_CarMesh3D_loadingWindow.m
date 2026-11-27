@@ -25,6 +25,7 @@ assert(~isempty(loading.Figure) && isvalid(loading.Figure) && strcmp(loading.Fig
 assert(strcmp(loading.Figure.UserData, 'Opening the label painter for 2009 Honda Fit Sport ...') && ...
     contains(findall(loading.Figure, 'Tag', 'carMesh3DLoadingText').Text, '2009 Honda Fit Sport'), 'The message, with the vehicle''s name');
 assert(strcmp(loading.Figure.HandleVisibility, 'off'), 'Not closed by a plain close all');
+assert(strcmp(loading.Figure.WindowStyle, 'alwaysontop'), 'Kept in front of the window being built (T95 BUG)');
 
 %% TEST case: one at a time: a second call gets the first, and its Close leaves it open
 inner = fcn_CarMesh3D_loadingWindow('Opening the viewer', FlagBuildHidden=true);

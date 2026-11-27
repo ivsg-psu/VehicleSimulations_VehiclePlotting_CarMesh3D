@@ -64,6 +64,8 @@ function loading = fcn_CarMesh3D_loadingWindow(messageText, options)
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_loadingWindow
 %   % * First write (Q99 (A))
+%   % * Kept in front (WindowStyle alwaysontop): the window being built
+%   %   % covered it and it could not be read (T95 BUG, Sean 02:02)
 
 % TO-DO:
 %
@@ -99,6 +101,7 @@ screenSize = get(groot, 'ScreenSize');
 windowSize = [460 130];
 figureHandle = uifigure('Name', 'CarMesh3D', 'Tag', 'carMesh3DLoading', 'Resize', 'off', ...
     'Position', [round((screenSize(3:4) - windowSize)/2), windowSize], 'HandleVisibility', 'off', ...
+    'WindowStyle', 'alwaysontop', ...   % (stays in front of the window being built: T95 BUG, Sean 2026-11-27 02:02)
     'Visible', matlab.lang.OnOffSwitchState(~options.FlagBuildHidden));
 figureHandle.UserData = [char(messageText) ' ...'];
 if ~options.FlagBuildHidden
