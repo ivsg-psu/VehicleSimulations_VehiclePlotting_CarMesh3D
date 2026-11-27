@@ -171,6 +171,13 @@ function vehicleFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, options)
 %   %   % reads the repo's download of the same vehicle from LargeData
 %   %   % (found by the reviewer's test: Differences had no spots on a copy)
 
+
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_findVehicleFiles
+%   % * A badly formed ID (such as 'HondaFit2015') gives the clear message
+%   %   % in fast mode too (FigNum=-1), not "Index exceeds the number of
+%   %   % array elements" (step 10B of the plan of 2026-11-27)
+
 % TO-DO:
 %
 % 2026_11_19 by Sean Brennan, sbrennan@psu.edu
@@ -337,6 +344,14 @@ else
         vehicleFolder = fullfile(dataFolder, 'BodyStyles', styleFolder, vehicleID);
     else
         vehicleFolder = fullfile(dataFolder, vehicleID);
+    end
+    % (checked here too, not only with the input checks: a fast-mode call,
+    % FigNum=-1, with an ID such as 'HondaFit2015' failed with "Index
+    % exceeds the number of array elements")
+    if ~fcn_INTERNAL_isValidID(vehicleID)
+        error('CarMesh3D:badVehicleID', ['vehicleID %s does not follow YEAR_Make_Model_Trimline: four parts separated by ' ...
+            'underscores, each made of letters and digits only, with a four-digit year ' ...
+            '(for example 2014_Ford_TransitConnect_XLTCargoLWB)'], char(vehicleID));
     end
     vehicleFiles = fcn_INTERNAL_filesForID(vehicleID, vehicleFolder, dataFolder);
 end

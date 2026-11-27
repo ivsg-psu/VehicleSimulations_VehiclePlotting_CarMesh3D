@@ -275,6 +275,12 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %   % * It is closed once the window is built, whether or not the
 %   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
 
+
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * The Review step is called the V&V GUI in its title, not the
+%   %   % reviewer (step 10B of the plan of 2026-11-27)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -1646,7 +1652,7 @@ end % Ends fcn_INTERNAL_pictureOrBlank
 function title = fcn_INTERNAL_toolTitle(toolName)
 switch toolName
     case 'edit',   title = 'label painter (fcn_CarMesh3D_paintLabels)';
-    case 'review', title = 'reviewer (fcn_CarMesh3D_reviewVehicle)';
+    case 'review', title = 'V&V GUI (fcn_CarMesh3D_reviewVehicle)';
     otherwise,     title = 'viewer (fcn_CarMesh3D_viewLabels)';
 end
 end % Ends fcn_INTERNAL_toolTitle
