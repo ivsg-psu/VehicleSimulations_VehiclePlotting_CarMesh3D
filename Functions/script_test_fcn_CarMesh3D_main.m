@@ -144,6 +144,12 @@ assert(isequal(meshBefore.datenum, meshAfter.datenum));   % (the vehicle's own m
 window.Close();
 assert(isempty(getappdata(groot, 'CarMesh3D_mainWindow')) || ~isvalid(getappdata(groot, 'CarMesh3D_mainWindow')));
 
+%% TEST case: a copy of a vehicle keeps its working copy beside it, never in CarMesh3D\Working
+fprintf(1,'TEST case: a copy''s working copy stays beside the copy\n');
+[~, window] = fcn_CarMesh3D_main(demoFiles.Folder, FlagVisible=false);
+assert(startsWith(window.WorkingFolder(), fullfile(testRoot, 'vehicle', 'Working')));
+window.Close();
+
 %% Clean up
 rmdir(testRoot, 's');
 

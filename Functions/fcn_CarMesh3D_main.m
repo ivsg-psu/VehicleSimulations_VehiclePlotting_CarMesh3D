@@ -118,6 +118,9 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 %   % * First write (step 1 of the design's plan): the steps and their
 %   %   % marks, the working model (resume, set aside, Commit, Discard),
 %   %   % one editor at a time, any number of viewers, the saved view
+%   % * A copy of a vehicle (a demo copy) keeps its working copies beside
+%   %   % it, not in CarMesh3D\Working (Sean, 17:33: test on a temporary
+%   %   % copy until the window is confirmed)
 %   % * A working copy with no changes is made fresh on opening, with
 %   %   % no question (Claude, before Sean's first look)
 
@@ -217,6 +220,19 @@ if ~vehicleFiles.Found
     error('CarMesh3D:noVehicle', 'No folder was found for the vehicle %s.', char(vehicleInput));
 end
 vehicleID = vehicleFiles.ID;
+% (a copy of a vehicle, such as a demo copy: its working copies are kept
+% beside it, never in CarMesh3D\Working, so a copy's work can never be
+% resumed, or committed, as the real vehicle's; Sean 2026-11-27 17:33)
+if isempty(char(options.WorkingRoot))
+    try
+        libraryFiles = fcn_CarMesh3D_findVehicleFiles(vehicleID, FigNum=-1);
+        if ~strcmpi(libraryFiles.Folder, vehicleFiles.Folder)
+            workingRoot = fullfile(fileparts(vehicleFiles.Folder), 'Working');
+        end
+    catch
+        workingRoot = fullfile(fileparts(vehicleFiles.Folder), 'Working');
+    end
+end
 
 loading = fcn_CarMesh3D_loadingWindow('Opening the main window', Vehicle=vehicleID, FlagVisible=options.FlagVisible);
 loadingCleanup = onCleanup(@() loading.Close()); %#ok<NASGU>
