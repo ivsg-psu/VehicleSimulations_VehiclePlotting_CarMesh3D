@@ -1949,6 +1949,8 @@ The functions of the lamp-to-function matrix (see [Switchable lights](#switchabl
 | `units = fcn_CarMesh3D_lampUnits(vehicleMesh)` | The lamp units: faces of one lamp label within 3 cm of each other, named from where they are ("front-left headlamp"), each with its clear covers |
 | `signals = fcn_CarMesh3D_lampSignals()` | The signals, the matrix's columns: Name, Label, Description |
 | `signals = fcn_CarMesh3D_interiorSignals()` | The interior signals, kept apart from the matrix (Sean, 2026-11-26 17:08): Name, Label, Values, Lamps, Description |
+| `[lampSources, file] = fcn_CarMesh3D_lampSources(vehicleID)` | A vehicle's sourced L2F cells (`lampFunctionsSources_<ID>.csv`): the maker's information found online, each with its link, page, date read and Status (`auto` cells are orange in the lamp-functions window until verified; Q98 (A)) |
+| `[lampBulbs, value] = fcn_CarMesh3D_lampBulbs(Bulb=name, Filament=name)` | The standard bulbs' lumens per filament, with sources; `value` is a filament's brightness from 0 to 1 by the cube-root rule, (lumens / brightest)^(1/3) (Sean, 2026-11-26 21:19) |
 | `[matrix, units, info] = fcn_CarMesh3D_lampFunctions(vehicle, (Mesh=), (Table=), (FlagSave=))` | A vehicle's matrix (a table: one row per unit, one column per signal, then Default and Source), from its `lampFunctions_<ID>.csv`, the defaults, and a first-time migration; `FlagSave=true` writes the file |
 | `setup = fcn_CarMesh3D_lampSetup(vehicleMesh, (FlagLampFunctions=))` | Everything needed to light the lamps, worked out once per mesh (which unit each face belongs to, the matrix as numbers) |
 | `lit = fcn_CarMesh3D_lampColors(setup, signals, (LampFaults=))` | How each unit and face is lit for a set of signals: the one place the lighting rules live |

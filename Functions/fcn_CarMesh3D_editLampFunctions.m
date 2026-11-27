@@ -78,7 +78,7 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %
 %      fcn_CarMesh3D_lampFunctions, fcn_CarMesh3D_lampSignals,
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_meshWithLabelEdits,
-%      fcn_CarMesh3D_viewLabels, fcn_CarMesh3D_userInfo
+%      fcn_CarMesh3D_viewLabels, fcn_CarMesh3D_userInfo, fcn_CarMesh3D_lampSources
 %
 % EXAMPLES:
 %
@@ -120,6 +120,9 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   %   % column (a just-made axes' outer box was read before it was laid
 %   %   % out); the reach past the inner box is capped, and a picked column
 %   %   % is centered again on the view actually drawn
+%   % * Sourced cells (Q98 (A)): cells found online and not yet checked
+%   %   % are orange; a strip under the matrix shows the clicked cell's
+%   %   % source (maker's name, link, page, date read) and Mark verified
 
 arguments
     vehicleInput                % Vehicle ID or folder, or a labeled mesh
@@ -151,7 +154,7 @@ end
 folder = '';
 if isstruct(vehicleInput)
     vehicleMesh = vehicleInput;
-    [lampFunctions, units] = fcn_CarMesh3D_lampFunctions(vehicleMesh, FigNum=-1);
+    [lampFunctions, units, lampInfo] = fcn_CarMesh3D_lampFunctions(vehicleMesh, FigNum=-1);
     vehicleName = 'mesh';
 else
     vehicleFiles = fcn_CarMesh3D_findVehicleFiles(char(vehicleInput), FigNum=-1);
@@ -162,7 +165,13 @@ else
     else
         vehicleMesh = options.Mesh;
     end
-    [lampFunctions, units] = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, FigNum=-1);
+    [lampFunctions, units, lampInfo] = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, FigNum=-1);
+end
+% (the sourced cells: the maker's information found online, Status 'auto'
+% until a person checks them: Q98 (A))
+sourcesNow = lampInfo.Sources;
+if ~istable(sourcesNow)
+    sourcesNow = table();
 end
 signalKinds = fcn_CarMesh3D_lampSignals();
 signalNames = {signalKinds.Name};
@@ -203,6 +212,10 @@ columnSlider = [];
 sliderGrid = [];
 frameGrid = [];
 flagChanged = false;
+sourceGrid = [];
+sourceLabel = [];
+sourceLink = [];
+verifyButton = [];
 
 % The window: the column, and the viewer beside it when on its own
 figureHandle = [];
@@ -273,7 +286,7 @@ end
 % inside the table's panel, above the matrix, labeled "Matrix columns
 % viewed", not in the settings above, where it was not looked for)
 tableFrame = uipanel(columnGrid, 'BorderType', 'line', 'BackgroundColor', [1 1 1], 'Tag', 'lampTableFrame');
-frameGrid = uigridlayout(tableFrame, [2 1], 'RowHeight', {0, '1x'}, 'Padding', [0 0 0 0], 'RowSpacing', 0, ...
+frameGrid = uigridlayout(tableFrame, [3 1], 'RowHeight', {0, '1x', 0}, 'Padding', [0 0 0 0], 'RowSpacing', 0, ...
     'BackgroundColor', [1 1 1]);
 sliderGrid = uigridlayout(frameGrid, [1 4], 'ColumnWidth', {'fit', 24, '1x', 24}, 'Padding', [6 2 6 2], ...
     'ColumnSpacing', 6, 'BackgroundColor', [0.97 0.97 0.97], 'Tag', 'lampColumnScrollBar');
@@ -287,13 +300,29 @@ uibutton(sliderGrid, 'Text', char(9654), 'Tag', 'lampColumnsRight', 'Tooltip', '
     'ButtonPushedFcn', @(~,~) stepColumns(1));
 contentPanel = uipanel(frameGrid, 'BorderType', 'none', 'BackgroundColor', [1 1 1], 'Tag', 'lampContent', ...
     'AutoResizeChildren', 'off', 'SizeChangedFcn', @(~,~) drawContent());
+% (the clicked cell's source, under the matrix, shown when the vehicle has
+% sourced cells: the maker's name for the signal, a link, the page and the
+% date it was read, and Mark verified; cells still 'auto' are orange:
+% Sean, Q98 (A), 2026-11-26 20:19)
+sourceGrid = uigridlayout(frameGrid, [1 3], 'ColumnWidth', {'1x', 'fit', 100}, 'Padding', [6 2 6 2], ...
+    'ColumnSpacing', 6, 'BackgroundColor', [1.00 0.96 0.90], 'Tag', 'lampSourceStrip');
+sourceLabel = uilabel(sourceGrid, 'Text', '', 'Tag', 'lampSourceText', 'Interpreter', 'none', 'FontSize', 11, ...
+    'Tooltip', 'Where the clicked cell''s value came from (orange cells: found online, not yet checked)');
+sourceLink = uihyperlink(sourceGrid, 'Text', 'source', 'Tag', 'lampSourceLink', 'Visible', 'off', ...
+    'Tooltip', 'Open the source in a browser');
+verifyButton = uibutton(sourceGrid, 'Text', 'Mark verified', 'Tag', 'lampVerify', 'Enable', 'off', ...
+    'Tooltip', 'You checked this cell against its source: it stops being orange (kept with your initials and the date when you Save)', ...
+    'ButtonPushedFcn', @(~,~) markVerified());
+if height(sourcesNow) > 0
+    frameGrid.RowHeight{3} = 28;
+end
 % 6. Checks
 checksArea = uitextarea(columnGrid, 'Editable', 'off', 'Tag', 'lampChecks', 'FontSize', 11, ...
     'Tooltip', 'Things to look at: warnings only, never blocking (odd vehicles are allowed)');
 % 7. Save, Revert, Hazards
 rowGrid = uigridlayout(columnGrid, [1 3], 'ColumnWidth', {'1x', '1x', '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', band);
 saveButton = uibutton(rowGrid, 'Text', 'Save', 'Tag', 'lampSave', 'FontWeight', 'bold', ...
-    'Tooltip', 'Write the matrix to the vehicle''s lampFunctions_<ID>.csv (changed rows marked edited, with you as the source)', ...
+    'Tooltip', 'Write the matrix to the vehicle''s lampFunctions_<ID>.csv (changed rows marked edited, with you as the source), and the cells you verified to lampFunctionsSources_<ID>.csv', ...
     'ButtonPushedFcn', @(~,~) saveMatrix());
 if isempty(folder)
     saveButton.Enable = 'off';
@@ -310,13 +339,15 @@ sizeListener = addlistener(columnPanel, 'SizeChanged', @(~,~) fitContent()); %#o
 fitContent();
 
 savedMatrix = matrixNow;
+savedSources = sourcesNow;
 editor = struct('Table', @getTable, 'SetSignal', @setSignal, 'Signal', @getSignal, ...
     'AddAlsoOn', @addAlsoOn, 'RemoveAlsoOn', @removeAlsoOn, 'AlsoOn', @getAlsoOn, 'SetMode', @setMode, ...
     'Mode', @getMode, 'SetValue', @setValue, 'ClickCell', @clickCell, 'SetOnlyLit', @setOnlyLit, ...
     'SetGroups', @setGroups, 'ShownUnits', @shownUnits, 'Checks', @getChecks, 'Save', @saveMatrix, ...
     'Revert', @revertMatrix, 'Hazards', @hazards, 'Units', @getUnits, 'Figure', figureHandle, ...
     'Viewer', viewer, 'Column', columnGrid, 'Close', @closeEditor, ...
-    'ColumnView', @getColumnView, 'SetColumnOffset', @setColumnOffset);
+    'ColumnView', @getColumnView, 'SetColumnOffset', @setColumnOffset, ...
+    'Sources', @getSources, 'SourceStrip', @getSourceStrip, 'MarkVerified', @markVerified, 'IsOrange', @isOrange);
 refreshAll(true);
 if ~isempty(figureHandle)
     figureHandle.UserData = editor;
@@ -360,6 +391,7 @@ end
         refreshChips();
         drawContent();
         refreshChecks();
+        refreshSourceStrip();
         if flagViewer
             lightViewer();
         end
@@ -617,13 +649,25 @@ end
                 signalName = signalNames{ith_signal};
                 value = matrixNow.(signalName)(unit);
                 x0 = (ith_signal - 1)*cellPx;
+                % (orange: a value found online, not yet checked: Q98 (A))
+                flagOrange = isOrange(unit, signalName);
+                edgeColor = [0.75 0.75 0.75];
+                barColor = [0.30 0.45 0.85];
+                edgeWidth = 0.5;
+                cellTag = 'lampCell';
+                if flagOrange
+                    edgeColor = [0.95 0.50 0.00];
+                    barColor = [0.98 0.60 0.15];
+                    edgeWidth = 1.5;
+                    cellTag = 'lampCellAuto';
+                end
                 rectangle(axesHandle, 'Position', [x0 + 2, y0 + 2, cellPx - 4, rowPx - 4], 'FaceColor', [0.96 0.96 0.96], ...
-                    'EdgeColor', [0.75 0.75 0.75], 'Tag', 'lampCell', 'UserData', [unit ith_signal], ...
+                    'EdgeColor', edgeColor, 'LineWidth', edgeWidth, 'Tag', cellTag, 'UserData', [unit ith_signal], ...
                     'ButtonDownFcn', @(source,~) onCellDown(source));
                 if value > 0
                     barHeight = (rowPx - 4)*value;
                     rectangle(axesHandle, 'Position', [x0 + 2, y0 + rowPx - 2 - barHeight, cellPx - 4, barHeight], ...
-                        'FaceColor', [0.30 0.45 0.85], 'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampBar');
+                        'FaceColor', barColor, 'EdgeColor', 'none', 'HitTest', 'off', 'Tag', 'lampBar');
                 end
             end
         end
@@ -797,11 +841,116 @@ end
     end
 
     %% Saving
+    %% The sourced cells (Q98 (A))
+    function index = findSource(unit, signalName)
+        % (the sources table's row for a cell, or [])
+        index = [];
+        if height(sourcesNow) == 0 || isempty(unit) || unit < 1 || unit > numUnits
+            return;
+        end
+        index = find(strcmp(sourcesNow.Unit, unitNames{unit}) & strcmp(sourcesNow.Signal, signalName), 1);
+    end
+
+    function flagOrange = isOrange(unit, signalName)
+        % (a cell whose value is the one found online, still 'auto')
+        if ischar(unit) || isstring(unit)
+            unit = find(strcmp(unitNames, unit), 1);
+        end
+        index = findSource(unit, signalName);
+        flagOrange = ~isempty(index) && strcmp(sourcesNow.Status{index}, 'auto') ...
+            && abs(matrixNow.(signalName)(unit) - sourcesNow.Value(index)) < 1e-9;
+    end
+
+    function value = getSources()
+        value = sourcesNow;
+    end
+
+    function strip = getSourceStrip()
+        strip = struct('Text', '', 'URL', '', 'CanVerify', false, 'Visible', false);
+        if isempty(sourceLabel) || ~isvalid(sourceLabel)
+            return;
+        end
+        strip.Text = sourceLabel.Text;
+        strip.Visible = frameGrid.RowHeight{3} > 0;
+        if strcmp(sourceLink.Visible, 'on')
+            strip.URL = sourceLink.URL;
+        end
+        strip.CanVerify = strcmp(verifyButton.Enable, 'on');
+    end
+
+    function refreshSourceStrip()
+        if isempty(sourceLabel) || ~isvalid(sourceLabel) || height(sourcesNow) == 0
+            return;
+        end
+        sourceLink.Visible = 'off';
+        verifyButton.Enable = 'off';
+        if markedUnit < 1
+            numAuto = nnz(strcmp(sourcesNow.Status, 'auto'));
+            sourceLabel.Text = sprintf('Click a cell for its source. Orange cells (%d) were found online and are not yet checked.', numAuto);
+            return;
+        end
+        index = findSource(markedUnit, editSignal);
+        cellName = sprintf('%s, %s', unitNames{markedUnit}, signalLabels{strcmp(signalNames, editSignal)});
+        if isempty(index)
+            sourceLabel.Text = sprintf('%s: no source (the default, or edited by hand)', cellName);
+            return;
+        end
+        status = sourcesNow.Status{index};
+        parts = {sprintf('%s (%s)', cellName, status)};
+        if ~isempty(sourcesNow.MakerName{index})
+            parts{end+1} = sprintf('maker''s name: %s', sourcesNow.MakerName{index});
+        end
+        if ~isempty(sourcesNow.Page{index})
+            parts{end+1} = sourcesNow.Page{index};
+        end
+        if ~isempty(sourcesNow.Accessed{index})
+            parts{end+1} = sprintf('accessed %s', sourcesNow.Accessed{index});
+        end
+        if strcmp(status, 'verified') && ~isempty(sourcesNow.VerifiedBy{index})
+            parts{end+1} = sprintf('verified by %s %s', sourcesNow.VerifiedBy{index}, sourcesNow.VerifiedOn{index});
+        end
+        if abs(matrixNow.(editSignal)(markedUnit) - sourcesNow.Value(index)) > 1e-9
+            parts{end+1} = sprintf('the source gives %.2f; the matrix holds %.2f (edited by hand)', ...
+                sourcesNow.Value(index), matrixNow.(editSignal)(markedUnit));
+        end
+        sourceLabel.Text = strjoin(parts, '; ');
+        sourceLabel.Tooltip = sourcesNow.Note{index};
+        if startsWith(sourcesNow.Source{index}, 'http')
+            sourceLink.URL = sourcesNow.Source{index};
+            sourceLink.Visible = 'on';
+        end
+        verifyButton.Enable = matlab.lang.OnOffSwitchState(strcmp(status, 'auto'));
+    end
+
+    function markVerified()
+        % (the clicked cell checked by a person: no longer orange; written
+        % with Save)
+        index = findSource(markedUnit, editSignal);
+        if isempty(index) || ~strcmp(sourcesNow.Status{index}, 'auto')
+            return;
+        end
+        sourcesNow.Status{index} = 'verified';
+        sourcesNow.VerifiedBy{index} = who;
+        sourcesNow.VerifiedOn{index} = char(datetime('now', 'Format', 'yyyy-MM-dd'));
+        flagChanged = true;
+        refreshAll(false);
+    end
+
     function saveMatrix()
         if isempty(folder)
             return;
         end
-        matrixNow = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, Table=matrixNow, FlagSave=true, FigNum=-1);
+        if height(sourcesNow) > 0
+            % (the cells verified since the last save; Applied is worked
+            % out again on reading)
+            keep = setdiff(sourcesNow.Properties.VariableNames, {'Applied'}, 'stable');
+            fcn_CarMesh3D_lampSources(folder, Sources=sourcesNow(:, keep), FlagSave=true, FigNum=-1);
+        end
+        [matrixNow, ~, savedInfo] = fcn_CarMesh3D_lampFunctions(folder, Mesh=vehicleMesh, Table=matrixNow, FlagSave=true, FigNum=-1);
+        if istable(savedInfo.Sources)
+            sourcesNow = savedInfo.Sources;
+        end
+        savedSources = sourcesNow;
         savedMatrix = matrixNow;
         flagChanged = false;
         refreshAll(false);
@@ -809,6 +958,7 @@ end
 
     function revertMatrix()
         matrixNow = savedMatrix;
+        sourcesNow = savedSources;
         flagChanged = false;
         if ~isempty(viewer)
             viewer.SetLampFunctions(matrixNow);

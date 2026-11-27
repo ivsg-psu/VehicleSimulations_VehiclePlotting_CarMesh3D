@@ -91,7 +91,10 @@ lit = fcn_CarMesh3D_lampColors(fitSetup, states);
 headlamp = unitIndex(fitSetup, 'front-left headlamp');
 assert(abs(lit.Brightness(headlamp) - 0.3) < 1e-9);
 assert(all(lit.UnitColor(headlamp,:) < [1.00 0.96 0.78]) && all(lit.UnitColor(headlamp,:) > 0), 'Dimmed: darker than full');
-assert(lit.Brightness(unitIndex(fitSetup, 'front-left marker lamp')) == 1, 'The marker lamps with the running lights');
+% (Honda's 2009 manual: the running lights are the high beams only, not the
+% markers; from the Fit's sourced cells, lampFunctionsSources_<ID>.csv,
+% 2026-11-26, still 'auto')
+assert(lit.Brightness(unitIndex(fitSetup, 'front-left marker lamp')) == 0, 'The marker lamps are not running lights (Honda''s manual)');
 states.LowBeam = true;
 lit = fcn_CarMesh3D_lampColors(fitSetup, states);
 assert(lit.Brightness(headlamp) == 1, 'Low beams and running together: the brightest wins');
@@ -105,7 +108,9 @@ states.Tail = true;
 litTail = fcn_CarMesh3D_lampColors(fitSetup, states);
 states.Brake = true;
 litBrake = fcn_CarMesh3D_lampColors(fitSetup, states);
-assert(abs(litTail.Brightness(tail) - 0.4) < 1e-9 && litBrake.Brightness(tail) == 1);
+% (the Fit's tail: 0.43 from its 21/5 W bulb's lumens, (35/440)^(1/3),
+% since 2026-11-26 21:30; was the default 0.4)
+assert(abs(litTail.Brightness(tail) - 0.43) < 1e-9 && litBrake.Brightness(tail) == 1);
 assert(litBrake.UnitColor(tail,1) > litTail.UnitColor(tail,1), 'Brake brighter red than tail');
 states = allOff;
 states.Brake = true;

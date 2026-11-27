@@ -67,7 +67,10 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 %
 %      units: the units (fcn_CarMesh3D_lampUnits), in the table's order.
 %
-%      info: a structure with File (the vehicle's file, or ''), FromFile
+%      info: a structure with Sources (the sourced cells, from
+%      fcn_CarMesh3D_lampSources, with a column Applied: whether the value
+%      went into the matrix; [] for a mesh given as a variable),
+%      SourcesFile, File (the vehicle's file, or ''), FromFile
 %      (true when the file was read), NumEdited, Dropped (names in the file
 %      no longer among the units), Added (units the file did not name).
 %
@@ -75,7 +78,7 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 %
 %      fcn_CarMesh3D_lampUnits, fcn_CarMesh3D_lampSignals,
 %      fcn_CarMesh3D_lampTypes, fcn_CarMesh3D_findVehicleFiles,
-%      fcn_CarMesh3D_meshWithLabelEdits
+%      fcn_CarMesh3D_meshWithLabelEdits, fcn_CarMesh3D_lampSources
 %
 % EXAMPLES:
 %
@@ -98,6 +101,8 @@ function [lampFunctions, units, info] = fcn_CarMesh3D_lampFunctions(vehicleInput
 %   % * Table=: a matrix with edited rows (the lamp-functions window's),
 %   %   % taken over the file's; a headlamp's default leaves out the high
 %   %   % beam when the vehicle has high-beam lamps of its own on that side
+%   % * Sourced cells (fcn_CarMesh3D_lampSources: the maker's information,
+%   %   % Q98 (A)) go into the rows not edited by hand; info.Sources
 
 % TO-DO:
 %
@@ -223,7 +228,8 @@ numSignals = numel(signalNames);
 values = defaultValues;
 flagEdited = false(numUnits,1);
 sources = defaultSources;
-info = struct('File', functionsFile, 'FromFile', false, 'NumEdited', 0, 'Dropped', {{}}, 'Added', {{}});
+info = struct('File', functionsFile, 'FromFile', false, 'NumEdited', 0, 'Dropped', {{}}, 'Added', {{}}, ...
+    'Sources', [], 'SourcesFile', '');
 
 if ~isempty(functionsFile) && isfile(functionsFile)
     % The file: rows marked 'edited' are kept; the rest are the defaults
@@ -288,6 +294,27 @@ if istable(options.Table) && height(options.Table) > 0
     end
 end
 info.NumEdited = nnz(flagEdited);
+
+% The sourced cells (lampFunctionsSources_<ID>.csv: the maker's own
+% information, found online; Sean, 2026-11-26 19:45, Q98 (A)): their values
+% go into the rows a person has not edited by hand (a person's edit wins);
+% Applied says which went in
+if ~isempty(functionsFile)
+    [lampSources, info.SourcesFile] = fcn_CarMesh3D_lampSources(vehicleFiles.Folder, FigNum=-1);
+    lampSources.Applied = false(height(lampSources), 1);
+    unitNames = {units.Name};
+    for ith_source = 1:height(lampSources)
+        unitIndex = find(strcmp(unitNames, lampSources.Unit{ith_source}), 1);
+        signalIndex = find(strcmp(signalNames, lampSources.Signal{ith_source}), 1);
+        if isempty(unitIndex) || isempty(signalIndex) || ~ismember(lampSources.Status{ith_source}, {'auto', 'verified'}) ...
+                || flagEdited(unitIndex)
+            continue;
+        end
+        values(unitIndex, signalIndex) = lampSources.Value(ith_source);
+        lampSources.Applied(ith_source) = true;
+    end
+    info.Sources = lampSources;
+end
 
 % The table
 defaultWord = repmat({'yes'}, numUnits, 1);
