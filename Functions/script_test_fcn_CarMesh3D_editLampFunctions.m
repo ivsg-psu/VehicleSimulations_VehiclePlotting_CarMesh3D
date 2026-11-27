@@ -143,6 +143,20 @@ editor.SetGroups({'Rear'});
 shown = editor.ShownUnits();
 assert(all(startsWith({units(shown).Position}, 'rear')), 'Only the rear group');
 editor.SetGroups({'Front', 'Side', 'Rear'});
+% (the boxes themselves, as a click runs them: Sean's 23:01 bug, a callback
+% that held the boxes before all three were made)
+for groupName = {'Front', 'Side', 'Rear'}
+    groupBox = findall(editor.Figure, 'Tag', ['lampGroup' groupName{1}]);
+    groupBox.Value = ~strcmp(groupName{1}, 'Front');
+    groupBox.ValueChangedFcn(groupBox, []);
+end
+shown = editor.ShownUnits();
+assert(~any(startsWith({units(shown).Position}, 'front')) && any(startsWith({units(shown).Position}, 'rear')), ...
+    'Clicking the Front box off hides the front lamps');
+frontBox = findall(editor.Figure, 'Tag', 'lampGroupFront');
+frontBox.Value = true;
+frontBox.ValueChangedFcn(frontBox, []);
+assert(numel(editor.ShownUnits()) == numel(units), 'And on again');
 editor.SetMode('table');
 
 %% TEST case: Save writes the vehicle's file, with the edited rows; Revert

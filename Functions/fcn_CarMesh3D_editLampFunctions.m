@@ -120,6 +120,8 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   %   % column (a just-made axes' outer box was read before it was laid
 %   %   % out); the reach past the inner box is capped, and a picked column
 %   %   % is centered again on the view actually drawn
+%   % * Fixed: clicking a Front / Side / Rear box failed (its callback
+%   %   % held the boxes as they were before all three were made)
 %   % * Sourced cells (Q98 (A)): cells found online and not yet checked
 %   %   % are orange; a strip under the matrix shows the clicked cell's
 %   %   % source (maker's name, link, page, date read) and Mark verified
@@ -277,7 +279,10 @@ groupBoxes = gobjects(1, 3);
 groupNames = {'Front', 'Side', 'Rear'};
 for ith_group = 1:3
     groupBoxes(ith_group) = uicheckbox(rowGrid, 'Text', groupNames{ith_group}, 'Value', true, ...
-        'Tag', ['lampGroup' groupNames{ith_group}], 'ValueChangedFcn', @(~,~) setGroups(groupNames([groupBoxes.Value])));
+        'Tag', ['lampGroup' groupNames{ith_group}], 'ValueChangedFcn', @(~,~) onGroupBox());
+    % (a nested function, not "@(~,~) setGroups(groupNames([groupBoxes.Value]))":
+    % an anonymous function keeps groupBoxes as it was when made, with the
+    % later boxes still empty placeholders; Sean found it 2026-11-26 23:01)
 end
 % 5. The table or the tuner, in a white frame whose top strip, shown only
 % when the signals' columns do not all fit, scrolls them sideways: the
@@ -841,6 +846,11 @@ end
     end
 
     %% Saving
+    function onGroupBox()
+        % (a Front / Side / Rear box clicked: the groups now ticked)
+        setGroups(groupNames([groupBoxes.Value]));
+    end
+
     %% The sourced cells (Q98 (A))
     function index = findSource(unit, signalName)
         % (the sources table's row for a cell, or [])
