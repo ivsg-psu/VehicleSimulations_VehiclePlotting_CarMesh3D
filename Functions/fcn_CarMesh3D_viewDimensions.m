@@ -84,6 +84,10 @@ function viewer = fcn_CarMesh3D_viewDimensions(vehicleInput, options)
 %   %   % file's last change (its version) under it (fcn_CarMesh3D_addTitleBar;
 %   %   % Sean, 14:31 and 14:40)
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewDimensions
+%   % * A small loading window while this window opens (Q99 (A), rule G43)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -182,6 +186,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%% The mesh and the dimensions
+% (a small loading window at once: this window takes a few seconds to
+% open; closed when it is ready. Q99 (A), rule G43, Sean 2026-11-27)
+loading = fcn_CarMesh3D_loadingWindow('Opening the dimensions viewer', Vehicle=vehicleInput, FlagVisible=options.FlagVisible && isempty(options.Parent));
+loadingCleanup = onCleanup(@() loading.Close());
 dimensionTable = options.DimensionTable;
 vehicleName = 'mesh';
 if ischar(vehicleInput) || isstring(vehicleInput)

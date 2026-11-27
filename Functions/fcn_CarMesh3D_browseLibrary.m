@@ -269,6 +269,10 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %   %   % in words (proposed 2026-11-26; no call used it)
 
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * A small loading window while this window opens (Q99 (A), rule G43)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -427,6 +431,10 @@ end
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% (a small loading window at once: this window takes a few seconds to
+% open; closed when it is ready. Q99 (A), rule G43, Sean 2026-11-27)
+loading = fcn_CarMesh3D_loadingWindow('Opening the vehicle library', Vehicle=[], FlagVisible=options.FlagVisible);
+loadingCleanup = onCleanup(@() loading.Close());
 functionName = 'fcn_CarMesh3D_browseLibrary';
 % (no default vehicle given: the demo vehicle, which follows the user's
 % own choice; the repo's if that cannot be read)
@@ -648,6 +656,7 @@ browser = struct('Figure', figureHandle, 'Vehicles', vehicles, ...
     'UseAsDemo', @useAsDemo, 'UseRepoDemo', @useRepoDemo);
 
 if flagWait && options.FlagVisible
+    loading.Close();   % (the window is ready)
     uiwait(figureHandle);
     selectedNames = result;
 else

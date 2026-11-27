@@ -470,6 +470,10 @@ function [viewSettings, viewer] = fcn_CarMesh3D_viewLabels(meshInput, options)
 %   %   % (labels, colors, the lamp matrix, the faces shown, the ground);
 %   %   % then it is built anew as before
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_viewLabels
+%   % * A small loading window while this window opens (Q99 (A), rule G43)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -600,6 +604,10 @@ end
 
 %%%% The mesh (a file name or a variable, told apart by what it is), its
 %%%% label colors, the photos, and the outline
+% (a small loading window at once: this window takes a few seconds to
+% open; closed when it is ready. Q99 (A), rule G43, Sean 2026-11-27)
+loading = fcn_CarMesh3D_loadingWindow('Opening the label viewer', Vehicle=meshInput, FlagVisible=options.FlagVisible && isempty(options.Parent));
+loadingCleanup = onCleanup(@() loading.Close());
 meshFile = '';
 viewSource = '';
 vehicleName = 'mesh';
@@ -1109,6 +1117,7 @@ end
 onModelViewChanged();   % (a view not given: fitted to the window now)
 viewSettings = getView();
 if flagOwnWindow && flagWait && options.FlagVisible
+    loading.Close();   % (the window is ready)
     uiwait(figureHandle);
     if ~isempty(closedSettings)
         viewSettings = closedSettings;

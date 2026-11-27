@@ -405,6 +405,10 @@ function [editedMesh, labelEdits, painter] = fcn_CarMesh3D_paintLabels(vehicleIn
 %   %   % than the brush's radius, so a zoomed-in drag paints a line, not a
 %   %   % spray of dabs
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_paintLabels
+%   % * A small loading window while this window opens (Q99 (A), rule G43)
+
 % TO-DO:
 %
 % 2026_11_22 by Sean Brennan, sbrennan@psu.edu
@@ -507,6 +511,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%% The mesh, its label colors, the edits file, and the photos
+% (a small loading window at once: this window takes a few seconds to
+% open; closed when it is ready. Q99 (A), rule G43, Sean 2026-11-27)
+loading = fcn_CarMesh3D_loadingWindow('Opening the label painter', Vehicle=vehicleInput, FlagVisible=options.FlagVisible && isempty(options.Parent));
+loadingCleanup = onCleanup(@() loading.Close());
 editsFile = '';
 versionName = '';   % (timestamped copies are named <versionName>_YYYYMMDDHHMMSS.mat)
 photoFolder = '';
@@ -880,6 +888,7 @@ if flagOwnWindow && isvalid(figureHandle)
 end
 
 if flagOwnWindow && options.FlagWait && options.FlagVisible && isvalid(figureHandle)
+    loading.Close();   % (the window is ready)
     uiwait(figureHandle);
     if ~isvalid(figureHandle)
         return;   % (closePainter set the outputs as the window closed)

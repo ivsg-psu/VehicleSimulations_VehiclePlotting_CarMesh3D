@@ -111,6 +111,10 @@ function [lampFunctions, editor] = fcn_CarMesh3D_editLampFunctions(vehicleInput,
 %   %   % T89 BUG, 12:59: the Reflectors column was cut off). New hooks
 %   %   % ColumnView, SetColumnOffset
 
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_editLampFunctions
+%   % * A small loading window while this window opens (Q99 (A), rule G43)
+
 % TO-DO:
 %
 % 2026_11_26 by Sean Brennan, sbrennan@psu.edu
@@ -155,6 +159,10 @@ end
 
 %% Main code
 % The vehicle, its mesh and its matrix
+% (a small loading window at once: this window takes a few seconds to
+% open; closed when it is ready. Q99 (A), rule G43, Sean 2026-11-27)
+loading = fcn_CarMesh3D_loadingWindow('Opening the lamp functions', Vehicle=vehicleInput, FlagVisible=options.FlagVisible && isempty(options.Parent));
+loadingCleanup = onCleanup(@() loading.Close());
 folder = '';
 if isstruct(vehicleInput)
     vehicleMesh = vehicleInput;
