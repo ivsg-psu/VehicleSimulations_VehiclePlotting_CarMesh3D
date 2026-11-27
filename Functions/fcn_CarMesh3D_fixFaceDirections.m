@@ -55,7 +55,10 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 %      corners in the other order; FaceNormals, if present, negated).
 %
 %      faceFlips: the flips, as saved: a structure with Points (N x 3, the
-%      flipped faces' centers), NumFaces (the mesh's faces), Who, SavedOn.
+%      flipped faces' centers), Normals (N x 3, the way each should point),
+%      NumFaces (the mesh's faces), Who, SavedOn. Replayed by
+%      fcn_CarMesh3D_applyFaceFlips (in the build, and when the mesh is
+%      loaded with fcn_CarMesh3D_meshWithLabelEdits).
 %
 %      window: a structure of functions for scripts and tests (rule G32):
 %           Figure, Axes, Patch; State, SetState, Press, Key, CheckLayout
@@ -90,6 +93,9 @@ function [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(vehicl
 % 2026_11_27 by Sean Brennan, sbrennan@psu.edu
 % - In fcn_CarMesh3D_fixFaceDirections
 %   % * First write (step 1E of the plan of 2026-11-27)
+%   % * The flips are saved with the way each face should point (Normals),
+%   %   % so replaying them is safe to repeat; flips saved before are kept
+%   %   % when saving again (step 1F)
 
 % TO-DO:
 %
@@ -208,12 +214,23 @@ try
     end
 catch
 end
+% (the saved flips: each a face's center and the way its normal should
+% point. A face that does not point that way in this mesh shows flipped;
+% one that already does (its build replayed the flips) is kept in the
+% list, so saving again does not drop it)
 faceFlips = fcn_INTERNAL_emptyFlips(numFaces);
+storedFaces = zeros(0,1);
 if ~isempty(flipsFile) && isfile(flipsFile)
     loaded = load(flipsFile, 'faceFlips');
-    if isfield(loaded, 'faceFlips') && isfield(loaded.faceFlips, 'Points') && ~isempty(loaded.faceFlips.Points)
+    if isfield(loaded, 'faceFlips') && isfield(loaded.faceFlips, 'Points') && isfield(loaded.faceFlips, 'Normals') ...
+            && ~isempty(loaded.faceFlips.Points)
         [nearestFace, nearestDistance] = pick.Nearest(centers, loaded.faceFlips.Points);
-        flipped(nearestFace(nearestDistance < 1e-4)) = true;
+        flagMatched = nearestDistance(:) <= 0.005;
+        storedFaces = unique(nearestFace(flagMatched));
+        baseNormals = fcn_INTERNAL_normals(baseMesh.Vertices, baseMesh.Faces(nearestFace(flagMatched),:));
+        flagWrong = sum(baseNormals.*loaded.faceFlips.Normals(flagMatched,:), 2) < 0;
+        matched = nearestFace(flagMatched);
+        flipped(matched(flagWrong)) = true;
         savedFlipped = flipped;
         faceFlips = loaded.faceFlips;
     end
@@ -447,9 +464,13 @@ fixedMesh = getFixedMesh();
     end
 
     function saveFlips()
-        % The flips, by face position, to the flips file (if any)
-        points = centers(flipped,:);
-        faceFlips = struct('Points', points, 'NumFaces', numFaces, 'Who', whoName, ...
+        % The flips, by face position and the way each face now points, to
+        % the flips file (if any): the faces flipped here, and those saved
+        % before (fcn_CarMesh3D_applyFaceFlips replays them)
+        savedFaces = union(storedFaces, find(flipped));
+        faces = currentFaces();
+        faceFlips = struct('Points', centers(savedFaces,:), ...
+            'Normals', fcn_INTERNAL_normals(baseMesh.Vertices, faces(savedFaces,:)), 'NumFaces', numFaces, 'Who', whoName, ...
             'SavedOn', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
         if ~isempty(flipsFile)
             save(flipsFile, 'faceFlips');
@@ -701,8 +722,15 @@ end % Ends main function
 
 %% fcn_INTERNAL_emptyFlips
 function faceFlips = fcn_INTERNAL_emptyFlips(numFaces)
-faceFlips = struct('Points', zeros(0,3), 'NumFaces', numFaces, 'Who', '', 'SavedOn', '');
+faceFlips = struct('Points', zeros(0,3), 'Normals', zeros(0,3), 'NumFaces', numFaces, 'Who', '', 'SavedOn', '');
 end % Ends fcn_INTERNAL_emptyFlips
+
+%% fcn_INTERNAL_normals
+function normals = fcn_INTERNAL_normals(vertices, faces)
+% (unit normals of the faces, from their corner order)
+normals = cross(vertices(faces(:,2),:) - vertices(faces(:,1),:), vertices(faces(:,3),:) - vertices(faces(:,1),:), 2);
+normals = normals./max(vecnorm(normals,2,2), eps);
+end % Ends fcn_INTERNAL_normals
 
 %% fcn_INTERNAL_radioRow
 function group = fcn_INTERNAL_radioRow(parent, texts, values, callback, tag, tooltip)

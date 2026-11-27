@@ -85,12 +85,28 @@ window.Save();
 assert(~window.Status().Unsaved && isfile(flipsFile));
 loaded = load(flipsFile, 'faceFlips');
 assert(size(loaded.faceFlips.Points,1) == numel(wrongFaces) && loaded.faceFlips.NumFaces == size(testMesh.Faces,1));
+assert(isequal(size(loaded.faceFlips.Normals), [numel(wrongFaces) 3]));
+% (the build replays them: the box comes out right, and again changes nothing)
+[replayed, replayInfo] = fcn_CarMesh3D_applyFaceFlips(testMesh, flipsFile, FigNum=-1);
+assert(replayInfo.NumTurned == numel(wrongFaces) && fcn_INTERNAL_allOut(replayed, sideOfFace));
+[~, againInfo] = fcn_CarMesh3D_applyFaceFlips(replayed, flipsFile, FigNum=-1);
+assert(againInfo.NumTurned == 0);
 window.Close();
 assert(~isvalid(window.Figure));
 [fixedMesh, faceFlips, window] = fcn_CarMesh3D_fixFaceDirections(testMesh, FlipsFile=flipsFile, FlagVisible=false);
 assert(isequal(sort(window.Flipped()), wrongFaces) && ~window.Status().Unsaved);
 assert(fcn_INTERNAL_allOut(fixedMesh, sideOfFace));
 assert(size(faceFlips.Points,1) == numel(wrongFaces));
+window.Close();
+% (opened on the mesh with the flips already replayed: nothing shows
+% flipped, and saving again keeps the saved flips)
+[~, ~, window] = fcn_CarMesh3D_fixFaceDirections(replayed, FlipsFile=flipsFile, FlagVisible=false);
+assert(isempty(window.Flipped()) && isempty(window.Suggested()));
+window.Save();
+loaded = load(flipsFile, 'faceFlips');
+assert(size(loaded.faceFlips.Points,1) == numel(wrongFaces));
+window.Close();
+[~, ~, window] = fcn_CarMesh3D_fixFaceDirections(testMesh, FlipsFile=flipsFile, FlagVisible=false);
 
 %% TEST case: Color by labels; the controls have tags; closing leaves nothing
 fprintf(1,'TEST case: color by labels, tags, close\n');

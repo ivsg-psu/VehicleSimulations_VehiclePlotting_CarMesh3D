@@ -23,7 +23,7 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %
 %       [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput,...
 %           (FlagAlways=flagAlways), (FlagOrientFaces=flagOrient),...
-%           (FlagLampFunctions=flagLamps),...
+%           (FlagLampFunctions=flagLamps), (FlagFaceFlips=flagFlips),...
 %           (FigNum=figNum))
 %
 % INPUTS:
@@ -52,6 +52,13 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %      (fcn_CarMesh3D_plotVehicle, through fcn_CarMesh3D_lampSetup);
 %      false for none.
 %
+%      FlagFaceFlips: true (default) to turn the faces saved in the
+%      vehicle's faceFlips_<ID>.mat file (the face-direction window,
+%      fcn_CarMesh3D_fixFaceDirections) to the way they were saved, after
+%      the faces are turned to agree with their neighbors (which could
+%      turn them back); false to leave them. Safe to repeat: a face already
+%      pointing as saved is not turned (fcn_CarMesh3D_applyFaceFlips).
+%
 %      FigNum: a figure to plot the returned mesh in. If empty or omitted,
 %      no plot is made. If set to -1, input checking is skipped and no plot
 %      is made (fast mode).
@@ -71,12 +78,14 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %           EditsFile, MeshFile: the files used
 %           NumFacesTurned: the faces fcn_CarMesh3D_orientFaces turned (0
 %               with FlagOrientFaces=false)
+%           NumFlipsTurned: the faces turned to their saved directions
+%               (0 with FlagFaceFlips=false or no faceFlips file)
 %
 % DEPENDENCIES:
 %
 %      fcn_CarMesh3D_findVehicleFiles, fcn_CarMesh3D_editLabels,
 %      fcn_CarMesh3D_findLampCovers, fcn_CarMesh3D_orientFaces,
-%      fcn_CarMesh3D_lampFunctions,
+%      fcn_CarMesh3D_lampFunctions, fcn_CarMesh3D_applyFaceFlips,
 %      fcn_CarMesh3D_plotVehicle (plotting)
 %
 % EXAMPLES:
@@ -105,6 +114,12 @@ function [vehicleMesh, info] = fcn_CarMesh3D_meshWithLabelEdits(vehicleInput, op
 %   %   % slivers at the driver door handle, Q86 (A))
 %   % * LampFunctions (default true): the vehicle's lamp-to-function
 %   %   % matrix added to the mesh (the lamp-functions plan, item 4)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_meshWithLabelEdits
+%   % * FlagFaceFlips (default true): the faces saved in the vehicle's
+%   %   % faceFlips file are turned to their saved directions, after
+%   %   % orientFaces (step 1F of the plan of 2026-11-27)
 
 % TO-DO:
 %
@@ -122,6 +137,7 @@ arguments
     options.FlagAlways = false      % Apply the fixes to the stage-1 mesh even when the mesh file is newer
     options.FlagOrientFaces = true  % Turn faces to agree with their neighbors (fcn_CarMesh3D_orientFaces)
     options.FlagLampFunctions = true % Add the vehicle's lamp-to-function matrix (field LampFunctions)
+    options.FlagFaceFlips = true    % Turn the faces saved in the vehicle's faceFlips file to their saved directions
     options.FigNum = []         % Figure to plot into; [] for no plot, -1 for fast mode
 end
 
@@ -210,7 +226,7 @@ editsFile = fullfile(vehicleFiles.Folder, sprintf('labelEdits_%s.mat', vehicleFi
 stage1File = fullfile(vehicleFiles.Folder, 'cache', 'stage1_mesh.mat');
 
 info = struct('Source', 'mesh file', 'NumEdits', 0, 'EditsFile', '', 'MeshFile', vehicleFiles.MeshFile, ...
-    'NumFacesTurned', 0);
+    'NumFacesTurned', 0, 'NumFlipsTurned', 0);
 
 % The saved label fixes, if any
 edits = {};
@@ -262,6 +278,14 @@ end
 if options.FlagOrientFaces
     [vehicleMesh, orientInfo] = fcn_CarMesh3D_orientFaces(vehicleMesh, FigNum=-1);
     info.NumFacesTurned = orientInfo.NumFlipped;
+end
+
+% The faces turned by hand in the face-direction window, to the way they
+% were saved (after orientFaces, which could turn them back; step 1F)
+flipsFile = fullfile(vehicleFiles.Folder, sprintf('faceFlips_%s.mat', vehicleFiles.ID));
+if options.FlagFaceFlips && isfile(flipsFile)
+    [vehicleMesh, flipsInfo] = fcn_CarMesh3D_applyFaceFlips(vehicleMesh, flipsFile, FigNum=-1);
+    info.NumFlipsTurned = flipsInfo.NumTurned;
 end
 
 % The vehicle's lamp-to-function matrix, on the mesh (its file, else the
