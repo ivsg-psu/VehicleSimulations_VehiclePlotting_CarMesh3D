@@ -77,6 +77,11 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 %      Z for names; newest, longest, highest and most approved first for
 %      the others). The groups always keep their own order.
 %
+%      Preview: the MATLAB name (vehicle ID) shown in the preview when the
+%      window opens, its row highlighted and scrolled into view (the main
+%      window passes its vehicle: the browser lands on it). Default '':
+%      the first vehicle shown.
+%
 %      Selected: MATLAB names (vehicle IDs) ticked when the window opens.
 %      Default {}.
 %
@@ -280,6 +285,12 @@ function [selectedNames, browser, nextStep] = fcn_CarMesh3D_browseLibrary(option
 % - In fcn_CarMesh3D_browseLibrary
 %   % * The Review step is called the V&V GUI in its title, not the
 %   %   % reviewer (step 10B of the plan of 2026-11-27)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_browseLibrary
+%   % * Preview option: the browser lands on a given vehicle (its preview,
+%   %   % its row highlighted and scrolled into view); the main window
+%   %   % passes its vehicle (T99, Sean 19:31)
 
 % TO-DO:
 %
@@ -346,6 +357,7 @@ arguments
     options.SortBy = 'class'          % How the list is sorted
     options.GroupBy = 'class'         % How the list is grouped
     options.Order = ''                % The order within each group, in the drop-down's words; '' for the sort's default
+    options.Preview = ''              % The vehicle in the preview at the start ('' for the first shown)
     options.Selected = {}             % Names ticked at the start
     options.DefaultVehicle = ''       % Returned (as a fresh copy) when none is selected; '' for the demo vehicle
     options.FlagWait = []                 % Wait for the window to close; [] for "when visible"
@@ -591,6 +603,13 @@ vehicleTable = uitable(tableGrid, 'RowName', {}, 'SelectionType', 'row', 'Multis
     'SelectionChangedFcn', @(source, ~) onTableSelection(source.Selection));
 tableRowVehicle = zeros(0, 1);   % (the vehicle on each table row; 0 for a group row)
 previewIndex = 0;   % (the vehicle in the preview; the first one shown, once the table is filled)
+if ~isempty(char(options.Preview))
+    % (the vehicle asked for, if it is in the list: the browser lands on it)
+    previewMatch = find(strcmp({vehicles.ID}, char(options.Preview)), 1);
+    if ~isempty(previewMatch)
+        previewIndex = previewMatch;
+    end
+end
 
 previewPanel = uipanel(bodyGrid, 'BackgroundColor', [1 1 1], 'Tag', 'previewPanel');
 % (the rows: name, MATLAB name, pictures, details, Select, a hint line,
@@ -768,6 +787,10 @@ end
             vehicleTable.Selection = [];
         elseif ~isequal(vehicleTable.Selection, tableRow)
             vehicleTable.Selection = tableRow;
+            try
+                scroll(vehicleTable, 'row', tableRow);   % (in view: Preview may land far down the list)
+            catch
+            end
         end
     end
 

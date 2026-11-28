@@ -53,8 +53,8 @@ assert(all(~cellfun(@isempty, {vehicles.Picture3D})) && all(~cellfun(@isempty, {
     'Every finished vehicle has its two pictures');
 assert(any([vehicles.IsExemplar]), 'Some vehicles are exemplars');
 assert(isequal(sort(browser.Order()), sort({vehicles.ID})));
-assert(strcmp(browser.Figure.Name(1:numel('fcn_CarMesh3D_browseLibrary')), 'fcn_CarMesh3D_browseLibrary'), ...
-    'The window''s title is its function''s name');
+assert(startsWith(browser.Figure.Name, 'Select Vehicle'), ...
+    'The window''s title is its title from the title bar''s list, matching its button in the main window (T99)');
 
 %% Sorting: by length, longest first
 browser.SetGroup('none');
@@ -199,6 +199,18 @@ assert(strcmp(copyFiles.ID, fcn_CarMesh3D_demoVehicle(FigNum=-1)) && copyFiles.H
     'The default is a copy of the demo vehicle (the user''s own choice, if any)');
 
 %% Options given at the start: the order, in words (Descending= was removed 2026-11-26)
+% (Preview: the browser lands on the vehicle asked for, as the main
+% window asks for its own; T99, Sean 19:31)
+[~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false);
+order = browser.Order();
+[~, browserLanded] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Preview=order{end});
+assert(strcmp(browserLanded.Previewed(), order{end}), 'Preview: the browser lands on the vehicle asked for');
+browserLanded.Close();
+[~, browserLanded] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, Preview='No_Such_Vehicle');
+assert(strcmp(browserLanded.Previewed(), order{1}), 'Preview of a vehicle not listed: the first one shown');
+browserLanded.Close();
+browser.Close();
+
 [~, browser] = fcn_CarMesh3D_browseLibrary(FlagVisible=false, SortBy='length', Order='Shortest first', GroupBy='none');
 assert(strcmp(browser.SortOrder(), 'Shortest first'));
 lengths = arrayfun(@(id) vehicles(strcmp({vehicles.ID}, id{1})).Length, browser.Order());

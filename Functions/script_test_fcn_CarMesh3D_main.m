@@ -41,7 +41,7 @@ workingRoot = fullfile(testRoot, 'Working');
 [~, window] = fcn_CarMesh3D_main(demoFiles.Folder, WorkingRoot=workingRoot, FlagVisible=false);
 
 % Check variable types and sizes
-assert(isstruct(window) && all(isfield(window, {'Figure','State','Press','Key','CheckLayout','Marks','Step','Build', ...
+assert(isstruct(window) && all(isfield(window, {'Figure','State','Press','Key','CheckLayout','Marks','Step','Check','Fix','View','Build', ...
     'Commit','Discard','Changes','Children','WorkingFolder','VehicleFolder','Refresh','SaveView','Close'})));
 assert(isvalid(window.Figure));
 
@@ -51,9 +51,11 @@ assert(strcmp(workFolder, fullfile(workingRoot, vehicleID)) && isfolder(workFold
 assert(strcmp(window.VehicleFolder(), demoFiles.Folder));
 assert(isempty(window.Changes()));
 marks = window.Marks();
-assert(numel(marks) == 10 && strcmp(marks{1}, 'done') && strcmp(marks{10}, 'done'));
-assert(any(strcmp(marks{5}, {'done', 'outOfDate'})));   % (out of date if the script changed after the last build)
-for tag = {'mainMenu', 'mainCommit', 'mainDiscard', 'mainSaveView', 'mainStatus', 'mainHint', 'mainStep0', 'mainStep9', 'mainChecksWhich'}
+assert(numel(marks) == 7 && strcmp(marks{1}, 'notDone') && strcmp(marks{7}, 'done'));   % (the first gate: not answered yet)
+assert(any(strcmp(marks{3}, {'done', 'outOfDate'})));   % (out of date if the script changed after the last build)
+assert(strcmp(window.Figure.Name, 'CarMesh3D'));   % (the title, not the function's name: T99)
+for tag = {'mainMenu', 'mainCommit', 'mainDiscard', 'mainSaveView', 'mainStatus', 'mainHint', 'mainStep1', 'mainStep7', ...
+        'mainCheck1', 'mainFix1', 'mainView', 'mainChecksWhich'}
     assert(~isempty(findall(window.Figure, 'Tag', tag{1})), 'no control tagged %s', tag{1});
 end
 
@@ -65,26 +67,39 @@ save(fullfile(workFolder, sprintf('faceFlips_%s.mat', vehicleID)), 'faceFlips');
 window.Refresh();
 assert(isequal(window.Changes(), {sprintf('faceFlips_%s.mat', vehicleID)}));
 marks = window.Marks();
-assert(strcmp(marks{5}, 'outOfDate') && strcmp(marks{10}, 'notDone'));
-assert(any(strcmp(marks{4}, {'done', 'outOfDate'})));
+assert(strcmp(marks{3}, 'outOfDate') && strcmp(marks{7}, 'notDone'));
+assert(any(strcmp(marks{2}, {'done', 'outOfDate'})));
+
+%% TEST case: the first gate: "Turn faces outward" waits for a Yes to "Are lamps and glass labeled?"
+fprintf(1,'TEST case: the first gate\n');
+window.Step(2);
+assert(~any(strcmp({window.Children().Kind}, 'faces')), 'Turn faces outward is locked until the first gate passes');
+window.Check(1);
+openChildren = window.Children();
+gateWindow = openChildren(strcmp({openChildren.Kind}, 'review')).Figure;
+assert(strcmp(gateWindow.Name, 'Validate Import'));
+gateHooks = gateWindow.UserData;
+gateHooks.Answer('Yes', '');
+marks = window.Marks();
+assert(strcmp(marks{1}, 'done'), 'the first gate passes with the automatic check and a Yes');
 
 %% TEST case: viewers, any number; one editor at a time, and an editor closes V&V
 fprintf(1,'TEST case: viewers and editors\n');
-window.Step(7);
-window.Step(7);
+window.View('Labels');
+window.View('Labels');
 kinds = {window.Children().Kind};
 assert(nnz(strcmp(kinds, 'viewer')) >= 2);
-window.Step(3);   % (face directions)
+window.Step(2);   % (turn faces outward: the gate's V&V window closes)
 kinds = {window.Children().Kind};
-assert(nnz(strcmp(kinds, 'faces')) >= 1);
-window.Step(2);   % (the painter: the face window closes)
+assert(nnz(strcmp(kinds, 'faces')) >= 1 && ~any(strcmp(kinds, 'review')));
+window.Fix(1);    % (mark lamps and glass, the painter: the face window closes)
 kinds = {window.Children().Kind};
 assert(~any(strcmp(kinds, 'faces')) && any(strcmp(kinds, 'painter')));
 assert(nnz(strcmp(kinds, 'viewer')) >= 2);   % (viewers stay open)
-window.Step(8);   % (V&V: the painter closes)
+window.Step(6);   % (V&V: the painter closes)
 kinds = {window.Children().Kind};
 assert(~any(strcmp(kinds, 'painter')) && any(strcmp(kinds, 'review')));
-window.Step(6);   % (lamp functions: V&V closes)
+window.Step(5);   % (lamp functions: V&V closes)
 kinds = {window.Children().Kind};
 assert(~any(strcmp(kinds, 'review')) && any(strcmp(kinds, 'lampFunctions')));
 
@@ -132,11 +147,11 @@ pause(1.1);
 save(fullfile(workFolder, sprintf('faceFlips_%s.mat', vehicleID)), 'faceFlips');
 window.Refresh();
 marks = window.Marks();
-assert(strcmp(marks{5}, 'outOfDate'));
+assert(strcmp(marks{3}, 'outOfDate'));
 meshBefore = dir(fullfile(demoFiles.Folder, sprintf('vehicleMesh_%s.mat', vehicleID)));
 window.Build();
 marks = window.Marks();
-assert(strcmp(marks{5}, 'done'), 'the build did not finish: see %s', fullfile(workFolder, 'buildLog.txt'));
+assert(strcmp(marks{3}, 'done'), 'the build did not finish: see %s', fullfile(workFolder, 'buildLog.txt'));
 meshAfter = dir(fullfile(demoFiles.Folder, sprintf('vehicleMesh_%s.mat', vehicleID)));
 assert(isequal(meshBefore.datenum, meshAfter.datenum));   % (the vehicle's own mesh did not change)
 
@@ -148,6 +163,25 @@ assert(isempty(getappdata(groot, 'CarMesh3D_mainWindow')) || ~isvalid(getappdata
 fprintf(1,'TEST case: a copy''s working copy stays beside the copy\n');
 [~, window] = fcn_CarMesh3D_main(demoFiles.Folder, FlagVisible=false);
 assert(startsWith(window.WorkingFolder(), fullfile(testRoot, 'vehicle', 'Working')));
+window.Close();
+
+%% TEST case: the layout is remembered: the same viewers reopen, in their places, on any vehicle (Q115 (B))
+fprintf(1,'TEST case: the remembered layout\n');
+layoutFile = fullfile(testRoot, 'layout.mat');
+[~, window] = fcn_CarMesh3D_main(demoFiles.Folder, WorkingRoot=workingRoot, LayoutFile=layoutFile, FlagVisible=false);
+assert(isempty(window.Children()));   % (no layout yet: nothing reopens)
+window.View('Labels');
+window.View('Dimensions');
+openChildren = window.Children();
+assert(numel(openChildren) >= 2);
+openChildren(1).Figure.Position = [111 122 800 500];
+window.Close();
+loadedLayout = load(layoutFile, 'layout');
+assert(nnz([loadedLayout.layout.Open]) >= 2 && any(strcmp({loadedLayout.layout.Kind}, 'main')));
+[~, window] = fcn_CarMesh3D_main(demoFiles.Folder, WorkingRoot=workingRoot, LayoutFile=layoutFile, FlagVisible=false);
+reopened = window.Children();
+assert(numel(reopened) >= 2 && all(strcmp({reopened.Kind}, 'viewer')));
+assert(any(arrayfun(@(child) isequal(round(child.Figure.Position(1:2)), [111 122]), reopened)));
 window.Close();
 
 %% Clean up

@@ -895,7 +895,7 @@ end % Ends fcn_INTERNAL_rulePanel
 
 function message = fcn_INTERNAL_ruleTitle(painter)
 message = '';
-if ~contains(painter.Figure.Name, 'fcn_CarMesh3D_paintLabels')
+if ~contains(painter.Figure.Name, 'Paint Labels')   % (the title from the title bar's list, T99)
     message = sprintf('the window''s title is "%s"', painter.Figure.Name);
 end
 end % Ends fcn_INTERNAL_ruleTitle

@@ -183,6 +183,14 @@ function [answers, figureHandle] = fcn_CarMesh3D_reviewVehicle(vehicleInput, opt
 %   % * A small loading window while this window opens (Q99 (A), rule G43)
 %   % * It is closed once the window is built, whether or not the
 %   %   % function waits (it stayed open: T95 BUG, Sean 02:39)
+%
+% 2026_11_27 by Sean Brennan, sbrennan@psu.edu
+% - In fcn_CarMesh3D_reviewVehicle
+%   % * Saving keeps the answers to questions not in this run (a run of
+%   %   % one assessment, such as the main window's Validate Import, kept
+%   %   % the file to that one; Claude, before the gates were built)
+%   % * The window's name is its title ("V&V Review"), from the title bar
+%   %   % (T99)
 
 % TO-DO:
 %
@@ -422,7 +430,7 @@ loading.Close();   % (built: closed here, since the nested functions keep onClea
         vehicleIndex = index;
         vehicle = fcn_CarMesh3D_reviewInput(vehicleList{index}, FigNum=-1);
         setappdata(figureHandle, 'vvVehicleFolder', vehicle.Files.Folder);   % (one window per vehicle: Q71 (A))
-        figureHandle.Name = sprintf('fcn_CarMesh3D_reviewVehicle: %s', vehicle.Name);
+        % (the window's name is its title, from the title bar: T99)
         titleBar.SetSubtitle(vehicle.Name);
         folder = vehicle.Files.ChecksFolder;
         if ~isfolder(folder)
@@ -1010,7 +1018,23 @@ loading.Close();   % (built: closed here, since the nested functions keep onClea
     end
 
     function saveAnswers()
-        vvAnswers = answers; %#ok<NASGU>
+        % (answers to questions not in this run, such as a run of one
+        % assessment from the main window's gates, are kept: they are
+        % read from the file and saved again, unchanged)
+        vvAnswers = answers;
+        if isfile(reviewFile)
+            try
+                saved = load(reviewFile, 'vvAnswers');
+                if isfield(saved, 'vvAnswers') && ~isempty(saved.vvAnswers)
+                    flagOther = ~ismember(saved.vvAnswers.Assessment + "|" + saved.vvAnswers.Key, ...
+                        vvAnswers.Assessment + "|" + vvAnswers.Key);
+                    if any(flagOther)
+                        vvAnswers = [vvAnswers; saved.vvAnswers(flagOther, vvAnswers.Properties.VariableNames)];
+                    end
+                end
+            catch
+            end
+        end
         vvSummary = summary; %#ok<NASGU>
         reviewTable = fcn_INTERNAL_oldFormat(currentAnswers(), summary); %#ok<NASGU>
         names = {'vvAnswers', 'vvSummary', 'reviewTable'};

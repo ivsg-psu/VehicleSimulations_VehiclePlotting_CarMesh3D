@@ -52,20 +52,28 @@ Because it is the main interface, there are some slight differences in the way t
 
 The main interface is intentionally simple: it is a "pancake" menu where each item on the menu calls one of the helper children. One of the pancake options opens a settings panel for all GUIs; another lets the user save the results (Commit).
 
-The menu is the process, top to bottom, in the order agreed 2026-11-27 04:03 (import, first labels, directions, the parts worked out from them, full labels, L2F). Each step shows a mark: **done** (green check), **out of date** (orange: something before it changed), **not done** (gray circle), **cannot start yet** (greyed; the tooltip says why). The window's title bar names the vehicle, and a line under it says "Working model: 3 changes not committed" (or "No changes").
+**Do this, then check** (Q116 (B), Sean 2026-11-27 21:18 to 21:30, from the chart he approved). The window is a column of commands, each followed by its gate: a yes/no question with an automatic check and the person's answer (asked in the V&V window, kept with a fingerprint, so it goes out of date when its data changes). A Yes unlocks the next command; a No sends the user to the fix. The whole process points toward validation, not only toward a mesh that looks right. The V&V review at the end is the summary of every gate. Each row shows its gate's mark: **passed** (green check), **out of date** (orange), **not answered** (gray circle), **failed** (red cross), **cannot start yet** (greyed). The window's title bar names the vehicle, and the top bar says "Not committed: N file(s) changed" (or "No changes").
 
-| # | Menu item | Opens | Done when |
+| # | Do this (command) | Opens | Then check (gate question) | Automatic check | If No |
+|---|---|---|---|---|---|
+| 1 | **Choose a vehicle** | Select Vehicle (the browser; it lands on the current vehicle) | **Are lamps and glass labeled?** (Validate Import: `fcn_CarMesh3D_assess_lampsAndGlass`) | the import report's: lamps and glass told apart | **Mark lamps and glass** (the painter) |
+| 2 | **Turn faces outward** | Face Directions | **Do all faces point out?** | no red faces left; flips saved after the last label change | do it again |
+| 3 | **Build the mesh** | the vehicle's script, in the working copy | **Does the mesh match specs?** | the dimension checks pass; built after the last edit | do it again |
+| 4 | **Name each lamp** | the painter | **Does every lamp have a kind?** | every lamp face has a kind; the FMVSS 108 set present (Q106) | do it again |
+| 5 | **Wire the lamps** (to their signals) | Lamp Functions | **Is every lamp wired?** | every lamp has a row, with a source; no open review notes | do it again |
+| 6 | **Review all gates** | V&V Review | **Do you sign it off?** | every gate answered Yes | back to that gate |
+| 7 | **Save to the library** | (Commit) | | nothing left uncommitted | |
+
+**Each gate is one assessment function; the V&V window is the host** (Sean, 21:42 and 21:48). A gate's automatic check (`Mode='check'`), its picture and question (`Mode='draw'`), and when its answer goes stale (`Mode='fingerprint'`) all live in one V&V assessment function (`fcn_CarMesh3D_assess_*`), written like the others. A gate's Check button opens the V&V window hosting that one assessment; the answer is kept in the vehicle's review file with its fingerprint. The main window only routes: which assessment each gate needs, and when, and it reads the answers back to show the marks; it keeps no validation logic of its own. "Review all gates" is the V&V window with every gate's assessment in its list, so the summary and the gates cannot disagree.
+
+**Names** (Sean, 21:26 and 21:27; the three lines of each box, 21:40: title, description, function): every command is a verb, every gate a question; a window opened for a row is titled by the row ("Mark Lamps and Glass", "Validate Import"). The painter is one window used in two rows, titled by the row that opened it.
+
+**Viewers** (labels, dimensions, orientation, detail levels, outline) are not a row: looking finishes nothing. They open from a **View** button in the top bar, at any time, any number at once.
+
+**Built one transition at a time** (Sean, 21:20). Built so far: row 1's gate with its question and its fix; row 2 waits for it. The other rows show their automatic checks only, until their own transition is built. Q118 (open) decides what going back does to the later gates.
+
+| | Menu item | Opens | |
 |---|---|---|---|
-| 0 | **Vehicle...** | the browser (pick a vehicle, or start a new one from a download) | a vehicle is loaded |
-| 1 | **Import** | first look and the import report | the import report passes its gate |
-| 2 | **First labels** | the painter (lamps and glass apart from the body) | lamps and glass are told apart |
-| 3 | **Face directions** | the face-direction window | the face flips were saved after the last change to the labels |
-| 4 | **Build** | runs the vehicle's script (progress bar; log) | the mesh is built from the current edits |
-| 5 | **Full labels** | the painter (which lamp is which) | every lamp has a kind |
-| 6 | **Lamp functions (L2F)** | the lamp-functions window | every lamp has a row; no open review notes |
-| 7 | **Checks** | a submenu: labels, dimensions, orientation, detail levels, outline, motion; each pick opens a new viewer | (viewed; no mark of its own beyond the build's check results) |
-| 8 | **V&V review** | the V&V window | every assessment answered Yes, or No with a note |
-| 9 | **Commit** | puts the working model into the vehicle's folder | nothing left uncommitted |
 | | **Discard changes** | deletes the working model (asks first) | |
 | | **Save view...** | saves the window layout and settings (section 4, call 3) | |
 | | **Settings** | the settings panel for all windows: turn all views together globally (on), and the open windows each with its "Unlink this view" box; night view, colors, brush sizes, the vehicle to start with (the default, or the last used) ... | |
@@ -171,7 +179,7 @@ Key: as in `Documentation_CarMesh3D_template.md`.
 
 ### Question list
 
-(none)
+**Q118 (Claude to Sean).** When an earlier step changes after later gates passed (a label repainted after the build passed), what happens to the later gates? (A, recommended) They turn orange and lock again; only the step being fixed and the one right after it are open, and the rest unlock as the gates pass again in order. (B) They turn orange as a warning, but every button stays open.
 
 ## Change log
 
@@ -190,3 +198,6 @@ Key: as in `Documentation_CarMesh3D_template.md`.
 - 2026-11-27 16:26, Claude: the unlink merged with three details for Sean to confirm (unlinking frees the turning, since pan and zoom are never shared; relinking a window turns it to the group; where the boxes are).
 - 2026-11-27 16:25, Sean (chat): the three details accepted; "Review now" removed.
 - 2026-11-27 17:05, Claude: step 1 built: `fcn_CarMesh3D_main` (the steps and marks, the working copy with resume, set aside, Discard and Commit, one editor at a time, any number of viewers, the saved view) and `script_test_fcn_CarMesh3D_main` (passes hidden, on a demo copy of the Fit, with a build). Q111 (A): every vehicle script builds in a copy of its folder (3cb1128). Q112 (A): the lamp-functions window and V&V needed no new option: given the working copy's folder, they save there. Q113 (A): `script_demo_CarMesh3D` starts with option m, the main window, for students; every other option is marked FOR DEVELOPERS. Section 6 corrected: the working copy is the whole vehicle folder (its meshes too, for the viewers), not only the edit files.
+- 2026-11-27 21:01 to 21:30, Sean (T99 and chat): window titles match the buttons, from one list (the function's name stays on the Version line); "Turn all views together" had no control; then the layout rethought: actions on the left, validations on the right, bouncing from one to the other (Q116 (B): each gate is an automatic check plus a human question from the V&V assessments; a Yes unlocks the next action; V&V summarizes at the end); First labels is not a step of its own but the fix for the first gate; commands as verbs and gates as questions (Claude's pick, Sean 21:27); one transition at a time (21:20).
+- 2026-11-27 21:35, Claude: section 3 rewritten as the rows of commands and gates; Q118 posted.
+- 2026-11-27 21:42 to 21:48, Sean: the gates are calls to the V&V GUI, which hosts them; Claude's refinement accepted: each gate is entirely one assessment function, with a `Mode='check'` for its automatic half, and the main window only routes. Commands keep their description and function in their tooltips (21:37, 21:40).

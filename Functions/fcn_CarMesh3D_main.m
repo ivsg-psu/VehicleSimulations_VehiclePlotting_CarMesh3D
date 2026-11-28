@@ -13,21 +13,33 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 % working copy away. An unfinished working copy is offered for resuming
 % the next time the window opens.
 %
-% THE STEPS (each with a mark: done, out of date, not done, or greyed
-% when it cannot start yet):
-%       0 Vehicle...        the library browser
-%       1 Import            the import report (lamps and glass told apart?)
-%       2 First labels      the painter: lamps and glass apart from the body
-%       3 Face directions   the face-direction window
-%       4 Build             the vehicle's script, in the working copy
-%       5 Full labels       the painter: which lamp is which
-%       6 Lamp functions    the lamp-functions window (L2F)
-%       7 Checks            the viewers (any number at once)
-%       8 V&V review        the V&V window
-%       9 Commit            the working copy into the vehicle's folder
+% THE ROWS: do this, then check (Q116 (B), the chart of Sean 2026-11-27
+% 21:27). Each row is a command, and a gate: a question with an automatic
+% check and, where built, the person's answer (asked in the V&V window and
+% kept with a fingerprint, so it goes out of date when its data changes).
+% A Yes unlocks the next row; a No sends the user to the fix.
+%       Choose a vehicle          Are lamps and glass labeled?  (No: Mark lamps and glass)
+%       Turn faces outward        Do all faces point out?
+%       Build the mesh            Does the mesh match specs?
+%       Name each lamp            Does every lamp have a kind?
+%       Wire the lamps            Is every lamp wired?
+%       Review all gates          Do you sign it off?
+%       Save to the library       (Commit)
+% Built so far (one transition at a time): the first gate, with its
+% question (fcn_CarMesh3D_assess_lampsAndGlass); "Turn faces outward"
+% waits for it. The other gates show their automatic checks. Viewers (the
+% View button) open at any time, any number.
+%
 % Only one editing window (painter, face directions, lamp functions) is
 % open at a time; opening one closes the V&V window. Viewers may be open
 % in any number.
+%
+% THE LAYOUT IS REMEMBERED on this computer (Q115 (B), Sean 2026-11-27):
+% on closing, where the main window and each window it opened sit on the
+% screen (as fractions of the screen, so it scales), and which viewers were
+% open. On opening, on any vehicle, the main window goes back to its place
+% and the same viewers reopen in theirs; only the vehicle changes. Editors
+% and V&V open only when asked, in the place their kind had last.
 %
 % FORMAT:
 %
@@ -54,6 +66,10 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 %
 %      Vehicle: the vehicle, by name (same as vehicleInput).
 %
+%      LayoutFile: where the remembered layout is kept (tests). Default
+%      '': this computer's MATLAB preference (CarMesh3D, MainLayout) when
+%      the window is visible; none when hidden.
+%
 %      FlagWait: wait until the window is closed, then return. Default
 %      false.
 %
@@ -78,8 +94,10 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 %
 %      window: a structure of functions for scripts and tests: Figure;
 %      State, Press, Key, CheckLayout (fcn_CarMesh3D_guiDriver); Marks()
-%      (each step's mark: 'done', 'outOfDate', 'notDone', 'cannotStart' or
-%      ''); Step(number) (opens a step, as its button does); Build();
+%      (each row's gate: 'done', 'outOfDate', 'notDone', 'failed',
+%      'cannotStart' or ''); Step(row) (a row's command, as its button);
+%      Check(row) (its gate's question); Fix(row) (its If-No button);
+%      View(name) (a viewer: 'Labels', 'Dimensions' ...); Build();
 %      Commit(); Discard(); Changes() (the working copy's files that
 %      differ from the vehicle's); Children() (the open windows: Kind,
 %      Figure); WorkingFolder(); VehicleFolder(); Refresh(); Close().
@@ -121,6 +139,17 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 %   % * A copy of a vehicle (a demo copy) keeps its working copies beside
 %   %   % it, not in CarMesh3D\Working (Sean, 17:33: test on a temporary
 %   %   % copy until the window is confirmed)
+%   % * The layout remembered on this computer (Q115 (B)): the main
+%   %   % window's place, each window's place by kind, and the viewers
+%   %   % that were open, reopened on any vehicle; LayoutFile for tests
+%   % * The rows as commands and gates (Q116 (B), Sean's chart of 21:27):
+%   %   % the first gate built, "Are lamps and glass labeled?" (automatic
+%   %   % check and the person's answer); its fix, "Mark lamps and glass";
+%   %   % viewers moved to a View button; titles from the title bar
+%   %   % ("CarMesh3D"; each window by its row); the dead "Turn all views
+%   %   % together" line removed until its switch exists (T99)
+%   % * The browser lands on this window's vehicle; closing it with
+%   %   % nothing ticked keeps the vehicle (T99, Sean 19:31)
 %   % * A working copy with no changes is made fresh on opening, with
 %   %   % no question (Claude, before Sean's first look)
 
@@ -130,7 +159,7 @@ function [viewState, window] = fcn_CarMesh3D_main(vehicleInput, options)
 % - In fcn_CarMesh3D_main
 %   % * Step 2 of the plan: the children told of saves (viewers redraw),
 %   %   % views turning together with per-window Unlink, children blocked
-%   %   % on their own, windows restored from a view state
+%   %   % on their own
 %   % * "New from a download" in step 0
 
 arguments
@@ -140,6 +169,7 @@ arguments
     options.WorkingRoot = ''
     options.FlagWait = false
     options.FlagVisible = true
+    options.LayoutFile = ''
     options.FigNum = []
 end
 
@@ -280,20 +310,30 @@ end
 %%%% State
 children = struct('Kind', {}, 'Name', {}, 'Figure', {});   % (the windows opened from here)
 editorKinds = {'painter', 'faces', 'lampFunctions'};
-stepNames = {'Vehicle...', 'Import', 'First labels', 'Face directions', 'Build', 'Full labels', ...
-    'Lamp functions (L2F)', 'Checks', 'V&V review', 'Commit'};
-stepHelp = {'Pick a vehicle in the library (the browser).', ...
-    'The import report: are lamps and glass told apart? Where is the glass?', ...
-    'The painter: lamps and glass apart from the body, lamps under glass too.', ...
-    'Turn inside-out faces the right way (after the first labels).', ...
-    'Run the vehicle''s script in the working copy: fit, repairs, saved edits, levels, outline, checks.', ...
-    'The painter again: which lamp is which (headlamp, turn signal, marker ...).', ...
-    'Which signals light which lamp, and how brightly.', ...
-    'Viewers of the finished mesh (any number at once).', ...
-    'The human review that signs the vehicle off.', ...
-    'Put the working copy into the vehicle''s own folder.'};
+% The rows: a command (left), its gate's question (right), and what to do
+% if the answer is No (Q116 (B), the chart of Sean 2026-11-27 21:27)
+rowActions = {'Choose a vehicle', 'Turn faces outward', 'Build the mesh', 'Name each lamp', ...
+    'Wire the lamps', 'Review all gates', 'Save to the library'};
+% (each command's tooltip: its description, then the function it calls,
+% for debugging; Sean 21:37 and 21:40)
+rowActionHelp = {'In the browser. (fcn_CarMesh3D_browseLibrary)', ...
+    'Flip inside-out faces. (fcn_CarMesh3D_fixFaceDirections)', ...
+    'Run its script, in the working copy. (script_CarMesh3D_vehicle_<ID>)', ...
+    'Headlamp, turn signal, marker ... (fcn_CarMesh3D_paintLabels)', ...
+    'To their signals, each with a source. (fcn_CarMesh3D_editLampFunctions)', ...
+    'The V&V summary of every gate. (fcn_CarMesh3D_reviewVehicle)', ...
+    'Commit the vehicle: the working copy into its own folder. (fcn_CarMesh3D_main, Commit)'};
+rowQuestionHelp = {'Validate import. (fcn_CarMesh3D_importReport, fcn_CarMesh3D_assess_lampsAndGlass)', ...
+    'No red faces left. (fcn_CarMesh3D_outwardSides: to build)', 'Dimension checks pass. (the build''s checks: to build)', ...
+    'FMVSS 108 set present. (lamp kinds: to build)', 'Each with a source. (fcn_CarMesh3D_lampSources: to build)', ...
+    'Every gate answered Yes. (fcn_CarMesh3D_reviewVehicle)', ''};
+rowQuestions = {'Are lamps and glass labeled?', 'Do all faces point out?', 'Does the mesh match specs?', ...
+    'Does every lamp have a kind?', 'Is every lamp wired?', 'Do you sign it off?', ''};
+rowFix = {'Mark lamps and glass', '', '', '', '', '', ''};
 checkNames = {'Labels', 'Dimensions', 'Orientation', 'Detail levels', 'Outline'};
-marks = repmat({''}, 1, 10);
+marks = repmat({''}, 1, 10);      % (the checks behind the gates, one per old step)
+rowMarks = repmat({''}, 1, 7);    % (each row's gate: 'done', 'outOfDate', 'notDone', 'failed', 'cannotStart')
+gateOne = struct('Auto', false, 'Human', '', 'Mark', '', 'Text', '');
 
 %%%% The window: a title bar; a top bar (the menu, Commit, Discard, the
 %%%% status); the steps; a hint line
@@ -301,20 +341,26 @@ visibleText = 'on';
 if ~options.FlagVisible
     visibleText = 'off';
 end
-figureHandle = uifigure('Name', sprintf('fcn_CarMesh3D_main: %s', vehicleFiles.Name), 'Position', [60 80 760 720], ...
+figureHandle = uifigure('Name', 'CarMesh3D', 'Position', [60 80 900 640], ...
     'Visible', visibleText, 'Tag', 'mainWindow');
 setappdata(groot, 'CarMesh3D_mainWindow', figureHandle);
 contentPanel = fcn_CarMesh3D_addTitleBar(figureHandle, 'fcn_CarMesh3D_main', Subtitle=vehicleFiles.Name, FigNum=-1);
 rootGrid = uigridlayout(contentPanel, [4 1], 'RowHeight', {36, 24, '1x', 20}, 'Padding', [6 4 6 4], 'RowSpacing', 3);
-topGrid = uigridlayout(rootGrid, [1 5], 'ColumnWidth', {90, 90, 90, 90, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
+topGrid = uigridlayout(rootGrid, [1 7], 'ColumnWidth', {90, 90, 90, 90, 130, 70, '1x'}, 'Padding', [0 2 0 2], 'ColumnSpacing', 6);
 menuButton = uibutton(topGrid, 'Text', [char(9776) ' Menu'], 'FontWeight', 'bold', 'FontSize', 13, 'Tag', 'mainMenu', ...
     'Tooltip', 'Settings and Help (pick an open one again to close it)');
 uibutton(topGrid, 'Text', 'Commit', 'FontWeight', 'bold', 'BackgroundColor', [0.85 0.95 0.85], 'Tag', 'mainCommit', ...
-    'ButtonPushedFcn', @(~,~) commitWork(true), 'Tooltip', 'Put the working copy into the vehicle''s own folder (step 9).');
+    'ButtonPushedFcn', @(~,~) commitWork(true), 'Tooltip', 'Put the working copy into the vehicle''s own folder (Save to the library).');
 uibutton(topGrid, 'Text', 'Discard', 'Tag', 'mainDiscard', 'ButtonPushedFcn', @(~,~) discardWork(true), ...
     'Tooltip', 'Throw the working copy away and start again from the vehicle''s committed files (asks first).');
 uibutton(topGrid, 'Text', 'Save view', 'Tag', 'mainSaveView', 'ButtonPushedFcn', @(~,~) saveView(), ...
     'Tooltip', 'Save the open windows'' places and the settings, to open the same view later.');
+% (viewers: any number, at any step; looking finishes nothing, so they
+% are not a row)
+checksDropdown = uidropdown(topGrid, 'Items', checkNames, 'Value', 'Labels', 'Tag', 'mainChecksWhich', ...
+    'Tooltip', 'Which viewer the View button opens (each press opens a new one).');
+uibutton(topGrid, 'Text', 'View', 'Tag', 'mainView', 'ButtonPushedFcn', @(~,~) openViewer(checksDropdown.Value), ...
+    'Tooltip', 'Open a viewer of the working copy (any number at once).');
 statusLabel = uilabel(topGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 12, 'Tag', 'mainStatus');
 workLabel = uilabel(rootGrid, 'Text', '', 'Interpreter', 'html', 'FontSize', 11, 'Tag', 'mainWorking');
 bodyGrid = uigridlayout(rootGrid, [1 2], 'ColumnWidth', {0, '1x'}, 'Padding', [0 0 0 0], 'ColumnSpacing', 6);
@@ -323,44 +369,53 @@ panelMenu = fcn_CarMesh3D_makePanelMenu(menuButton, menuColumn, Resize=@(width) 
     Exit=@() closeWindow(), ExitTag='mainExit', FigNum=-1);
 settingsPanel = panelMenu.AddPanel('Settings', [0.93 0.95 1]);
 helpPanel = panelMenu.AddPanel('Help: the process', [0.95 0.95 0.95]);
-stepsPanel = uipanel(bodyGrid, 'Title', 'The steps, in order', 'FontWeight', 'bold', 'BackgroundColor', 'w');
+stepsPanel = uipanel(bodyGrid, 'Title', 'Do this, then check (each Yes unlocks the next row)', 'FontWeight', 'bold', 'BackgroundColor', 'w');
 hintLabel = uilabel(rootGrid, 'Text', '', 'Interpreter', 'html', 'FontColor', [0.35 0.35 0.35], 'Tag', 'mainHint');
 
-% The steps: a mark, a button, and a line of status for each
-stepsGrid = uigridlayout(stepsPanel, [10 3], 'RowHeight', repmat({34}, 1, 10), 'ColumnWidth', {28, 170, '1x'}, ...
-    'Padding', [8 8 8 8], 'RowSpacing', 6, 'Scrollable', 'on', 'BackgroundColor', 'w');
-markLabels = gobjects(1, 10);
-stepButtons = gobjects(1, 10);
-stepStatus = gobjects(1, 10);
-checksDropdown = [];
-for ith_step = 1:10
+% The rows: the gate's mark, the command, the gate (its question and
+% status), its Check button, and what to do if the answer is No
+stepsGrid = uigridlayout(stepsPanel, [8 5], 'RowHeight', [{18}, repmat({48}, 1, 7)], 'ColumnWidth', {28, 170, '1x', 70, 160}, ...
+    'Padding', [8 8 8 8], 'RowSpacing', 6, 'ColumnSpacing', 8, 'Scrollable', 'on', 'BackgroundColor', 'w');
+headerTexts = {'', 'Do this', 'Then check', '', 'If No'};
+for ith_header = 1:5
+    uilabel(stepsGrid, 'Text', headerTexts{ith_header}, 'FontWeight', 'bold', 'FontColor', [0.35 0.35 0.35]);
+end
+markLabels = gobjects(1, 7);
+stepButtons = gobjects(1, 7);
+stepStatus = gobjects(1, 7);
+checkButtons = gobjects(1, 7);
+fixButtons = gobjects(1, 7);
+for ith_step = 1:7
     markLabels(ith_step) = uilabel(stepsGrid, 'Text', '', 'FontSize', 18, 'HorizontalAlignment', 'center', ...
-        'Tag', sprintf('mainMark%d', ith_step - 1));
-    stepButtons(ith_step) = uibutton(stepsGrid, 'Text', sprintf('%d  %s', ith_step - 1, stepNames{ith_step}), ...
-        'HorizontalAlignment', 'left', 'Tag', sprintf('mainStep%d', ith_step - 1), 'Tooltip', stepHelp{ith_step}, ...
-        'ButtonPushedFcn', @(~,~) openStep(ith_step - 1));
-    if ith_step == 8
-        statusGrid = uigridlayout(stepsGrid, [1 2], 'ColumnWidth', {130, '1x'}, 'Padding', [0 0 0 0], 'BackgroundColor', 'w');
-        checksDropdown = uidropdown(statusGrid, 'Items', checkNames, 'Value', 'Labels', 'Tag', 'mainChecksWhich', ...
-            'Tooltip', 'Which viewer the Checks button opens (each press opens a new one).');
-        stepStatus(ith_step) = uilabel(statusGrid, 'Text', '', 'Interpreter', 'html', 'WordWrap', 'on');
+        'Tag', sprintf('mainMark%d', ith_step));
+    stepButtons(ith_step) = uibutton(stepsGrid, 'Text', rowActions{ith_step}, 'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'left', 'Tag', sprintf('mainStep%d', ith_step), 'Tooltip', rowActionHelp{ith_step}, ...
+        'ButtonPushedFcn', @(~,~) openStep(ith_step));
+    stepStatus(ith_step) = uilabel(stepsGrid, 'Text', '', 'Interpreter', 'html', 'WordWrap', 'on', ...
+        'Tag', sprintf('mainStatus%d', ith_step), 'Tooltip', rowQuestionHelp{ith_step});
+    checkButtons(ith_step) = uibutton(stepsGrid, 'Text', 'Check', 'Tag', sprintf('mainCheck%d', ith_step), ...
+        'ButtonPushedFcn', @(~,~) checkGate(ith_step), 'Visible', matlab.lang.OnOffSwitchState(ith_step == 1), ...
+        'Tooltip', sprintf('Answer the gate''s question: %s %s', rowQuestions{ith_step}, rowQuestionHelp{ith_step}));
+    if isempty(rowFix{ith_step})
+        fixButtons(ith_step) = uilabel(stepsGrid, 'Text', fcn_INTERNAL_pick(ith_step < 7, 'Do it again', ''), ...
+            'FontColor', [0.45 0.45 0.45]);
     else
-        stepStatus(ith_step) = uilabel(stepsGrid, 'Text', '', 'Interpreter', 'html', 'WordWrap', 'on', ...
-            'Tag', sprintf('mainStatus%d', ith_step - 1));
+        fixButtons(ith_step) = uibutton(stepsGrid, 'Text', rowFix{ith_step}, 'Tag', sprintf('mainFix%d', ith_step), ...
+            'ButtonPushedFcn', @(~,~) fixGate(ith_step), ...
+            'Tooltip', 'Mark the lamps and the glass apart from the body, then Check again. (fcn_CarMesh3D_paintLabels)');
     end
 end
 
 % Settings
-settingsGrid = uigridlayout(settingsPanel, [6 1], 'RowHeight', {22, 26, 22, 26, 40, '1x'}, 'Padding', [8 8 8 8], ...
+settingsGrid = uigridlayout(settingsPanel, [4 1], 'RowHeight', {22, 26, 40, '1x'}, 'Padding', [8 8 8 8], ...
     'RowSpacing', 4, 'Scrollable', 'on', 'BackgroundColor', [0.93 0.95 1]);
 uilabel(settingsGrid, 'Text', 'Start with which vehicle?', 'FontWeight', 'bold');
 startGroup = uibuttongroup(settingsGrid, 'BorderType', 'none', 'Tag', 'mainStartWith', 'BackgroundColor', [0.93 0.95 1], ...
     'SelectionChangedFcn', @(source, ~) setStartWith(source.SelectedObject.UserData));
 uiradiobutton(startGroup, 'Text', 'The default', 'UserData', 'default', 'Position', [4 2 110 20], 'Tag', 'mainStartWith_default');
 uiradiobutton(startGroup, 'Text', 'The last used', 'UserData', 'last', 'Position', [120 2 120 20], 'Tag', 'mainStartWith_last');
-uilabel(settingsGrid, 'Text', 'Turn all views together globally?', 'FontWeight', 'bold');
-uilabel(settingsGrid, 'Text', '(coming in the next build: views turning together, with Unlink per window)', ...
-    'FontAngle', 'italic', 'WordWrap', 'on');
+% (Turn all views together globally? comes back with its switch, in step 2
+% of the plan: T99, Sean 21:01, no line without a control)
 uilabel(settingsGrid, 'Text', sprintf('Working copies and saved views: %s', workingRoot), 'WordWrap', 'on', 'FontSize', 10);
 fcn_INTERNAL_selectStartWith(startGroup);
 
@@ -381,13 +436,14 @@ window = struct('Figure', figureHandle, ...
     'Press', @(varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'press', varargin{:}), ...
     'Key', @(key, varargin) fcn_CarMesh3D_guiDriver(figureHandle, 'key', key, varargin{:}), ...
     'CheckLayout', @() fcn_CarMesh3D_guiDriver(figureHandle, 'checkLayout'), ...
-    'Marks', @getMarks, 'Step', @openStep, 'Build', @() buildWork(), 'Commit', @() commitWork(false), ...
+    'Marks', @getMarks, 'Step', @openStep, 'Check', @checkGate, 'Fix', @fixGate, 'View', @openViewer, 'Build', @() buildWork(), 'Commit', @() commitWork(false), ...
     'Discard', @() discardWork(false), 'Changes', @changedFiles, 'Children', @getChildren, ...
     'WorkingFolder', @() workFolder, 'VehicleFolder', @() vehicleFiles.Folder, 'Refresh', @refresh, ...
     'SaveView', @saveView, 'Close', @closeWindow);
 figureHandle.UserData = window;
 viewState = [];
 loading.Close();
+applyLayout();
 
 if options.FlagWait && options.FlagVisible && isvalid(figureHandle)
     uiwait(figureHandle);
@@ -400,24 +456,38 @@ end
 
     %% The marks
     function refresh()
-        % Each step's mark and status, from the working copy's files
+        % Each row's gate, from the working copy's files (rule G40: the
+        % item's data is the truth)
         if ~isvalid(figureHandle)
             return;
         end
         dropClosed();
         [marks, texts] = fcn_INTERNAL_marks(workFolder, vehicleFiles, workFiles, changedFiles());
-        symbols = struct('done', {char(10004)}, 'outOfDate', {char(9888)}, 'notDone', {char(9675)}, 'cannotStart', {char(8856)});
-        colors = struct('done', [0.12 0.55 0.2], 'outOfDate', [0.85 0.45 0], 'notDone', [0.5 0.5 0.5], 'cannotStart', [0.7 0.7 0.7]);
-        for ith_mark = 1:10
-            if isempty(marks{ith_mark})
-                markLabels(ith_mark).Text = '';
+        gateOne = fcn_INTERNAL_gateOne(workFolder, workFiles, ~isnan(fcn_INTERNAL_time(workFiles.MeshFile)));
+        % (old step -> row: faces 4 -> 2, build 5 -> 3, lamp kinds 6 -> 4,
+        % lamp functions 7 -> 5, V&V 9 -> 6, commit 10 -> 7)
+        rowMarks = [{gateOne.Mark}, marks([4 5 6 7 9 10])];
+        rowTexts = [{gateOne.Text}, texts([4 5 6 7 9 10])];
+        symbols = struct('done', {char(10004)}, 'outOfDate', {char(9888)}, 'notDone', {char(9675)}, ...
+            'cannotStart', {char(8856)}, 'failed', {char(10008)});
+        colors = struct('done', [0.12 0.55 0.2], 'outOfDate', [0.85 0.45 0], 'notDone', [0.5 0.5 0.5], ...
+            'cannotStart', [0.7 0.7 0.7], 'failed', [0.75 0.1 0.1]);
+        for ith_row = 1:7
+            if isempty(rowMarks{ith_row})
+                markLabels(ith_row).Text = '';
             else
-                markLabels(ith_mark).Text = symbols.(marks{ith_mark});
-                markLabels(ith_mark).FontColor = colors.(marks{ith_mark});
+                markLabels(ith_row).Text = symbols.(rowMarks{ith_row});
+                markLabels(ith_row).FontColor = colors.(rowMarks{ith_row});
             end
-            stepButtons(ith_mark).Enable = matlab.lang.OnOffSwitchState(~strcmp(marks{ith_mark}, 'cannotStart'));
-            stepStatus(ith_mark).Text = texts{ith_mark};
+            stepButtons(ith_row).Enable = matlab.lang.OnOffSwitchState(~strcmp(rowMarks{ith_row}, 'cannotStart') && rowUnlocked(ith_row));
+            question = '';
+            if ~isempty(rowQuestions{ith_row})
+                question = sprintf('<b>%s</b><br>', rowQuestions{ith_row});
+            end
+            stepStatus(ith_row).Text = [question rowTexts{ith_row}];
         end
+        % (the fix: open until the gate passes)
+        fixButtons(1).Enable = matlab.lang.OnOffSwitchState(~strcmp(rowMarks{1}, 'done'));
         numChanged = numel(changedFiles());
         if numChanged == 0
             statusLabel.Text = 'No changes';
@@ -425,59 +495,75 @@ end
             statusLabel.Text = sprintf('<font color="#b05000"><b>Not committed:</b> %d file(s) changed</font>', numChanged);
         end
         workLabel.Text = sprintf('Working copy: %s', workFolder);
-        figureHandle.Name = sprintf('fcn_CarMesh3D_main: %s', vehicleFiles.Name);
+    end
+
+    function flagUnlocked = rowUnlocked(rowNumber)
+        % A row's command is open once the gate above it has passed (Q116
+        % (B)). Built so far: the first gate (row 2 waits for it); the
+        % other rows wait only for their inputs (Q118 decides the rest)
+        flagUnlocked = true;
+        if rowNumber == 2
+            flagUnlocked = strcmp(rowMarks{1}, 'done');
+        end
     end
 
     function marksOut = getMarks()
         refresh();
-        marksOut = marks;
+        marksOut = rowMarks;
     end
 
     function files = changedFiles()
         files = fcn_INTERNAL_changedFiles(workFolder, vehicleFiles.Folder);
     end
 
-    %% The steps
-    function openStep(stepNumber)
+    %% The rows
+    function openStep(rowNumber)
+        % A row's command
         refresh();
-        if strcmp(marks{stepNumber + 1}, 'cannotStart')
-            setHint(sprintf('%s cannot start yet: %s', stepNames{stepNumber + 1}, ...
-                regexprep(stepStatus(stepNumber + 1).Text, '<[^>]*>', '')));
+        if strcmp(rowMarks{rowNumber}, 'cannotStart') || ~rowUnlocked(rowNumber)
+            if ~rowUnlocked(rowNumber)
+                setHint(sprintf('"%s" opens once "%s" is answered Yes.', rowActions{rowNumber}, rowQuestions{rowNumber - 1}));
+            else
+                setHint(sprintf('"%s" cannot start yet: %s', rowActions{rowNumber}, regexprep(stepStatus(rowNumber).Text, '<[^>]*>', ' ')));
+            end
             return;
         end
-        switch stepNumber
-            case 0
-                pickVehicle();
+        switch rowNumber
             case 1
-                importReport();
-            case {2, 5}
-                openChild('painter', 'Painter', @() fcn_CarMesh3D_paintLabels(workFolder, FlagVisible=options.FlagVisible));
+                pickVehicle();
+            case 2
+                openChild('faces', 'Turn Faces Outward', @() fcn_CarMesh3D_fixFaceDirections(workFolder, FlagVisible=options.FlagVisible));
             case 3
-                openChild('faces', 'Face directions', @() fcn_CarMesh3D_fixFaceDirections(workFolder, FlagVisible=options.FlagVisible));
-            case 4
                 buildWork();
+            case 4
+                openChild('painter', 'Name Each Lamp', @() fcn_CarMesh3D_paintLabels(workFolder, FlagVisible=options.FlagVisible));
+            case 5
+                openChild('lampFunctions', 'Wire the Lamps', @() fcn_CarMesh3D_editLampFunctions(workFolder, FlagVisible=options.FlagVisible));
             case 6
-                openChild('lampFunctions', 'Lamp functions', @() fcn_CarMesh3D_editLampFunctions(workFolder, FlagVisible=options.FlagVisible));
+                openChild('review', 'V&V Review', @() fcn_CarMesh3D_reviewVehicle(workFolder, FlagVisible=options.FlagVisible));
             case 7
-                openViewer(checksDropdown.Value);
-            case 8
-                openChild('review', 'V&V', @() fcn_CarMesh3D_reviewVehicle(workFolder, FlagVisible=options.FlagVisible));
-            case 9
                 commitWork(true);
         end
         refresh();
     end
 
-    function importReport()
-        loaded = load(workFiles.MeshFile, 'vehicleMesh');
-        figureNumber = fcn_INTERNAL_freeFigure();
-        report = fcn_CarMesh3D_importReport(loaded.vehicleMesh, FigNum=figureNumber);
-        reportFigure = figure(figureNumber);
-        if ~options.FlagVisible
-            reportFigure.Visible = 'off';
+    function checkGate(rowNumber)
+        % A gate's question, asked in the V&V window (its answer is kept
+        % with a fingerprint of what it rested on)
+        if rowNumber ~= 1
+            return;
         end
-        children(end+1) = struct('Kind', 'viewer', 'Name', 'Import report', 'Figure', reportFigure);
-        setHint(sprintf('Import report: %s', report.GateText));
+        openChild('review', 'Validate Import', @() fcn_CarMesh3D_reviewVehicle(workFolder, ...
+            Assessments={@fcn_CarMesh3D_assess_lampsAndGlass}, FlagVisible=options.FlagVisible));
+        refresh();
+    end
+
+    function fixGate(rowNumber)
+        if rowNumber ~= 1
+            return;
+        end
+        openChild('painter', 'Mark Lamps and Glass', @() fcn_CarMesh3D_paintLabels(workFolder, FlagVisible=options.FlagVisible));
+        refresh();
     end
 
     function pickVehicle()
@@ -486,11 +572,18 @@ end
         if ~closeEditors(true, true)
             return;
         end
-        selected = fcn_CarMesh3D_browseLibrary(DefaultVehicle=vehicleID, FlagWait=options.FlagVisible, FlagVisible=options.FlagVisible);
+        % (the browser lands on this window's vehicle; T99, Sean 19:31)
+        selected = fcn_CarMesh3D_browseLibrary(Preview=vehicleID, DefaultVehicle=vehicleID, ...
+            FlagWait=options.FlagVisible, FlagVisible=options.FlagVisible);
         if isempty(selected)
             return;
         end
         newID = char(string(selected(1)));
+        if isfolder(newID)
+            % (nothing ticked: the browser returns a fresh demo copy of
+            % its default vehicle; the main window keeps its vehicle)
+            return;
+        end
         if strcmp(newID, vehicleID)
             return;
         end
@@ -554,6 +647,8 @@ end
         newFigures = newFigures(isvalid(newFigures) & ~strcmp(get(newFigures, 'Tag'), 'loadingWindow'));
         for ith_figure = 1:numel(newFigures)
             children(end+1) = struct('Kind', kind, 'Name', name, 'Figure', newFigures(ith_figure)); %#ok<AGROW>
+            placeChild(newFigures(ith_figure), kind, name);
+            fcn_INTERNAL_retitle(newFigures(ith_figure), name);
         end
         setHint(sprintf('%s opened on the working copy.', name));
     end
@@ -705,6 +800,111 @@ end
         dropClosed();
     end
 
+    %% The remembered layout (Q115 (B))
+    function layout = readLayout()
+        layout = struct('Kind', {}, 'Name', {}, 'Position', {}, 'Open', {});
+        try
+            if ~isempty(options.LayoutFile)
+                if isfile(options.LayoutFile)
+                    loadedLayout = load(options.LayoutFile, 'layout');
+                    layout = loadedLayout.layout;
+                end
+            elseif options.FlagVisible && ispref('CarMesh3D', 'MainLayout')
+                layout = getpref('CarMesh3D', 'MainLayout');
+            end
+        catch
+        end
+    end
+
+    function writeLayout(layout)
+        try
+            if ~isempty(options.LayoutFile)
+                save(options.LayoutFile, 'layout');
+            elseif options.FlagVisible   % (tests never change a shared preference)
+                setpref('CarMesh3D', 'MainLayout', layout);
+            end
+        catch
+        end
+    end
+
+    function layout = currentLayout()
+        % Where each window sits now; viewers marked open. A window's
+        % place is kept per kind and name, the n-th of its kind by order
+        dropClosed();
+        screen = get(groot, 'ScreenSize');
+        layout = readLayout();
+        if ~isempty(layout)
+            [layout.Open] = deal(false);
+        end
+        entries = [struct('Kind', 'main', 'Name', 'Main', 'Figure', figureHandle), children];
+        counts = containers.Map();
+        for ith_entry = 1:numel(entries)
+            key = sprintf('%s|%s', entries(ith_entry).Kind, entries(ith_entry).Name);
+            if isKey(counts, key)
+                counts(key) = counts(key) + 1;
+            else
+                counts(key) = 1;
+            end
+            name = entries(ith_entry).Name;
+            if counts(key) > 1
+                name = sprintf('%s #%d', name, counts(key));
+            end
+            position = fcn_INTERNAL_fraction(entries(ith_entry).Figure.Position, screen);
+            match = find(strcmp({layout.Kind}, entries(ith_entry).Kind) & strcmp({layout.Name}, name), 1);
+            if isempty(match)
+                match = numel(layout) + 1;
+            end
+            layout(match).Kind = entries(ith_entry).Kind;
+            layout(match).Name = name;
+            layout(match).Position = position;
+            layout(match).Open = strcmp(entries(ith_entry).Kind, 'viewer');
+        end
+    end
+
+    function placeChild(childFigure, kind, name)
+        % A new window goes where that kind (and name, and n-th) was last
+        layout = readLayout();
+        if isempty(layout)
+            return;
+        end
+        numSame = nnz(strcmp({children.Kind}, kind) & strcmp({children.Name}, name));
+        if numSame > 1
+            name = sprintf('%s #%d', name, numSame);
+        end
+        match = find(strcmp({layout.Kind}, kind) & strcmp({layout.Name}, name), 1);
+        if isempty(match)
+            match = find(strcmp({layout.Kind}, kind), 1);   % (the kind's last place)
+        end
+        if ~isempty(match)
+            childFigure.Position = fcn_INTERNAL_fromFraction(layout(match).Position, get(groot, 'ScreenSize'));
+        end
+    end
+
+    function applyLayout()
+        % The main window to its place, and the viewers open last time
+        % reopened in theirs, on this vehicle
+        layout = readLayout();
+        if isempty(layout)
+            return;
+        end
+        screen = get(groot, 'ScreenSize');
+        mainEntry = find(strcmp({layout.Kind}, 'main'), 1);
+        if ~isempty(mainEntry)
+            figureHandle.Position = fcn_INTERNAL_fromFraction(layout(mainEntry).Position, screen);
+        end
+        viewerNames = {layout(strcmp({layout.Kind}, 'viewer') & [layout.Open]).Name};
+        for ith_viewer = 1:numel(viewerNames)
+            baseName = regexprep(viewerNames{ith_viewer}, ' #\d+$', '');
+            if any(strcmp(baseName, checkNames)) && ~strcmp(marks{6}, 'cannotStart')
+                openViewer(baseName);
+            end
+        end
+        if ~isempty(viewerNames)
+            figure(figureHandle);
+            setHint(sprintf('The layout from last time: %d viewer(s) reopened on this vehicle.', numel(viewerNames)));
+        end
+    end
+
     %% The view state
     function state = lastViewState()
         state = getappdata(groot, 'CarMesh3D_mainLastView');
@@ -769,9 +969,11 @@ end
         if ~isvalid(figureHandle)
             return;
         end
+        layoutNow = currentLayout();   % (before any window closes)
         if ~closeEditors(true, true)
             return;
         end
+        writeLayout(layoutNow);
         saveView();
         closeViewers();
         if isequal(getappdata(groot, 'CarMesh3D_mainWindow'), figureHandle)
@@ -907,6 +1109,71 @@ else
     texts{10} = sprintf('%d file(s) not committed.', numel(changed));
 end
 end % Ends fcn_INTERNAL_marks
+
+%% fcn_INTERNAL_gateOne
+function gateOne = fcn_INTERNAL_gateOne(workFolder, workFiles, flagMesh)
+% The first gate, "Are lamps and glass labeled?". The gate is one
+% assessment function (Q116, Sean 2026-11-27 21:48: the main window only
+% routes): fcn_CarMesh3D_assess_lampsAndGlass gives the automatic half
+% (Mode='check') and the fingerprint the person's answer must match; the
+% answer is read from the vehicle's review file. It passes when both say
+% yes.
+gateOne = struct('Auto', false, 'Human', '', 'Mark', 'notDone', 'Text', '');
+if ~flagMesh
+    gateOne.Mark = 'cannotStart';
+    gateOne.Text = 'No mesh yet.';
+    return;
+end
+autoText = '';
+human = 'not answered yet (Check)';
+try
+    checked = fcn_CarMesh3D_assess_lampsAndGlass(workFolder, Mode='check');
+    gateOne.Auto = checked.Pass;
+    autoText = checked.CheckText;
+    reviewFile = fullfile(workFiles.ChecksFolder, sprintf('review_%s.mat', workFiles.ID));
+    if isfile(reviewFile)
+        saved = load(reviewFile, 'vvAnswers');
+        row = find(saved.vvAnswers.Key == "lampsAndGlass" & strlength(saved.vvAnswers.Answer) > 0, 1);
+        if ~isempty(row)
+            if strcmp(char(saved.vvAnswers.Fingerprint(row)), checked.Fingerprint)
+                gateOne.Human = char(saved.vvAnswers.Answer(row));
+                human = sprintf('you answered %s', gateOne.Human);
+            else
+                gateOne.Human = 'stale';
+                human = 'your answer is out of date: the labels changed since (Check again)';
+            end
+        end
+    end
+catch checkError
+    autoText = sprintf('the check could not run: %s', checkError.message);
+end
+autoWords = fcn_INTERNAL_pick(gateOne.Auto, 'Automatic check passed', 'Automatic check <font color="#b00000">not passed</font>');
+gateOne.Text = sprintf('%s; %s.', autoWords, human);
+if ~gateOne.Auto && ~isempty(autoText)
+    gateOne.Text = sprintf('%s (%s)', gateOne.Text, autoText);
+end
+if gateOne.Auto && strcmp(gateOne.Human, 'Yes')
+    gateOne.Mark = 'done';
+elseif strcmp(gateOne.Human, 'No') || (~gateOne.Auto && ~isempty(gateOne.Human))
+    gateOne.Mark = 'failed';
+elseif strcmp(gateOne.Human, 'stale')
+    gateOne.Mark = 'outOfDate';
+end
+end % Ends fcn_INTERNAL_gateOne
+
+%% fcn_INTERNAL_retitle
+function fcn_INTERNAL_retitle(childFigure, name)
+% A window opened for a row is titled by the row (the painter is "Mark
+% Lamps and Glass" or "Name Each Lamp"; the V&V window "Validate Import")
+try
+    childFigure.Name = name;
+    titleLabel = findall(childFigure, 'Tag', 'titleBarTitle');
+    if ~isempty(titleLabel)
+        titleLabel(1).Text = name;
+    end
+catch
+end
+end % Ends fcn_INTERNAL_retitle
 
 %% fcn_INTERNAL_gate
 function [flagGate, gateText] = fcn_INTERNAL_gate(meshFile, meshTime)
@@ -1078,6 +1345,15 @@ function fraction = fcn_INTERNAL_fraction(position, screen)
 % A window's place as fractions of the screen, so a view scales to another
 fraction = [(position(1) - screen(1))/screen(3), (position(2) - screen(2))/screen(4), position(3)/screen(3), position(4)/screen(4)];
 end % Ends fcn_INTERNAL_fraction
+
+%% fcn_INTERNAL_fromFraction
+function position = fcn_INTERNAL_fromFraction(fraction, screen)
+% A remembered place back in pixels on this screen, kept on the screen
+position = [screen(1) + fraction(1)*screen(3), screen(2) + fraction(2)*screen(4), fraction(3)*screen(3), fraction(4)*screen(4)];
+position(3:4) = max(position(3:4), [300 200]);
+position(1) = min(max(position(1), screen(1)), screen(1) + screen(3) - 100);
+position(2) = min(max(position(2), screen(2)), screen(2) + screen(4) - 100);
+end % Ends fcn_INTERNAL_fromFraction
 
 %% fcn_INTERNAL_freeFigure
 function figureNumber = fcn_INTERNAL_freeFigure()
